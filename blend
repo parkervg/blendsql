@@ -1,0 +1,1 @@
+python -m blendsql.blend-cli $1 --secrets_path=$2
