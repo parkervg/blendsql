@@ -1,0 +1,19 @@
+{
+    "max_val_samples": 200,
+    "overwrite_cache": true,
+    "overwrite_output_dir": true,
+    "use_bridge_encoder": true,
+    "prompt_and_pray_only": true,
+    "parser_model_name_or_path": "",
+    "prompt_and_pray_model_name_or_path": "gpt-4",
+    "run_name": "base",
+    "do_eval": true,
+    "do_predict": false,
+    "do_train": false,
+    "dataset": "hybridqa",
+    "source_prefix": "",
+    "schema_serialization_type": "code",
+    "normalize_query": true,
+    "output_dir": "./research/outputs/hybridqa-test/blendsql-ablation-test/gpt-4-pp-only",
+    "report_to": []
+}
