@@ -6,7 +6,7 @@
 </div>
 
 <div align="center">
-  <a href="https://lmql.ai">
+  <a>
     <img src="./img/logo_as_circle.png" alt="Logo" width="250" height="250">
   </a>
 
