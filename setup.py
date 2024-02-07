@@ -28,7 +28,8 @@ setup(
     url="https://github.com/parkervg/blendsql",
     author="Parker Glenn",
     author_email="parkervg5@gmail.com",
-    description="A scalable SQL dialect for problem decomposition and heterogenous question-answering with LLMs.",
+    description="Orchestrate SQLite logic and LLM reasoning within a unified dialect.",
+    long_description="BlendSQL is a scalable SQL dialect for problem decomposition and heterogenous question-answering with LLMs. It builds off of the syntax of SQLite to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.",
     license="Apache License 2.0",
     packages=find_packages(exclude=["examples", "research", "img"]),
     install_requires=[
