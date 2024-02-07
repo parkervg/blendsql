@@ -230,6 +230,7 @@ def get_sorted_grammar_matches(
         parse_results = remaining_parse_results
 
 
+
 def blend(
     query: str,
     db: SQLiteDBConnector,
@@ -241,6 +242,7 @@ def blend(
     silence_db_exec_errors: bool = True,
     # User shouldn't interact with below
     _prev_passed_values: int = 0,
+    _prev_cleanup_tables: Set[str] = None
 ) -> Smoothie:
     """Executes a BlendSQL query on a database given an ingredient context.
 
@@ -261,7 +263,7 @@ def blend(
     Returns:
         smoothie: Smoothie dataclass containing pd.DataFrame output and execution metadata
     """
-    cleanup_tables = set()
+    cleanup_tables = set() if _prev_cleanup_tables is None else _prev_cleanup_tables
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     try:
@@ -372,7 +374,7 @@ def blend(
                         _query=_query,
                         db=db,
                     )
-                    query = recover_blendsql(_query.sql())
+                    query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
                     cleanup_tables.add(tablename)
                 if abstracted_query is not None:
                     logging.debug(
@@ -396,7 +398,7 @@ def blend(
                 _query = set_subquery_to_alias(
                     subquery=aliased_subquery, aliasname=aliasname, _query=_query, db=db
                 )
-                query = recover_blendsql(_query.sql())
+                query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
                 cleanup_tables.add(aliasname)
             if prev_subquery_has_ingredient:
                 scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
@@ -484,6 +486,7 @@ def blend(
                             table_to_title=table_to_title,
                             verbose=verbose,
                             _prev_passed_values=_prev_passed_values,
+                            _prev_cleanup_tables=cleanup_tables
                         )
                         _prev_passed_values = _smoothie.meta.num_values_passed
                         subtable = _smoothie.df
@@ -680,4 +683,8 @@ def blend(
     except Exception as error:
         raise error
     finally:
-        delete_session_tables(db=db, cleanup_tables=cleanup_tables)
+        # In the case of a recursive `blend()` call,
+        #   this logic allows temp tables to persist until
+        #   the final base case is fulfilled.
+        if _prev_cleanup_tables is None:
+            delete_session_tables(db=db, cleanup_tables=cleanup_tables)
