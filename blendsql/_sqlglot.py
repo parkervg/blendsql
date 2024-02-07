@@ -445,8 +445,8 @@ class SubqueryContextManager:
                     if not any(x.name == alias.name for x in tablenodes):
                         tablenodes.add(exp.Table(this=exp.Identifier(this=alias.name)))
                     curr_alias_to_subquery = {alias.name: subquery_node.args["this"]}
-        if len(tablenodes) == 0:
-            raise sqlglot.errors.ParseError("No tables found in query!")
+        # if len(tablenodes) == 0:
+        #     raise sqlglot.errors.ParseError("No tables found in query!")
         for tablenode in tablenodes:
             # Check to be sure this is in the top-level `SELECT`
             if is_in_subquery(tablenode):
