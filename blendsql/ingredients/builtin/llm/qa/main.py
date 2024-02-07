@@ -31,6 +31,7 @@ class LLMQA(QAIngredient):
         if options is not None:
             try:
                 tablename, colname = get_tablename_colname(options)
+                tablename = kwargs.get("aliases_to_tablenames").get(tablename, tablename)
                 options = (
                     self.db.execute_query(f'SELECT "{colname}" FROM "{tablename}"')[
                         colname
