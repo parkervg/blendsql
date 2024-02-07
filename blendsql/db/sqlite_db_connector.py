@@ -167,4 +167,5 @@ def _create_clause(con, tablename) -> str:
         logging.debug(
             f"Expected create_clause size to be 1, got {create_clause.size}\n{create_clause}"
         )
+        return ""
     return create_clause.values[0][0]

@@ -26,10 +26,10 @@ def cls():
     os.system("cls" if os.name == "nt" else "clear")
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("db_path", nargs="?")
-    parser.add_argument("--secrets_path", default="./secrets.json")
+    parser.add_argument("secrets_path", nargs="?", default="./secrets.json")
     args = parser.parse_args()
 
     init_secrets(args.secrets_path)
@@ -56,7 +56,7 @@ if __name__ == "__main__":
                 ingredients={LLMQA, LLMMap, LLMJoin, DT},
                 overwrite_args={"endpoint": "gpt-4", "long_answer": False},
                 infer_map_constraints=True,
-                verbose=True
+                verbose=True,
             )
             print()
             print(
@@ -70,4 +70,3 @@ if __name__ == "__main__":
             print()
         except Exception as error:
             print(error)
-            pass
