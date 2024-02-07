@@ -4,7 +4,7 @@ from tabulate import tabulate
 
 from blendsql import blend, init_secrets
 from blendsql.db import SQLiteDBConnector
-from blendsql.ingredients.builtin import LLMQA, LLMMap, DT
+from blendsql.ingredients.builtin import LLMQA, LLMMap, LLMJoin, DT
 
 
 def print_msg_box(msg, indent=1, width=None, title=None):
@@ -49,16 +49,25 @@ if __name__ == "__main__":
             cls()
             print_msg_box("Beginning BlendSQL session...")
             continue
-        smoothie = blend(
-            query=text, db=db, ingredients={LLMQA, LLMMap, DT}, verbose=False
-        )
-        print()
-        print(
-            tabulate(
-                smoothie.df.iloc[:10],
-                headers="keys",
-                showindex="never",
-                tablefmt="orgtbl",
+        try:
+            smoothie = blend(
+                query=text,
+                db=db,
+                ingredients={LLMQA, LLMMap, LLMJoin, DT},
+                overwrite_args={"endpoint": "gpt-4", "long_answer": False},
+                infer_map_constraints=True,
+                verbose=True
             )
-        )
-        print()
+            print()
+            print(
+                tabulate(
+                    smoothie.df.iloc[:10],
+                    headers="keys",
+                    showindex="never",
+                    tablefmt="orgtbl",
+                )
+            )
+            print()
+        except Exception as error:
+            print(error)
+            pass
