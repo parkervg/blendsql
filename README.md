@@ -211,7 +211,7 @@ The below benchmarks were done on my local M1 Macbook Pro. by running the script
 
 <hr>
 
-For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./technical_walkthrough.md).
+For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
 
 ## Install
 ```
