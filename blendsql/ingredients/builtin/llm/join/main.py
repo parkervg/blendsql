@@ -39,6 +39,6 @@ class LLMJoin(JoinIngredient):
         result: dict = {}
         for item in _result:
             if CONST.DEFAULT_ANS_SEP in item:
-                k, v = item.split(CONST.DEFAULT_ANS_SEP)
+                k, v = item.rsplit(CONST.DEFAULT_ANS_SEP, 1)
                 result[k] = v
         return result
