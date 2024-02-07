@@ -39,30 +39,14 @@ For example, imagine we have the following table.
 BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
 The below examples work out of the box, but you are able to design your own ingredients as well! 
 
-*Show me some gifts appropriate for a child.*
+*What Italian restaurants have I been to in California?*
 ```sql
 SELECT DISTINCT description, merchant FROM transactions WHERE
-      {{LLMMap('would this gift be appropriate for a child?', 'transactions::description')}} = TRUE
-      AND child_category = 'Gifts'
-```
-
-*Ok, show me some gifts not appropriate for a child I bought in q2 this year*
-```sql
-SELECT DISTINCT description, merchant FROM transactions WHERE
-      {{LLMMap('would this gift be appropriate for a child?', 'transactions::description')}} = TRUE
-      AND {{DT('transactions::date', start='q2')}}
-      AND child_category = 'Gifts'
-```
-
-*Forget gifts, I'm hungry. What Italian restaurants have I been to in California?*
-```sql
-SELECT DISTINCT description, merchant FROM transactions WHERE
-   {{LLMMap('is this an italian restaurant?', 'transactions::merchant')}} = TRUE
+   {{LLMMap('Is this an italian restaurant?', 'transactions::merchant')}} = TRUE
    AND {{
        LLMMap(
-           'what state is this transaction from? Choose -1 when N.A.',
-           'transactions::description',
-           example_outputs='TX;CA;MA;-1;',
+           'What state is this transaction from?',
+           'transactions::description'
        )
    }} = 'CA'
    AND child_category = 'Restaurants & Dining'
@@ -72,7 +56,7 @@ SELECT DISTINCT description, merchant FROM transactions WHERE
 ```sql
 SELECT merchant FROM transactions
   WHERE {{
-      LLMQA('most likely to sell burgers?', 'transactions::merchant', options='transactions::merchant')
+      LLMQA('Most likely to sell burgers?', 'transactions::merchant', options='transactions::merchant')
   }} 
 ```
 
@@ -80,17 +64,138 @@ SELECT merchant FROM transactions
 ```sql
 {{
     LLMQA(
-        'Summarize my coffee spending in 10 words.', 
-        (SELECT * FROM transactions WHERE child_category = "Coffee")
+        'Summarize my coffee spending.', 
+        (SELECT * FROM transactions WHERE child_category = 'Coffee')
     )
 }}
 ```
 
+### More Examples 
+
+<p>
+<details>
+<summary> <b> <a href="https://hybridqa.github.io/" target="_blank"> HybridQA </a> </b> </summary>
+
+For this setting, our database contains 2 tables: a table from Wikipedia `w`, and a collection of unstructured Wikipedia articles in the table `docs`.
+
+*What is the state flower of the smallest state by area ?*
+```sql
+SELECT "common name" AS 'State Flower' FROM w 
+WHERE state = {{
+    LLMQA(
+        'Which is the smallest state by area?',
+        (SELECT title, content FROM docs),
+        options='w::state'
+    )
+}}
+```
+
+*Who were the builders of the mosque in Herat with fire temples ?*
+```sql
+{{
+    LLMQA(
+        'Name of the builders?',
+        (
+            SELECT title AS 'Building', content FROM docs
+                WHERE title = {{
+                    LLMQA(
+                        'Align the name to the correct title.',
+                        (SELECT name FROM w WHERE city = 'herat' AND remarks LIKE '%fire temple%'),
+                        options='docs::title'
+                    )
+                }}
+        ) 
+    )
+}}
+```
+
+*What is the capacity of the venue that was named in honor of Juan Antonio Samaranch in 2010 after his death ?*
+```sql
+SELECT capacity FROM w WHERE venue = {{
+    LLMQA(
+        'Which venue is named in honor of Juan Antonio Samaranch?',
+        (SELECT title AS 'Venue', content FROM docs),
+        options='w::venue'
+    )
+}}
+```    
+
+</details>
+</p>
+
+
+
+<p>
+<details>
+<summary> <b> <a href="https://fever.ai/dataset/feverous.html" target="_blank"> FEVEROUS </a> </b> </summary>
+
+Here, we deal not with questions, but truth claims given a context of unstructured and structured data.
+
+These claims should be judged as "SUPPORTS" or "REFUTES". Using BlendSQL, we can formulate this determination of truth as a function over facts. 
+
+*Oyedaea is part of the family Asteraceae in the order Asterales.*
+```sql
+SELECT EXISTS (
+    SELECT * FROM w0 WHERE attribute = 'family:' and value = 'asteraceae'
+) AND EXISTS (
+    SELECT * FROM w0 WHERE attribute = 'order:' and value = 'asterales'
+)
+```
+
+*The 2006-07 San Jose Sharks season, the 14th season of operation (13th season of play) for the National Hockey League (NHL) franchise, scored the most points in the Pacific Division.*
+```sql
+SELECT (
+    SELECT (
+        {{
+            LLMQA('Is the Sharks 2006-07 season the 14th season (13th season of play)?', 'docs::content', options='t;f')
+        }} 
+    ) = 't'
+)
+AND (
+  SELECT 
+      (
+          SELECT filledcolumnname FROM w0 ORDER BY pts DESC LIMIT 1
+      ) = 'san jose sharks'
+)
+```
+
+*Lindfield railway station has 3 bus routes, in which the first platform services routes to Emu plains via Central and Richmond and Hornbys via Strathfield.*
+```sql
+SELECT EXISTS (
+    SELECT * FROM w0 WHERE platform = 1 
+        AND {{
+            LLMMap(
+                'Does this service to Emu plains via Central and Richmond?', 
+                'w0::stopping pattern'
+            )
+        }} = TRUE
+    ) AND EXISTS (
+        SELECT * FROM w0 WHERE platform = 1 
+            AND {{
+                LLMMap(
+                    'Does this service to Hornbys via Strathfield?', 
+                    'w0::stopping pattern'
+                )
+            }} = TRUE
+    ) AND EXISTS (
+        SELECT * FROM docs 
+            WHERE {{
+                LLMMap(
+                    'How many bus routes operated by Transdev?', 
+                    'docs::content'
+                )
+            }} = 3
+    )
+```
+
+</details>
+</p>
+
 ### Features 
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses AST to minimize external function calls
-- Accelerated LLM calls and caching 🚀
-  - Enabled with [gptcache](https://github.com/zilliztech/GPTCache) via [guidance](https://github.com/guidance-ai/guidance)
+- Accelerated LLM calls, caching, and constrained decoding 🚀
+  - Enabled via [guidance](https://github.com/guidance-ai/guidance)
 - Easy logging of execution environment with `smoothie.save_recipe()` 🖥️
   - Enables reproducibility across machines
 
@@ -107,36 +212,25 @@ The below benchmarks were done on my local M1 Macbook Pro. by running the script
 <hr>
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./technical_walkthrough.md).
-## Setup
-### Prep Env
-To set up a `blendsql` conda environment, run the following command.
 
+## Install
 ```
-conda env create && conda activate blendsql && pre-commit install
+pip install blendsql
 ```
 
 ## Open Command Line BlendSQL Interpreter
 ```
-./blend {db_path}
+blendsql {db_path} {secrets_path}
 ```
 
 ![blend-cli](./img/blend_cli.png)
 
 
-
-### Run Examples
-`python -m examples.example`
-
-### Run Line Profiling 
-First uncomment `@profile` above `blend()` in `grammar.py`.
-Make sure you've run `pip install line_profiler` first. This installs the tool here: https://github.com/pyutils/line_profiler
-
-`PYTHONPATH=$PWD:$PYTHONPATH kernprof -lv examples/benchmarks/with_blendsql.py`
-
 ## Example Usage
 
 ```python
-from blendsql import blend, SQLiteDBConnector, init_secrets
+from blendsql import blend, init_secrets
+from blendsql.db import SQLiteDBConnector
 # Import our pre-built ingredients
 from blendsql.ingredients.builtin import LLMMap, LLMQA, DT
 
@@ -153,7 +247,7 @@ SELECT merchant FROM transactions WHERE
 smoothie = blend(
     query=blendsql,
     db=db,
-    ingredients={LLMMap, DT},
+    ingredients={LLMMap, LLMQA, DT},
     verbose=True
 )
 
@@ -168,6 +262,10 @@ smoothie = blend(
 Ingredients are at the core of a BlendSQL script. 
 
 They are callable functions that perform one the task paradigms defined in [ingredient.py](./blendsql/ingredients/ingredient.py).
+
+At their core, these are not a new concept. [User-defined functions (UDFs)](https://docs.databricks.com/en/udf/index.html), or [Application-Defined Functions in SQLite](https://www.sqlite.org/appfunc.html) have existed for quite some time. 
+
+However, ingredients in BlendSQL are intended to be optimized towards LLM-based functions, defining an order of operations for traversing the AST such that the minimal amount of data is passed into your expensive GPT-4/Llama 2/Mistral 7b/etc. prompt.
 
 Ingredient calls are denoted by wrapping them in double curly brackets, `{{ingredient}}`.
 
@@ -199,10 +297,19 @@ Handles the logic of ambiguous, non-intuitive `JOIN` clauses between tables.
 For example:
 ```sql
 SELECT Capitals.name, State.name FROM Capitals
-  {{
-    LLMJoin('Align state to capital', 'States::name', options='Capitals::name')
-  }}
+    JOIN {{
+        LLMJoin(
+            'Align state to capital', 
+            left_on='States::name', 
+            right_on='Capitals::name'
+        )
+    }}
 ```
+The above example hints at a database schema that would make [E.F Codd](https://en.wikipedia.org/wiki/Edgar_F._Codd) very angry: why do we have two separate tables `States` and `Capitals` with no foreign key to join the two?
+
+However, BlendSQL was built to interact with tables "in-the-wild", and many (such as those on Wikipedia) do not have these convenient properties of well-designed relational models.
+
+For this reason, we can leverage the internal knowledge of a pre-trained LLM to do the `JOIN` operation for us.
 
 ### `QAIngredient`
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
@@ -291,19 +398,19 @@ Perhaps we want the answer to the above question in a different format. We can c
 Running the above BlendSQL query, we get the output `two consecutive days!`.
 
 This `options` argument can also be a reference to a given column.
-These options will be restricted to only the values exposed via the subquery (2nd arg in `LLMQA`).
-> [!WARNING]
-> This was changed to accommodate the HybridQA dataset.
-> For example: 
-> ```sql 
-> SELECT capacity FROM w WHERE venue = {{
->        LLMQA(
->            'Which venue is named in honor of Juan Antonio Samaranch?',
->            (SELECT title, content FROM docs WHERE content LIKE '%venue%'),
->            options='w::venue'
->        )
->}}
 
+For example (from the [HybridQA dataset](https://hybridqa.github.io/)): 
+```sql 
+ SELECT capacity FROM w WHERE venue = {{
+        LLMQA(
+            'Which venue is named in honor of Juan Antonio Samaranch?',
+            (SELECT title, content FROM docs WHERE content LIKE '%venue%'),
+            options='w::venue'
+        )
+}}
+```
+
+Or, from our running example:
 ```sql
 {{
   LLMQA(
@@ -368,115 +475,11 @@ def blend(*args, **kwargs) -> Smoothie:
   ... 
 ```
 
-## Example Appendix
 
-### HybridQA 
-For this setting, we database containing 2 tables: a table from Wikipedia `w`, and a collection of unstructured Wikipedia articles in the table `docs`.
+### Appendix 
 
-#### 'What is the state flower of the smallest state by area ?'
-```sql
-SELECT "common name" AS 'State Flower' FROM w 
-WHERE state = {{
-    LLMQA(
-        'Which is the smallest state by area?',
-        (SELECT title, content FROM docs),
-        options='w::state'
-    )
-}}
-```
+#### Run Line Profiling 
+First uncomment `@profile` above `blend()` in `grammar.py`.
+Make sure you've run `pip install line_profiler` first. This installs the tool here: https://github.com/pyutils/line_profiler
 
-#### 'Who were the builders of the mosque in Herat with fire temples ?'
-```sql
-{{
-    LLMQA(
-        'Name of the builders?',
-        (
-            SELECT title AS 'Building', content FROM docs
-                WHERE title = {{
-                    LLMQA(
-                        'Align the name to the correct title.',
-                        (SELECT name FROM w WHERE city = 'herat' AND remarks LIKE '%fire temple%'),
-                        options='docs::title'
-                    )
-                }}
-        ) 
-    )
-}}
-```
-
-#### 'What is the capacity of the venue that was named in honor of Juan Antonio Samaranch in 2010 after his death ?'
-```sql
-SELECT capacity FROM w WHERE venue = {{
-    LLMQA(
-        'Which venue is named in honor of Juan Antonio Samaranch?',
-        (SELECT title AS 'Venue', content FROM docs),
-        options='w::venue'
-    )
-}}
-```
-
-### FEVEROUS
-Here, we deal not with questions, but truth claims given a context of unstructured and structured data.
-
-These claims should be judged as "SUPPORTS" or "REFUTES". Using BlendSQL, we can formulate this determination of truth as a function over facts. 
-
-#### 'Oyedaea is part of the family Asteraceae in the order Asterales.'
-```sql
-SELECT CASE WHEN
-    EXISTS (
-        SELECT * FROM w0 WHERE attribute = 'family:' and value = 'asteraceae'
-    ) AND EXISTS (
-        SELECT * FROM w0 WHERE attribute = 'order:' and value = 'asterales'
-    )
-THEN 'SUPPORTS' ELSE 'REFUTES' END
-```
-
-#### 'The 2006-07 San Jose Sharks season, the 14th season of operation (13th season of play) for the National Hockey League (NHL) franchise, scored the most points in the Pacific Division.'
-```sql
-SELECT CASE WHEN 
-    (
-        SELECT (
-            {{
-                LLMQA('Is the Sharks 2006-07 season the 14th season (13th season of play)?', 'docs::content', options='t;f')
-            }} 
-        ) = 't'
-    )
-    AND (
-        SELECT 
-            (
-                SELECT filledcolumnname FROM w0 ORDER BY pts DESC LIMIT 1
-            ) = 'san jose sharks'
-        )
-THEN 'SUPPORTS' ELSE 'REFUTES' END
-```
-
-#### 'Lindfield railway station has 3 bus routes, in which the first platform services routes to Emu plains via Central and Richmond and Hornbys via Strathfield.'
-```sql
-SELECT CASE WHEN 
-    EXISTS (
-        SELECT * FROM w0 WHERE platform = 1 
-            AND {{
-                LLMMap(
-                    'Does this service to Emu plains via Central and Richmond?', 
-                    'w0::stopping pattern'
-                )
-            }} = TRUE
-    ) AND EXISTS (
-        SELECT * FROM w0 WHERE platform = 1 
-            AND {{
-                LLMMap(
-                    'Does this service to Hornbys via Strathfield?', 
-                    'w0::stopping pattern'
-                )
-            }} = TRUE
-    ) AND EXISTS (
-        SELECT * FROM docs 
-            WHERE {{
-                LLMMap(
-                    'How many bus routes operated by Transdev?', 
-                    'docs::content'
-                )
-            }} = 3
-    )
-THEN 'SUPPORTS' ELSE 'REFUTES' END
-```
+`PYTHONPATH=$PWD:$PYTHONPATH kernprof -lv examples/benchmarks/with_blendsql.py`
