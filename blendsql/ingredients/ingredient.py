@@ -308,6 +308,8 @@ class QAIngredient(Ingredient):
                 raise ValueError(
                     f"Unknown type for `identifier` arg in QAIngredient: {type(context)}"
                 )
+            if subtable.empty:
+                raise IngredientException("Empty subtable passed to QAIngredient!")
             kwargs["subtable"] = subtable
         kwargs[MAIN_INGREDIENT_KWARG] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
