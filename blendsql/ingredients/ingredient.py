@@ -113,7 +113,10 @@ class MapIngredient(Ingredient):
         # Need to be sure the new column doesn't already exist here
         new_arg_column = (
             f"___{question}"
-            if question in set(self.db.iter_columns(tablename))
+            if (
+                question in set(self.db.iter_columns(tablename))
+                or question in kwargs.get("prev_subquery_map_columns")
+            )
             else question
         )
 

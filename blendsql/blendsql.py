@@ -230,7 +230,6 @@ def get_sorted_grammar_matches(
         parse_results = remaining_parse_results
 
 
-
 def blend(
     query: str,
     db: SQLiteDBConnector,
@@ -242,7 +241,7 @@ def blend(
     silence_db_exec_errors: bool = True,
     # User shouldn't interact with below
     _prev_passed_values: int = 0,
-    _prev_cleanup_tables: Set[str] = None
+    _prev_cleanup_tables: Set[str] = None,
 ) -> Smoothie:
     """Executes a BlendSQL query on a database given an ingredient context.
 
@@ -330,6 +329,7 @@ def blend(
             # # Only cache executed_ingredients within the same subquery
             # The same ingredient may have different results within a different subquery context
             executed_subquery_ingredients: Set[str] = set()
+            prev_subquery_map_columns = set()
             _get_temp_subquery_table = partial(
                 get_temp_subquery_table, session_uuid, subquery_idx
             )
@@ -360,7 +360,6 @@ def blend(
                 ),  # Need to do this so we don't track parents into construct_abstracted_selects
                 prev_subquery_has_ingredient=prev_subquery_has_ingredient,
             )
-
             for tablename, abstracted_query in scm.abstracted_table_selects():
                 aliased_subquery = scm.alias_to_subquery.pop(tablename, None)
                 if aliased_subquery is not None:
@@ -485,7 +484,7 @@ def blend(
                             table_to_title=table_to_title,
                             verbose=verbose,
                             _prev_passed_values=_prev_passed_values,
-                            _prev_cleanup_tables=cleanup_tables
+                            _prev_cleanup_tables=cleanup_tables,
                         )
                         _prev_passed_values = _smoothie.meta.num_values_passed
                         subtable = _smoothie.df
@@ -500,6 +499,7 @@ def blend(
                         "get_temp_subquery_table": _get_temp_subquery_table,
                         "get_temp_session_table": _get_temp_session_table,
                         "aliases_to_tablenames": scm.alias_to_tablename,
+                        "prev_subquery_map_columns": prev_subquery_map_columns,
                     },
                 )
                 # Check how to handle output, depending on ingredient type
@@ -508,6 +508,7 @@ def blend(
                     #   (new_col, which is the question we asked)
                     #  But also update our underlying table, so we can execute correctly at the end
                     (new_col, tablename, colname, new_table) = function_out
+                    prev_subquery_map_columns.add(new_col)
                     non_null_subset = new_table[new_table[new_col].notnull()]
                     # These are just for logging + debugging purposes
                     example_map_outputs.append(
