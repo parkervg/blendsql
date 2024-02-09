@@ -103,31 +103,11 @@ def hybridqa_get_input(
     if data_training_args.use_bridge_encoder:
         bridge_hints = []
         column_str_with_values = "{table}.{column} ( {values} )"
-        doc_with_values = (
-            "Sentence from `SELECT content FROM docs WHERE title = '{title}'`: '{sent}'"
-        )
         value_sep = " , "
         for table_name in db.iter_tables():
             if re.search(r"^{}_".format(CONST.DOCS_TABLE_NAME), table_name):
                 continue
             for column_name in db.iter_columns(table_name):
-                # if (
-                #     data_training_args.include_doc_bridge_hints
-                #     and table_name == "docs"
-                #     and column_name == "content"
-                # ):
-                #     matches = get_database_matches_docs(
-                #         question=question,
-                #         table_name=table_name,
-                #         column_name=column_name,
-                #         db_path=db_path,
-                #     )
-                #     if matches:
-                #         for title, sent in matches:
-                #             bridge_hints.append(
-                #                 doc_with_values.format(title=title, sent=sent)
-                #             )
-                # else:
                 matches = get_database_matches(
                     question=question,
                     table_name=table_name,
