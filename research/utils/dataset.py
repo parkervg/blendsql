@@ -1,13 +1,11 @@
 import os
 import random
-import re
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 from pathlib import Path
 
 from datasets.arrow_dataset import Dataset
 from datasets.dataset_dict import DatasetDict
-from sql_metadata import Parser
 from transformers.training_args import TrainingArguments
 
 from .bridge_content_encoder import get_database_matches
@@ -356,77 +354,6 @@ def prepare_splits(
         eval_split=eval_split,
         test_split=test_split,
     )
-
-
-def normalize(sql):
-    """
-    https://github.com/RUCKBReasoning/RESDSQL
-    preprocessing.py
-    """
-
-    def white_space_fix(s):
-        parsed_s = Parser(s)
-        s = " ".join([token.value for token in parsed_s.tokens])
-
-        return s
-
-    # convert everything except text between single quotation marks to lower case
-    def lower(s):
-        in_quotation = False
-        out_s = ""
-        for char in s:
-            if in_quotation:
-                out_s += char
-            else:
-                out_s += char.lower()
-
-            if char == "'":
-                if in_quotation:
-                    in_quotation = False
-                else:
-                    in_quotation = True
-
-        return out_s
-
-    # remove ";"
-    def remove_semicolon(s):
-        if s.endswith(";"):
-            s = s[:-1]
-        return s
-
-    # double quotation -> single quotation
-    def double2single(s):
-        return s.replace('"', "'")
-
-    def add_asc(s):
-        pattern = re.compile(
-            r"order by (?:\w+ \( \S+ \)|\w+\.\w+|\w+)(?: (?:\+|\-|\<|\<\=|\>|\>\=) (?:\w+ \( \S+ \)|\w+\.\w+|\w+))*"
-        )
-        if "order by" in s and "asc" not in s and "desc" not in s:
-            for p_str in pattern.findall(s):
-                s = s.replace(p_str, p_str + " asc")
-
-        return s
-
-    def remove_table_alias(s):
-        tables_aliases = Parser(s).tables_aliases
-        new_tables_aliases = {}
-        for i in range(1, 11):
-            if "t{}".format(i) in tables_aliases.keys():
-                new_tables_aliases["t{}".format(i)] = tables_aliases["t{}".format(i)]
-
-        tables_aliases = new_tables_aliases
-        for k, v in tables_aliases.items():
-            s = s.replace("as " + k + " ", "")
-            s = s.replace(k, v)
-
-        return s
-
-    processing_func = lambda x: remove_table_alias(
-        add_asc(lower(white_space_fix(double2single(remove_semicolon(x)))))
-    )
-
-    return processing_func(sql)
 
 
 def serialize_schema(
