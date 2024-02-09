@@ -1,3 +1,7 @@
+import warnings
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
 import json
 import os
 import sqlite3
@@ -9,6 +13,7 @@ from typing import Dict, List
 
 import datasets
 from wikiextractor.extract import Extractor, ignoreTag, resetIgnoredTags
+from research.constants import EvalField
 
 _CITATION = """\
 @article{aly2021feverous,
@@ -134,7 +139,17 @@ def format_nested_table_json(table_json: dict):
             for _idx in range(spans[_pos][1]):
                 to_add_queue.append(values[_pos])
         naive_df_data.append(row_entry)
-    naive_df = pd.DataFrame(naive_df_data)
+    naive_df = pd.DataFrame(naive_df_data).T
+    naive_df = naive_df.replace("", np.nan)
+    naive_df = naive_df.ffill()
+    naive_df = naive_df.fillna("")
+    if len(naive_df.columns) == 2:
+        naive_df.columns = ["attribute", "value"]
+        return (tablename, naive_df)
+    try:
+        return (tablename, set_first_row_as_header(naive_df))
+    except:
+        return (tablename, naive_df)
 
     # Simplest case: if less than 3 cells span multiple indices
     # But, if it has only 2 columns, use 'attribute', 'value' formatting
@@ -337,8 +352,8 @@ class FEVEROUS(datasets.GeneratorBasedBuilder):
             description=_DESCRIPTION,
             features=datasets.Features(
                 {
-                    "id": datasets.Value("string"),
-                    "statement": datasets.Value("string"),
+                    EvalField.UID: datasets.Value("string"),
+                    EvalField.QUESTION: datasets.Value("string"),
                     "table": datasets.features.Sequence(
                         {
                             "header": datasets.features.Sequence(
@@ -356,7 +371,7 @@ class FEVEROUS(datasets.GeneratorBasedBuilder):
                             "content": datasets.Value("string"),
                         }
                     ),
-                    "label": datasets.Value("string"),
+                    EvalField.GOLD_ANSWER: datasets.Value("string"),
                 }
             ),
             supervised_keys=None,
@@ -405,9 +420,9 @@ class FEVEROUS(datasets.GeneratorBasedBuilder):
                     tables, contexts = retrieve_context(example, cur)
                     count += 1
                     yield count, {
-                        "id": str(example["id"]),
-                        "statement": statement,
+                        EvalField.UID: str(example["id"]),
+                        EvalField.QUESTION: statement,
                         "table": tables,
                         "context": contexts,
-                        "label": label,
+                        EvalField.GOLD_ANSWER: label,
                     }

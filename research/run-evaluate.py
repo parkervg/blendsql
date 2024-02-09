@@ -48,7 +48,7 @@ from blendsql._grammar import grammar
 from research.utils.dataset import DataArguments, DataTrainingArguments
 from research.utils.dataset_loader import load_dataset
 from research.utils.args import ModelArguments
-from research.constants import SINGLE_TABLE_NAME
+from research.constants import SINGLE_TABLE_NAME, EvalField
 from research.prompts import programs
 
 
@@ -225,9 +225,9 @@ class BlendSQLEvaluation:
             "idx": None,
             "input_program_args": None,
             "db_path": None,
-            "pred_sql": None,
+            EvalField.PRED_BLENDSQL: None,
             "num_few_shot_examples": None,
-            "pred_text": None,
+            EvalField.PREDICTION: None,
             "answer_text": None,
             "solver": None,
             "error": None,
@@ -249,9 +249,11 @@ class BlendSQLEvaluation:
                     json.dump(self.results, f, indent=4, cls=NpEncoder)
             self.results_dict = self._init_results_dict()
             _item = copy.deepcopy(item)
-            self.results_dict["id"] = _item.pop("id")
-            self.results_dict["answer_text"] = _item.pop("answer_text")
-            self.results_dict["question"] = _item.pop("question")
+            for v in EvalField:
+                if v.value in _item:
+                    self.results_dict[v.value] = _item.pop(v.value)
+            # self.results_dict[EvalField.GOLD_ANSWER] = _item.pop("answer_text")
+            # self.results_dict["question"] = _item.pop("question")
             self.results_dict["dataset_vars"] = {
                 k: v
                 for k, v in _item.items()
@@ -271,9 +273,9 @@ class BlendSQLEvaluation:
             self.results_dict["num_few_shot_examples"] = len(
                 item["input_program_args"]["examples"]
             )
-            self.results_dict["db_path"] = item["db_path"]
+            self.results_dict[EvalField.DB_PATH] = item[EvalField.DB_PATH]
             if self.db is None:
-                db = SQLiteDBConnector(item["db_path"])
+                db = SQLiteDBConnector(item[EvalField.DB_PATH])
             else:
                 db = self.db
             if not self.data_training_args.bypass_models:
@@ -297,12 +299,16 @@ class BlendSQLEvaluation:
             self.results.append(self.results_dict)
             # Log predictions to console
             print()
-            print(Fore.MAGENTA + item["question"] + Fore.RESET)
-            if self.results_dict["pred_sql"] is not None:
-                print(Fore.CYAN + self.results_dict["pred_sql"] + Fore.RESET)
-            print(Fore.MAGENTA + f"ANSWER: '{self.results_dict['answer_text']}'")
-            if self.results_dict["pred_text"] is not None:
-                print(Fore.CYAN + self.results_dict["pred_text"] + Fore.RESET)
+            print(Fore.MAGENTA + item[EvalField.QUESTION] + Fore.RESET)
+            if self.results_dict[EvalField.PRED_BLENDSQL] is not None:
+                print(
+                    Fore.CYAN + self.results_dict[EvalField.PRED_BLENDSQL] + Fore.RESET
+                )
+            print(
+                Fore.MAGENTA + f"ANSWER: '{self.results_dict[EvalField.GOLD_ANSWER]}'"
+            )
+            if self.results_dict[EvalField.PREDICTION] is not None:
+                print(Fore.CYAN + self.results_dict[EvalField.PREDICTION] + Fore.RESET)
             print()
         with open(self.output_dir / "predictions.json", "w") as f:
             json.dump(self.results, f, indent=4, cls=NpEncoder)
@@ -315,16 +321,16 @@ class BlendSQLEvaluation:
                 question=item["input_program_args"]["question"],
                 serialized_db=entire_serialized_db,
             )
-            final_str_pred: str = res.get("result", "")
-            to_add["pred_text"] = final_str_pred
+            final_str_pred: str = [res.get("result", "")]
+            to_add[EvalField.PREDICTION] = final_str_pred
             self.results_dict = self.results_dict | to_add
         except Exception as error:
             print(Fore.RED + "Error in get_prompt_and_pray prediction" + Fore.RESET)
             print(Fore.RED + str(error) + Fore.RESET)
             self.results_dict = self.results_dict | to_add
-            return ""
+            return [""]
 
-    def _get_blendsql_prediction(self, item: dict, db: SQLiteDBConnector):
+    def _get_blendsql_prediction(self, item: dict, db: SQLiteDBConnector) -> List[str]:
         to_add = {"solver": "blendsql"}
         try:
             blendsql = fewshot_parse_to_blendsql(
@@ -337,7 +343,7 @@ class BlendSQLEvaluation:
                 db=db,
                 use_tables=item["input_program_args"].get("use_tables", None),
             )
-            to_add["pred_sql"] = blendsql
+            to_add[EvalField.PRED_BLENDSQL] = blendsql
             res: Smoothie = blend(
                 query=blendsql,
                 db=db,
@@ -360,29 +366,23 @@ class BlendSQLEvaluation:
             self.num_with_ingredients += pred_has_ingredient
             to_add["pred_has_ingredient"] = pred_has_ingredient
             to_add["example_map_outputs"] = res.meta.example_map_outputs
-            _pred = [i for i in res.df.values.flat if i is not None]
-            if len(_pred) < 1:
-                final_str_pred = ""
-            else:
-                final_str_pred = str(_pred[0])
-            to_add["pred_text"] = final_str_pred
+            prediction = [i for i in res.df.values.flat if i is not None]
+            to_add[EvalField.PREDICTION] = prediction
             self.results_dict = self.results_dict | to_add
-            return final_str_pred
+            return prediction
         except Exception as error:
             print(Fore.RED + "Error in get_blendsql prediction" + Fore.RESET)
             print(Fore.RED + str(error) + Fore.RESET)
             self.results_dict = self.results_dict | to_add
             self.results_dict["error"] = str(error)
-            return ""
+            return [""]
 
     def save_metrics(self, metric: Metric, metric_format_func: Callable):
         # Finally, read from predictions.json and calculate metrics
         with open(self.output_dir / "predictions.json", "r") as f:
             predictions = json.load(f)
         for item in predictions:
-            metric.add(
-                **metric_format_func(item | item["dataset_vars"], [item["pred_text"]])
-            )
+            metric.add(**metric_format_func(item | item["dataset_vars"]))
         with open(self.output_dir / "metrics.json", "w") as f:
             json.dump(
                 {

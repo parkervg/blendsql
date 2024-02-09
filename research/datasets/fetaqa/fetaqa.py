@@ -16,8 +16,9 @@
 """FeTaQA, a Free-form Table Question Answering dataset"""
 import os
 import json
-
 import datasets
+
+from research.constants import EvalField
 
 # Find for instance the citation on arxiv or on the dataset repo/website
 _CITATION = """\
@@ -66,8 +67,8 @@ class FETAQA(datasets.GeneratorBasedBuilder):
             description=_DESCRIPTION,
             features=datasets.Features(
                 {
-                    "id": datasets.Value("int32"),
-                    "question": datasets.Value("string"),
+                    EvalField.UID: datasets.Value("int32"),
+                    EvalField.QUESTION: datasets.Value("string"),
                     "table_id": datasets.Value("string"),
                     "table": {
                         "header": datasets.features.Sequence(datasets.Value("string")),
@@ -76,7 +77,7 @@ class FETAQA(datasets.GeneratorBasedBuilder):
                         ),
                     },
                     "meta": datasets.Value("string"),
-                    "answer_text": datasets.Value("string"),
+                    EvalField.GOLD_ANSWER: datasets.Value("string"),
                 }
             ),
             supervised_keys=None,
@@ -109,8 +110,8 @@ class FETAQA(datasets.GeneratorBasedBuilder):
             for idx, line in enumerate(f):
                 example = json.loads(line)
                 yield idx, {
-                    "id": example["feta_id"],
-                    "question": example["question"],
+                    EvalField.UID: example["feta_id"],
+                    EvalField.QUESTION: example["question"],
                     "table_id": example["table_source_json"],
                     "table": {
                         "header": example["table_array"][0],
@@ -119,5 +120,5 @@ class FETAQA(datasets.GeneratorBasedBuilder):
                     "meta": example["table_page_title"]
                     + " | "
                     + example["table_section_title"],
-                    "answer_text": example["answer"],
+                    EvalField.GOLD_ANSWER: example["answer"],
                 }

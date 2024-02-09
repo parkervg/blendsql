@@ -129,9 +129,63 @@ blendsql_examples = [
     {
         "serialized_db": "",
         "bridge_hints": "",
-        "question": "",
+        "question": "Sixty two year old Welsh journalist Jan Moir worked for a couple other papers before working at Daily Mail as an opinion columnist and has won several awards for her writing.",
         "blendsql": """
-        
+        SELECT (
+            SELECT {{LLMMap('What age?', 'w0::value')}} = 62 FROM w0 WHERE attribute = 'born'
+        ) AND (
+            {{
+                LLMQA(
+                    'Did Jan Moir work at a couple other papers before working at Daily Mail as an opinion columnist?',
+                    (SELECT * FROM documents WHERE documents MATCH 'jan moir'),
+                    options='t;f'
+                ) 
+            }} = 't'
+        ) AND (
+            {{
+                LLMQA(
+                    'Has Jan Moir won several awards for her writing?',
+                    (SELECT * FROM documents WHERE documents MATCH 'jan moir'),
+                    options='t;f'
+                ) 
+            }} = 't'
+        )
+        """,
+    },
+    {
+        "serialized_db": "",
+        "bridge_hints": "",
+        "question": "Paspels use languages including German, and Romanish only and has recorded a total of 94.83% of German speakers in the 2000 census.",
+        "blendsql": """
+        SELECT NOT EXISTS (
+            SELECT * FROM w0 WHERE languages NOT IN ('german', 'romanish')
+        ) AND (
+            SELECT percent = '94.38%' FROM w0 WHERE languages = 'german' AND census = 2000
+        )
+        """,
+    },
+    {
+        "serialized_db": "",
+        "bridge_hints": "",
+        "question": "Retired Albanian football player Adrian Barbullushi never played for Egaleo or Ionikos.",
+        "blendsql": """
+        SELECT (
+            SELECT {{
+                LLMQA(
+                    'Did Adrian Barbullushi play for Egaleo?',
+                    (SELECT * FROM documents WHERE documents MATCH 'adrian barbullushi'),
+                    options='t;f'
+                )
+            }} = 'f'
+        ) AND (
+            SELECT {{
+                LLMQA(
+                    'Did Adrian Barbullushi play for Ionikos?',
+                    (SELECT * FROM documents WHERE documents MATCH 'adrian barbullushi'),
+                    options='t;f'
+                )
+            }} = 'f'
+        )
         """,
     },
 ]
