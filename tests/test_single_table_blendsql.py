@@ -359,7 +359,7 @@ def test_ingredient_in_select_stmt(db, ingredients):
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
-def test_nested_duplicate_ingredient_calls1(db, ingredients):
+def test_nested_duplicate_map_calls(db, ingredients):
     blendsql = """
     SELECT merchant FROM transactions WHERE {{get_length('length', 'transactions::merchant')}} > (SELECT {{get_length('length', 'transactions::merchant')}} FROM transactions WHERE merchant = 'Paypal')
     """
@@ -377,6 +377,43 @@ def test_nested_duplicate_ingredient_calls1(db, ingredients):
     passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions
+    """
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+
+
+def test_many_duplicate_map_calls(db, ingredients):
+    blendsql = """
+    SELECT 
+        {{get_length('length', 'transactions::merchant')}} AS l1,
+        {{get_length('length', 'transactions::cash_flow')}} AS l2,
+        {{get_length('length', 'transactions::child_category')}} AS l3,
+        {{get_length('length', 'transactions::date')}} AS l4 
+    FROM transactions WHERE amount > 1300
+    """
+    sql = """
+    SELECT 
+        LENGTH(merchant) AS l1,
+        LENGTH(cash_flow) AS l2,
+        LENGTH(child_category) AS l3,
+        LENGTH(date) AS l4
+    FROM transactions WHERE amount > 1300    
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_query(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_query(
+        """
+    SELECT
+    (SELECT COUNT(DISTINCT merchant) FROM transactions WHERE amount > 1300)
+    + (SELECT COUNT(DISTINCT cash_flow) FROM transactions WHERE amount > 1300)
+    + (SELECT COUNT(DISTINCT child_category) FROM transactions WHERE amount > 1300)
+    + (SELECT COUNT(DISTINCT date) FROM transactions WHERE amount > 1300)
     """
     )
     assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()

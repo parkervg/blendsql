@@ -111,14 +111,11 @@ class MapIngredient(Ingredient):
         )
 
         # Need to be sure the new column doesn't already exist here
-        new_arg_column = (
-            f"___{question}"
-            if (
-                question in set(self.db.iter_columns(tablename))
-                or question in kwargs.get("prev_subquery_map_columns")
-            )
-            else question
-        )
+        new_arg_column = question
+        while new_arg_column in set(
+            self.db.iter_columns(tablename)
+        ) or new_arg_column in kwargs.get("prev_subquery_map_columns"):
+            new_arg_column = "_" + new_arg_column
 
         original_table = self.db.execute_query(
             f"SELECT * FROM '{tablename}'", silence_errors=False
@@ -257,8 +254,10 @@ class JoinIngredient(Ingredient):
         ) = modified_lr_identifiers
 
         if all(len(x) > 0 for x in [left_values, right_values]):
-            # Some alignment still left
-            self.num_values_passed += len(kwargs["left_values"])
+            # Some alignment still left to do
+            self.num_values_passed += len(kwargs["left_values"]) + len(
+                kwargs["right_values"]
+            )
 
             kwargs[MAIN_INGREDIENT_KWARG] = question
             _mapping: Dict[str, str] = self._run(*args, **kwargs)
@@ -288,6 +287,7 @@ class JoinIngredient(Ingredient):
 @attrs
 class QAIngredient(Ingredient):
     ingredient_type: str = IngredientType.QA.value
+    num_values_passed: int = 0
     allowed_output_types: Tuple[Type] = (Union[str, int, float],)
 
     def unpack_default_kwargs(self, **kwargs):
@@ -300,8 +300,8 @@ class QAIngredient(Ingredient):
         *args,
         **kwargs,
     ) -> Union[str, int, float]:
+        subtable = context
         if context is not None:
-            subtable = context
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
                 subtable = self.db.execute_query(
@@ -314,6 +314,7 @@ class QAIngredient(Ingredient):
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
             kwargs["subtable"] = subtable
+        self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[MAIN_INGREDIENT_KWARG] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
         return response
