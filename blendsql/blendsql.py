@@ -31,9 +31,12 @@ from ._sqlglot import (
     replace_join_with_ingredient_single_ingredient,
     replace_join_with_ingredient_multiple_ingredient,
     prune_true_where,
+    prune_with,
     replace_subquery_with_direct_alias_call,
     maybe_set_subqueries_to_true,
     SubqueryContextManager,
+    remove_ctes,
+    is_in_cte,
 )
 from ._dialect import _parse_one, FTS5SQLite
 from ._grammar import grammar
@@ -152,7 +155,7 @@ def preprocess_blendsql(query: str) -> Tuple[str, dict]:
                     ).strip()
             ingredient_alias_to_parsed_dict[
                 substituted_ingredient_alias
-            ] = parsed_results_dict
+            ] = parsed_results_dict | {"raw": query[start:end]}
         query = query[:start] + substituted_ingredient_alias + query[end:]
     return (query, ingredient_alias_to_parsed_dict)
 
@@ -160,29 +163,28 @@ def preprocess_blendsql(query: str) -> Tuple[str, dict]:
 def set_subquery_to_alias(
     subquery: exp.Expression,
     aliasname: str,
-    _query: exp.Expression,
+    query: exp.Expression,
     db: SQLiteDBConnector,
+    ingredient_alias_to_parsed_dict: Dict[str, dict],
+    **kwargs,
 ) -> exp.Expression:
-    logging.debug(
-        Fore.CYAN
-        + f"Executing `{subquery}` and setting to `{aliasname}`..."
-        + Fore.RESET
-    )
-    db.execute_query(subquery.sql(dialect=FTS5SQLite)).to_sql(
-        aliasname,
-        db.con,
-        if_exists="replace",
-        index=False,
-    )
+    str_subquery = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
+    disambiguate_and_submit_blend(
+        ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+        query=str_subquery,
+        db=db,
+        aliasname=aliasname,
+        **kwargs,
+    ).df.to_sql(aliasname, db.con, if_exists="replace", index=False)
     # Now, we need to remove subquery and instead insert direct reference to aliasname
     # Example:
     #   `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w`
     #   Should become: `SELECT Symbol FROM w`
-    return _query.transform(
+    return query.transform(
         replace_subquery_with_direct_alias_call,
         subquery=subquery.parent,
         aliasname=aliasname,
-    )
+    ).transform(prune_with)
 
 
 def get_sorted_grammar_matches(
@@ -228,6 +230,23 @@ def get_sorted_grammar_matches(
                 )
             remaining_parse_results.append((_, start, end))
         parse_results = remaining_parse_results
+
+
+def disambiguate_and_submit_blend(
+    ingredient_alias_to_parsed_dict: Dict[str, dict],
+    query: str,
+    aliasname: str,
+    **kwargs,
+):
+    """
+    Used to disambiguate anonymized BlendSQL function and execute in a recursive context.
+    """
+    for alias, d in ingredient_alias_to_parsed_dict.items():
+        query = re.sub(re.escape(alias), d["raw"], query)
+    logging.debug(
+        Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`..." + Fore.RESET
+    )
+    return blend(query=query, **kwargs)
 
 
 def blend(
@@ -326,7 +345,9 @@ def blend(
         #   as inelligible for optimization. Maybe this can be improved in the future.
         prev_subquery_has_ingredient = False
         for subquery_idx, subquery in enumerate(get_reversed_subqueries(_query)):
-            # # Only cache executed_ingredients within the same subquery
+            # At this point, we should have already handled cte statements and created associated tables
+            subquery = subquery.transform(remove_ctes)
+            # Only cache executed_ingredients within the same subquery
             # The same ingredient may have different results within a different subquery context
             executed_subquery_ingredients: Set[str] = set()
             prev_subquery_map_columns = set()
@@ -354,11 +375,13 @@ def blend(
             else:
                 subquery_str = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
 
+            in_cte, table_alias_name = is_in_cte(subquery, return_name=True)
             scm = SubqueryContextManager(
                 node=_parse_one(
                     subquery_str
                 ),  # Need to do this so we don't track parents into construct_abstracted_selects
                 prev_subquery_has_ingredient=prev_subquery_has_ingredient,
+                alias_to_subquery={table_alias_name: subquery} if in_cte else None,
             )
             for tablename, abstracted_query in scm.abstracted_table_selects():
                 aliased_subquery = scm.alias_to_subquery.pop(tablename, None)
@@ -370,8 +393,18 @@ def blend(
                     _query = set_subquery_to_alias(
                         subquery=aliased_subquery,
                         aliasname=tablename,
-                        _query=_query,
+                        query=_query,
                         db=db,
+                        ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                        # Below are in case we need to call blend() again
+                        ingredients=ingredients,
+                        overwrite_args=overwrite_args,
+                        infer_map_constraints=infer_map_constraints,
+                        silence_db_exec_errors=silence_db_exec_errors,
+                        table_to_title=table_to_title,
+                        verbose=verbose,
+                        _prev_passed_values=_prev_passed_values,
+                        _prev_cleanup_tables=cleanup_tables,
                     )
                     query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
                     cleanup_tables.add(tablename)
@@ -395,7 +428,20 @@ def blend(
             # Be sure to handle those remaining aliases, which didn't have abstracted queries
             for aliasname, aliased_subquery in scm.alias_to_subquery.items():
                 _query = set_subquery_to_alias(
-                    subquery=aliased_subquery, aliasname=aliasname, _query=_query, db=db
+                    subquery=aliased_subquery,
+                    aliasname=aliasname,
+                    query=_query,
+                    db=db,
+                    ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                    # Below are in case we need to call blend() again
+                    ingredients=ingredients,
+                    overwrite_args=overwrite_args,
+                    infer_map_constraints=infer_map_constraints,
+                    silence_db_exec_errors=silence_db_exec_errors,
+                    table_to_title=table_to_title,
+                    verbose=verbose,
+                    _prev_passed_values=_prev_passed_values,
+                    _prev_cleanup_tables=cleanup_tables,
                 )
                 query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
                 cleanup_tables.add(aliasname)
@@ -473,7 +519,7 @@ def blend(
                         if len(parse_results_dict["args"]) > 0
                         else "",
                     )
-                    if context_arg.upper().startswith("SELECT"):
+                    if context_arg.upper().startswith(("SELECT", "WITH")):
                         _smoothie = blend(
                             query=context_arg,
                             db=db,

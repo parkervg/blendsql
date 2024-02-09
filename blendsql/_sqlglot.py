@@ -82,6 +82,12 @@ def prune_empty_where(node) -> Union[exp.Expression, None]:
     return node
 
 
+def prune_with(node):
+    if isinstance(node, exp.With):
+        return None
+    return node
+
+
 def prune_true_where(node):
     """
     Removes artifacts like `WHERE TRUE AND TRUE`
@@ -304,7 +310,14 @@ def get_predicate_literals(node) -> List[str]:
 
 def get_reversed_subqueries(node):
     # Iterate through all subqueries (either parentheses or select)
-    return [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,))][::-1]
+    # But, CTEs stay in order
+    r = [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if is_in_cte(i)]
+    return (
+        r
+        + [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if not is_in_cte(i)][
+            ::-1
+        ]
+    )
 
 
 def replace_subquery_with_direct_alias_call(node, subquery, aliasname):
@@ -314,6 +327,21 @@ def replace_subquery_with_direct_alias_call(node, subquery, aliasname):
     """
     if node == subquery:
         return exp.Table(this=exp.Identifier(this=aliasname))
+    return node
+
+
+def is_in_cte(node, return_name: bool = False):
+    p = node.parent
+    if p is not None:
+        table_alias = p.find(exp.TableAlias)
+        if table_alias is not None:
+            return (True, table_alias.name) if return_name else True
+    return (False, None) if return_name else False
+
+
+def remove_ctes(node):
+    if isinstance(node, exp.With):
+        return None
     return node
 
 
@@ -337,14 +365,15 @@ def all_terminals_are_true(node):
 class SubqueryContextManager:
     node: exp.Select = attrib()
     prev_subquery_has_ingredient: bool = attrib()
-
     # Keep a running log of what aliases we've initialized so far, per subquery
-    alias_to_subquery: dict = attrib(init=False)
+    alias_to_subquery: dict = attrib(default=None)
+
     alias_to_tablename: dict = attrib(init=False)
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
 
     def __attrs_post_init__(self):
-        self.alias_to_subquery = {}
+        if self.alias_to_subquery is None:
+            self.alias_to_subquery = {}
         self.alias_to_tablename = {}
         # https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
         self.root = build_scope(self.node)

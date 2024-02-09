@@ -23,10 +23,8 @@ Defines output of an executed BlendSQL script
 @dataclass
 class SmoothieMeta:
     process_time_seconds: float
-    num_values_passed: int  # Number of values passed to a Map ingredient
-    example_map_outputs: List[
-        Any
-    ]  # 10 example outputs from a Map ingredient, for debugging
+    num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
+    example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
     ingredients: List[Ingredient]
     query: str
     db_path: str

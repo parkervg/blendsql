@@ -26,12 +26,15 @@ class LLMQA(QAIngredient):
             raise IngredientException("Need to specify `question` for LLMQA")
         # Unpack default kwargs
         subtable = self.unpack_default_kwargs(**kwargs)
-        if value_limit is not None:
-            subtable = subtable.iloc[:value_limit]
+        if subtable is not None:
+            if value_limit is not None:
+                subtable = subtable.iloc[:value_limit]
         if options is not None:
             try:
                 tablename, colname = get_tablename_colname(options)
-                tablename = kwargs.get("aliases_to_tablenames").get(tablename, tablename)
+                tablename = kwargs.get("aliases_to_tablenames").get(
+                    tablename, tablename
+                )
                 options = (
                     self.db.execute_query(f'SELECT "{colname}" FROM "{tablename}"')[
                         colname
@@ -59,7 +62,7 @@ class LLMQA(QAIngredient):
             program=program,
             options_dict=[{"option": item} for item in options] if options else None,
             question=question,
-            serialized_db=subtable.to_string(),
+            serialized_db=subtable.to_string() if subtable is not None else "",
             long_answer=long_answer,
             table_title=None,
         )
