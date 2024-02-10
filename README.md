@@ -76,7 +76,7 @@ SELECT merchant FROM transactions
 <details>
 <summary> <b> <a href="https://hybridqa.github.io/" target="_blank"> HybridQA </a> </b> </summary>
 
-For this setting, our database contains 2 tables: a table from Wikipedia `w`, and a collection of unstructured Wikipedia articles in the table `docs`.
+For this setting, our database contains 2 tables: a table from Wikipedia `w`, and a collection of unstructured Wikipedia articles in the table `documents`.
 
 *What is the state flower of the smallest state by area ?*
 ```sql
@@ -84,7 +84,7 @@ SELECT "common name" AS 'State Flower' FROM w
 WHERE state = {{
     LLMQA(
         'Which is the smallest state by area?',
-        (SELECT title, content FROM docs),
+        (SELECT title, content FROM documents),
         options='w::state'
     )
 }}
@@ -96,12 +96,12 @@ WHERE state = {{
     LLMQA(
         'Name of the builders?',
         (
-            SELECT title AS 'Building', content FROM docs
+            SELECT title AS 'Building', content FROM documents
                 WHERE title = {{
                     LLMQA(
                         'Align the name to the correct title.',
                         (SELECT name FROM w WHERE city = 'herat' AND remarks LIKE '%fire temple%'),
-                        options='docs::title'
+                        options='documents::title'
                     )
                 }}
         ) 
@@ -114,7 +114,7 @@ WHERE state = {{
 SELECT capacity FROM w WHERE venue = {{
     LLMQA(
         'Which venue is named in honor of Juan Antonio Samaranch?',
-        (SELECT title AS 'Venue', content FROM docs),
+        (SELECT title AS 'Venue', content FROM documents),
         options='w::venue'
     )
 }}
@@ -216,7 +216,7 @@ SELECT EXISTS (
 SELECT (
     SELECT (
         {{
-            LLMQA('Is the Sharks 2006-07 season the 14th season (13th season of play)?', 'docs::content', options='t;f')
+            LLMQA('Is the Sharks 2006-07 season the 14th season (13th season of play)?', 'documents::content', options='t;f')
         }} 
     ) = 't'
 )
@@ -247,11 +247,11 @@ SELECT EXISTS (
                 )
             }} = TRUE
     ) AND EXISTS (
-        SELECT * FROM docs 
+        SELECT * FROM documents 
             WHERE {{
                 LLMMap(
                     'How many bus routes operated by Transdev?', 
-                    'docs::content'
+                    'documents::content'
                 )
             }} = 3
     )
@@ -473,7 +473,7 @@ For example (from the [HybridQA dataset](https://hybridqa.github.io/)):
  SELECT capacity FROM w WHERE venue = {{
         LLMQA(
             'Which venue is named in honor of Juan Antonio Samaranch?',
-            (SELECT title, content FROM docs WHERE content LIKE '%venue%'),
+            (SELECT title, content FROM documents WHERE content LIKE '%venue%'),
             options='w::venue'
         )
 }}
