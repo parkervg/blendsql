@@ -479,7 +479,7 @@ def blend(*args, **kwargs) -> Smoothie:
 ### Appendix 
 
 #### Run Line Profiling 
-First uncomment `@profile` above `blend()` in `grammar.py`.
+First uncomment `@profile` above `blend()` in `blendsql.py`.
 Make sure you've run `pip install line_profiler` first. This installs the tool here: https://github.com/pyutils/line_profiler
 
 `PYTHONPATH=$PWD:$PYTHONPATH kernprof -lv examples/benchmarks/with_blendsql.py`
