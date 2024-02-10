@@ -468,14 +468,17 @@ class SubqueryContextManager:
         if subquery_node is not None:
             # Make a note here: we need to create a new table with the name of the alias,
             #   and set to results of this subquery
+            alias = None
             if "alias" in subquery_node.args:
                 alias = subquery_node.args["alias"]
-                if alias is not None:
-                    if not any(x.name == alias.name for x in tablenodes):
-                        tablenodes.add(exp.Table(this=exp.Identifier(this=alias.name)))
-                    curr_alias_to_subquery = {alias.name: subquery_node.args["this"]}
-        # if len(tablenodes) == 0:
-        #     raise sqlglot.errors.ParseError("No tables found in query!")
+            if alias is None:
+                # Try to get from parent
+                if "alias" in subquery_node.parent.args:
+                    alias = subquery_node.parent.args["alias"]
+            if alias is not None:
+                if not any(x.name == alias.name for x in tablenodes):
+                    tablenodes.add(exp.Table(this=exp.Identifier(this=alias.name)))
+                curr_alias_to_subquery = {alias.name: subquery_node.args["this"]}
         for tablenode in tablenodes:
             # Check to be sure this is in the top-level `SELECT`
             if is_in_subquery(tablenode):
