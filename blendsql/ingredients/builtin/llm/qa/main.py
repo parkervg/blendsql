@@ -31,7 +31,8 @@ class LLMQA(QAIngredient):
         # Ensure options don't have a common prefix
         # This will be removed later
         # Related to this issue: https://github.com/guidance-ai/guidance/issues/232#issuecomment-1597125256
-        options = [f"{idx}): {item}" for idx, item in enumerate(options)]
+        if options is not None:
+            options = [f"{idx}): {item}" for idx, item in enumerate(options)]
         gen_clause: str = construct_gen_clause(
             gen_type="select" if options else "gen",
             options=options,
