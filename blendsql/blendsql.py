@@ -42,7 +42,7 @@ from ._dialect import _parse_one, FTS5SQLite
 from ._grammar import grammar
 from .ingredients.ingredient import Ingredient
 from ._smoothie import Smoothie, SmoothieMeta
-from ._constants import DEFAULT_ENDPOINT_NAME, CONTEXT_INGREDIENT_KWARG, IngredientType
+from ._constants import DEFAULT_ENDPOINT_NAME, IngredientKwarg, IngredientType
 from .ingredients.builtin.llm.endpoint import Endpoint
 from .ingredients.builtin.llm.utils import initialize_endpoint
 
@@ -512,7 +512,7 @@ def blend(
                 if _function.ingredient_type == IngredientType.QA:
                     # Optionally, recursively call blend() again to get subtable
                     context_arg = kwargs_dict.get(
-                        CONTEXT_INGREDIENT_KWARG,
+                        IngredientKwarg.CONTEXT,
                         parse_results_dict["args"][1]
                         if len(parse_results_dict["args"]) > 1
                         else parse_results_dict["args"][0]
@@ -534,7 +534,7 @@ def blend(
                         )
                         _prev_passed_values = _smoothie.meta.num_values_passed
                         subtable = _smoothie.df
-                        kwargs_dict[CONTEXT_INGREDIENT_KWARG] = subtable
+                        kwargs_dict[IngredientKwarg.CONTEXT] = subtable
                         # Below, we can remove the optional `context` arg we passed in args
                         parse_results_dict["args"] = parse_results_dict["args"][:1]
                 # Execute our ingredient function

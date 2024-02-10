@@ -6,7 +6,7 @@ import uuid
 from typeguard import check_type
 
 from .. import utils
-from .._constants import MAIN_INGREDIENT_KWARG, IngredientType
+from .._constants import IngredientKwarg, IngredientType
 from ..db.sqlite_db_connector import SQLiteDBConnector
 
 
@@ -20,8 +20,8 @@ def map_base_unpack_default_kwargs(**kwargs):
     Includes MapIngredient.
     """
     return (
-        kwargs.get("values"),
-        kwargs.get("original_table"),
+        # kwargs.get("values"),
+        # kwargs.get("original_table"),
         kwargs.get("tablename"),
         kwargs.get("colname"),
     )
@@ -160,7 +160,7 @@ class MapIngredient(Ingredient):
 
         kwargs["values"] = values
         kwargs["original_table"] = original_table
-        kwargs[MAIN_INGREDIENT_KWARG] = question
+        kwargs[IngredientKwarg.QUESTION] = question
         mapped_values: Iterable[Any] = self._run(*args, **kwargs)
         self.num_values_passed += len(mapped_values)
         df_as_dict = {colname: [], new_arg_column: []}
@@ -196,9 +196,6 @@ class JoinIngredient(Ingredient):
     num_values_passed: int = 0
     allowed_output_types: Tuple[Type] = (dict,)
 
-    def unpack_default_kwargs(self, **kwargs):
-        return map_base_unpack_default_kwargs(**kwargs)
-
     def __call__(
         self,
         question: str = None,
@@ -210,6 +207,8 @@ class JoinIngredient(Ingredient):
         values = []
         original_lr_identifiers = []
         modified_lr_identifiers = []
+        left_values, right_values = [], []
+        mapping = {}
         for on_arg in [left_on, right_on]:
             tablename, colname = utils.get_tablename_colname(on_arg)
             tablename = kwargs.get("aliases_to_tablenames").get(tablename, tablename)
@@ -259,12 +258,12 @@ class JoinIngredient(Ingredient):
                 kwargs["right_values"]
             )
 
-            kwargs[MAIN_INGREDIENT_KWARG] = question
+            kwargs[IngredientKwarg.QUESTION] = question
             _mapping: Dict[str, str] = self._run(*args, **kwargs)
             mapping = mapping | _mapping
 
         # Using mapped left/right values, create intermediary mapping table
-        # This needs a new unique id. But start with our session uuid, so it gets cleaned up
+        # This needs a new unique id. We add to the session's `cleanup_tables` after returning.
         temp_join_tablename = kwargs.get("get_temp_session_table")(
             str(uuid.uuid4())[:4]
         )
@@ -290,13 +289,11 @@ class QAIngredient(Ingredient):
     num_values_passed: int = 0
     allowed_output_types: Tuple[Type] = (Union[str, int, float],)
 
-    def unpack_default_kwargs(self, **kwargs):
-        return kwargs.get("subtable")
-
     def __call__(
         self,
         question: str = None,
         context: Union[str, pd.DataFrame] = None,
+        options: str = None,
         *args,
         **kwargs,
     ) -> Union[str, int, float]:
@@ -313,9 +310,26 @@ class QAIngredient(Ingredient):
                 )
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
-            kwargs["subtable"] = subtable
+        unpacked_options = options
+        if options is not None:
+            try:
+                tablename, colname = utils.get_tablename_colname(options)
+                tablename = kwargs.get("aliases_to_tablenames").get(
+                    tablename, tablename
+                )
+                unpacked_options = (
+                    self.db.execute_query(f'SELECT "{colname}" FROM "{tablename}"')[
+                        colname
+                    ]
+                    .unique()
+                    .tolist()
+                )
+            except ValueError:
+                unpacked_options = options.split(";")
         self.num_values_passed += len(subtable) if subtable is not None else 0
-        kwargs[MAIN_INGREDIENT_KWARG] = question
+        kwargs[IngredientKwarg.OPTIONS] = unpacked_options
+        kwargs[IngredientKwarg.CONTEXT] = subtable
+        kwargs[IngredientKwarg.QUESTION] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
         return response
 

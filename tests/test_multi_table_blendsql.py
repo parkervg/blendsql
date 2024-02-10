@@ -110,7 +110,7 @@ def test_select_multi_exec(db, ingredients):
     SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name 
         FROM account_history 
         LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol 
-        WHERE {{select_first_sorted(options='constituents::Sector')}}
+        WHERE constituents.Sector = {{select_first_sorted(options='constituents::Sector')}}
         AND lower(account_history.Action) like "%dividend%"
     """
     sql = """
@@ -165,6 +165,7 @@ def test_join_ingredient_multi_exec(db, ingredients):
     SELECT Account, Quantity FROM returns
     JOIN {{
         do_join(
+            'Hello BlendSQL, please do your very best',
             left_on='account_history::Account',
             right_on='returns::Annualized Returns'
         )

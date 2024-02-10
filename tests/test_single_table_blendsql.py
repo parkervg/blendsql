@@ -328,7 +328,7 @@ def test_limit(db, ingredients):
 def test_select(db, ingredients):
     blendsql = """
     SELECT DISTINCT description, merchant, child_category FROM transactions WHERE
-       {{select_first_sorted(options='transactions::merchant')}}
+       merchant = {{select_first_sorted(options='transactions::merchant')}}
     """
     sql = """
     SELECT DISTINCT description, merchant, child_category FROM transactions 

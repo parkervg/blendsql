@@ -1,5 +1,5 @@
 import logging
-from typing import Union, Iterable, Any, Dict
+from typing import Union, Iterable, Any, Dict, Optional, List
 
 import pandas as pd
 from colorama import Fore
@@ -12,7 +12,7 @@ from blendsql.ingredients.builtin.llm.utils import (
 from blendsql.ingredients.builtin.llm.endpoint import Endpoint
 from ast import literal_eval
 from blendsql import _constants as CONST
-from blendsql.ingredients.ingredient import MapIngredient, IngredientException
+from blendsql.ingredients.ingredient import MapIngredient
 from blendsql import _programs as programs
 
 
@@ -21,11 +21,12 @@ class LLMMap(MapIngredient):
         self,
         question: str,
         endpoint: Endpoint,
+        values: List[str],
         value_limit: Union[int, None] = None,
-        example_outputs: str = None,
-        output_type: str = None,
-        pattern: str = None,
-        table_to_title: Dict[str, str] = None,
+        example_outputs: Optional[str] = None,
+        output_type: Optional[str] = None,
+        pattern: Optional[str] = None,
+        table_to_title: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Iterable[Any]:
         """For each value in a given column, calls an OpenAI LLM endpoint_name and retrieves the output.
@@ -40,12 +41,8 @@ class LLMMap(MapIngredient):
         Returns:
             Iterable[Any] containing the output of the LLM for each value.
         """
-        if question is None:
-            raise IngredientException("Need to specify `question` for LLMmap")
         # Unpack default kwargs
-        values, original_table, tablename, colname = self.unpack_default_kwargs(
-            **kwargs
-        )
+        tablename, colname = self.unpack_default_kwargs(**kwargs)
         # OpenAI endpoints can't use patterns
         pattern = None if isinstance(endpoint, OpenaiEndpoint) else pattern
         if value_limit is not None:
@@ -72,8 +69,6 @@ class LLMMap(MapIngredient):
             if logging.DEBUG >= logging.root.level
             else range(0, len(values_dict), CONST.VALUE_BATCH_SIZE)
         )
-
-        # examples = select_and_construct_map_examples(question=arg)
 
         for i in context_manager:
             answer_length = len(values_dict[i : i + CONST.VALUE_BATCH_SIZE])
