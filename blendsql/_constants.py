@@ -30,5 +30,7 @@ class IngredientType(str, Enum, metaclass=StrInMeta):
     JOIN = auto()
 
 
-MAIN_INGREDIENT_KWARG = "question"
-CONTEXT_INGREDIENT_KWARG = "context"
+class IngredientKwarg(str, Enum):
+    QUESTION = "question"
+    CONTEXT = "context"
+    OPTIONS = "options"
