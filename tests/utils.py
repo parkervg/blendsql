@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Iterable, Any, List
+from typing import Iterable, Any, List, Union
 from blendsql.ingredients import MapIngredient, QAIngredient, JoinIngredient
 
 
@@ -33,13 +33,23 @@ class select_first_sorted(QAIngredient):
 
 
 class return_aapl(QAIngredient):
-    def run(self, question: str, options: str = None, **kwargs) -> Iterable[Any]:
+    def run(
+        self, question: str, options: str = None, **kwargs
+    ) -> Union[str, int, float]:
         """Executes to return the string 'AAPL'"""
         return "'AAPL'"
 
 
+class get_table_size(QAIngredient):
+    def run(
+        self, question: str, context: pd.DataFrame, options: str = None, **kwargs
+    ) -> Union[str, int, float]:
+        """Returns the length of the context subtable passed to it."""
+        return len(context)
+
+
 class do_join(JoinIngredient):
-    """A very silly, overcomplicated way to do a join.
+    """A very silly, overcomplicated way to do a traditional SQL join.
     But useful for testing.
     """
 
@@ -53,4 +63,7 @@ def assert_equality(smoothie, sql_df: pd.DataFrame, args: List[str] = None):
         arg_overlap = blendsql_df.columns.intersection(args).tolist()
         if len(arg_overlap) > 0:
             blendsql_df = blendsql_df.drop(arg_overlap, axis=1)
+    # Make column names abstract
+    blendsql_df.columns = [i for i in range(len(blendsql_df.columns))]
+    sql_df.columns = [i for i in range(len(sql_df.columns))]
     pd.testing.assert_frame_equal(blendsql_df, sql_df)

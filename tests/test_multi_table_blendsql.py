@@ -1,6 +1,4 @@
 import pytest
-from tabulate import tabulate
-from functools import partial
 from blendsql import blend
 from blendsql.db import SQLiteDBConnector
 from tests.utils import (
@@ -10,9 +8,8 @@ from tests.utils import (
     select_first_sorted,
     do_join,
     return_aapl,
+    get_table_size,
 )
-
-tabulate = partial(tabulate, headers="keys", showindex="never")
 
 
 @pytest.fixture
@@ -22,7 +19,14 @@ def db() -> SQLiteDBConnector:
 
 @pytest.fixture
 def ingredients() -> set:
-    return {starts_with, get_length, select_first_sorted, do_join, return_aapl}
+    return {
+        starts_with,
+        get_length,
+        select_first_sorted,
+        do_join,
+        return_aapl,
+        get_table_size,
+    }
 
 
 def test_simple_multi_exec(db, ingredients):
@@ -257,6 +261,42 @@ def test_subquery_alias_multi_exec(db, ingredients):
     """
     )
     assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+
+
+def test_cte_qa_multi_exec(db, ingredients):
+    blendsql = """
+   {{
+        get_table_size(
+            'Table size?',
+            (
+                WITH a AS (
+                    SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w 
+                        WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
+                ) SELECT * FROM a WHERE LENGTH(a.Symbol) > 2
+            )
+        )
+    }}
+    """
+    sql = """
+    WITH a AS (
+        SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
+            WHERE w.Symbol LIKE 'F%'
+    ) SELECT COUNT(*) FROM a WHERE LENGTH(a.Symbol) > 2
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_query(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
+    # Make sure we only pass what's necessary to our ingredient
+    # passed_to_ingredient = db.execute_query(
+    #     """
+    # SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3 AND Quantity > 200
+    # """
+    # )
+    # assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 # def test_subquery_alias_with_join_multi_exec(db, ingredients):
