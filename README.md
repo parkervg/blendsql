@@ -456,7 +456,7 @@ For example, the BlendSQL query below translates to the valid (but rather confus
   AND {{LLMMap('Offers a media streaming service?', 'portfolio::Description')}} = 1
 ```
 #### Changing QA Output with `options`
-Perhaps we want the answer to the above question in a different format. We can combine the best of the `Select` ingredient with the `QA` ingredient by passing a `options` argument, where we provide semicolon-separated options.
+Perhaps we want the answer to the above question in a different format. We call our LLM ingredient in a constrained setting by passing a `options` argument, where we provide either semicolon-separated options, or a reference to a column.
 
 ```sql
 {{
@@ -479,6 +479,7 @@ Running the above BlendSQL query, we get the output `two consecutive days!`.
 This `options` argument can also be a reference to a given column.
 
 For example (from the [HybridQA dataset](https://hybridqa.github.io/)): 
+
 ```sql 
  SELECT capacity FROM w WHERE venue = {{
         LLMQA(
@@ -506,7 +507,7 @@ Or, from our running example:
 }}
 ```
 
-The above BlendSQL will yield the result `AIG`.
+The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol` column from `account_history`.
 
 ### `StringIngredient`
 This is the simplest type of ingredient. This will output a string to be placed directly into the SQL query.
