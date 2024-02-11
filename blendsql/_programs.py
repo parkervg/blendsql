@@ -285,6 +285,45 @@ Answer:
     + "{{~/assistant}}"
 )
 
+VALIDATE_PROGRAM_CHAT = (
+    lambda gen_clause: """
+{{#system~}}
+You are a database expert in charge of validating a claim given a context.
+Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not.
+{{~/system}}
+
+{{#user~}}
+Claim: {{question}}
+{{#if table_title}}
+Table Description: {{table_title}}
+{{/if}}
+{{serialized_db}}
+
+Answer:
+{{~/user}}
+
+{{#assistant~}}"""
+    + gen_clause
+    + "{{~/assistant}}"
+)
+
+VALIDATE_PROGRAM_COMPLETION = (
+    lambda gen_clause: """
+You are a database expert in charge of validating a claim given a context.
+Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not.
+
+Claim: {{question}}
+{{#if table_title}}
+Table Description: {{table_title}}
+{{/if}}
+{{serialized_db}}
+
+Answer:
+
+"""
+    + gen_clause
+)
+
 JOIN_PROGRAM_CHAT = (
     lambda gen_clause: """
 {{#system~}}
