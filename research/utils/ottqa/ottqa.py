@@ -23,7 +23,7 @@ from ...prompts.few_shot.ottqa import blendsql_examples
 
 from blendsql.db import SQLiteDBConnector
 
-db = SQLiteDBConnector("./research/db/ottqa/ottqa.db")
+#db = SQLiteDBConnector("./research/db/ottqa/ottqa.db")
 
 
 @lru_cache

@@ -1,5 +1,4 @@
 {
-    "max_val_samples": 200,
     "overwrite_cache": true,
     "overwrite_output_dir": true,
     "use_bridge_encoder": true,

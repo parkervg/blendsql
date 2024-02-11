@@ -1,0 +1,11 @@
+{
+    "metric_score": {
+        "acc": 0.429601846508944,
+        "f1": 0.5314100034814322,
+        "denotation_acc": 0.4913444893248702
+    },
+    "num_with_ingredients": 0,
+    "num_errors": 0,
+    "num_completed": 3466,
+    "split_size": 3466
+}
