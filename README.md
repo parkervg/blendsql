@@ -124,7 +124,7 @@ SELECT capacity FROM w WHERE venue = {{
 <details>
 <summary> <b> <a href="https://ott-qa.github.io/" target="_blank"> OTT-QA </a> </b> </summary>
 
-Unlike the HybridQA, these questions are open-domain, where we don't know in advance where the answer of a given open question appears in a passage or a table.
+Unlike HybridQA, these questions are open-domain, where we don't know in advance where the answer of a given open question appears in a passage or a table.
 
 As a result, we need to play the role of both the retriever (to select relevant context) and reader (to read from relevant contexts and return the given answer).
 
