@@ -7,7 +7,7 @@
 
 <div align="center">
   <a>
-    <img src="./img/logo_as_circle.png" alt="Logo" width="250" height="250">
+    <img src="./img/logo.svg" alt="Logo" width="250" height="250">
   </a>
 
   <h3 align="center">BlendSQL</h3>
