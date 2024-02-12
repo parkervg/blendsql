@@ -5,18 +5,15 @@
 <br>
 </div>
 
-<div align="center">
-  <a>
-    <img src="./img/logo.svg" alt="Logo" width="250" height="250">
-  </a>
-
-  <h3 align="center">BlendSQL</h3>
-
-  <p align="center">
+<div align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/logo_dark.png">
+  <img alt="blendsql" src="img/logo_light.png" width=350">
+</picture>
+<p align="center">
     <i> SQL 🤝 LLMs </i>
   </p>
 </div>
-
+<br/>
 
 ## Intro
 BlendSQL is a *superset of SQLite*. It allows the user to leverage external functions (LLMs, Python code, APIs) within the expressive structure of SQL.
