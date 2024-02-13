@@ -6,8 +6,10 @@ from .transformers_llm import TransformersLocalLLM
 def initialize_llm(llm_type: str, model_name_or_path: str) -> "LLM":
     if llm_type == "hf":
         return TransformersLocalLLM(model_name_or_path)
-    else:
+    elif llm_type == "openai":
         return OpenaiLLM(model_name_or_path)
+    else:
+        raise ValueError(f"Unknown llm_type {llm_type}")
 
 
 def construct_gen_clause(
