@@ -285,9 +285,9 @@ class BlendSQLEvaluation:
                 ingredients={LLMMap, LLMQA, LLMJoin}
                 if self.model_args.blender_model_name_or_path is not None
                 else set(),
+                llm=self.blender_endpoint,
                 # Force usage of the endpoint_name we specify
                 overwrite_args={
-                    "endpoint": self.blender_endpoint,
                     "long_answer": self.data_args.long_answer,
                 },
                 table_to_title={
