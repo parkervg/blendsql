@@ -37,9 +37,9 @@ from transformers.hf_argparser import HfArgumentParser
 from blendsql.db import SQLiteDBConnector
 from blendsql.db.utils import double_quote_escape
 from blendsql import LLMMap, LLMQA, LLMJoin, LLMValidate, blend
-from blendsql.utils import TokenTimer, sub_tablename
-from blendsql.ingredients.builtin.llm.utils import initialize_endpoint
-from blendsql.ingredients.builtin.llm.endpoint import Endpoint
+from blendsql._smoothie import Smoothie
+from blendsql.ingredients.builtin.llm.utils import initialize_llm
+from blendsql.ingredients.builtin.llm.llm import LLM
 from blendsql._constants import OPENAI_CHAT_LLM
 from blendsql._dialect import FTS5SQLite
 from blendsql._smoothie import Smoothie
@@ -80,7 +80,7 @@ def choose_parser_program(model_args: ModelArguments):
 
 
 def fewshot_parse_to_blendsql(
-    endpoint: "Endpoint", program: str, **input_program_args
+    endpoint: "LLM", program: str, **input_program_args
 ) -> str:
     """Calls an endpoint_name and generates a BlendSQL query."""
     # Dedent str args
@@ -198,9 +198,9 @@ class BlendSQLEvaluation:
     output_dir: Union[str, Path] = attrib()
     split: datasets.Split = attrib()
     split_name: str = attrib()
-    parser_endpoint: Union[Endpoint, None] = attrib()
-    blender_endpoint: Union[Endpoint, None] = attrib()
-    prompt_and_pray_endpoint: Union[Endpoint, None] = attrib()
+    parser_endpoint: Union[LLM, None] = attrib()
+    blender_endpoint: Union[LLM, None] = attrib()
+    prompt_and_pray_endpoint: Union[LLM, None] = attrib()
     parser_program: guidance.Program = attrib()
     model_args: ModelArguments = attrib()
     data_args: DataArguments = attrib()
@@ -356,9 +356,9 @@ class BlendSQLEvaluation:
                 ingredients={LLMMap, LLMQA, LLMJoin, LLMValidate}
                 if self.model_args.blender_model_name_or_path is not None
                 else set(),
+                llm=self.blender_endpoint,
                 # Force usage of the endpoint_name we specify
                 overwrite_args={
-                    "endpoint": self.blender_endpoint,
                     "long_answer": self.data_args.long_answer,
                 },
                 table_to_title={
@@ -490,7 +490,7 @@ def main() -> None:
     elif not training_args.overwrite_output_dir:
         raise ValueError("output_dir is not empty, and overwrite_output_dir is False!")
 
-    parser_endpoint = initialize_endpoint(model_args.parser_model_name_or_path)
+    parser_endpoint = initialize_llm(model_args.parser_model_type, model_args.parser_model_name_or_path)
     parser_program = choose_parser_program(model_args)
     parser_endpoint.gen_kwargs["temperature"] = model_args.parser_temperature
     if data_training_args.bypass_models:
@@ -498,14 +498,15 @@ def main() -> None:
     blender_endpoint = None
 
     if model_args.blender_model_name_or_path is not None:
-        blender_endpoint = initialize_endpoint(model_args.blender_model_name_or_path)
+        blender_endpoint = initialize_llm(model_args.blender_model_type, model_args.blender_model_name_or_path)
         blender_endpoint.gen_kwargs["temperature"] = model_args.blender_temperature
         if data_training_args.bypass_models:
             blender_endpoint.predict = lambda *args, **kwargs: {"result": ""}
 
     prompt_and_pray_endpoint = None
     if model_args.prompt_and_pray_model_name_or_path is not None:
-        prompt_and_pray_endpoint = initialize_endpoint(
+        prompt_and_pray_endpoint = initialize_llm(
+            model_args.prompt_and_pray_model_type,
             model_args.prompt_and_pray_model_name_or_path
         )
 
@@ -546,8 +547,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # Start a process running in the background to refresh our OpenAI token
-    timer = TokenTimer("./secrets.json", refresh_interval_min=30)
-    timer.start()
-    time.sleep(5)
     main()

@@ -3,7 +3,7 @@ import statistics
 import time
 import pandas as pd
 import sqlite3
-from blendsql.ingredients.builtin.llm.openai_endpoint import OpenaiEndpoint
+from blendsql.ingredients.builtin.llm.openai_llm import OpenaiLLM
 from blendsql import init_secrets
 from tqdm import tqdm
 import logging

@@ -6,10 +6,10 @@ from colorama import Fore
 from tqdm import tqdm
 
 from blendsql.ingredients.builtin.llm.utils import (
-    OpenaiEndpoint,
     construct_gen_clause,
 )
-from blendsql.ingredients.builtin.llm.endpoint import Endpoint
+from blendsql.ingredients.builtin.llm.llm import LLM
+from blendsql.ingredients.builtin.llm.openai_llm import OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
@@ -20,8 +20,8 @@ class LLMMap(MapIngredient):
     def run(
         self,
         question: str,
-        endpoint: Endpoint,
-        values: List[str],
+        llm: LLM,
+        values: List[str],  
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
         output_type: Optional[str] = None,
@@ -29,14 +29,14 @@ class LLMMap(MapIngredient):
         table_to_title: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Iterable[Any]:
-        """For each value in a given column, calls an OpenAI LLM endpoint_name and retrieves the output.
+        """For each value in a given column, calls an OpenAI LLM model_name_or_path and retrieves the output.
 
         Args:
             question: The question to map onto the values. Will also be the new column name
             value_limit: Optional limit on the number of values to pass to the LLM
             example_outputs: str, if binary == False, this gives the LLM an example of the output we expect.
             pattern: str, optional regex to constrain answer generation.
-            endpoint_name: str, name of the OpenAI endpoint_name we will make calls to.
+            model_name_or_path: str, name of the OpenAI model_name_or_path we will make calls to.
 
         Returns:
             Iterable[Any] containing the output of the LLM for each value.
@@ -44,7 +44,7 @@ class LLMMap(MapIngredient):
         # Unpack default kwargs
         tablename, colname = self.unpack_default_kwargs(**kwargs)
         # OpenAI endpoints can't use patterns
-        pattern = None if isinstance(endpoint, OpenaiEndpoint) else pattern
+        pattern = None if isinstance(llm, OpenaiLLM) else pattern
         if value_limit is not None:
             values = values[:value_limit]
         values_dict = [
@@ -79,18 +79,18 @@ class LLMMap(MapIngredient):
                 if pattern.startswith("(t|f"):
                     include_tf_disclaimer = True
                     max_tokens = answer_length * 2
-            elif isinstance(endpoint, OpenaiEndpoint):
+            elif isinstance(llm, OpenaiLLM):
                 include_tf_disclaimer = True
 
             gen_clause: str = construct_gen_clause(
-                pattern=pattern, max_tokens=max_tokens, **endpoint.gen_kwargs
+                pattern=pattern, max_tokens=max_tokens, **{k: v for k, v in llm.gen_kwargs.items() if k not in {"pattern", "max_tokens"}}
             )
             program: str = (
                 programs.MAP_PROGRAM_CHAT(gen_clause)
-                if endpoint.endpoint_name in CONST.OPENAI_CHAT_LLM
+                if llm.model_name_or_path in CONST.OPENAI_CHAT_LLM
                 else programs.MAP_PROGRAM_COMPLETION(gen_clause)
             )
-            res = endpoint.predict(
+            res = llm.predict(
                 program=program,
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,
