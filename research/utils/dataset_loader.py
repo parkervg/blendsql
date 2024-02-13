@@ -140,30 +140,20 @@ def load_dataset(
     )
 
     # [dataset metric format]
-    _wikitq_metric_format_func: Callable = (
-        lambda item, flat_preds: wikitq_metric_format_func(
-            item=item, flat_preds=flat_preds
-        )
+    _wikitq_metric_format_func: Callable = lambda item: wikitq_metric_format_func(
+        item=item
     )
-    _hybridqa_metric_format_func: Callable = (
-        lambda item, flat_preds: hybridqa_metric_format_func(
-            item=item, flat_preds=flat_preds
-        )
+    _hybridqa_metric_format_func: Callable = lambda item: hybridqa_metric_format_func(
+        item=item
     )
-    _feverous_metric_format_func: Callable = (
-        lambda item, flat_preds: feverous_metric_format_func(
-            item=item, flat_preds=flat_preds
-        )
+    _feverous_metric_format_func: Callable = lambda item: feverous_metric_format_func(
+        item=item
     )
-    _ottqa_metric_format_func: Callable = (
-        lambda item, flat_preds: ottqa_metric_format_func(
-            item=item, flat_preds=flat_preds
-        )
+    _ottqa_metric_format_func: Callable = lambda item: ottqa_metric_format_func(
+        item=item
     )
-    _fetaqa_metric_format_func: Callable = (
-        lambda item, flat_preds: fetaqa_metric_format_func(
-            item=item, flat_preds=flat_preds
-        )
+    _fetaqa_metric_format_func: Callable = lambda item: fetaqa_metric_format_func(
+        item=item
     )
 
     _prepare_splits_kwargs = {
