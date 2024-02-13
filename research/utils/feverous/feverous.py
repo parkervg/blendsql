@@ -20,23 +20,31 @@ from ...utils.args import ModelArguments
 from ...utils.bridge_content_encoder import (
     get_database_matches,
 )
-from ... import constants as CONST
-from ...prompts.few_shot.hybridqa import blendsql_examples, sql_examples
+from ...constants import (
+    SINGLE_TABLE_NAME,
+    CREATE_VIRTUAL_TABLE_CMD,
+    DOCS_TABLE_NAME,
+    EvalField,
+)
+from ...prompts.few_shot.feverous import blendsql_examples, sql_examples
 from ..normalizer import prepare_df_for_neuraldb_from_table
 from blendsql.db import SQLiteDBConnector
 
 
-def feverous_metric_format_func(item: dict, flat_preds: list) -> dict:
-    _pred = [i for i in flat_preds if i is not None]
-    if len(_pred) < 1:
-        pred = ""
+def feverous_metric_format_func(item: dict) -> dict:
+    prediction = item[EvalField.PREDICTION]
+    if prediction is not None:
+        if len(prediction) < 1:
+            pred = ""
+        else:
+            pred = prediction[0]
     else:
-        pred = _pred[0]
+        pred = ""
     # Map `True` to 'SUPPORTS', `False` to 'REFUTES'
     pred = "SUPPORTS" if pred else "REFUTES"
     return {
         "prediction": str(pred),
-        "reference": {"seq_out": item["label"]},
+        "reference": {"seq_out": item[EvalField.GOLD_ANSWER]},
     }
 
 
@@ -44,14 +52,15 @@ def feverous_get_input(
     statement: str,
     table: dict,
     context: List[str],
-    id: str,
+    uid: str,
     data_training_args: DataTrainingArguments,
     model_args: ModelArguments,
 ) -> Tuple[str, dict]:
-    # Below id is unique for each datapoint
+    # Below uid is unique for each datapoint
     # But, might be better to consider table_id instead
-    db_path = Path(data_training_args.db_path) / "feverous" / f"{id}.db"
+    db_path = Path(data_training_args.db_path) / "feverous" / f"{uid}.db"
     tablename_to_description = {}
+    contains_documents = not all(len(x) == 0 for x in context.values())
     if not db_path.is_file():
         # Create db
         if not db_path.parent.is_dir():
@@ -60,15 +69,15 @@ def feverous_get_input(
         for idx, (table_description, header, rows) in enumerate(
             zip(table["table_description"], table["header"], table["rows"])
         ):
-            tablename = f"{CONST.SINGLE_TABLE_NAME}{idx}"
+            tablename = f"{SINGLE_TABLE_NAME}{idx}"
             prepare_df_for_neuraldb_from_table(
                 {"header": header, "rows": rows}, add_row_id=False
             ).to_sql(tablename, sqlite_conn)
             tablename_to_description[tablename] = table_description
-        if not all(len(x) == 0 for x in context.values()):
+        if contains_documents:
             # Create virtual table to search over
             c = sqlite_conn.cursor()
-            c.execute(CONST.CREATE_VIRTUAL_TABLE_CMD)
+            c.execute(CREATE_VIRTUAL_TABLE_CMD)
             c.close()
             # Add content
             prepare_df_for_neuraldb_from_table(
@@ -82,9 +91,7 @@ def feverous_get_input(
                     ],
                 },
                 add_row_id=False,
-            ).to_sql(
-                CONST.DOCS_TABLE_NAME, sqlite_conn, if_exists="append", index=False
-            )
+            ).to_sql(DOCS_TABLE_NAME, sqlite_conn, if_exists="append", index=False)
             sqlite_conn.close()
     db_path = str(db_path)
     db = SQLiteDBConnector(db_path)
@@ -104,31 +111,11 @@ def feverous_get_input(
     if data_training_args.use_bridge_encoder:
         bridge_hints = []
         column_str_with_values = "{table}.{column} ( {values} )"
-        doc_with_values = (
-            "Sentence from `SELECT content FROM docs WHERE title = '{title}'`: '{sent}'"
-        )
         value_sep = " , "
         for table_name in db.iter_tables():
-            if re.search(r"^{}_".format(CONST.DOCS_TABLE_NAME), tablename):
+            if re.search(r"^{}_".format(DOCS_TABLE_NAME), table_name):
                 continue
             for column_name in db.iter_columns(table_name):
-                # if (
-                #     data_training_args.include_doc_bridge_hints
-                #     and table_name == "docs"
-                #     and column_name == "content"
-                # ):
-                #     matches = get_database_matches_docs(
-                #         question=statement,
-                #         table_name=table_name,
-                #         column_name=column_name,
-                #         db_path=db_path,
-                #     )
-                #     if matches:
-                #         for title, sent in matches:
-                #             bridge_hints.append(
-                #                 doc_with_values.format(title=title, sent=sent)
-                #             )
-                # else:
                 matches = get_database_matches(
                     question=statement,
                     table_name=table_name,
@@ -155,7 +142,9 @@ def feverous_get_input(
             "serialized_db": serialized_db,
             "entire_serialized_db": entire_serialized_db,
             "bridge_hints": bridge_hints,
-            "extra_task_description": f"Additionally, we have the table `{CONST.DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table.",
+            "extra_task_description": f"Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table."
+            if contains_documents
+            else "",
         },
     )
 
@@ -169,12 +158,15 @@ def feverous_pre_process_function(
                 statement=statement,
                 table=table,
                 context=context,
-                id=id,
+                uid=uid,
                 data_training_args=data_training_args,
                 model_args=model_args,
             )
-            for statement, table, context, id in zip(
-                batch["statement"], batch["table"], batch["context"], batch["id"]
+            for statement, table, context, uid in zip(
+                batch[EvalField.QUESTION],
+                batch["table"],
+                batch["context"],
+                batch[EvalField.UID],
             )
         ]
     )

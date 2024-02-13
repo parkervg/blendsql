@@ -26,6 +26,7 @@ try:
         process_table_structure,
         retrieve_wtq_query_answer,
     )
+    from ....constants import EvalField
 except ModuleNotFoundError:
     from research.utils.wikitq.utils import _load_table_w_page as _load_table
     from research.utils.wikitq.utils import (
@@ -33,6 +34,7 @@ except ModuleNotFoundError:
         process_table_structure,
         retrieve_wtq_query_answer,
     )
+    from research.constants import EvalField
 
 logger = datasets.logging.get_logger(__name__)
 # Find for instance the citation on arxiv or on the dataset repo/website
@@ -95,8 +97,8 @@ class WikiTableQuestion(datasets.GeneratorBasedBuilder):
             description=_DESCRIPTION,
             features=datasets.Features(
                 {
-                    "id": datasets.Value("string"),
-                    "question": datasets.Value("string"),
+                    EvalField.UID: datasets.Value("string"),
+                    EvalField.QUESTION: datasets.Value("string"),
                     "table_id": datasets.Value("string"),
                     "table": {
                         "page_title": datasets.Value("string"),
@@ -106,7 +108,9 @@ class WikiTableQuestion(datasets.GeneratorBasedBuilder):
                         ),
                     },
                     "sql": datasets.Value("string"),
-                    "answer_text": datasets.features.Sequence(datasets.Value("string")),
+                    EvalField.GOLD_ANSWER: datasets.features.Sequence(
+                        datasets.Value("string")
+                    ),
                 }
             ),
             supervised_keys=None,
@@ -252,12 +256,12 @@ class WikiTableQuestion(datasets.GeneratorBasedBuilder):
                         )
 
                     yield idx, {
-                        "id": data_id,
-                        "question": question,
+                        EvalField.UID: data_id,
+                        EvalField.QUESTION: question,
                         "table_id": table_id,
                         "table": table,
                         "sql": encode_sql_str,
-                        "answer_text": gold_result,
+                        EvalField.GOLD_ANSWER: gold_result,
                     }
                 else:
                     continue

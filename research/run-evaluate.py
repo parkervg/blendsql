@@ -4,6 +4,7 @@ import logging
 import sys
 import shutil
 
+import sqlglot
 from colorama import Fore
 import re
 import textwrap
@@ -26,6 +27,7 @@ import time
 import numpy as np
 from typing import List, Union, Callable
 from attr import attrs, attrib
+from sqlglot import parse_one, exp
 
 import datasets
 from datasets.metric import Metric
@@ -34,16 +36,19 @@ from transformers.hf_argparser import HfArgumentParser
 
 from blendsql.db import SQLiteDBConnector
 from blendsql.db.utils import double_quote_escape
-from blendsql import LLMMap, LLMQA, LLMJoin, blend
+from blendsql import LLMMap, LLMQA, LLMJoin, LLMValidate, blend
 from blendsql._smoothie import Smoothie
 from blendsql.ingredients.builtin.llm.utils import initialize_llm
 from blendsql.ingredients.builtin.llm.llm import LLM
 from blendsql._constants import OPENAI_CHAT_LLM
+from blendsql._dialect import FTS5SQLite
+from blendsql._smoothie import Smoothie
+from blendsql._grammar import grammar
 
 from research.utils.dataset import DataArguments, DataTrainingArguments
 from research.utils.dataset_loader import load_dataset
 from research.utils.args import ModelArguments
-from research.constants import SINGLE_TABLE_NAME
+from research.constants import SINGLE_TABLE_NAME, EvalField
 from research.prompts import programs
 
 
@@ -92,10 +97,27 @@ def post_process_blendsql(blendsql: str, db: SQLiteDBConnector, use_tables=None)
         - Aligning hallucinated columns to their closest match in the database
         - Wrapping all column references in double quotes
             - ONLY if it's not already within quotes (', ")
-    TODO:
-        - Run hallucinated column alignment on nested BlendSQL queries in LLMQA too
-
     """
+
+    def parse_str_and_add_columns(
+        s: str, valid_columns: set, real_colname_to_hallucinated: dict
+    ):
+        try:
+            node = parse_one(s, dialect=FTS5SQLite)
+            for n in node.find_all(exp.Column):
+                if n.name not in valid_columns:
+                    split_on_underscores = " ".join(n.name.split("_"))
+                    if split_on_underscores in valid_columns:
+                        real_colname_to_hallucinated[split_on_underscores] = n.name
+        except sqlglot.ParseError:
+            pass
+        return real_colname_to_hallucinated
+
+    if use_tables is None:
+        use_tables = set(
+            filter(lambda x: not x.startswith("documents"), list(db.iter_tables()))
+        )
+
     blendsql = blendsql.replace("`", "'")
     blendsql = blendsql.replace("{{LLM(", "{{LLMMap(")
     # Below fixes case where we miss a ')'
@@ -106,6 +128,36 @@ def post_process_blendsql(blendsql: str, db: SQLiteDBConnector, use_tables=None)
     blendsql = re.sub(r"(\'|\"); ", r"\1,", blendsql)
     quotes_start_end = [i.start() for i in re.finditer(r"(\'|\")", blendsql)]
     quotes_start_end_spans = list(zip(*(iter(quotes_start_end),) * 2))
+
+    # Find some hallucinated column names
+    flatten = lambda xss: set([x for xs in xss for x in xs])
+    valid_columns = flatten(
+        [list(i) for i in list(db.iter_columns(table) for table in use_tables)]
+    )
+    real_colname_to_hallucinated = {}
+    real_colname_to_hallucinated = parse_str_and_add_columns(
+        blendsql, valid_columns, real_colname_to_hallucinated
+    )
+    for parse_results, _, _ in grammar.scanString(blendsql):
+        parsed_results_dict = parse_results.as_dict()
+        for arg_type in {"args", "kwargs"}:
+            for idx in range(len(parsed_results_dict[arg_type])):
+                curr_arg = parsed_results_dict[arg_type][idx]
+                if not isinstance(curr_arg, str):
+                    continue
+                parsed_results_dict[arg_type][idx] = re.sub(
+                    r"(^\()(.*)(\)$)", r"\2", curr_arg
+                ).strip()
+        potential_subquery = re.sub(
+            r"JOIN(\s+){{.+}}", "", parsed_results_dict["args"][1], flags=re.DOTALL
+        )
+        real_colname_to_hallucinated = parse_str_and_add_columns(
+            potential_subquery, valid_columns, real_colname_to_hallucinated
+        )
+
+    for k, v in real_colname_to_hallucinated.items():
+        blendsql = sub_tablename(v, k, blendsql)
+
     for tablename in db.iter_tables(use_tables=use_tables):
         for columnname in sorted(
             list(db.iter_columns(tablename)), key=lambda x: len(x), reverse=True
@@ -153,6 +205,7 @@ class BlendSQLEvaluation:
     model_args: ModelArguments = attrib()
     data_args: DataArguments = attrib()
     data_training_args: DataTrainingArguments = attrib()
+    db: SQLiteDBConnector = attrib(default=None)
 
     results: List[dict] = attrib(init=False)
     results_dict: dict = attrib(init=False)
@@ -167,15 +220,15 @@ class BlendSQLEvaluation:
 
     def _init_results_dict(self):
         return {
-            "id": None,
+            EvalField.UID: None,
             "dataset_vars": None,
             "idx": None,
             "input_program_args": None,
-            "db_path": None,
-            "pred_sql": None,
+            EvalField.DB_PATH: None,
+            EvalField.PRED_BLENDSQL: None,
             "num_few_shot_examples": None,
-            "pred_text": None,
-            "answer_text": None,
+            EvalField.PREDICTION: [""],
+            EvalField.GOLD_ANSWER: None,
             "solver": None,
             "error": None,
         }
@@ -196,9 +249,13 @@ class BlendSQLEvaluation:
                     json.dump(self.results, f, indent=4, cls=NpEncoder)
             self.results_dict = self._init_results_dict()
             _item = copy.deepcopy(item)
-            self.results_dict["id"] = _item.pop("id")
-            self.results_dict["answer_text"] = _item.pop("answer_text")
-            self.results_dict["question"] = _item.pop("question")
+            for v in [
+                value
+                for name, value in vars(EvalField).items()
+                if not name.startswith("_")
+            ]:
+                if v in _item:
+                    self.results_dict[v] = _item.pop(v)
             self.results_dict["dataset_vars"] = {
                 k: v
                 for k, v in _item.items()
@@ -218,8 +275,11 @@ class BlendSQLEvaluation:
             self.results_dict["num_few_shot_examples"] = len(
                 item["input_program_args"]["examples"]
             )
-            self.results_dict["db_path"] = item["db_path"]
-            db = SQLiteDBConnector(item["db_path"])
+            self.results_dict[EvalField.DB_PATH] = item[EvalField.DB_PATH]
+            if self.db is None:
+                db = SQLiteDBConnector(item[EvalField.DB_PATH])
+            else:
+                db = self.db
             if not self.data_training_args.bypass_models:
                 if not self.data_training_args.prompt_and_pray_only:
                     pred_text = self._get_blendsql_prediction(item, db)
@@ -241,13 +301,23 @@ class BlendSQLEvaluation:
             self.results.append(self.results_dict)
             # Log predictions to console
             print()
-            print(Fore.MAGENTA + item["question"] + Fore.RESET)
-            if self.results_dict["pred_sql"] is not None:
-                print(Fore.CYAN + self.results_dict["pred_sql"] + Fore.RESET)
-            print(Fore.MAGENTA + f"ANSWER: '{self.results_dict['answer_text']}'")
-            if self.results_dict["pred_text"] is not None:
-                print(Fore.CYAN + self.results_dict["pred_text"] + Fore.RESET)
+            print(Fore.MAGENTA + item[EvalField.QUESTION] + Fore.RESET)
+            if self.results_dict[EvalField.PRED_BLENDSQL] is not None:
+                print(
+                    Fore.CYAN + self.results_dict[EvalField.PRED_BLENDSQL] + Fore.RESET
+                )
+            print(
+                Fore.MAGENTA + f"ANSWER: '{self.results_dict[EvalField.GOLD_ANSWER]}'"
+            )
+            if self.results_dict[EvalField.PREDICTION] is not None:
+                print(
+                    Fore.CYAN
+                    + str(self.results_dict[EvalField.PREDICTION])
+                    + Fore.RESET
+                )
             print()
+        with open(self.output_dir / "predictions.json", "w") as f:
+            json.dump(self.results, f, indent=4, cls=NpEncoder)
 
     def _get_prompt_and_pray_prediction(self, item: dict, entire_serialized_db: str):
         try:
@@ -257,15 +327,16 @@ class BlendSQLEvaluation:
                 question=item["input_program_args"]["question"],
                 serialized_db=entire_serialized_db,
             )
-            final_str_pred: str = res.get("result", "")
-            to_add["pred_text"] = final_str_pred
+            final_str_pred: str = [res.get("result", "")]
+            to_add[EvalField.PREDICTION] = final_str_pred
             self.results_dict = self.results_dict | to_add
         except Exception as error:
             print(Fore.RED + "Error in get_prompt_and_pray prediction" + Fore.RESET)
             print(Fore.RED + str(error) + Fore.RESET)
-            return ""
+            self.results_dict = self.results_dict | to_add
+            return [""]
 
-    def _get_blendsql_prediction(self, item: dict, db: SQLiteDBConnector):
+    def _get_blendsql_prediction(self, item: dict, db: SQLiteDBConnector) -> List[str]:
         to_add = {"solver": "blendsql"}
         try:
             blendsql = fewshot_parse_to_blendsql(
@@ -278,11 +349,11 @@ class BlendSQLEvaluation:
                 db=db,
                 use_tables=item["input_program_args"].get("use_tables", None),
             )
-            to_add["pred_sql"] = blendsql
+            to_add[EvalField.PRED_BLENDSQL] = blendsql
             res: Smoothie = blend(
                 query=blendsql,
                 db=db,
-                ingredients={LLMMap, LLMQA, LLMJoin}
+                ingredients={LLMMap, LLMQA, LLMJoin, LLMValidate}
                 if self.model_args.blender_model_name_or_path is not None
                 else set(),
                 llm=self.blender_endpoint,
@@ -301,29 +372,23 @@ class BlendSQLEvaluation:
             self.num_with_ingredients += pred_has_ingredient
             to_add["pred_has_ingredient"] = pred_has_ingredient
             to_add["example_map_outputs"] = res.meta.example_map_outputs
-            _pred = [i for i in res.df.values.flat if i is not None]
-            if len(_pred) < 1:
-                final_str_pred = ""
-            else:
-                final_str_pred = str(_pred[0])
-            to_add["pred_text"] = final_str_pred
+            prediction = [i for i in res.df.values.flat if i is not None]
+            to_add[EvalField.PREDICTION] = prediction
             self.results_dict = self.results_dict | to_add
-            return final_str_pred
+            return prediction
         except Exception as error:
             print(Fore.RED + "Error in get_blendsql prediction" + Fore.RESET)
             print(Fore.RED + str(error) + Fore.RESET)
-            self.results_dict["error"] = str(error)
             self.results_dict = self.results_dict | to_add
-            return ""
+            self.results_dict["error"] = str(error)
+            return [""]
 
     def save_metrics(self, metric: Metric, metric_format_func: Callable):
         # Finally, read from predictions.json and calculate metrics
         with open(self.output_dir / "predictions.json", "r") as f:
             predictions = json.load(f)
         for item in predictions:
-            metric.add(
-                **metric_format_func(item | item["dataset_vars"], [item["pred_text"]])
-            )
+            metric.add(**metric_format_func(item | item["dataset_vars"]))
         with open(self.output_dir / "metrics.json", "w") as f:
             json.dump(
                 {
@@ -455,7 +520,9 @@ def main() -> None:
 
     if data_args.dataset == "ottqa":
         # Load the massive db only once
-        SQLiteDBConnector("./research/db/ottqa/ottqa.db")
+        db = SQLiteDBConnector("./research/db/ottqa/ottqa.db")
+    else:
+        db = None
 
     for curr_split_name, curr_split in splits.items():
         bse = BlendSQLEvaluation(
@@ -469,6 +536,7 @@ def main() -> None:
             model_args=model_args,
             data_args=data_args,
             data_training_args=data_training_args,
+            db=db,
         )
         try:
             bse.iter_eval()

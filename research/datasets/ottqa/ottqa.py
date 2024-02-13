@@ -4,11 +4,7 @@ import nltk
 import datasets
 from pathlib import Path
 
-
-try:
-    pass
-except ModuleNotFoundError:
-    pass
+from research.constants import EvalField
 
 logger = datasets.logging.get_logger(__name__)
 
@@ -62,9 +58,9 @@ class OTTQA(datasets.GeneratorBasedBuilder):
             description=_DESCRIPTION,
             features=datasets.Features(
                 {
-                    "id": datasets.Value("string"),
-                    "db_path": datasets.Value("string"),
-                    "question": datasets.Value("string"),
+                    EvalField.UID: datasets.Value("string"),
+                    EvalField.DB_PATH: datasets.Value("string"),
+                    EvalField.QUESTION: datasets.Value("string"),
                     "table_id": datasets.Value("string"),
                     "table": {
                         "header": datasets.features.Sequence(datasets.Value("string")),
@@ -74,7 +70,7 @@ class OTTQA(datasets.GeneratorBasedBuilder):
                     },
                     "passage": datasets.Value("string"),
                     "context": datasets.Value("string"),
-                    "answer_text": datasets.Value("string"),
+                    EvalField.GOLD_ANSWER: datasets.Value("string"),
                 }
             ),
             supervised_keys=None,
@@ -238,9 +234,9 @@ class OTTQA(datasets.GeneratorBasedBuilder):
                     table, passages, answer, answer_node
                 )
                 yield idx, {
-                    "id": example["question_id"],
-                    "db_path": str(self.db_output_dir / "ottqa.db"),
-                    "question": example["question"],
+                    EvalField.UID: example["question_id"],
+                    EvalField.DB_PATH: str(self.db_output_dir / "ottqa.db"),
+                    EvalField.QUESTION: example["question"],
                     "table_id": example["table_id"],
                     "table": {"header": header, "rows": data},
                     "passage": passage_context_str,
@@ -251,7 +247,7 @@ class OTTQA(datasets.GeneratorBasedBuilder):
                     + table["section_text"]
                     + " | "
                     + table["intro"],
-                    "answer_text": example["answer-text"],
+                    EvalField.GOLD_ANSWER: example["answer-text"],
                 }
 
     def construct_expanded_table(self, table, passages, answer, answer_nodes):

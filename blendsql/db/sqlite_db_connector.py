@@ -163,7 +163,7 @@ def _create_clause(con, tablename) -> str:
         f'SELECT sql FROM sqlite_master WHERE tbl_name = "{double_quote_escape(tablename)}"',
         con,
     )
-    if create_clause.size != 1:
+    if create_clause.size < 1:
         logging.debug(
             f"Expected create_clause size to be 1, got {create_clause.size}\n{create_clause}"
         )

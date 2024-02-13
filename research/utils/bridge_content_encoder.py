@@ -12,10 +12,16 @@ import functools
 import sqlite3
 from typing import List, Optional, Tuple
 
-# from sentence_transformers import SentenceTransformer, util
 from rapidfuzz import fuzz
+import re
+from diskcache import Cache
 
-# st_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+def double_quote_escape(s):
+    return re.sub(r'(?<=[^"])"(?=[^"])', '""', s)
+
+
+cache = Cache()
 
 # fmt: off
 _stopwords = {'who', 'ourselves', 'down', 'only', 'were', 'him', 'at', "weren't", 'has', 'few', "it's", 'm', 'again',
@@ -203,7 +209,9 @@ def get_matched_entries(
 
 @functools.lru_cache(maxsize=1000, typed=False)
 def get_column_picklist(table_name: str, column_name: str, db_path: str) -> list:
-    fetch_sql = "SELECT DISTINCT `{}` FROM `{}`".format(column_name, table_name)
+    fetch_sql = 'SELECT DISTINCT `{}` FROM "{}"'.format(
+        column_name, double_quote_escape(table_name)
+    )
     try:
         conn = sqlite3.connect(db_path)
         conn.text_factory = bytes
@@ -223,6 +231,23 @@ def get_column_picklist(table_name: str, column_name: str, db_path: str) -> list
         picklist = list(picklist)
     finally:
         conn.close()
+    return picklist
+
+
+def get_column_picklist_with_db(table_name: str, column_name: str, db) -> list:
+    """
+    Useful for OTT-QA setting, where we don't want to repeatedly open/close connection
+        to a large db.
+    """
+    key = (table_name, column_name)
+    if key in cache:
+        return cache[key]
+    fetch_sql = 'SELECT DISTINCT `{}` FROM "{}"'.format(
+        column_name, double_quote_escape(table_name)
+    )
+    picklist = set(db.execute_query(fetch_sql).values.flat)
+    picklist = list(picklist)
+    cache[key] = picklist
     return picklist
 
 
@@ -295,13 +320,19 @@ def get_database_matches(
     question: str,
     table_name: str,
     column_name: str,
-    db_path: str,
     top_k_matches: int = 2,
     match_threshold: float = 0.85,
+    db_path: str = None,
+    db=None,
 ) -> List[str]:
-    picklist = get_column_picklist(
-        table_name=table_name, column_name=column_name, db_path=db_path
-    )  # Gets all DISTINCT values from column
+    if db is None:
+        picklist = get_column_picklist(
+            table_name=table_name, column_name=column_name, db_path=db_path
+        )  # Gets all DISTINCT values from column
+    else:
+        picklist = get_column_picklist_with_db(
+            table_name=table_name, column_name=column_name, db=db
+        )
     matches = []
     if picklist and isinstance(picklist[0], str):
         matched_entries = get_matched_entries(

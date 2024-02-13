@@ -18,9 +18,27 @@ from ...prompts.few_shot.fetaqa import blendsql_examples, sql_examples
 
 
 from ...utils.bridge_content_encoder import get_database_matches
-from ... import constants as CONST
+from ...constants import SINGLE_TABLE_NAME, EvalField
 from ..normalizer import prepare_df_for_neuraldb_from_table
 from blendsql.db import SQLiteDBConnector
+
+
+def fetaqa_metric_format_func(item: dict) -> dict:
+    prediction = item.get(EvalField.PREDICTION, None)
+    if prediction is not None:
+        if len(prediction) < 1:
+            pred = ""
+        else:
+            pred = prediction[0]
+    else:
+        pred = ""
+    return {
+        "prediction": [str(pred)],
+        "reference": {
+            "answer_text": [item["answer_text"]],
+            "question": item["question"],
+        },
+    }
 
 
 def fetaqa_get_input(
@@ -52,7 +70,7 @@ def fetaqa_get_input(
             db_path.parent.mkdir(parents=True)
         sqlite_conn = sqlite3.connect(db_path)
         prepare_df_for_neuraldb_from_table(table, add_row_id=False).to_sql(
-            CONST.SINGLE_TABLE_NAME, sqlite_conn
+            SINGLE_TABLE_NAME, sqlite_conn
         )
     db_path = str(db_path)
     db = SQLiteDBConnector(db_path)
@@ -95,21 +113,6 @@ def fetaqa_get_input(
     )
 
 
-def fetaqa_metric_format_func(item: dict, flat_preds: list) -> dict:
-    _pred = [i for i in flat_preds if i is not None]
-    if len(_pred) < 1:
-        pred = ""
-    else:
-        pred = _pred[0]
-    return {
-        "prediction": [str(pred)],
-        "reference": {
-            "answer_text": [item["answer_text"]],
-            "question": item["question"],
-        },
-    }
-
-
 def fetaqa_pre_process_function(
     batch: dict, data_training_args: DataTrainingArguments, model_args: ModelArguments
 ) -> dict:
@@ -124,7 +127,10 @@ def fetaqa_pre_process_function(
                 model_args=model_args,
             )
             for question, table, title, table_id in zip(
-                batch["question"], batch["table"], batch["meta"], batch["table_id"]
+                batch[EvalField.QUESTION],
+                batch["table"],
+                batch["meta"],
+                batch["table_id"],
             )
         ]
     )

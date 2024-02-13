@@ -17,18 +17,21 @@ logger = logging.getLogger(__name__)
 from ..dataset import DataTrainingArguments
 from ...utils.args import ModelArguments
 from ...utils.bridge_content_encoder import get_database_matches
-from ... import constants as CONST
+from ...constants import DOCS_TABLE_NAME, EvalField, SINGLE_TABLE_NAME
 from ...prompts.few_shot.wikitq import blendsql_examples, sql_examples
 from ..normalizer import prepare_df_for_neuraldb_from_table
 from blendsql.db import SQLiteDBConnector
 
 
-def wikitq_metric_format_func(item: dict, flat_preds: list) -> dict:
-    _pred = [i for i in flat_preds if i is not None]
-    if len(_pred) < 1:
-        pred = ""
+def wikitq_metric_format_func(item: dict) -> dict:
+    prediction = item.get(EvalField.PREDICTION, None)
+    if prediction is not None:
+        if len(prediction) < 1:
+            pred = ""
+        else:
+            pred = prediction[0]
     else:
-        pred = _pred[0]
+        pred = ""
     return {
         "prediction": [pred],
         "reference": {"answer_text": item["answer_text"], "question": item["question"]},
@@ -74,7 +77,7 @@ def wikitq_get_input(
             db_path.parent.mkdir(parents=True)
         sqlite_conn = sqlite3.connect(db_path)
         prepare_df_for_neuraldb_from_table(table, add_row_id=False).to_sql(
-            CONST.SINGLE_TABLE_NAME, sqlite_conn
+            SINGLE_TABLE_NAME, sqlite_conn
         )
     db_path = str(db_path)
     db = SQLiteDBConnector(db_path)
@@ -88,7 +91,7 @@ def wikitq_get_input(
         column_str_with_values = "{column} ( {values} )"
         value_sep = " , "
         for table_name in db.iter_tables():
-            if re.search(r"^{}_".format(CONST.DOCS_TABLE_NAME), table_name):
+            if re.search(r"^{}_".format(DOCS_TABLE_NAME), table_name):
                 continue
             for column_name in db.iter_columns(table_name):
                 matches = get_database_matches(
@@ -138,7 +141,7 @@ def wikitq_pre_process_function(
                 model_args=model_args,
             )
             for question, title, table, table_id in zip(
-                batch["question"], titles, batch["table"], batch["table_id"]
+                batch[EvalField.QUESTION], titles, batch["table"], batch["table_id"]
             )
         ]
     )

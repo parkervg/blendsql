@@ -4,6 +4,8 @@ import datasets
 import os
 import nltk
 
+from research.constants import EvalField
+
 _CITATION = """\
 @article{chen2020hybridqa,
   title={Hybridqa: A dataset of multi-hop question answering over tabular and textual data},
@@ -50,8 +52,8 @@ class HybridQA(datasets.GeneratorBasedBuilder):
             description=_DESCRIPTION,
             features=datasets.Features(
                 {
-                    "id": datasets.Value("string"),
-                    "question": datasets.Value("string"),
+                    EvalField.UID: datasets.Value("string"),
+                    EvalField.QUESTION: datasets.Value("string"),
                     "table_id": datasets.Value("string"),
                     "table": {
                         "header": datasets.features.Sequence(datasets.Value("string")),
@@ -67,7 +69,7 @@ class HybridQA(datasets.GeneratorBasedBuilder):
                     },
                     "gold_passage": datasets.Value("string"),
                     "context": datasets.Value("string"),
-                    "answer_text": datasets.Value("string"),
+                    EvalField.GOLD_ANSWER: datasets.Value("string"),
                 }
             ),
             supervised_keys=None,
@@ -125,8 +127,8 @@ class HybridQA(datasets.GeneratorBasedBuilder):
                 )
                 passage_headers, passage_data = self.preprocess_passages(passages)
                 yield idx, {
-                    "id": example["question_id"],
-                    "question": example["question"],
+                    EvalField.UID: example["question_id"],
+                    EvalField.QUESTION: example["question"],
                     "table_id": example["table_id"],
                     "table": {"header": header, "rows": rows},
                     "passages": {"header": passage_headers, "rows": passage_data},
@@ -138,7 +140,7 @@ class HybridQA(datasets.GeneratorBasedBuilder):
                     + table["section_text"]
                     + " | "
                     + table["intro"],
-                    "answer_text": example["answer-text"],
+                    EvalField.GOLD_ANSWER: example["answer-text"],
                 }
 
     # @staticmethod

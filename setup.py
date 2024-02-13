@@ -38,6 +38,8 @@ setup(
         "pyparsing==3.1.1",
         "pandas>=2.0.0",
         "bottleneck>=1.3.6",
+        "python-dotenv==1.0.1",
+        "transformers==4.25.1",
         "sqlglot",
         "pre-commit",
         "attrs",
@@ -63,7 +65,6 @@ setup(
             "recognizers-text",
             "recognizers-text-suite",
             "emoji==1.7.0",
-            "transformers",
         ],
         "test": [
             "pytest",

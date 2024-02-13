@@ -5,8 +5,13 @@ import json
 import os
 import logging
 from colorama import Fore
+from tabulate import tabulate
+from functools import partial
+
 
 from .db.sqlite_db_connector import SQLiteDBConnector
+
+tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
 
 
 def init_secrets(filepath: str) -> None:

@@ -1,4 +1,5 @@
 proxies.py
+tests/data/
 outputs/
 research/db/
 *.crt

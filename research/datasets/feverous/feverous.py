@@ -1,3 +1,7 @@
+import warnings
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
 import json
 import os
 import sqlite3
@@ -9,6 +13,7 @@ from typing import Dict, List
 
 import datasets
 from wikiextractor.extract import Extractor, ignoreTag, resetIgnoredTags
+from research.constants import EvalField
 
 _CITATION = """\
 @article{aly2021feverous,
@@ -135,6 +140,17 @@ def format_nested_table_json(table_json: dict):
                 to_add_queue.append(values[_pos])
         naive_df_data.append(row_entry)
     naive_df = pd.DataFrame(naive_df_data)
+    naive_df = naive_df.replace("", np.nan)
+    naive_df = naive_df.ffill()
+    naive_df = naive_df.fillna("")
+    if len(naive_df.columns) == 2:
+        # Transpose, so LLM gets whole `attribute` context
+        # naive_df.columns = ["attribute", "value"]
+        naive_df = naive_df.T
+    try:
+        return set_first_row_as_header(naive_df)
+    except:
+        return naive_df
 
     # Simplest case: if less than 3 cells span multiple indices
     # But, if it has only 2 columns, use 'attribute', 'value' formatting
@@ -271,7 +287,7 @@ def retrieve_context(example, cur):
                 else:
                     tables.append(table_id)
                 table_json = pages[page_id]["table_{}".format(table_id)]
-                evidences.append({"table": table_json})
+                evidences.append({"table": table_json, "tablename": page_id})
             elif meta.startswith("item"):
                 list_id = get_list_id(meta)
                 context = None
@@ -290,13 +306,13 @@ def retrieve_context(example, cur):
     title_to_content: Dict[str, List[str]] = {}
     for evidence in evidences:
         if "table" in evidence:
-            tablename, df = format_nested_table_json(evidence["table"])
+            df = format_nested_table_json(evidence["table"])
             df_dict = df.to_dict(orient="split")
             table_list.append(
                 {
                     "header": df_dict["columns"],
                     "rows": df_dict["data"],
-                    "table_description": tablename,
+                    "table_description": evidence["tablename"],
                 }
             )
         else:
@@ -306,7 +322,17 @@ def retrieve_context(example, cur):
         context_list.extend(
             [{"title": k, "content": " ".join(v)} for k, v in title_to_content.items()]
         )
-    return table_list, context_list
+    # Remove overlaps
+    filtered_context_list = []
+    context_list_titles = [item["title"] for item in context_list]
+    for title in set(context_list_titles):
+        content_candidates = []
+        for item in context_list:
+            if item["title"] == title:
+                content_candidates.append(item["content"])
+        chosen_content = sorted(content_candidates, key=len, reverse=True)[0]
+        filtered_context_list.append({"title": title, "content": chosen_content})
+    return table_list, filtered_context_list
 
 
 def is_table_involved(example):
@@ -337,8 +363,8 @@ class FEVEROUS(datasets.GeneratorBasedBuilder):
             description=_DESCRIPTION,
             features=datasets.Features(
                 {
-                    "id": datasets.Value("string"),
-                    "statement": datasets.Value("string"),
+                    EvalField.UID: datasets.Value("string"),
+                    EvalField.QUESTION: datasets.Value("string"),
                     "table": datasets.features.Sequence(
                         {
                             "header": datasets.features.Sequence(
@@ -356,7 +382,7 @@ class FEVEROUS(datasets.GeneratorBasedBuilder):
                             "content": datasets.Value("string"),
                         }
                     ),
-                    "label": datasets.Value("string"),
+                    EvalField.GOLD_ANSWER: datasets.Value("string"),
                 }
             ),
             supervised_keys=None,
@@ -405,9 +431,9 @@ class FEVEROUS(datasets.GeneratorBasedBuilder):
                     tables, contexts = retrieve_context(example, cur)
                     count += 1
                     yield count, {
-                        "id": str(example["id"]),
-                        "statement": statement,
+                        EvalField.UID: str(example["id"]),
+                        EvalField.QUESTION: statement,
                         "table": tables,
                         "context": contexts,
-                        "label": label,
+                        EvalField.GOLD_ANSWER: label,
                     }

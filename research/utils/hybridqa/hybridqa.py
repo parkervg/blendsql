@@ -20,24 +20,34 @@ from ...utils.args import ModelArguments
 from ...utils.bridge_content_encoder import (
     get_database_matches,
 )
-from ... import constants as CONST
+from ...constants import (
+    SINGLE_TABLE_NAME,
+    DOCS_TABLE_NAME,
+    CREATE_VIRTUAL_TABLE_CMD,
+    EvalField,
+)
 from ...prompts.few_shot.hybridqa import blendsql_examples, sql_examples
 from ..normalizer import prepare_df_for_neuraldb_from_table
 from blendsql.db import SQLiteDBConnector
 
 
-def hybridqa_metric_format_func(item: dict, flat_preds: list) -> dict:
-    _pred = [i for i in flat_preds if i is not None]
-    if len(_pred) < 1:
-        pred = ""
+def hybridqa_metric_format_func(item: dict) -> dict:
+    prediction = item[EvalField.PREDICTION]
+    if isinstance(prediction, str):
+        prediction = [prediction]
+    if prediction is not None:
+        if len(prediction) < 1:
+            pred = ""
+        else:
+            pred = prediction[0]
     else:
-        pred = _pred[0]
+        pred = ""
     return {
         "prediction": str(pred),
         "reference": {
-            "answer_text": item["answer_text"],
-            "id": item["id"],
-            "question": item["question"],
+            "answer_text": item[EvalField.GOLD_ANSWER],
+            "id": item[EvalField.UID],
+            "question": item[EvalField.QUESTION],
         },
     }
 
@@ -77,15 +87,15 @@ def hybridqa_get_input(
         sqlite_conn = sqlite3.connect(db_path)
         prepare_df_for_neuraldb_from_table(
             preprocess_hybridqa_table(table), add_row_id=False
-        ).to_sql(CONST.SINGLE_TABLE_NAME, sqlite_conn)
+        ).to_sql(SINGLE_TABLE_NAME, sqlite_conn)
         # Create virtual table to search over
         c = sqlite_conn.cursor()
-        c.execute(CONST.CREATE_VIRTUAL_TABLE_CMD)
+        c.execute(CREATE_VIRTUAL_TABLE_CMD)
         c.close()
         # Add content
         prepare_df_for_neuraldb_from_table(
             preprocess_hybridqa_table(passages), add_row_id=False
-        ).to_sql(CONST.DOCS_TABLE_NAME, sqlite_conn, if_exists="append", index=False)
+        ).to_sql(DOCS_TABLE_NAME, sqlite_conn, if_exists="append", index=False)
         sqlite_conn.close()
     db_path = str(db_path)
     db = SQLiteDBConnector(db_path)
@@ -103,31 +113,11 @@ def hybridqa_get_input(
     if data_training_args.use_bridge_encoder:
         bridge_hints = []
         column_str_with_values = "{table}.{column} ( {values} )"
-        doc_with_values = (
-            "Sentence from `SELECT content FROM docs WHERE title = '{title}'`: '{sent}'"
-        )
         value_sep = " , "
         for table_name in db.iter_tables():
-            if re.search(r"^{}_".format(CONST.DOCS_TABLE_NAME), table_name):
+            if re.search(r"^{}_".format(DOCS_TABLE_NAME), table_name):
                 continue
             for column_name in db.iter_columns(table_name):
-                # if (
-                #     data_training_args.include_doc_bridge_hints
-                #     and table_name == "docs"
-                #     and column_name == "content"
-                # ):
-                #     matches = get_database_matches_docs(
-                #         question=question,
-                #         table_name=table_name,
-                #         column_name=column_name,
-                #         db_path=db_path,
-                #     )
-                #     if matches:
-                #         for title, sent in matches:
-                #             bridge_hints.append(
-                #                 doc_with_values.format(title=title, sent=sent)
-                #             )
-                # else:
                 matches = get_database_matches(
                     question=question,
                     table_name=table_name,
@@ -154,7 +144,7 @@ def hybridqa_get_input(
             "serialized_db": serialized_db,
             "entire_serialized_db": entire_serialized_db,
             "bridge_hints": bridge_hints,
-            "extra_task_description": f"Additionally, we have the table `{CONST.DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table.",
+            "extra_task_description": f"Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table.",
         },
     )
 
@@ -173,7 +163,10 @@ def hybridqa_pre_process_function(
                 model_args=model_args,
             )
             for question, table, passages, table_id in zip(
-                batch["question"], batch["table"], batch["passages"], batch["table_id"]
+                batch[EvalField.QUESTION],
+                batch["table"],
+                batch["passages"],
+                batch["table_id"],
             )
         ]
     )

@@ -5,18 +5,15 @@
 <br>
 </div>
 
-<div align="center">
-  <a>
-    <img src="./img/logo_as_circle.png" alt="Logo" width="250" height="250">
-  </a>
-
-  <h3 align="center">BlendSQL</h3>
-
-  <p align="center">
+<div align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/logo_dark.png">
+  <img alt="blendsql" src="img/logo_light.png" width=350">
+</picture>
+<p align="center">
     <i> SQL 🤝 LLMs </i>
   </p>
 </div>
-
+<br/>
 
 ## Intro
 BlendSQL is a *superset of SQLite*. It allows the user to leverage external functions (LLMs, Python code, APIs) within the expressive structure of SQL.
@@ -70,13 +67,13 @@ SELECT merchant FROM transactions
 }}
 ```
 
-### More Examples 
+### More Examples from Popular QA Datasets
 
 <p>
 <details>
 <summary> <b> <a href="https://hybridqa.github.io/" target="_blank"> HybridQA </a> </b> </summary>
 
-For this setting, our database contains 2 tables: a table from Wikipedia `w`, and a collection of unstructured Wikipedia articles in the table `docs`.
+For this setting, our database contains 2 tables: a table from Wikipedia `w`, and a collection of unstructured Wikipedia articles in the table `documents`.
 
 *What is the state flower of the smallest state by area ?*
 ```sql
@@ -84,7 +81,7 @@ SELECT "common name" AS 'State Flower' FROM w
 WHERE state = {{
     LLMQA(
         'Which is the smallest state by area?',
-        (SELECT title, content FROM docs),
+        (SELECT title, content FROM documents),
         options='w::state'
     )
 }}
@@ -96,12 +93,12 @@ WHERE state = {{
     LLMQA(
         'Name of the builders?',
         (
-            SELECT title AS 'Building', content FROM docs
+            SELECT title AS 'Building', content FROM documents
                 WHERE title = {{
                     LLMQA(
                         'Align the name to the correct title.',
                         (SELECT name FROM w WHERE city = 'herat' AND remarks LIKE '%fire temple%'),
-                        options='docs::title'
+                        options='documents::title'
                     )
                 }}
         ) 
@@ -114,7 +111,7 @@ WHERE state = {{
 SELECT capacity FROM w WHERE venue = {{
     LLMQA(
         'Which venue is named in honor of Juan Antonio Samaranch?',
-        (SELECT title AS 'Venue', content FROM docs),
+        (SELECT title AS 'Venue', content FROM documents),
         options='w::venue'
     )
 }}
@@ -123,7 +120,76 @@ SELECT capacity FROM w WHERE venue = {{
 </details>
 </p>
 
+<p>
+<details>
+<summary> <b> <a href="https://ott-qa.github.io/" target="_blank"> OTT-QA </a> </b> </summary>
 
+Unlike HybridQA, these questions are open-domain, where we don't know in advance where the answer of a given open question appears in a passage or a table.
+
+As a result, we need to play the role of both the retriever (to select relevant context) and reader (to read from relevant contexts and return the given answer).
+
+As the underlying database consists of 400K tables and 5M documents, it's important to set `LIMIT` clauses appropriately to ensure reasonable execution times.
+
+The examples below also demonstrate how BlendSQL unpacks [CTE statements](https://www.sqlite.org/lang_with.html) to ensure we only pass necessary data into the BlendSQL ingredient calls. 
+
+*When was the third highest paid Rangers F.C . player born ?*
+```sql
+{{
+    LLMQA(
+        'When was the Rangers Player born?'
+        (
+            WITH t AS (
+                SELECT player FROM (
+                    SELECT * FROM "./List of Rangers F.C. records and statistics (0)"
+                    UNION ALL SELECT * FROM "./List of Rangers F.C. records and statistics (1)"
+                ) ORDER BY trim(fee, '£') DESC LIMIT 1 OFFSET 2
+            ), d AS (
+                SELECT * FROM documents JOIN t WHERE documents MATCH t.player || ' OR rangers OR fc' ORDER BY rank LIMIT 5
+            ) SELECT d.content, t.player AS 'Rangers Player' FROM d JOIN t
+        )
+    )
+}}
+```
+
+*In which Track Cycling World Championships event was the person born in Matanzas , Cuba ranked highest ?*
+```sql
+{{
+    LLMQA(
+        'In what event was the cyclist ranked highest?',
+        (
+            SELECT * FROM (
+                SELECT * FROM "./Cuba at the UCI Track Cycling World Championships (2)"
+            ) as w WHERE w.name = {{
+                LLMQA(
+                    "Which cyclist was born in Matanzas, Cuba?",
+                    (
+                        SELECT * FROM documents 
+                            WHERE documents MATCH 'matanzas AND (cycling OR track OR born)' 
+                            ORDER BY rank LIMIT 3
+                    ),
+                    options="w::name"
+                )
+            }}
+        ),
+        options='w::event'
+    )
+}}
+```
+
+*Who is the director the Togolese film that was a 30 minute film that was shot in 16mm ?*
+```sql
+SELECT director FROM "./List of African films (4)" as w
+WHERE title = {{
+    LLMQA(
+        'What is the name of the Togolese film that was 30 minutes and shot in 16mm?'
+        (SELECT * FROM documents WHERE documents MATCH 'togolese OR 30 OR 16mm OR film' ORDER BY rank LIMIT 5)
+        options='w::title'
+    )
+}}
+```
+
+</details>
+</p>
 
 <p>
 <details>
@@ -147,7 +213,7 @@ SELECT EXISTS (
 SELECT (
     SELECT (
         {{
-            LLMQA('Is the Sharks 2006-07 season the 14th season (13th season of play)?', 'docs::content', options='t;f')
+            LLMQA('Is the Sharks 2006-07 season the 14th season (13th season of play)?', 'documents::content', options='t;f')
         }} 
     ) = 't'
 )
@@ -178,11 +244,11 @@ SELECT EXISTS (
                 )
             }} = TRUE
     ) AND EXISTS (
-        SELECT * FROM docs 
+        SELECT * FROM documents 
             WHERE {{
                 LLMMap(
                     'How many bus routes operated by Transdev?', 
-                    'docs::content'
+                    'documents::content'
                 )
             }} = 3
     )
@@ -199,15 +265,25 @@ SELECT EXISTS (
 - Easy logging of execution environment with `smoothie.save_recipe()` 🖥️
   - Enables reproducibility across machines
 
-### Benchmarks
-The below benchmarks were done on my local M1 Macbook Pro. by running the scripts found in `examples/benchmarks`. 
-'Lines of Code' is a rough estimate of the user-written code for each usecase.
+### FAQ
 
-| **Name**                     | **Description**                                                 | **Runtime/s (Across 10 runs)** | **Lines of Code** |
-|------------------------------|-----------------------------------------------------------------|-------------------------------------------------|-------------------|
-| BlendSQL                     |                                                     |5.685 +/- 0.930                                 | 9                 |
-| SQL + LLM Calls       | Filtering what we can with SQL, then running LLM calls.         | 9.083 +/- 2.061                                 | 106               |
-| Naive SQL + LLM Calls | Runing LLM calls on entire table, regardless of SQL conditions. | 64.809 +/- 6.225                                | 106               |
+> #### Why not just implement BlendSQL as a [user-defined function in SQLite](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic)?
+>> LLMs are expensive, both in terms of $ cost and compute time. When applying them to SQLite databases, we want to take special care in ensuring we're not applying them to contexts where they're not required. 
+>> This is [not easily achievable with UDFs](https://sqlite.org/forum/info/649ad4c62fd4b4e8cb5d6407107b8c8a9a0afaaf95a87805e5a8403a79e6616c), even when marked as a [deterministic function](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic).
+>> 
+>> BlendSQL is specifically designed to enforce an order-of-operations that 1) prioritizes vanilla SQL operations first, and 2) caches results from LLM ingredients so they don't need to be recomputed.
+>> For example:
+>> ```sql 
+>> SELECT {{LLMMap('What state is this NBA team from?', 'w::team')} FROM w 
+>>    WHERE num_championships > 3 
+>>    ORDER BY {{LLMMap('What state is this NBA team from?', 'w::team')}
+>> 
+>> ```
+>> BlendSQL makes sure to only pass those `team` values from rows which satisfy the condition `num_championship > 3` to the LLM. Additionally, since we assume the function is deterministic, we make a single LLM call and cache the results, despite the ingredient function being used twice.
+
+
+> #### So I get how to write BlendSQL queries. But why would I use this over vanilla SQLite? 
+> Certain ingredients, like [LLMJoin](#joiningredient), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an *intermediate representation for reasoning over structured + unstructured with LLMs*. Some examples of this can be found above [here](#more-examples-from-popular-qa-datasets).
 
 <hr>
 
@@ -259,6 +335,9 @@ smoothie = blend(
 > WIP, will be updated
 
 ## Ingredients 
+
+![ingredients](./img/ingredients.jpg)
+
 Ingredients are at the core of a BlendSQL script. 
 
 They are callable functions that perform one the task paradigms defined in [ingredient.py](./blendsql/ingredients/ingredient.py).
@@ -377,7 +456,7 @@ For example, the BlendSQL query below translates to the valid (but rather confus
   AND {{LLMMap('Offers a media streaming service?', 'portfolio::Description')}} = 1
 ```
 #### Changing QA Output with `options`
-Perhaps we want the answer to the above question in a different format. We can combine the best of the `Select` ingredient with the `QA` ingredient by passing a `options` argument, where we provide semicolon-separated options.
+Perhaps we want the answer to the above question in a different format. We call our LLM ingredient in a constrained setting by passing a `options` argument, where we provide either semicolon-separated options, or a reference to a column.
 
 ```sql
 {{
@@ -400,11 +479,12 @@ Running the above BlendSQL query, we get the output `two consecutive days!`.
 This `options` argument can also be a reference to a given column.
 
 For example (from the [HybridQA dataset](https://hybridqa.github.io/)): 
+
 ```sql 
  SELECT capacity FROM w WHERE venue = {{
         LLMQA(
             'Which venue is named in honor of Juan Antonio Samaranch?',
-            (SELECT title, content FROM docs WHERE content LIKE '%venue%'),
+            (SELECT title, content FROM documents WHERE content LIKE '%venue%'),
             options='w::venue'
         )
 }}
@@ -427,7 +507,7 @@ Or, from our running example:
 }}
 ```
 
-The above BlendSQL will yield the result `AIG`.
+The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol` column from `account_history`.
 
 ### `StringIngredient`
 This is the simplest type of ingredient. This will output a string to be placed directly into the SQL query.
@@ -476,10 +556,19 @@ def blend(*args, **kwargs) -> Smoothie:
 ```
 
 
-### Appendix 
-
+### Appendix
 #### Run Line Profiling 
-First uncomment `@profile` above `blend()` in `grammar.py`.
+First uncomment `@profile` above `blend()` in `blendsql.py`.
 Make sure you've run `pip install line_profiler` first. This installs the tool here: https://github.com/pyutils/line_profiler
 
 `PYTHONPATH=$PWD:$PYTHONPATH kernprof -lv examples/benchmarks/with_blendsql.py`
+
+#### Benchmarks
+The below benchmarks were done on my local M1 Macbook Pro. by running the scripts found in `examples/benchmarks`. 
+'Lines of Code' is a rough estimate of the user-written code for each usecase.
+
+| **Name**                     | **Description**                                                 | **Runtime/s (Across 10 runs)** | **Lines of Code** |
+|------------------------------|-----------------------------------------------------------------|-------------------------------------------------|-------------------|
+| BlendSQL                     |                                                     |5.685 +/- 0.930                                 | 9                 |
+| SQL + LLM Calls       | Filtering what we can with SQL, then running LLM calls.         | 9.083 +/- 2.061                                 | 106               |
+| Naive SQL + LLM Calls | Runing LLM calls on entire table, regardless of SQL conditions. | 64.809 +/- 6.225                                | 106               |

@@ -60,6 +60,7 @@ class OTTQA(datasets.Metric):
                         {
                             "answer_text": datasets.Value("string"),
                             "id": datasets.Value("string"),
+                            "question": datasets.Value("string"),
                         }
                     ),
                 }

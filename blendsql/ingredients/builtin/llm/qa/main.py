@@ -1,13 +1,15 @@
-from typing import Dict, Union
+from typing import Dict, Union, Optional, List
 import re
+
+import pandas as pd
+
 from blendsql.ingredients.builtin.llm.utils import (
     construct_gen_clause,
 )
 from blendsql.ingredients.builtin.llm.llm import LLM
 from blendsql import _programs as programs
 from blendsql import _constants as CONST
-from blendsql.ingredients.ingredient import QAIngredient, IngredientException
-from blendsql.utils import get_tablename_colname
+from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 
 
@@ -16,34 +18,20 @@ class LLMQA(QAIngredient):
         self,
         question: str,
         llm: LLM,
+        options: Optional[List[str]] = None,
+        context: Optional[pd.DataFrame] = None,
+        value_limit: Optional[int] = None,
+        table_to_title: Optional[Dict[str, str]] = None,
         long_answer: bool = False,
-        value_limit: Union[int, None] = None,
-        options: str = None,
-        table_to_title: Dict[str, str] = None,
         **kwargs,
     ) -> Union[str, int, float]:
-        if question is None:
-            raise IngredientException("Need to specify `question` for LLMQA")
-        # Unpack default kwargs
-        subtable = self.unpack_default_kwargs(**kwargs)
-        if value_limit is not None:
-            subtable = subtable.iloc[:value_limit]
+        if context is not None:
+            if value_limit is not None:
+                context = context.iloc[:value_limit]
+        # Ensure options don't have a common prefix
+        # This will be removed later
+        # Related to this issue: https://github.com/guidance-ai/guidance/issues/232#issuecomment-1597125256
         if options is not None:
-            try:
-                tablename, colname = get_tablename_colname(options)
-                tablename = kwargs.get("aliases_to_tablenames").get(tablename, tablename)
-                options = (
-                    self.db.execute_query(f'SELECT "{colname}" FROM "{tablename}"')[
-                        colname
-                    ]
-                    .unique()
-                    .tolist()
-                )
-            except ValueError:
-                options = options.split(";")
-            # Ensure options don't have a common prefix
-            # This will be removed later
-            # Related to this issue: https://github.com/guidance-ai/guidance/issues/232#issuecomment-1597125256
             options = [f"{idx}): {item}" for idx, item in enumerate(options)]
         gen_clause: str = construct_gen_clause(
             gen_type="select" if options else "gen",
@@ -59,7 +47,7 @@ class LLMQA(QAIngredient):
             program=program,
             options_dict=[{"option": item} for item in options] if options else None,
             question=question,
-            serialized_db=subtable.to_string(),
+            serialized_db=context.to_string() if context is not None else "",
             long_answer=long_answer,
             table_title=None,
         )
