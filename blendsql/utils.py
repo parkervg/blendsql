@@ -5,8 +5,6 @@ import json
 import os
 import logging
 from colorama import Fore
-import time
-import threading
 
 from .db.sqlite_db_connector import SQLiteDBConnector
 
@@ -49,22 +47,6 @@ def init_secrets(filepath: str) -> None:
                 ) from None
     else:
         raise ValueError(f"Can't find secrets.json at {filepath}")
-
-
-class TokenTimer(threading.Thread):
-    """Class to handle refreshing OpenAI tokens."""
-
-    def __init__(self, secrets_json_path: str, refresh_interval_min: int = 30):
-        super().__init__()
-        self.daemon = True
-        self.secrets_json_path = secrets_json_path
-        self.refresh_interval_min = refresh_interval_min
-
-    def run(self):
-        while True:
-            print(Fore.YELLOW + f"Refreshing our OpenAI tokens..." + Fore.RESET)
-            init_secrets(self.secrets_json_path)
-            time.sleep(self.refresh_interval_min * self.refresh_interval_min)
 
 
 def get_tablename_colname(s: str) -> Tuple[str, str]:

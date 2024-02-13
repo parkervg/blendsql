@@ -49,6 +49,7 @@ setup(
         "typeguard",
         "azure-identity",
         "nbformat",
+        "python-dotenv==1.0.1",
     ],
     extras_require={
         "research": [

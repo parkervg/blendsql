@@ -5,7 +5,7 @@ import uuid
 import pandas as pd
 import pyparsing
 import re
-from typing import Dict, Iterable, List, Set, Tuple, Generator
+from typing import Dict, Iterable, List, Set, Tuple, Generator, Optional
 from sqlite3 import OperationalError
 import sqlglot.expressions
 from attr import attrs, attrib
@@ -39,9 +39,9 @@ from ._dialect import _parse_one, FTS5SQLite
 from ._grammar import grammar
 from .ingredients.ingredient import Ingredient
 from ._smoothie import Smoothie, SmoothieMeta
-from ._constants import DEFAULT_ENDPOINT_NAME, CONTEXT_INGREDIENT_KWARG, IngredientType
-from .ingredients.builtin.llm.endpoint import Endpoint
-from .ingredients.builtin.llm.utils import initialize_endpoint
+from ._constants import DEFAULT_LLM_NAME, DEFAULT_LLM_TYPE, CONTEXT_INGREDIENT_KWARG, IngredientType
+from .ingredients.builtin.llm.llm import LLM
+from .ingredients.builtin.llm.utils import initialize_llm
 
 
 @attrs
@@ -235,6 +235,7 @@ def blend(
     query: str,
     db: SQLiteDBConnector,
     ingredients: Iterable[Ingredient] = None,
+    llm: Optional[LLM] = None,
     verbose: bool = False,
     overwrite_args: Dict[str, str] = None,
     infer_map_constraints: bool = False,
@@ -251,7 +252,7 @@ def blend(
         db: Database connector object
         ingredients: List of ingredient objects, to use in interpreting BlendSQL query
         verbose: Boolean defining whether to run in logging.debug mode
-        use_endpoint: Optionally override whatever endpoint_name argument we pass to LLM ingredient.
+        llm: Optionally override whatever llm argument we pass to LLM ingredient.
             Useful for research applications, where we don't (necessarily) want the parser to choose endpoints.
         infer_map_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
@@ -431,6 +432,8 @@ def blend(
                 kwargs_dict = {x[0]: x[-1] for x in parse_results_dict["kwargs"]}
 
                 # Optionally modify kwargs dict, depending on blend() overwrite_args
+                if llm is not None:
+                    kwargs_dict["llm"] = llm
                 if overwrite_args is not None:
                     for k, v in overwrite_args.items():
                         if k in kwargs_dict:
@@ -440,13 +443,14 @@ def blend(
                                 + Fore.RESET
                             )
                         kwargs_dict[k] = v
-                # Handle endpoint, make sure we initialize it if it's a string
-                endpoint = kwargs_dict.get("endpoint", None)
-                if endpoint is not None:
-                    if not isinstance(endpoint, Endpoint):
-                        kwargs_dict["endpoint"] = initialize_endpoint(endpoint)
+                # Handle llm, make sure we initialize it if it's a string
+                llm = kwargs_dict.get("llm", None)
+                llm_type = kwargs_dict.get("llm_type", None)
+                if llm is not None:
+                    if not isinstance(llm, LLM):
+                        kwargs_dict["llm"] = initialize_llm(llm_type, llm)
                 else:
-                    kwargs_dict["endpoint"] = initialize_endpoint(DEFAULT_ENDPOINT_NAME)
+                    kwargs_dict["llm"] = initialize_llm(DEFAULT_LLM_TYPE, DEFAULT_LLM_NAME)
 
                 if _function.ingredient_type == IngredientType.MAP:
                     # Latter is the winner.

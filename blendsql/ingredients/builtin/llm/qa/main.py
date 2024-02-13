@@ -3,7 +3,7 @@ import re
 from blendsql.ingredients.builtin.llm.utils import (
     construct_gen_clause,
 )
-from blendsql.ingredients.builtin.llm.endpoint import Endpoint
+from blendsql.ingredients.builtin.llm.llm import LLM
 from blendsql import _programs as programs
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import QAIngredient, IngredientException
@@ -15,7 +15,7 @@ class LLMQA(QAIngredient):
     def run(
         self,
         question: str,
-        endpoint: Endpoint,
+        llm: LLM,
         long_answer: bool = False,
         value_limit: Union[int, None] = None,
         options: str = None,
@@ -48,14 +48,14 @@ class LLMQA(QAIngredient):
         gen_clause: str = construct_gen_clause(
             gen_type="select" if options else "gen",
             options=options,
-            **endpoint.gen_kwargs,
+            **llm.gen_kwargs,
         )
         program: str = (
             programs.QA_PROGRAM_CHAT(gen_clause)
-            if endpoint.endpoint_name in CONST.OPENAI_CHAT_LLM
+            if llm.model_name_or_path in CONST.OPENAI_CHAT_LLM
             else programs.QA_PROGRAM_COMPLETION(gen_clause)
         )
-        res = endpoint.predict(
+        res = llm.predict(
             program=program,
             options_dict=[{"option": item} for item in options] if options else None,
             question=question,
