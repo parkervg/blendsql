@@ -36,7 +36,7 @@ from transformers.hf_argparser import HfArgumentParser
 
 from blendsql.db import SQLiteDBConnector
 from blendsql.db.utils import double_quote_escape
-from blendsql import LLMMap, LLMQA, LLMJoin, blend
+from blendsql import LLMMap, LLMQA, LLMJoin, LLMValidate, blend
 from blendsql.utils import TokenTimer, sub_tablename
 from blendsql.ingredients.builtin.llm.utils import initialize_endpoint
 from blendsql.ingredients.builtin.llm.endpoint import Endpoint
@@ -220,15 +220,15 @@ class BlendSQLEvaluation:
 
     def _init_results_dict(self):
         return {
-            "id": None,
+            EvalField.UID: None,
             "dataset_vars": None,
             "idx": None,
             "input_program_args": None,
-            "db_path": None,
+            EvalField.DB_PATH: None,
             EvalField.PRED_BLENDSQL: None,
             "num_few_shot_examples": None,
-            EvalField.PREDICTION: None,
-            "answer_text": None,
+            EvalField.PREDICTION: [""],
+            EvalField.GOLD_ANSWER: None,
             "solver": None,
             "error": None,
         }
@@ -249,11 +249,13 @@ class BlendSQLEvaluation:
                     json.dump(self.results, f, indent=4, cls=NpEncoder)
             self.results_dict = self._init_results_dict()
             _item = copy.deepcopy(item)
-            for v in EvalField:
-                if v.value in _item:
-                    self.results_dict[v.value] = _item.pop(v.value)
-            # self.results_dict[EvalField.GOLD_ANSWER] = _item.pop("answer_text")
-            # self.results_dict["question"] = _item.pop("question")
+            for v in [
+                value
+                for name, value in vars(EvalField).items()
+                if not name.startswith("_")
+            ]:
+                if v in _item:
+                    self.results_dict[v] = _item.pop(v)
             self.results_dict["dataset_vars"] = {
                 k: v
                 for k, v in _item.items()
@@ -308,7 +310,11 @@ class BlendSQLEvaluation:
                 Fore.MAGENTA + f"ANSWER: '{self.results_dict[EvalField.GOLD_ANSWER]}'"
             )
             if self.results_dict[EvalField.PREDICTION] is not None:
-                print(Fore.CYAN + self.results_dict[EvalField.PREDICTION] + Fore.RESET)
+                print(
+                    Fore.CYAN
+                    + str(self.results_dict[EvalField.PREDICTION])
+                    + Fore.RESET
+                )
             print()
         with open(self.output_dir / "predictions.json", "w") as f:
             json.dump(self.results, f, indent=4, cls=NpEncoder)
@@ -347,7 +353,7 @@ class BlendSQLEvaluation:
             res: Smoothie = blend(
                 query=blendsql,
                 db=db,
-                ingredients={LLMMap, LLMQA, LLMJoin}
+                ingredients={LLMMap, LLMQA, LLMJoin, LLMValidate}
                 if self.model_args.blender_model_name_or_path is not None
                 else set(),
                 # Force usage of the endpoint_name we specify
@@ -540,7 +546,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    pass
     # Start a process running in the background to refresh our OpenAI token
     timer = TokenTimer("./secrets.json", refresh_interval_min=30)
     timer.start()
