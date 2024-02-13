@@ -3,7 +3,7 @@ from blendsql.ingredients.builtin.llm.utils import (
     construct_gen_clause,
 )
 
-from blendsql.ingredients.builtin.llm.endpoint import Endpoint
+from blendsql.ingredients.builtin.llm.llm import LLM
 from blendsql import _programs as programs
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
@@ -14,7 +14,7 @@ class LLMJoin(JoinIngredient):
         self,
         left_values: List[str],
         right_values: List[str],
-        endpoint: Endpoint,
+        endpoint: LLM,
         join_criteria: str = "Join to same topics.",
         **kwargs,
     ) -> dict:
@@ -23,7 +23,7 @@ class LLMJoin(JoinIngredient):
         )
         program: str = (
             programs.JOIN_PROGRAM_CHAT(gen_clause)
-            if endpoint.endpoint_name in CONST.OPENAI_CHAT_LLM
+            if endpoint.model_name_or_path in CONST.OPENAI_CHAT_LLM
             else programs.JOIN_PROGRAM_COMPLETION(gen_clause)
         )
 

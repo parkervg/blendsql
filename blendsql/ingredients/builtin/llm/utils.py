@@ -1,9 +1,16 @@
 from typing import List, Any
-from .openai_endpoint import OpenaiEndpoint
+from .openai_llm import OpenaiLLM
+from .transformers_llm import TransformersLocalLLM
+from .sagemaker_llm import SagemakerLLM
 
 
-def initialize_endpoint(endpoint_name: str) -> "Endpoint":
-    return OpenaiEndpoint(endpoint_name)
+def initialize_llm(llm_type: str, model_name_or_path: str) -> "LLM":
+    if llm_type == "hf":
+        return TransformersLocalLLM(model_name_or_path)
+    elif llm_type == "sagemaker":
+        return SagemakerLLM(model_name_or_path)
+    else:
+        return OpenaiLLM(model_name_or_path)
 
 
 def construct_gen_clause(

@@ -17,6 +17,7 @@ OPENAI_CHAT_LLM = [
     "gpt-35-turbo-instruct-0914",
 ]
 DEFAULT_ENDPOINT_NAME = "text-davinci-003"
+DEFAULT_ENDPOINT_TYPE = "openai"
 
 DEFAULT_ANS_SEP = ";"
 DEFAULT_NAN_ANS = "-"

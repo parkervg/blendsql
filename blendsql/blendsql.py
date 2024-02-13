@@ -39,9 +39,9 @@ from ._dialect import _parse_one, FTS5SQLite
 from ._grammar import grammar
 from .ingredients.ingredient import Ingredient
 from ._smoothie import Smoothie, SmoothieMeta
-from ._constants import DEFAULT_ENDPOINT_NAME, CONTEXT_INGREDIENT_KWARG, IngredientType
-from .ingredients.builtin.llm.endpoint import Endpoint
-from .ingredients.builtin.llm.utils import initialize_endpoint
+from ._constants import DEFAULT_ENDPOINT_NAME, DEFAULT_ENDPOINT_TYPE, CONTEXT_INGREDIENT_KWARG, IngredientType
+from .ingredients.builtin.llm.llm import LLM
+from .ingredients.builtin.llm.utils import initialize_llm
 
 
 @attrs
@@ -440,11 +440,12 @@ def blend(
                         kwargs_dict[k] = v
                 # Handle endpoint, make sure we initialize it if it's a string
                 endpoint = kwargs_dict.get("endpoint", None)
+                endpoint_type = kwargs_dict.get("endpoint_type", None)
                 if endpoint is not None:
-                    if not isinstance(endpoint, Endpoint):
-                        kwargs_dict["endpoint"] = initialize_endpoint(endpoint)
+                    if not isinstance(endpoint, LLM):
+                        kwargs_dict["endpoint"] = initialize_llm(endpoint_type, endpoint)
                 else:
-                    kwargs_dict["endpoint"] = initialize_endpoint(DEFAULT_ENDPOINT_NAME)
+                    kwargs_dict["endpoint"] = initialize_llm(DEFAULT_ENDPOINT_TYPE, DEFAULT_ENDPOINT_NAME)
 
                 if _function.ingredient_type == IngredientType.MAP:
                     # Latter is the winner.
