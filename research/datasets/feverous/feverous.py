@@ -139,17 +139,18 @@ def format_nested_table_json(table_json: dict):
             for _idx in range(spans[_pos][1]):
                 to_add_queue.append(values[_pos])
         naive_df_data.append(row_entry)
-    naive_df = pd.DataFrame(naive_df_data).T
+    naive_df = pd.DataFrame(naive_df_data)
     naive_df = naive_df.replace("", np.nan)
     naive_df = naive_df.ffill()
     naive_df = naive_df.fillna("")
     if len(naive_df.columns) == 2:
-        naive_df.columns = ["attribute", "value"]
-        return (tablename, naive_df)
+        # Transpose, so LLM gets whole `attribute` context
+        # naive_df.columns = ["attribute", "value"]
+        naive_df = naive_df.T
     try:
-        return (tablename, set_first_row_as_header(naive_df))
+        return set_first_row_as_header(naive_df)
     except:
-        return (tablename, naive_df)
+        return naive_df
 
     # Simplest case: if less than 3 cells span multiple indices
     # But, if it has only 2 columns, use 'attribute', 'value' formatting
@@ -286,7 +287,7 @@ def retrieve_context(example, cur):
                 else:
                     tables.append(table_id)
                 table_json = pages[page_id]["table_{}".format(table_id)]
-                evidences.append({"table": table_json})
+                evidences.append({"table": table_json, "tablename": page_id})
             elif meta.startswith("item"):
                 list_id = get_list_id(meta)
                 context = None
@@ -305,13 +306,13 @@ def retrieve_context(example, cur):
     title_to_content: Dict[str, List[str]] = {}
     for evidence in evidences:
         if "table" in evidence:
-            tablename, df = format_nested_table_json(evidence["table"])
+            df = format_nested_table_json(evidence["table"])
             df_dict = df.to_dict(orient="split")
             table_list.append(
                 {
                     "header": df_dict["columns"],
                     "rows": df_dict["data"],
-                    "table_description": tablename,
+                    "table_description": evidence["tablename"],
                 }
             )
         else:
@@ -321,7 +322,17 @@ def retrieve_context(example, cur):
         context_list.extend(
             [{"title": k, "content": " ".join(v)} for k, v in title_to_content.items()]
         )
-    return table_list, context_list
+    # Remove overlaps
+    filtered_context_list = []
+    context_list_titles = [item["title"] for item in context_list]
+    for title in set(context_list_titles):
+        content_candidates = []
+        for item in context_list:
+            if item["title"] == title:
+                content_candidates.append(item["content"])
+        chosen_content = sorted(content_candidates, key=len, reverse=True)[0]
+        filtered_context_list.append({"title": title, "content": chosen_content})
+    return table_list, filtered_context_list
 
 
 def is_table_involved(example):
