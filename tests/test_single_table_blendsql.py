@@ -3,7 +3,13 @@ from tabulate import tabulate
 from functools import partial
 from blendsql import blend
 from blendsql.db import SQLiteDBConnector
-from tests.utils import assert_equality, starts_with, get_length, select_first_sorted
+from tests.utils import (
+    assert_equality,
+    starts_with,
+    get_length,
+    select_first_sorted,
+    get_table_size,
+)
 
 tabulate = partial(tabulate, headers="keys", showindex="never")
 
@@ -15,7 +21,7 @@ def db() -> SQLiteDBConnector:
 
 @pytest.fixture
 def ingredients() -> set:
-    return {starts_with, get_length, select_first_sorted}
+    return {starts_with, get_length, select_first_sorted, get_table_size}
 
 
 def test_simple_exec(db, ingredients):
@@ -414,6 +420,41 @@ def test_many_duplicate_map_calls(db, ingredients):
     + (SELECT COUNT(DISTINCT cash_flow) FROM transactions WHERE amount > 1300)
     + (SELECT COUNT(DISTINCT child_category) FROM transactions WHERE amount > 1300)
     + (SELECT COUNT(DISTINCT date) FROM transactions WHERE amount > 1300)
+    """
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+
+
+def test_exists_isolated_qa_call(db, ingredients):
+    # commit 7a19e39
+    blendsql = """
+    SELECT NOT EXISTS (
+        SELECT * FROM transactions WHERE {{get_length('length', 'transactions::merchant')}} > 4 AND amount > 500
+    ) OR (
+        {{
+            get_table_size('Table size?', (select * from transactions where amount < 500))
+        }}
+    )
+    """
+    sql = """
+    SELECT NOT EXISTS (
+        SELECT * FROM transactions WHERE 
+        LENGTH(merchant) > 4 AND amount > 500
+    ) OR (
+        select count(*) from transactions where amount < 500
+    )   
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_query(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_query(
+        """
+    SELECT (SELECT COUNT(DISTINCT merchant) FROM transactions WHERE amount > 500) + (SELECT COUNT(*) FROM transactions WHERE amount < 500)
     """
     )
     assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
