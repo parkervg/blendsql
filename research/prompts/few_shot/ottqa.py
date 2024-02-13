@@ -6,14 +6,16 @@ blendsql_examples = [
         "blendsql": """
         {{
             LLMQA(
-                'When was he born?',
+                'When was the Rangers Player born?'
                 (
-                    SELECT * FROM documents WHERE documents MATCH (
-                        SELECT '"' || player || '"' || ' OR rangers OR fc' FROM (
+                    WITH t AS (
+                        SELECT player FROM (
                             SELECT * FROM "./List of Rangers F.C. records and statistics (0)"
                             UNION ALL SELECT * FROM "./List of Rangers F.C. records and statistics (1)"
-                        ) as w ORDER BY trim(fee, '£') DESC LIMIT 1 OFFSET 2
-                    ) ORDER BY rank LIMIT 1;
+                        ) ORDER BY trim(fee, '£') DESC LIMIT 1 OFFSET 2
+                    ), d AS (
+                        SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.player || '"' || ' OR rangers OR fc' ORDER BY rank LIMIT 5
+                    ) SELECT d.content, t.player AS 'Rangers Player' FROM d JOIN t
                 )
             )
         }}
@@ -24,14 +26,15 @@ blendsql_examples = [
         "bridge_hints": "",
         "question": "The home stadium of the Bray Wanderers of 2006 League of Ireland is situated behind what station ?",
         "blendsql": """
-        {{
+        {{  
             LLMQA(
-                'What station is the stadium situated behind?'
+                'What station is the Bray Wanderers home stadium situated behind?',
                 (
-                    SELECT * FROM documents WHERE documents MATCH (
-                        SELECT stadium FROM "./2006 League of Ireland Premier Division (1)"
-                            WHERE team = 'bray wanderers'
-                    ) ORDER BY rank LIMIT 1
+                    WITH t AS (
+                        SELECT stadium FROM "./2006 League of Ireland Premier Division (1)" WHERE team = 'bray wanderers'
+                    ), d AS (
+                        SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.stadium || '"' ORDER BY rank LIMIT 5
+                    ) SELECT d.content, t.stadium AS 'Home Stadium' FROM d JOIN t
                 )
             )
         }}
@@ -44,13 +47,14 @@ blendsql_examples = [
         "blendsql": """
         {{
             LLMQA(
-                "What was the recipient's nationality?",
+                "What was the Victoria Cross recipient's nationality?",
                 (
-                    SELECT title AS 'Recipient', content FROM documents WHERE documents MATCH (
-                        SELECT name || ' OR victoria cross'
-                            FROM "./List of medical recipients of the Victoria Cross (0)"
+                    WITH t AS (
+                        SELECT name FROM "./List of medical recipients of the Victoria Cross (0)"
                             WHERE SUBSTR(date, 0, 5) = '1945'
-                    ) ORDER BY rank LIMIT 1
+                    ), d AS (
+                        SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.name || '"' || ' OR victoria cross' ORDER BY rank LIMIT 5
+                    ) SELECT d.content, t.name AS recipient FROM d JOIN t
                 )
             )
         }}
@@ -63,14 +67,16 @@ blendsql_examples = [
         "blendsql": """
         {{
             LLMQA(
-                "Which team has the player signed with?",
+                'Which team has the NHL player signed with?',
                 (
-                    SELECT * FROM documents WHERE documents MATCH (
-                        SELECT winner || ' OR hockey' FROM (
+                    WITH t AS (
+                        SELECT winner FROM (
                             SELECT * FROM "./Atlantic Hockey Player of the Year (0)"
                             UNION ALL SELECT * FROM "./Atlantic Hockey Player of the Year (1)"
-                        ) as w WHERE {{LLMMap('Does this end in 2019?', 'w::year')}} = TRUE LIMIT 1
-                    ) ORDER BY rank LIMIT 1
+                        ) AS w WHERE {{LLMMap('Does this end in 2019?', 'w::year')}} = TRUE
+                    ), d AS (
+                        SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.winner || '"' || ' OR hockey' ORDER BY rank LIMIT 5
+                    ) SELECT d.content, t.winner AS 'NHL Player' FROM d JOIN t
                 )
             )
         }}
@@ -92,7 +98,7 @@ blendsql_examples = [
                             "Which cyclist was born in Matanzas, Cuba?",
                             (
                                 SELECT * FROM documents 
-                                    WHERE documents MATCH 'matanzas AND (cycling OR track OR born)' 
+                                    WHERE documents MATCH 'matanzas OR cycling OR track OR born' 
                                     ORDER BY rank LIMIT 3
                             ),
                             options="w::name"
@@ -128,10 +134,12 @@ blendsql_examples = [
             LLMQA(
                 'Where is the animated TV series set?',
                 (
-                    SELECT * FROM documents WHERE documents MATCH (
-                        SELECT origin || ' OR animated OR set' FROM (SELECT * FROM "./List of fictional canines in animation (2)") AS w
+                    WITH t AS (
+                        SELECT origin FROM "./List of fictional canines in animation (2)" AS w
                         WHERE w.name = 'daisy' AND w.species = 'dingo'
-                    ) ORDER BY rank LIMIT 3
+                    ), d AS (
+                        SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.origin || '"' || ' OR animated OR set' ORDER BY rank LIMIT 5
+                    ) SELECT d.content, t.origin AS 'Animated TV Series' FROM d JOIN t 
                 )
             )
         }}
@@ -146,7 +154,7 @@ blendsql_examples = [
         WHERE "third place" = {{
             LLMQA(
                 'Which club was founded on 21 January 1896?'
-                (SELECT * FROM documents WHERE documents MATCH 'primera OR founded AND (club AND 1896)' ORDER BY rank LIMIT 3)
+                (SELECT * FROM documents WHERE documents MATCH 'primera OR founded OR (club AND 1896)' ORDER BY rank LIMIT 5)
                 options='w::third place'
             )
         }}
@@ -161,7 +169,7 @@ blendsql_examples = [
         WHERE title = {{
             LLMQA(
                 'What is the name of the Togolese film that was 30 minutes and shot in 16mm?'
-                (SELECT * FROM documents WHERE documents MATCH 'togolese OR 30 OR 16mm OR film' ORDER BY rank LIMIT 3)
+                (SELECT * FROM documents WHERE documents MATCH 'togolese OR 30 OR 16mm OR film' ORDER BY rank LIMIT 5)
                 options='w::title'
             )
         }}
