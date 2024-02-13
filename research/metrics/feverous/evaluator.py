@@ -10,6 +10,11 @@ class EvaluateTool(object):
         all_match = []
 
         for pred, gold_item in zip(preds, golds):
+            # IMPORTANT!
+            # Below we ignore "NOT ENOUGH INFO"
+            # Consider this when comparing to other results
+            if gold_item["seq_out"] == "NOT ENOUGH INFO":
+                continue
             match_or_not = pred == gold_item["seq_out"]
             all_match.append(match_or_not)
 
