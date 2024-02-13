@@ -1,9 +1,9 @@
 import os
 import argparse
-from tabulate import tabulate
 
 from blendsql import blend, init_secrets
 from blendsql.db import SQLiteDBConnector
+from blendsql.utils import tabulate
 from blendsql.ingredients.builtin import LLMQA, LLMMap, LLMJoin, DT
 
 
@@ -59,14 +59,7 @@ def main():
                 verbose=True,
             )
             print()
-            print(
-                tabulate(
-                    smoothie.df.iloc[:10],
-                    headers="keys",
-                    showindex="never",
-                    tablefmt="orgtbl",
-                )
-            )
+            print(tabulate(smoothie.df.iloc[:10]))
             print()
         except Exception as error:
             print(error)

@@ -335,6 +335,9 @@ smoothie = blend(
 > WIP, will be updated
 
 ## Ingredients 
+
+![ingredients](./img/ingredients.jpg)
+
 Ingredients are at the core of a BlendSQL script. 
 
 They are callable functions that perform one the task paradigms defined in [ingredient.py](./blendsql/ingredients/ingredient.py).

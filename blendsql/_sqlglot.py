@@ -310,7 +310,7 @@ def get_predicate_literals(node) -> List[str]:
 
 def get_reversed_subqueries(node):
     # Iterate through all subqueries (either parentheses or select)
-    # But, CTEs stay in order
+    # But, CTEs should stay in order
     r = [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if is_in_cte(i)]
     return (
         r
