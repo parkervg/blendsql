@@ -1,13 +1,14 @@
-from enum import Enum, auto
+from dataclasses import dataclass
 
 
-class EvalField(str, Enum):
-    QUESTION = auto()
-    GOLD_ANSWER = auto()
-    PREDICTION = auto()
-    PRED_BLENDSQL = auto()
-    UID = auto()
-    DB_PATH = auto()
+@dataclass
+class EvalField:
+    QUESTION = "question"
+    GOLD_ANSWER = "gold_answer"
+    PREDICTION = "prediction"
+    PRED_BLENDSQL = "pred_blendsql"
+    UID = "uid"
+    DB_PATH = "db_path"
 
 
 SINGLE_TABLE_NAME = "w"
