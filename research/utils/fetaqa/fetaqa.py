@@ -127,7 +127,10 @@ def fetaqa_pre_process_function(
                 model_args=model_args,
             )
             for question, table, title, table_id in zip(
-                batch["question"], batch["table"], batch["meta"], batch["table_id"]
+                batch[EvalField.QUESTION],
+                batch["table"],
+                batch["meta"],
+                batch["table_id"],
             )
         ]
     )

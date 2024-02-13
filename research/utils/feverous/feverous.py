@@ -26,13 +26,13 @@ from ...constants import (
     DOCS_TABLE_NAME,
     EvalField,
 )
-from ...prompts.few_shot.hybridqa import blendsql_examples, sql_examples
+from ...prompts.few_shot.feverous import blendsql_examples, sql_examples
 from ..normalizer import prepare_df_for_neuraldb_from_table
 from blendsql.db import SQLiteDBConnector
 
 
 def feverous_metric_format_func(item: dict) -> dict:
-    prediction = item.get(EvalField.PREDICTION, None)
+    prediction = item[EvalField.PREDICTION]
     if prediction is not None:
         if len(prediction) < 1:
             pred = ""
@@ -44,7 +44,7 @@ def feverous_metric_format_func(item: dict) -> dict:
     pred = "SUPPORTS" if pred else "REFUTES"
     return {
         "prediction": str(pred),
-        "reference": {"seq_out": item["label"]},
+        "reference": {"seq_out": item[EvalField.GOLD_ANSWER]},
     }
 
 
@@ -52,14 +52,15 @@ def feverous_get_input(
     statement: str,
     table: dict,
     context: List[str],
-    id: str,
+    uid: str,
     data_training_args: DataTrainingArguments,
     model_args: ModelArguments,
 ) -> Tuple[str, dict]:
-    # Below id is unique for each datapoint
+    # Below uid is unique for each datapoint
     # But, might be better to consider table_id instead
-    db_path = Path(data_training_args.db_path) / "feverous" / f"{id}.db"
+    db_path = Path(data_training_args.db_path) / "feverous" / f"{uid}.db"
     tablename_to_description = {}
+    contains_documents = not all(len(x) == 0 for x in context.values())
     if not db_path.is_file():
         # Create db
         if not db_path.parent.is_dir():
@@ -73,7 +74,7 @@ def feverous_get_input(
                 {"header": header, "rows": rows}, add_row_id=False
             ).to_sql(tablename, sqlite_conn)
             tablename_to_description[tablename] = table_description
-        if not all(len(x) == 0 for x in context.values()):
+        if contains_documents:
             # Create virtual table to search over
             c = sqlite_conn.cursor()
             c.execute(CREATE_VIRTUAL_TABLE_CMD)
@@ -141,7 +142,9 @@ def feverous_get_input(
             "serialized_db": serialized_db,
             "entire_serialized_db": entire_serialized_db,
             "bridge_hints": bridge_hints,
-            "extra_task_description": f"Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table.",
+            "extra_task_description": f"Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table."
+            if contains_documents
+            else "",
         },
     )
 
@@ -155,12 +158,15 @@ def feverous_pre_process_function(
                 statement=statement,
                 table=table,
                 context=context,
-                id=id,
+                uid=uid,
                 data_training_args=data_training_args,
                 model_args=model_args,
             )
-            for statement, table, context, id in zip(
-                batch["statement"], batch["table"], batch["context"], batch["id"]
+            for statement, table, context, uid in zip(
+                batch[EvalField.QUESTION],
+                batch["table"],
+                batch["context"],
+                batch[EvalField.UID],
             )
         ]
     )

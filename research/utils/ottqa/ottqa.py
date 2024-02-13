@@ -23,12 +23,11 @@ from ...utils.bridge_content_encoder import (
 from blendsql.db import SQLiteDBConnector
 from pathlib import Path
 import json
+from diskcache import Cache
 
 ottqa_db_path = "./research/db/ottqa/ottqa.db"
 db = SQLiteDBConnector(ottqa_db_path)
-DOCS_TABLE_SIZE = db.execute_query(
-    f"SELECT COUNT(*) FROM {CONST.DOCS_TABLE_NAME}"
-).values[0][0]
+cache = Cache()
 
 ottqa_question_id_to_retriever_results = {}
 for filename in Path("./research/utils/ottqa/OTT-QA").iterdir():
@@ -45,7 +44,7 @@ with open("./research/utils/ottqa/table_id_to_tablename.json", "r") as f:
 
 
 def ottqa_metric_format_func(item: dict) -> dict:
-    prediction = item.get(EvalField.PREDICTION, None)
+    prediction = item[EvalField.PREDICTION]
     if prediction is not None:
         if len(prediction) < 1:
             pred = ""
@@ -55,7 +54,11 @@ def ottqa_metric_format_func(item: dict) -> dict:
         pred = ""
     return {
         "prediction": str(pred),
-        "reference": {"answer_text": item["answer_text"], "id": item["id"]},
+        "reference": {
+            "answer_text": item[EvalField.GOLD_ANSWER],
+            "id": item[EvalField.UID],
+            "question": item[EvalField.QUESTION],
+        },
     }
 
 
@@ -66,6 +69,11 @@ def ottqa_get_input(
     data_training_args: DataTrainingArguments,
     model_args: ModelArguments,
 ) -> Tuple[str, dict]:
+    if "docs_tablesize" not in cache:
+        cache["docs_tablesize"] = db.execute_query(
+            f"SELECT COUNT(*) FROM {DOCS_TABLE_NAME}"
+        ).values[0][0]
+    docs_tablesize = cache["docs_tablesize"]
     chosen_tables = ottqa_question_id_to_retriever_results[question_id]
     chosen_tables = [
         table_id_to_tablename["_".join(item["title"].split("_")[:-1])]
@@ -81,7 +89,7 @@ def ottqa_get_input(
             continue
         final_chosen_tables.append(t)
         seen_tables.add(t)
-    chosen_tables = final_chosen_tables[:3] + [DOCS_TABLE_NAME]
+    chosen_tables = final_chosen_tables[:4] + [DOCS_TABLE_NAME]
 
     serialized_db = to_serialized(
         db=db,
@@ -124,7 +132,10 @@ def ottqa_get_input(
             "entire_serialized_db": None,
             "bridge_hints": bridge_hints,
             "use_tables": chosen_tables,
-            "extra_task_description": f"Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains {DOCS_TABLE_SIZE} Wikipedia articles providing more details about the values in our table.",
+            "extra_task_description": f"""
+            Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains {docs_tablesize} Wikipedia articles providing more details about the values in our table.
+            When possible, use the alias `t` to refer to relevant table context, and `d` to refer to relevant document context.
+            """,
         },
     )
 
@@ -142,7 +153,7 @@ def ottqa_pre_process_function(
                 model_args=model_args,
             )
             for question, db_path, question_id in zip(
-                batch["question"], batch["db_path"], batch["id"]
+                batch[EvalField.QUESTION], batch["db_path"], batch[EvalField.UID]
             )
         ]
     )

@@ -141,7 +141,7 @@ def wikitq_pre_process_function(
                 model_args=model_args,
             )
             for question, title, table, table_id in zip(
-                batch["question"], titles, batch["table"], batch["table_id"]
+                batch[EvalField.QUESTION], titles, batch["table"], batch["table_id"]
             )
         ]
     )
