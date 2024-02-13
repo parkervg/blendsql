@@ -7,8 +7,12 @@ import logging
 from colorama import Fore
 import time
 import threading
+from tabulate import tabulate
+from functools import partial
 
 from .db.sqlite_db_connector import SQLiteDBConnector
+
+tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
 
 
 def init_secrets(filepath: str) -> None:
