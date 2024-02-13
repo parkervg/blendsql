@@ -67,7 +67,7 @@ class Kitchen(list):
             if f.name == name.upper():
                 return f
         raise pyparsing.ParseException(
-            f"Ingredient '{name}' called, but not found in specified `ingredient` arg!"
+            f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
         )
 
     def extend(self, functions: Iterable[Ingredient]) -> None:
@@ -97,6 +97,7 @@ def autowrap_query(
     A single `QAIngredient` should be wrapped in `CASE` syntax.
     A `JoinIngredient` needs to include a reference to the left tablename.
     """
+    # TODO: i dont think we need to scanString again
     for _parse_results, start, end in [i for i in grammar.scanString(query)][::-1]:
         alias_function_str = query[start:end]
         parse_results_dict = ingredient_alias_to_parsed_dict[alias_function_str]
@@ -129,6 +130,14 @@ def preprocess_blendsql(query: str) -> Tuple[str, dict]:
     reversed_scan_res = [scan_res for scan_res in grammar.scanString(query)][::-1]
     for idx, (parse_results, start, end) in enumerate(reversed_scan_res):
         original_ingredient_string = query[start:end]
+        # If we're in between parentheses, add a `SELECT`
+        # This way it gets picked up as a subquery to parse later
+        # TODO: is this safe to do?
+        if query[start - 2] == "(" and query[end + 1] == ")":
+            inserted_select = " SELECT "
+            query = query[:start] + inserted_select + query[start:end] + query[end:]
+            start += len(inserted_select)
+            end += len(inserted_select)
         if (
             original_ingredient_string in ingredient_str_to_alias
         ):  # If we've already processed this function, no need to do it again
@@ -153,6 +162,8 @@ def preprocess_blendsql(query: str) -> Tuple[str, dict]:
                     parsed_results_dict[arg_type][idx] = re.sub(
                         r"(^\()(.*)(\)$)", r"\2", curr_arg
                     ).strip()
+            # Below we track the 'raw' representation, in case we need to pass into
+            #   a recursive BlendSQL call later
             ingredient_alias_to_parsed_dict[
                 substituted_ingredient_alias
             ] = parsed_results_dict | {"raw": query[start:end]}
@@ -685,7 +696,7 @@ def blend(
 
         # Now insert the function outputs to the original query
         for function_str, res in function_call_to_res.items():
-            query = query.replace(function_str, res)
+            query = query.replace(function_str, str(res))
         for t in session_modified_tables:
             query = sub_tablename(
                 t, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
