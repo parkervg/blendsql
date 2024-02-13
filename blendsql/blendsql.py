@@ -42,7 +42,12 @@ from ._dialect import _parse_one, FTS5SQLite
 from ._grammar import grammar
 from .ingredients.ingredient import Ingredient
 from ._smoothie import Smoothie, SmoothieMeta
-from ._constants import DEFAULT_LLM_NAME, DEFAULT_LLM_TYPE, CONTEXT_INGREDIENT_KWARG, IngredientType, IngredientKwarg
+from ._constants import (
+    DEFAULT_LLM_NAME,
+    DEFAULT_LLM_TYPE,
+    IngredientType,
+    IngredientKwarg,
+)
 from .ingredients.builtin.llm.llm import LLM
 from .ingredients.builtin.llm.utils import initialize_llm
 
@@ -506,7 +511,9 @@ def blend(
                     if not isinstance(llm, LLM):
                         kwargs_dict["llm"] = initialize_llm(llm_type, llm)
                 else:
-                    kwargs_dict["llm"] = initialize_llm(DEFAULT_LLM_TYPE, DEFAULT_LLM_NAME)
+                    kwargs_dict["llm"] = initialize_llm(
+                        DEFAULT_LLM_TYPE, DEFAULT_LLM_NAME
+                    )
 
                 if _function.ingredient_type == IngredientType.MAP:
                     # Latter is the winner.
