@@ -32,7 +32,9 @@ from blendsql.db import SQLiteDBConnector
 
 
 def hybridqa_metric_format_func(item: dict) -> dict:
-    prediction = item.get(EvalField.PREDICTION, None)
+    prediction = item[EvalField.PREDICTION]
+    if isinstance(prediction, str):
+        prediction = [prediction]
     if prediction is not None:
         if len(prediction) < 1:
             pred = ""
@@ -43,9 +45,9 @@ def hybridqa_metric_format_func(item: dict) -> dict:
     return {
         "prediction": str(pred),
         "reference": {
-            "answer_text": item["answer_text"],
-            "id": item["id"],
-            "question": item["question"],
+            "answer_text": item[EvalField.GOLD_ANSWER],
+            "id": item[EvalField.UID],
+            "question": item[EvalField.QUESTION],
         },
     }
 
@@ -161,7 +163,10 @@ def hybridqa_pre_process_function(
                 model_args=model_args,
             )
             for question, table, passages, table_id in zip(
-                batch["question"], batch["table"], batch["passages"], batch["table_id"]
+                batch[EvalField.QUESTION],
+                batch["table"],
+                batch["passages"],
+                batch["table_id"],
             )
         ]
     )
