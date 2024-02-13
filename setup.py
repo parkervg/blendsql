@@ -29,7 +29,8 @@ setup(
     author="Parker Glenn",
     author_email="parkervg5@gmail.com",
     description="Orchestrate SQLite logic and LLM reasoning within a unified dialect.",
-    long_description="BlendSQL is a scalable SQL dialect for problem decomposition and heterogenous question-answering with LLMs. It builds off of the syntax of SQLite to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
     license="Apache License 2.0",
     packages=find_packages(exclude=["examples", "research", "img"]),
     install_requires=[
