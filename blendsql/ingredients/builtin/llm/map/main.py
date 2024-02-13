@@ -20,7 +20,7 @@ class LLMMap(MapIngredient):
     def run(
         self,
         question: str,
-        endpoint: LLM,
+        llm: LLM,
         value_limit: Union[int, None] = None,
         example_outputs: str = None,
         output_type: str = None,
@@ -47,7 +47,7 @@ class LLMMap(MapIngredient):
             **kwargs
         )
         # OpenAI endpoints can't use patterns
-        pattern = None if isinstance(endpoint, OpenaiLLM) else pattern
+        pattern = None if isinstance(llm, OpenaiLLM) else pattern
         if value_limit is not None:
             values = values[:value_limit]
         values_dict = [
@@ -84,18 +84,18 @@ class LLMMap(MapIngredient):
                 if pattern.startswith("(t|f"):
                     include_tf_disclaimer = True
                     max_tokens = answer_length * 2
-            elif isinstance(endpoint, OpenaiLLM):
+            elif isinstance(llm, OpenaiLLM):
                 include_tf_disclaimer = True
 
             gen_clause: str = construct_gen_clause(
-                pattern=pattern, max_tokens=max_tokens, **endpoint.gen_kwargs
+                pattern=pattern, max_tokens=max_tokens, **{k: v for k, v in llm.gen_kwargs.items() if k not in {"pattern", "max_tokens"}}
             )
             program: str = (
                 programs.MAP_PROGRAM_CHAT(gen_clause)
-                if endpoint.model_name_or_path in CONST.OPENAI_CHAT_LLM
+                if llm.model_name_or_path in CONST.OPENAI_CHAT_LLM
                 else programs.MAP_PROGRAM_COMPLETION(gen_clause)
             )
-            res = endpoint.predict(
+            res = llm.predict(
                 program=program,
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,

@@ -14,20 +14,20 @@ class LLMJoin(JoinIngredient):
         self,
         left_values: List[str],
         right_values: List[str],
-        endpoint: LLM,
+        llm: LLM,
         join_criteria: str = "Join to same topics.",
         **kwargs,
     ) -> dict:
         gen_clause: str = construct_gen_clause(
-            **endpoint.gen_kwargs,
+            **llm.gen_kwargs,
         )
         program: str = (
             programs.JOIN_PROGRAM_CHAT(gen_clause)
-            if endpoint.model_name_or_path in CONST.OPENAI_CHAT_LLM
+            if llm.model_name_or_path in CONST.OPENAI_CHAT_LLM
             else programs.JOIN_PROGRAM_COMPLETION(gen_clause)
         )
 
-        res = endpoint.predict(
+        res = llm.predict(
             program=program,
             sep=CONST.DEFAULT_ANS_SEP,
             left_values="\n".join(left_values),
