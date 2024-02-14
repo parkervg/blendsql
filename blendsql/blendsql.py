@@ -5,7 +5,7 @@ import uuid
 import pandas as pd
 import pyparsing
 import re
-from typing import Dict, Iterable, List, Set, Tuple, Generator, Optional
+from typing import Dict, Iterable, List, Set, Tuple, Generator
 from sqlite3 import OperationalError
 import sqlglot.expressions
 from attr import attrs, attrib
@@ -43,13 +43,10 @@ from ._grammar import grammar
 from .ingredients.ingredient import Ingredient
 from ._smoothie import Smoothie, SmoothieMeta
 from ._constants import (
-    DEFAULT_LLM_NAME,
-    DEFAULT_LLM_TYPE,
     IngredientType,
     IngredientKwarg,
 )
 from .ingredients.builtin.llm.llm import LLM
-from .ingredients.builtin.llm.utils import initialize_llm
 
 
 @attrs
@@ -181,6 +178,7 @@ def set_subquery_to_alias(
     aliasname: str,
     query: exp.Expression,
     db: SQLiteDBConnector,
+    llm: LLM,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
 ) -> exp.Expression:
@@ -189,6 +187,7 @@ def set_subquery_to_alias(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         query=str_subquery,
         db=db,
+        llm=llm,
         aliasname=aliasname,
         **kwargs,
     ).df.to_sql(aliasname, db.con, if_exists="replace", index=False)
@@ -268,8 +267,9 @@ def disambiguate_and_submit_blend(
 def blend(
     query: str,
     db: SQLiteDBConnector,
+    llm: LLM,
     ingredients: Iterable[Ingredient] = None,
-    llm: Optional[LLM] = None,
+    # llm: Optional[LLM] = None,
     verbose: bool = False,
     overwrite_args: Dict[str, str] = None,
     infer_map_constraints: bool = False,
@@ -448,6 +448,7 @@ def blend(
                     subquery=aliased_subquery,
                     aliasname=aliasname,
                     query=_query,
+                    llm=llm,
                     db=db,
                     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                     # Below are in case we need to call blend() again
@@ -493,8 +494,6 @@ def blend(
                 kwargs_dict = {x[0]: x[-1] for x in parse_results_dict["kwargs"]}
 
                 # Optionally modify kwargs dict, depending on blend() overwrite_args
-                if llm is not None:
-                    kwargs_dict["llm"] = llm
                 if overwrite_args is not None:
                     for k, v in overwrite_args.items():
                         if k in kwargs_dict:
@@ -505,15 +504,16 @@ def blend(
                             )
                         kwargs_dict[k] = v
                 # Handle llm, make sure we initialize it if it's a string
-                llm = kwargs_dict.get("llm", None)
-                llm_type = kwargs_dict.get("llm_type", None)
-                if llm is not None:
-                    if not isinstance(llm, LLM):
-                        kwargs_dict["llm"] = initialize_llm(llm_type, llm)
-                else:
-                    kwargs_dict["llm"] = initialize_llm(
-                        DEFAULT_LLM_TYPE, DEFAULT_LLM_NAME
-                    )
+                # llm = kwargs_dict.get("llm", None)
+                # llm_type = kwargs_dict.get("llm_type", None)
+                # if llm is not None:
+                #     if not isinstance(llm, LLM):
+                #         kwargs_dict["llm"] = initialize_llm(llm_type, llm)
+                # else:
+                #     kwargs_dict["llm"] = initialize_llm(
+                #         DEFAULT_LLM_TYPE, DEFAULT_LLM_NAME
+                #     )
+                kwargs_dict["llm"] = llm
 
                 if _function.ingredient_type == IngredientType.MAP:
                     # Latter is the winner.
@@ -545,6 +545,7 @@ def blend(
                         _smoothie = blend(
                             query=context_arg,
                             db=db,
+                            llm=llm,
                             ingredients=ingredients,
                             overwrite_args=overwrite_args,
                             infer_map_constraints=infer_map_constraints,
