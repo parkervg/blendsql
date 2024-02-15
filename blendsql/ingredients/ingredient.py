@@ -317,13 +317,9 @@ class QAIngredient(Ingredient):
                 tablename = kwargs.get("aliases_to_tablenames").get(
                     tablename, tablename
                 )
-                unpacked_options = (
-                    self.db.execute_query(f'SELECT "{colname}" FROM "{tablename}"')[
-                        colname
-                    ]
-                    .unique()
-                    .tolist()
-                )
+                unpacked_options = self.db.execute_query(
+                    f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                )[colname].tolist()
             except ValueError:
                 unpacked_options = options.split(";")
         self.num_values_passed += len(subtable) if subtable is not None else 0
