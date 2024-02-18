@@ -2,11 +2,10 @@ from typing import Dict, Union, Optional, List
 import re
 
 import pandas as pd
-
 from blendsql.ingredients.builtin.llm.utils import (
     construct_gen_clause,
 )
-from blendsql.ingredients.builtin.llm.llm import LLM
+from blendsql.llms._llm import LLM
 from blendsql import _programs as programs
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import QAIngredient

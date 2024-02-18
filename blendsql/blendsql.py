@@ -46,7 +46,7 @@ from ._constants import (
     IngredientType,
     IngredientKwarg,
 )
-from .ingredients.builtin.llm.llm import LLM
+from .llms._llm import LLM
 
 
 @attrs
@@ -346,6 +346,7 @@ def blend(
                 meta=SmoothieMeta(
                     process_time_seconds=time.time() - start,
                     num_values_passed=0,
+                    num_prompt_tokens=0,
                     example_map_outputs=example_map_outputs,
                     ingredients=[],
                     query=original_query,
@@ -742,6 +743,7 @@ def blend(
                     ]
                 )
                 + _prev_passed_values,
+                num_prompt_tokens=llm.num_tokens_passed,
                 example_map_outputs=example_map_outputs,
                 ingredients=ingredients,
                 query=original_query,

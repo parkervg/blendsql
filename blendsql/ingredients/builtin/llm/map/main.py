@@ -8,8 +8,8 @@ from tqdm import tqdm
 from blendsql.ingredients.builtin.llm.utils import (
     construct_gen_clause,
 )
-from blendsql.ingredients.builtin.llm.llm import LLM
-from blendsql.ingredients.builtin.llm.openai_llm import OpenaiLLM
+from blendsql.llms._llm import LLM
+from blendsql.llms import OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
@@ -21,7 +21,7 @@ class LLMMap(MapIngredient):
         self,
         question: str,
         llm: LLM,
-        values: List[str],  
+        values: List[str],
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
         output_type: Optional[str] = None,
@@ -83,7 +83,13 @@ class LLMMap(MapIngredient):
                 include_tf_disclaimer = True
 
             gen_clause: str = construct_gen_clause(
-                pattern=pattern, max_tokens=max_tokens, **{k: v for k, v in llm.gen_kwargs.items() if k not in {"pattern", "max_tokens"}}
+                pattern=pattern,
+                max_tokens=max_tokens,
+                **{
+                    k: v
+                    for k, v in llm.gen_kwargs.items()
+                    if k not in {"pattern", "max_tokens"}
+                },
             )
             program: str = (
                 programs.MAP_PROGRAM_CHAT(gen_clause)
