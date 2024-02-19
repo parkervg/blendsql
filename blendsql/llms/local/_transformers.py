@@ -22,6 +22,6 @@ class TransformersLLM(LLM):
             modelclass=Transformers,
             model_name_or_path=model_name_or_path,
             requires_config=False,
-            tokenizer=transformers.AutoTokenizer(model_name_or_path),
+            tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
             **kwargs
         )
