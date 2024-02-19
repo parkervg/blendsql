@@ -36,7 +36,7 @@ class OpenaiLLM(LLM):
                 from azure.identity import ClientSecretCredential
             except ImportError:
                 raise ValueError(
-                    "In order to use Azure OpenAI, run `pip install azure-identity`!"
+                    "Found ['TENANT_ID', 'CLIENT_ID', 'CLIENT_SECRET'] in .env file, using Azure OpenAI\nIn order to use Azure OpenAI, run `pip install azure-identity`!"
                 ) from None
             credential = ClientSecretCredential(
                 tenant_id=os.environ["TENANT_ID"],

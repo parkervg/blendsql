@@ -10,7 +10,7 @@ from blendsql.llms import OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._programs import map_program
+from blendsql._programs import MapProgram
 
 
 class LLMMap(MapIngredient):
@@ -77,7 +77,7 @@ class LLMMap(MapIngredient):
                 include_tf_disclaimer = True
 
             res = llm.predict(
-                program=map_program,
+                program=MapProgram,
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,
                 values=values[i : i + CONST.VALUE_BATCH_SIZE],

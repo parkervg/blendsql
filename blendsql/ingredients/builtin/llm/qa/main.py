@@ -2,7 +2,7 @@ from typing import Dict, Union, Optional, List
 
 import pandas as pd
 from blendsql.llms._llm import LLM
-from blendsql._programs import qa_program
+from blendsql._programs import QAProgram
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 
@@ -23,7 +23,7 @@ class LLMQA(QAIngredient):
             if value_limit is not None:
                 context = context.iloc[:value_limit]
         res = llm.predict(
-            program=qa_program,
+            program=QAProgram,
             options=options,
             question=question,
             serialized_db=context.to_string() if context is not None else "",

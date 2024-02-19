@@ -1,10 +1,7 @@
 from typing import List
-from blendsql.ingredients.builtin.llm.utils import (
-    construct_gen_clause,
-)
 
 from blendsql.llms._llm import LLM
-from blendsql import _programs as programs
+from blendsql._programs import JoinProgram
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
 
@@ -18,17 +15,8 @@ class LLMJoin(JoinIngredient):
         join_criteria: str = "Join to same topics.",
         **kwargs,
     ) -> dict:
-        gen_clause: str = construct_gen_clause(
-            **llm.gen_kwargs,
-        )
-        program: str = (
-            programs.JOIN_PROGRAM_CHAT(gen_clause)
-            if llm.model_name_or_path in CONST.OPENAI_CHAT_LLM
-            else programs.JOIN_PROGRAM_COMPLETION(gen_clause)
-        )
-
         res = llm.predict(
-            program=program,
+            program=JoinProgram,
             sep=CONST.DEFAULT_ANS_SEP,
             left_values="\n".join(left_values),
             right_values="\n".join(right_values),
