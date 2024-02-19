@@ -29,5 +29,6 @@ class LLMQA(QAIngredient):
             serialized_db=context.to_string() if context is not None else "",
             long_answer=long_answer,
             table_title=None,
+            **kwargs,
         )
         return "'{}'".format(single_quote_escape(res["result"].strip()))

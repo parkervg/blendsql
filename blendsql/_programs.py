@@ -58,6 +58,7 @@ class MapProgram(GuidanceProgram):
         example_outputs: str = None,
         table_title: str = None,
         colname: str = None,
+        **kwargs,
     ):
         with self.systemcontext:
             self.model += dedent(
@@ -65,7 +66,7 @@ class MapProgram(GuidanceProgram):
             )
             if include_tf_disclaimer:
                 self.model += dedent(
-                    "If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
+                    " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
                 )
             self.model += dedent(
                 f"""
@@ -163,6 +164,7 @@ class QAProgram(GuidanceProgram):
         options: List[str] = None,
         long_answer: bool = False,
         table_title: str = None,
+        **kwargs,
     ):
         with self.systemcontext:
             self.model += "Answer the question for the table. "
@@ -210,6 +212,7 @@ class JoinProgram(GuidanceProgram):
         left_values: List[str],
         right_values: List[str],
         sep: str,
+        **kwargs,
     ):
         left_values = "\n".join(left_values)
         right_values = "\n".join(right_values)

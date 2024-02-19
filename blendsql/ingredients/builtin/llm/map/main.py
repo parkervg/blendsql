@@ -85,8 +85,8 @@ class LLMMap(MapIngredient):
                 output_type=output_type,
                 include_tf_disclaimer=include_tf_disclaimer,
                 table_title=table_title,
-                colname=colname,
                 gen_kwargs={"max_tokens": max_tokens, "regex": pattern},
+                **kwargs,
             )
             _r = [
                 i.strip()

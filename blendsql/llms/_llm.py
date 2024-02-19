@@ -53,7 +53,7 @@ class LLM:
                 load_dotenv()
             else:
                 raise FileNotFoundError(
-                    f"{self.__class__} requires a .env file to be present at '{env_filepath}' with necessary environment variables"
+                    f"{self.__class__} requires a .env file to be present at '{env_filepath}' with necessary environment variables\nPut it somewhere else? Use the `env` argument to point me to the right directory."
                 )
         self._setup()
         if self.refresh_interval_min:

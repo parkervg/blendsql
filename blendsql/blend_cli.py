@@ -54,7 +54,7 @@ def main():
                 query=text,
                 db=db,
                 ingredients={LLMQA, LLMMap, LLMJoin, DT},
-                overwrite_args={"endpoint": "gpt-4", "long_answer": False},
+                blender_args={"endpoint": "gpt-4", "long_answer": False},
                 infer_map_constraints=True,
                 verbose=True,
             )

@@ -21,6 +21,7 @@ class LLMJoin(JoinIngredient):
             left_values="\n".join(left_values),
             right_values="\n".join(right_values),
             join_criteria=join_criteria,
+            **kwargs,
         )
 
         _result = res["result"].split("\n")

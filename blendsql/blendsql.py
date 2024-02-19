@@ -270,7 +270,7 @@ def blend(
     blender: LLM,
     ingredients: Optional[Iterable[Ingredient]] = None,
     verbose: bool = False,
-    overwrite_args: Optional[Dict[str, str]] = None,
+    blender_args: Optional[Dict[str, str]] = None,
     infer_map_constraints: bool = False,
     table_to_title: Optional[Dict[str, str]] = None,
     silence_db_exec_errors: bool = True,
@@ -415,7 +415,7 @@ def blend(
                         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                         # Below are in case we need to call blend() again
                         ingredients=ingredients,
-                        overwrite_args=overwrite_args,
+                        blender_args=blender_args,
                         infer_map_constraints=infer_map_constraints,
                         silence_db_exec_errors=silence_db_exec_errors,
                         table_to_title=table_to_title,
@@ -453,7 +453,7 @@ def blend(
                     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                     # Below are in case we need to call blend() again
                     ingredients=ingredients,
-                    overwrite_args=overwrite_args,
+                    blender_args=blender_args,
                     infer_map_constraints=infer_map_constraints,
                     silence_db_exec_errors=silence_db_exec_errors,
                     table_to_title=table_to_title,
@@ -493,9 +493,9 @@ def blend(
                 # maybe if I was better at pp.Suppress we wouldn't need this
                 kwargs_dict = {x[0]: x[-1] for x in parse_results_dict["kwargs"]}
 
-                # Optionally modify kwargs dict, depending on blend() overwrite_args
-                if overwrite_args is not None:
-                    for k, v in overwrite_args.items():
+                # Optionally modify kwargs dict, depending on blend() blender_args
+                if blender_args is not None:
+                    for k, v in blender_args.items():
                         if k in kwargs_dict:
                             logging.debug(
                                 Fore.YELLOW
@@ -547,7 +547,7 @@ def blend(
                             db=db,
                             blender=blender,
                             ingredients=ingredients,
-                            overwrite_args=overwrite_args,
+                            blender_args=blender_args,
                             infer_map_constraints=infer_map_constraints,
                             silence_db_exec_errors=silence_db_exec_errors,
                             table_to_title=table_to_title,
