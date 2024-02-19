@@ -52,7 +52,7 @@ def set_subqueries_to_true(node) -> Union[exp.Expression, None]:
         if is_in_subquery(node):
             return None
     if isinstance(node, SUBQUERY_EXP + (exp.Paren,)) and node.parent is not None:
-        return exp.TRUE
+        return exp.true()
     parent_select = node.find_ancestor(SUBQUERY_EXP)
     if parent_select and parent_select.parent is not None:
         return None
@@ -99,7 +99,7 @@ def prune_true_where(node):
             values_to_check = set(node.args["this"].args.values())
         else:
             values_to_check = set([node.args["this"]])
-        if values_to_check == {exp.TRUE}:
+        if values_to_check == {exp.true()}:
             return None
     return node
 
@@ -121,14 +121,14 @@ def set_structs_to_true(node) -> Union[exp.Expression, None]:
     """
     # Case 1: we have an exp.Struct in isolation
     if isinstance(node, exp.Struct):
-        return exp.TRUE
+        return exp.true()
     # Case 2: we have an exp.Struct within a predicate (=, <, >, etc.)
     if isinstance(node, exp.Predicate):
         if any(
             isinstance(x, exp.Struct)
             for x in {node.args.get("this", None), node.args.get("expression", None)}
         ):
-            return exp.TRUE
+            return exp.true()
     return node
 
 
@@ -192,7 +192,7 @@ def extract_multi_table_predicates(
     Requirements to keep:
         - Must be a predicate node with an expression arg containing column associated with tablename, and some other non-column arg
         - Or, we're in a subquery
-    If we have a predicate not meeting these conditions, set to exp.TRUE
+    If we have a predicate not meeting these conditions, set to exp.true()
         - This is much simpler than doing surgery on `WHERE AND ...` sort of relics
         - TODO: is the above true? Maybe simpler to actually fully remove vs. set to true?
 
@@ -253,7 +253,7 @@ def extract_multi_table_predicates(
                     exp.Select
                 ):
                     return node
-        return exp.TRUE
+        return exp.true()
     return node
 
 
@@ -356,7 +356,7 @@ def all_terminals_are_true(node):
         try:
             get_singleton_child(n)
         except StopIteration:
-            if n != exp.TRUE:
+            if n != exp.true():
                 return False
     return True
 
@@ -420,7 +420,7 @@ class SubqueryContextManager:
             # There's no point in creating a temporary table in this situation
             where_node = abstracted_query.find(exp.Where)
             if where_node:
-                if where_node.args["this"] == exp.TRUE:
+                if where_node.args["this"] == exp.true():
                     continue
                 elif isinstance(where_node.args["this"], exp.Column):
                     continue

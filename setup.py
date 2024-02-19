@@ -34,13 +34,11 @@ setup(
     license="Apache License 2.0",
     packages=find_packages(exclude=["examples", "research", "img"]),
     install_requires=[
-        "openai==0.28.0",
-        "guidance==0.0.64",
+        "guidance>=0.1.0",
         "pyparsing==3.1.1",
         "pandas>=2.0.0",
         "bottleneck>=1.3.6",
         "python-dotenv==1.0.1",
-        "transformers==4.25.1",
         "sqlglot",
         "pre-commit",
         "attrs",
@@ -52,7 +50,6 @@ setup(
         "typeguard",
         "azure-identity",
         "nbformat",
-        "python-dotenv==1.0.1",
     ],
     extras_require={
         "research": [

@@ -2,11 +2,8 @@ from typing import Dict, Union, Optional, List
 import re
 
 import pandas as pd
-from blendsql.ingredients.builtin.llm.utils import (
-    construct_gen_clause,
-)
 from blendsql.llms._llm import LLM
-from blendsql import _programs as programs
+from blendsql._programs import qa_program
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
@@ -27,31 +24,12 @@ class LLMQA(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
-        # Ensure options don't have a common prefix
-        # This will be removed later
-        # Related to this issue: https://github.com/guidance-ai/guidance/issues/232#issuecomment-1597125256
-        if options is not None:
-            options = [f"{idx}): {item}" for idx, item in enumerate(options)]
-        gen_clause: str = construct_gen_clause(
-            gen_type="select" if options else "gen",
-            options=options,
-            **llm.gen_kwargs,
-        )
-        program: str = (
-            programs.QA_PROGRAM_CHAT(gen_clause)
-            if llm.model_name_or_path in CONST.OPENAI_CHAT_LLM
-            else programs.QA_PROGRAM_COMPLETION(gen_clause)
-        )
         res = llm.predict(
-            program=program,
-            options_dict=[{"option": item} for item in options] if options else None,
+            program=qa_program,
+            options=options,
             question=question,
             serialized_db=context.to_string() if context is not None else "",
             long_answer=long_answer,
             table_title=None,
         )
-        if options is None:
-            _result = res["result"]
-        else:
-            _result = re.sub(r"^\d+\):", "", res["result"])
-        return "'{}'".format(single_quote_escape(_result.strip()))
+        return "'{}'".format(single_quote_escape(res["result"].strip()))

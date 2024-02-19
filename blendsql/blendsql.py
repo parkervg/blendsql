@@ -743,7 +743,7 @@ def blend(
                     ]
                 )
                 + _prev_passed_values,
-                num_prompt_tokens=llm.num_tokens_passed,
+                num_prompt_tokens=llm.num_prompt_tokens,
                 example_map_outputs=example_map_outputs,
                 ingredients=ingredients,
                 query=original_query,

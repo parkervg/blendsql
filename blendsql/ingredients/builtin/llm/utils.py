@@ -1,12 +1,12 @@
 from typing import List, Any
 
-from blendsql.llms import OpenaiLLM, TransformersLocalLLM
+from blendsql.llms import OpenaiLLM, TransformersLLM
 from blendsql.llms._llm import LLM
 
 
 def initialize_llm(llm_type: str, model_name_or_path: str) -> LLM:
     if llm_type == "hf":
-        return TransformersLocalLLM(model_name_or_path=model_name_or_path)
+        return TransformersLLM(model_name_or_path=model_name_or_path)
     elif llm_type == "openai":
         return OpenaiLLM(model_name_or_path=model_name_or_path)
     else:

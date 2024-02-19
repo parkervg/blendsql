@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Union
+from typing import Dict, Union, Callable
 import guidance
 import tiktoken
 from attr import attrib, attrs
@@ -32,14 +32,17 @@ class TokenTimer(threading.Thread):
 class LLM(ABC):
     """Abstract class for all LLM endpoints"""
 
+    modelclass: guidance.models._model = attrib()
     model_name_or_path: str = attrib()
+    tokenizer: Union[tiktoken.Encoding, 'transformers.Tokenizer'] = attrib(default=None)
     requires_config: bool = attrib(default=False)
     refresh_interval_min: int = attrib(default=None)
-    encoding: tiktoken.Encoding = attrib(default=None)
+    model: guidance.models.Model = attrib(init=False)
+
 
     gen_kwargs: dict = {}
     num_llm_calls: int = 0
-    num_tokens_passed: int = 0
+    num_prompt_tokens: int = 0
 
     def __attrs_post_init__(self):
         if self.requires_config:
@@ -53,27 +56,19 @@ class LLM(ABC):
         if self.refresh_interval_min:
             timer = TokenTimer(init_fn=self._setup)
             timer.start()
+        # Instantiate model class after maybe loading creds
+        self.model = self.modelclass(self.model_name_or_path, echo=False)
 
-    def predict(self, program: str, **kwargs) -> Union[str, Dict]:
+    def predict(self, program: Callable, **kwargs) -> dict:
         self.num_llm_calls += 1
-        if self.encoding is not None:
-            self.num_tokens_passed += len(
-                self.encoding.encode(re.sub(r"\{\{.*?\}\}", "", program.__str__()))
+        model = program(model=self.model, **kwargs)
+        if self.tokenizer is not None:
+            prompt = re.sub(r'(?<=\>)(assistant|user|system)', '', model._current_prompt())
+            prompt = re.sub(r'\<.*?\>', '', prompt)
+            self.num_prompt_tokens += len(
+                self.tokenizer.encode(prompt)
             )
-            for _k, v in kwargs.items():
-                if v is None:
-                    continue
-                if not isinstance(v, bool):
-                    self.num_tokens_passed += len(self.encoding.encode(str(v)))
-        program: guidance._program.Program = guidance(program, silent=True)
-        return self._predict(program, **kwargs)
+        return model._variables
 
-    @abstractmethod
-    def _predict(
-        self, program: guidance._program.Program, **kwargs
-    ) -> Union[str, Dict]:
-        ...
-
-    @abstractmethod
     def _setup(self, **kwargs) -> None:
         ...

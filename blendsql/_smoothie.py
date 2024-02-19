@@ -24,6 +24,7 @@ Defines output of an executed BlendSQL script
 class SmoothieMeta:
     process_time_seconds: float
     num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
+    num_prompt_tokens: int
     example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
     ingredients: List[Ingredient]
     query: str
