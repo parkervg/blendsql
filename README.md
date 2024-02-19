@@ -305,25 +305,21 @@ blendsql {db_path} {secrets_path}
 ## Example Usage
 
 ```python
-from blendsql import blend, init_secrets
+from blendsql import blend, LLMQA, LLMMap
 from blendsql.db import SQLiteDBConnector
-# Import our pre-built ingredients
-from blendsql.ingredients.builtin import LLMMap, LLMQA, DT
+from blendsql.llms import OpenaiLLM
 
-# Initialize our OpenAI secrets, so we can use LLM() calls
-init_secrets("secrets.json")
-db_path = "transactions.db"
-db = SQLiteDBConnector(db_path=db_path)
 blendsql = """
 SELECT merchant FROM transactions WHERE 
-     {{LLMMap('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = TRUE
+     {{LLMMap('is this a pizza shop?', 'transactions::merchant'}} = TRUE
      AND parent_category = 'Food'
 """
 # Make our smoothie - the executed BlendSQL script
 smoothie = blend(
     query=blendsql,
-    db=db,
-    ingredients={LLMMap, LLMQA, DT},
+    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
+    ingredients={LLMMap, LLMQA},
+    db=SQLiteDBConnector(db_path="transactions.db"),
     verbose=True
 )
 
@@ -538,8 +534,10 @@ The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an execu
 @dataclass
 class SmoothieMeta:
     process_time_seconds: float
-    num_values_passed: int  # Number of values passed to a Map ingredient
-    example_map_outputs: List[Any] # 10 example outputs from a Map ingredient, for debugging
+    num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
+    num_prompt_tokens: int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
+    prompts: List[str] # Log of prompts submitted to model
+    example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
     ingredients: List[Ingredient]
     query: str
     db_path: str
