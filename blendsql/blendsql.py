@@ -5,7 +5,7 @@ import uuid
 import pandas as pd
 import pyparsing
 import re
-from typing import Dict, Iterable, List, Set, Tuple, Generator
+from typing import Dict, Iterable, List, Set, Tuple, Generator, Optional
 from sqlite3 import OperationalError
 import sqlglot.expressions
 from attr import attrs, attrib
@@ -267,13 +267,12 @@ def disambiguate_and_submit_blend(
 def blend(
     query: str,
     db: SQLiteDBConnector,
-    llm: LLM,
-    ingredients: Iterable[Ingredient] = None,
-    # llm: Optional[LLM] = None,
+    blender: LLM,
+    ingredients: Optional[Iterable[Ingredient]] = None,
     verbose: bool = False,
-    overwrite_args: Dict[str, str] = None,
+    overwrite_args: Optional[Dict[str, str]] = None,
     infer_map_constraints: bool = False,
-    table_to_title: Dict[str, str] = None,
+    table_to_title: Optional[Dict[str, str]] = None,
     silence_db_exec_errors: bool = True,
     # User shouldn't interact with below
     _prev_passed_values: int = 0,
@@ -286,7 +285,7 @@ def blend(
         db: Database connector object
         ingredients: List of ingredient objects, to use in interpreting BlendSQL query
         verbose: Boolean defining whether to run in logging.debug mode
-        llm: Optionally override whatever llm argument we pass to LLM ingredient.
+        blender: Optionally override whatever llm argument we pass to LLM ingredient.
             Useful for research applications, where we don't (necessarily) want the parser to choose endpoints.
         infer_map_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
@@ -449,7 +448,7 @@ def blend(
                     subquery=aliased_subquery,
                     aliasname=aliasname,
                     query=_query,
-                    llm=llm,
+                    llm=blender,
                     db=db,
                     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                     # Below are in case we need to call blend() again
@@ -514,7 +513,7 @@ def blend(
                 #     kwargs_dict["llm"] = initialize_llm(
                 #         DEFAULT_LLM_TYPE, DEFAULT_LLM_NAME
                 #     )
-                kwargs_dict["llm"] = llm
+                kwargs_dict["llm"] = blender
 
                 if _function.ingredient_type == IngredientType.MAP:
                     # Latter is the winner.
@@ -546,7 +545,7 @@ def blend(
                         _smoothie = blend(
                             query=context_arg,
                             db=db,
-                            llm=llm,
+                            blender=blender,
                             ingredients=ingredients,
                             overwrite_args=overwrite_args,
                             infer_map_constraints=infer_map_constraints,
@@ -743,7 +742,8 @@ def blend(
                     ]
                 )
                 + _prev_passed_values,
-                num_prompt_tokens=llm.num_prompt_tokens,
+                num_prompt_tokens=blender.num_prompt_tokens,
+                prompts=blender.prompts,
                 example_map_outputs=example_map_outputs,
                 ingredients=ingredients,
                 query=original_query,
