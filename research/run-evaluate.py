@@ -490,7 +490,9 @@ def main() -> None:
     elif not training_args.overwrite_output_dir:
         raise ValueError("output_dir is not empty, and overwrite_output_dir is False!")
 
-    parser_endpoint = initialize_llm(model_args.parser_model_type, model_args.parser_model_name_or_path)
+    parser_endpoint = initialize_llm(
+        model_args.parser_model_type, model_args.parser_model_name_or_path
+    )
     parser_program = choose_parser_program(model_args)
     parser_endpoint.gen_kwargs["temperature"] = model_args.parser_temperature
     if data_training_args.bypass_models:
@@ -498,7 +500,9 @@ def main() -> None:
     blender_endpoint = None
 
     if model_args.blender_model_name_or_path is not None:
-        blender_endpoint = initialize_llm(model_args.blender_model_type, model_args.blender_model_name_or_path)
+        blender_endpoint = initialize_llm(
+            model_args.blender_model_type, model_args.blender_model_name_or_path
+        )
         blender_endpoint.gen_kwargs["temperature"] = model_args.blender_temperature
         if data_training_args.bypass_models:
             blender_endpoint.predict = lambda *args, **kwargs: {"result": ""}
@@ -507,7 +511,7 @@ def main() -> None:
     if model_args.prompt_and_pray_model_name_or_path is not None:
         prompt_and_pray_endpoint = initialize_llm(
             model_args.prompt_and_pray_model_type,
-            model_args.prompt_and_pray_model_name_or_path
+            model_args.prompt_and_pray_model_name_or_path,
         )
 
     splits = {}

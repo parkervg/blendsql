@@ -9,6 +9,7 @@ logging.getLogger("openai").setLevel(logging.CRITICAL)
 logging.getLogger("guidance").setLevel(logging.CRITICAL)
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
+
 class OpenaiLLM(LLM):
     """Class for OpenAI LLM API."""
 
@@ -23,11 +24,20 @@ class OpenaiLLM(LLM):
         )
 
     def _setup(self, **kwargs) -> None:
-        if all(x is not None for x in {os.getenv("TENANT_ID"), os.getenv("CLIENT_ID"), os.getenv("CLIENT_SECRET")}):
+        if all(
+            x is not None
+            for x in {
+                os.getenv("TENANT_ID"),
+                os.getenv("CLIENT_ID"),
+                os.getenv("CLIENT_SECRET"),
+            }
+        ):
             try:
                 from azure.identity import ClientSecretCredential
             except ImportError:
-                raise ValueError("In order to use Azure OpenAI, run `pip install azure-identity`!")
+                raise ValueError(
+                    "In order to use Azure OpenAI, run `pip install azure-identity`!"
+                ) from None
             credential = ClientSecretCredential(
                 tenant_id=os.environ["TENANT_ID"],
                 client_id=os.environ["CLIENT_ID"],

@@ -6,6 +6,7 @@ from .._llm import LLM
 
 logging.getLogger("guidance").setLevel(logging.CRITICAL)
 
+
 class TransformersLLM(LLM):
     """Class for Transformers Local LLM."""
 
@@ -13,8 +14,10 @@ class TransformersLLM(LLM):
         self._setup()
         try:
             import transformers
-        except:
-            raise Exception("Please install transformers with `pip install transformers`!")
+        except ImportError:
+            raise Exception(
+                "Please install transformers with `pip install transformers`!"
+            ) from None
         super().__init__(
             modelclass=Transformers,
             model_name_or_path=model_name_or_path,

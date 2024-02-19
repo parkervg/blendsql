@@ -3,11 +3,11 @@ Contains programs for guidance.
 https://github.com/guidance-ai/guidance/tree/e3c6fe93fa00cb86efc130bbce22aa29100936d4
 """
 from textwrap import dedent
-import re
 from guidance.models import Model, OpenAIChat
 from guidance import gen, user, system, assistant, select
 from typing import List
 from contextlib import nullcontext
+
 
 def _get_contexts(model: Model):
     usercontext = nullcontext()
@@ -19,30 +19,38 @@ def _get_contexts(model: Model):
         assistantcontext = assistant()
     return (usercontext, systemcontext, assistantcontext)
 
+
 def map_program(
-        model: Model,
-        question: str,
-        values: List[str],
-        sep: str,
-        include_tf_disclaimer: bool = False,
-        output_type: str = None,
-        example_outputs: str = None,
-        table_title: str = None,
-        colname: str = None,
-        gen_kwargs: dict = None
+    model: Model,
+    question: str,
+    values: List[str],
+    sep: str,
+    include_tf_disclaimer: bool = False,
+    output_type: str = None,
+    example_outputs: str = None,
+    table_title: str = None,
+    colname: str = None,
+    gen_kwargs: dict = None,
 ):
     usercontext, systemcontext, assistantcontext = _get_contexts(model)
     with systemcontext:
-        model += dedent("""Given a set of values from a database, answer the question row-by-row, in order.""")
+        model += dedent(
+            """Given a set of values from a database, answer the question row-by-row, in order."""
+        )
         if include_tf_disclaimer:
-            model += dedent("If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'.")
-        model += dedent(f"""
+            model += dedent(
+                "If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
+            )
+        model += dedent(
+            f"""
         The answer should be a list separated by '{sep}', and have {len(values)} items in total.
         When you have given all {len(values)} answers, stop responding.
         If a given value has no appropriate answer, give '-' as a response.
-        """)
+        """
+        )
     with usercontext:
-        model += dedent("""
+        model += dedent(
+            """
         --- 
     
         The following values come from the column 'Home Town', in a table titled '2010\u201311 North Carolina Tar Heels men's basketball team'.
@@ -98,9 +106,12 @@ def map_program(
         A: f;f;t;t
         
         ---
-        """)
+        """
+        )
         if table_title:
-            model += dedent(f"The following values come from the column '{colname}', in a table titled '{table_title}'.")
+            model += dedent(
+                f"The following values come from the column '{colname}', in a table titled '{table_title}'."
+            )
         model += dedent(f"""Q: {question}\nValues:\n""")
         for value in values:
             model += f"`{value}`\n"
@@ -113,7 +124,16 @@ def map_program(
         model += gen(name="result", **gen_kwargs if gen_kwargs is not None else {})
     return model
 
-def qa_program(model: Model, question: str, serialized_db: str, options: List[str] = None, long_answer: bool = False, table_title: str = None, gen_kwargs: dict=None):
+
+def qa_program(
+    model: Model,
+    question: str,
+    serialized_db: str,
+    options: List[str] = None,
+    long_answer: bool = False,
+    table_title: str = None,
+    gen_kwargs: dict = None,
+):
     usercontext, systemcontext, assistantcontext = _get_contexts(model)
     with systemcontext:
         model += "Answer the question for the table. "
@@ -134,7 +154,9 @@ def qa_program(model: Model, question: str, serialized_db: str, options: List[st
     return model
 
 
-def validate_program(model: Model, claim: str, serialized_db: str, table_title: str = None):
+def validate_program(
+    model: Model, claim: str, serialized_db: str, table_title: str = None
+):
     usercontext, systemcontext, assistantcontext = _get_contexts(model)
     with systemcontext:
         model += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
@@ -144,19 +166,27 @@ def validate_program(model: Model, claim: str, serialized_db: str, table_title: 
             model += f"\nTable Description: {table_title}"
         model += f"\n{serialized_db}\n\nAnswer:"
     with assistantcontext:
-        model += select(options=['true', 'false'], name="result")
+        model += select(options=["true", "false"], name="result")
     return model
 
 
-def join_program(model: Model, join_criteria: str, left_values: List[str], right_values: List[str], sep: str, **gen_kwargs):
+def join_program(
+    model: Model,
+    join_criteria: str,
+    left_values: List[str],
+    right_values: List[str],
+    sep: str,
+    **gen_kwargs,
+):
     usercontext, systemcontext, assistantcontext = _get_contexts(model)
-    left_values = '\n'.join(left_values)
-    right_values = '\n'.join(right_values)
+    left_values = "\n".join(left_values)
+    right_values = "\n".join(right_values)
     with systemcontext:
         model += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
         model += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
     with usercontext:
-        model += dedent("""
+        model += dedent(
+            """
         Criteria: Join to same topics.
 
         Left Values: 
@@ -197,8 +227,10 @@ def join_program(model: Model, join_criteria: str, left_values: List[str], right
         orange;-
         
         ---
-        """)
-        model += dedent(f"""
+        """
+        )
+        model += dedent(
+            f"""
         Criteria: {join_criteria}
 
         Left Values: {left_values}
@@ -206,7 +238,8 @@ def join_program(model: Model, join_criteria: str, left_values: List[str], right
         Right Values: {right_values}
         
         Output:
-        """)
+        """
+        )
     with assistantcontext:
         model += gen(name="result", **gen_kwargs if gen_kwargs is not None else {})
     return model

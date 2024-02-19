@@ -1,10 +1,8 @@
 from typing import Dict, Union, Optional, List
-import re
 
 import pandas as pd
 from blendsql.llms._llm import LLM
 from blendsql._programs import qa_program
-from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 

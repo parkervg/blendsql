@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Union, Callable
+from typing import Union, Callable
 import guidance
 import tiktoken
 from attr import attrib, attrs
@@ -34,11 +34,10 @@ class LLM(ABC):
 
     modelclass: guidance.models._model = attrib()
     model_name_or_path: str = attrib()
-    tokenizer: Union[tiktoken.Encoding, 'transformers.Tokenizer'] = attrib(default=None)
+    tokenizer: Union[tiktoken.Encoding, "transformers.Tokenizer"] = attrib(default=None)
     requires_config: bool = attrib(default=False)
     refresh_interval_min: int = attrib(default=None)
     model: guidance.models.Model = attrib(init=False)
-
 
     gen_kwargs: dict = {}
     num_llm_calls: int = 0
@@ -63,12 +62,13 @@ class LLM(ABC):
         self.num_llm_calls += 1
         model = program(model=self.model, **kwargs)
         if self.tokenizer is not None:
-            prompt = re.sub(r'(?<=\>)(assistant|user|system)', '', model._current_prompt())
-            prompt = re.sub(r'\<.*?\>', '', prompt)
-            self.num_prompt_tokens += len(
-                self.tokenizer.encode(prompt)
+            prompt = re.sub(
+                r"(?<=\>)(assistant|user|system)", "", model._current_prompt()
             )
+            prompt = re.sub(r"\<.*?\>", "", prompt)
+            self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
         return model._variables
 
+    @abstractmethod
     def _setup(self, **kwargs) -> None:
         ...
