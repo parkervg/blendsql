@@ -300,6 +300,8 @@ def blend(
     cleanup_tables = set() if _prev_cleanup_tables is None else _prev_cleanup_tables
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.ERROR)
     try:
         start = time.time()
         example_map_outputs = []
@@ -346,6 +348,7 @@ def blend(
                     process_time_seconds=time.time() - start,
                     num_values_passed=0,
                     num_prompt_tokens=0,
+                    prompts=blender.prompts,
                     example_map_outputs=example_map_outputs,
                     ingredients=[],
                     query=original_query,

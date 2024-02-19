@@ -175,14 +175,14 @@ class QAProgram(GuidanceProgram):
         with self.usercontext:
             self.model += f"Question: {self.question}"
             if table_title is not None:
-                model = f"Table Description: {table_title}"
-            model += f"\n\n {serialized_db}"
+                self.model = f"Table Description: {table_title}"
+            self.model += f"\n\n {serialized_db}"
         with self.assistantcontext:
             if options is not None:
-                model += select(options=[str(i) for i in options], name="result")
+                self.model += select(options=[str(i) for i in options], name="result")
             else:
-                model += gen(name="result", **self.gen_kwargs)
-        return model
+                self.model += gen(name="result", **self.gen_kwargs)
+        return self.model
 
 
 class ValidateProgram(GuidanceProgram):
