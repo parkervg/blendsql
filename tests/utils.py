@@ -2,21 +2,6 @@ import pandas as pd
 from typing import Iterable, Any, List, Union
 from blendsql.ingredients import MapIngredient, QAIngredient, JoinIngredient
 
-try:
-    from huggingface_hub import hf_hub_download
-except ImportError:
-    raise ImportError(
-        f"In order to run tests, you need huggingface_hub\n`pip install huggingface_hub`"
-    ) from None
-
-REPO_ID = "parkervg/blendsql-test-dbs"
-
-
-def fetch_from_hub(filename: str):
-    return hf_hub_download(
-        repo_id="parkervg/blendsql-test-dbs", filename=filename, repo_type="dataset"
-    )
-
 
 class starts_with(MapIngredient):
     def run(self, question: str, values: List[str], **kwargs) -> Iterable[bool]:

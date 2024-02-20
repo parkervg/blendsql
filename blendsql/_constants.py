@@ -1,5 +1,7 @@
 from enum import Enum, EnumMeta, auto
 
+HF_REPO_ID = "parkervg/blendsql-test-dbs"
+
 
 class StrInMeta(EnumMeta):
     def __contains__(cls, item):
