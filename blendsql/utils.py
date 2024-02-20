@@ -1,8 +1,5 @@
 from typing import Tuple, Iterable
 import re
-from pathlib import Path
-import json
-import os
 import logging
 from colorama import Fore
 from tabulate import tabulate
@@ -12,46 +9,6 @@ from functools import partial
 from .db.sqlite_db_connector import SQLiteDBConnector
 
 tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
-
-
-def init_secrets(filepath: str) -> None:
-    """Initializes environment variables from secrets.json
-
-    Args:
-        path: Filepath to JSON file with keys/values of secrets
-    """
-    filepath = Path(filepath)
-    if filepath.suffix != ".json":
-        raise ValueError(
-            f"init_secrets argument should be a JSON filepath\nGot{filepath}"
-        )
-    # Initialize env variables from secrets.json
-    if (filepath).is_file():
-        with open(filepath, "r") as f:
-            secrets = json.load(f)
-        for k, v in secrets.items():
-            os.environ[k] = v
-        if secrets.get("OPENAI_API_KEY", None) is None:
-            try:
-                from azure.identity import ClientSecretCredential
-
-                credential = ClientSecretCredential(
-                    tenant_id=secrets["TENANT_ID"],
-                    client_id=secrets["CLIENT_ID"],
-                    client_secret=secrets["CLIENT_SECRET"],
-                    disable_instance_discovery=True,
-                )
-                access_token = credential.get_token(
-                    secrets["TOKEN_SCOPE"],
-                    tenant_id=secrets["TENANT_ID"],
-                )
-                os.environ["OPENAI_API_KEY"] = access_token.token
-            except KeyError:
-                raise ValueError(
-                    f"Error authenticating with OpenAI\n Without explicit `OPENAI_API_KEY`, you need to provide ['TENANT_ID', 'CLIENT_ID', 'CLIENT_SECRET']"
-                ) from None
-    else:
-        raise ValueError(f"Can't find secrets.json at {filepath}")
 
 
 def get_tablename_colname(s: str) -> Tuple[str, str]:
