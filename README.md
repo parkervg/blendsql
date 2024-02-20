@@ -23,48 +23,61 @@ Here, the user is given the control to oversee all calls (LLM + SQL) within a un
 
 ![comparison](./img/comparison.jpg)
 
-For example, imagine we have the following table.
+For example, imagine we have the following tables.
 
-| **description**                         | **amount** | **merchant**             | **parent_category** | **child_category**   | **date**   |
-|-----------------------------------------|------------|--------------------------|---------------------|----------------------|------------|
-| PARKING METERS (POM) MONTEREY CA        | -0.75      | Keep The Change          | Fees & Charges      | Service Fee          | 2022-07-19 |
-| CHECKCARD 1228 90 WELCOME TO LAS VEGAS NV | -31.6      | Welcome To Las Vegas     | Gifts               | Gifts                | 2022-10-25 |
-| UWM PLAZA GIFT ESP                      | -6.62      | Uwmc Gift Shop           | Gifts               | Gifts                | 2022-05-10 |
-| MINERS DELIGHT ROCK ELKO NV             | -42.91     | Miners Delight Rock Shop | Gifts               | Gifts                | 2022-06-20 |
-| OLIVE GARDEN 00015826 TRACY, CA, US     | -50.41     | Olive Garden             | Food                | Restaurants & Dining | 2022-04-25 |
+### `w`
+| **date** | **rival**                 | **city**  | **venue**                   | **score** |
+|----------|---------------------------|-----------|-----------------------------|-----------|
+| 31 may   | nsw waratahs              | sydney    | agricultural society ground | 11-0      |
+| 5 jun    | northern districts        | newcastle | sports ground               | 29-0      |
+| 7 jun    | nsw waratahs              | sydney    | agricultural society ground | 21-2      |
+| 11 jun   | western districts         | bathurst  | bathurst ground             | 11-0      |
+| 12 jun   | wallaroo & university nsw | sydney    | cricket ground              | 23-10     |
 
+### `documents`
+| **title**                      | **content**                                       |
+|--------------------------------|---------------------------------------------------|
+| sydney                         | sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the ... |
+| new south wales waratahs       | the new south wales waratahs ( /ˈwɒrətɑːz/ or ... |
+| sydney showground (moore park) | the former sydney showground ( moore park ) at... |
+| sydney cricket ground          | the sydney cricket ground ( scg ) is a sports ... |
+| newcastle, new south wales     | the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) met... |
+| bathurst, new south wales      | bathurst /ˈbæθərst/ is a city in the central t... |
 BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
 The below examples work out of the box, but you are able to design your own ingredients as well! 
 
-*What Italian restaurants have I been to in California?*
+*What was the result of the game played 120 miles west of Sydney?*
 ```sql
-SELECT DISTINCT description, merchant FROM transactions WHERE
-   {{LLMMap('Is this an italian restaurant?', 'transactions::merchant')}} = TRUE
-   AND {{
-       LLMMap(
-           'What state is this transaction from?',
-           'transactions::description'
-       )
-   }} = 'CA'
-   AND child_category = 'Restaurants & Dining'
+SELECT * FROM w
+    WHERE city = {{
+        LLMQA(
+            'Which city is located 120 miles west of Sydney?',
+            (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+            options='w::city'
+        )
+    }}
 ```
 
-*Show me a place where I can buy a burger.*
+*Which venues in Sydney saw more than 30 points scored?*
 ```sql
-SELECT merchant FROM transactions
-  WHERE {{
-      LLMQA('Most likely to sell burgers?', 'transactions::merchant', options='transactions::merchant')
-  }} 
+SELECT DISTINCT venue FROM w
+    WHERE city = 'sydney' AND {{
+        LLMMap(
+            'More than 30 total points?',
+            'w::score'
+        )
+    }} = TRUE
 ```
 
-*Summarize my spending from Coffee shops.*
+*Show all NSW Waratahs games and a description of the team.*
 ```sql
-{{
-    LLMQA(
-        'Summarize my coffee spending.', 
-        (SELECT * FROM transactions WHERE child_category = 'Coffee')
-    )
-}}
+SELECT date, rival, score, documents.content AS "Team Description" FROM w
+    JOIN {{
+        LLMJoin(
+            left_on='documents::title',
+            right_on='w::rival'
+        )
+    }} WHERE rival = 'nsw waratahs'
 ```
 
 ### More Examples from Popular QA Datasets
@@ -202,56 +215,39 @@ These claims should be judged as "SUPPORTS" or "REFUTES". Using BlendSQL, we can
 *Oyedaea is part of the family Asteraceae in the order Asterales.*
 ```sql
 SELECT EXISTS (
-    SELECT * FROM w0 WHERE attribute = 'family:' and value = 'asteraceae'
-) AND EXISTS (
-    SELECT * FROM w0 WHERE attribute = 'order:' and value = 'asterales'
-)
+    SELECT * FROM w0 WHERE "family:" = 'asteraceae' AND "order:" = 'asterales'
+) 
 ```
 
 *The 2006-07 San Jose Sharks season, the 14th season of operation (13th season of play) for the National Hockey League (NHL) franchise, scored the most points in the Pacific Division.*
 ```sql
 SELECT (
-    SELECT (
-        {{
-            LLMQA('Is the Sharks 2006-07 season the 14th season (13th season of play)?', 'documents::content', options='t;f')
-        }} 
-    ) = 't'
-)
-AND (
-  SELECT 
-      (
-          SELECT filledcolumnname FROM w0 ORDER BY pts DESC LIMIT 1
-      ) = 'san jose sharks'
+    {{
+        LLMValidate(
+            'Is the Sharks 2006-07 season the 14th season (13th season of play)?', 
+            (SELECT * FROM documents)
+        )
+    }}
+) AND (
+    SELECT (SELECT filledcolumnname FROM w0 ORDER BY pts DESC LIMIT 1) = 'san jose sharks'
 )
 ```
 
-*Lindfield railway station has 3 bus routes, in which the first platform services routes to Emu plains via Central and Richmond and Hornbys via Strathfield.*
+*Saunders College of Business, which is accredited by the Association to Advance Collegiate Schools of Business International, is one of the colleges of Rochester Institute of Technology established in 1910 and is currently under the supervision of Dean Jacqueline R. Mozrall.*
 ```sql
-SELECT EXISTS (
-    SELECT * FROM w0 WHERE platform = 1 
-        AND {{
-            LLMMap(
-                'Does this service to Emu plains via Central and Richmond?', 
-                'w0::stopping pattern'
-            )
-        }} = TRUE
-    ) AND EXISTS (
-        SELECT * FROM w0 WHERE platform = 1 
-            AND {{
-                LLMMap(
-                    'Does this service to Hornbys via Strathfield?', 
-                    'w0::stopping pattern'
-                )
-            }} = TRUE
-    ) AND EXISTS (
-        SELECT * FROM documents 
-            WHERE {{
-                LLMMap(
-                    'How many bus routes operated by Transdev?', 
-                    'documents::content'
-                )
-            }} = 3
-    )
+SELECT EXISTS(
+    SELECT * FROM w0 
+    WHERE "parent institution" = 'rochester institute of technology'
+    AND "established" = '1910'
+    AND "dean" = 'jacqueline r. mozrall'
+) AND (
+    {{
+        LLMValidate(
+            'Is Saunders College of Business (SCB) accredited by the Association to Advance Collegiate Schools of Business International (AACSB)?',
+            (SELECT * FROM documents)
+        )
+    }}
+)
 ```
 
 </details>
