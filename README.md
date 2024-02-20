@@ -21,7 +21,7 @@ BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
 Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
 
-![comparison](./img/comparison.jpg)
+![comparison](./docs/img/comparison.jpg)
 
 For example, imagine we have the following table.
 
@@ -299,7 +299,7 @@ pip install blendsql
 blendsql {db_path} {secrets_path}
 ```
 
-![blend-cli](./img/blend_cli.png)
+![blend-cli](./docs/img/blend_cli.png)
 
 
 ## Example Usage
@@ -336,7 +336,7 @@ smoothie = blend(
 
 ## Ingredients 
 
-![ingredients](./img/ingredients.jpg)
+![ingredients](./docs/img/ingredients.jpg)
 
 Ingredients are at the core of a BlendSQL script. 
 
