@@ -43,6 +43,7 @@ For example, imagine we have the following tables.
 | sydney cricket ground          | the sydney cricket ground ( scg ) is a sports ... |
 | newcastle, new south wales     | the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) met... |
 | bathurst, new south wales      | bathurst /ˈbæθərst/ is a city in the central t... |
+
 BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
 The below examples work out of the box, but you are able to design your own ingredients as well! 
 
