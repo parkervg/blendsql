@@ -178,7 +178,7 @@ def set_subquery_to_alias(
     aliasname: str,
     query: exp.Expression,
     db: SQLiteDBConnector,
-    llm: LLM,
+    blender: LLM,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
 ) -> exp.Expression:
@@ -187,7 +187,7 @@ def set_subquery_to_alias(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         query=str_subquery,
         db=db,
-        llm=llm,
+        blender=blender,
         aliasname=aliasname,
         **kwargs,
     ).df.to_sql(aliasname, db.con, if_exists="replace", index=False)
@@ -267,7 +267,7 @@ def disambiguate_and_submit_blend(
 def blend(
     query: str,
     db: SQLiteDBConnector,
-    blender: LLM,
+    blender: Optional[LLM] = None,
     ingredients: Optional[Iterable[Ingredient]] = None,
     verbose: bool = False,
     blender_args: Optional[Dict[str, str]] = None,
@@ -348,7 +348,7 @@ def blend(
                     process_time_seconds=time.time() - start,
                     num_values_passed=0,
                     num_prompt_tokens=0,
-                    prompts=blender.prompts,
+                    prompts=blender.prompts if blender is not None else [],
                     example_map_outputs=example_map_outputs,
                     ingredients=[],
                     query=original_query,
@@ -414,6 +414,7 @@ def blend(
                         subquery=aliased_subquery,
                         aliasname=tablename,
                         query=_query,
+                        blender=blender,
                         db=db,
                         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                         # Below are in case we need to call blend() again
@@ -451,7 +452,7 @@ def blend(
                     subquery=aliased_subquery,
                     aliasname=aliasname,
                     query=_query,
-                    llm=blender,
+                    blender=blender,
                     db=db,
                     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                     # Below are in case we need to call blend() again
@@ -745,8 +746,10 @@ def blend(
                     ]
                 )
                 + _prev_passed_values,
-                num_prompt_tokens=blender.num_prompt_tokens,
-                prompts=blender.prompts,
+                num_prompt_tokens=blender.num_prompt_tokens
+                if blender is not None
+                else 0,
+                prompts=blender.prompts if blender is not None else [],
                 example_map_outputs=example_map_outputs,
                 ingredients=ingredients,
                 query=original_query,
