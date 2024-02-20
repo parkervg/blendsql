@@ -64,8 +64,6 @@ setup(
             "recognizers-text-suite",
             "emoji==1.7.0",
         ],
-        "test": [
-            "pytest",
-        ],
+        "test": ["pytest", "huggingface_hub"],
     },
 )
