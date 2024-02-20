@@ -72,7 +72,7 @@ class LLMMap(MapIngredient):
             if pattern is not None:
                 if pattern.startswith("(t|f"):
                     include_tf_disclaimer = True
-                    max_tokens = answer_length * 2
+                    # max_tokens = answer_length * 2
             elif isinstance(llm, OpenaiLLM):
                 include_tf_disclaimer = True
 

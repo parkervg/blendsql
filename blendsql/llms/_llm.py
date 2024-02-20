@@ -32,13 +32,14 @@ class TokenTimer(threading.Thread):
 class LLM:
     """Parent class for all LLM endpoints"""
 
-    modelclass: guidance.models._model = attrib()
     model_name_or_path: str = attrib()
     tokenizer: Callable = attrib(default=None)
     requires_config: bool = attrib(default=False)
     refresh_interval_min: int = attrib(default=None)
-    model: guidance.models.Model = attrib(init=False)
     env: str = attrib(default=".")
+
+    model: guidance.models.Model = attrib(init=False)
+    prompts: list = attrib(init=False)
 
     gen_kwargs: dict = {}
     num_llm_calls: int = 0
@@ -55,7 +56,6 @@ class LLM:
                 raise FileNotFoundError(
                     f"{self.__class__} requires a .env file to be present at '{env_filepath}' with necessary environment variables\nPut it somewhere else? Use the `env` argument to point me to the right directory."
                 )
-        self._setup()
         if self.refresh_interval_min:
             timer = TokenTimer(init_fn=self._setup)
             timer.start()
@@ -63,8 +63,8 @@ class LLM:
             assert hasattr(self.tokenizer, "encode") and callable(
                 self.tokenizer.encode
             ), f"`tokenizer` passed to {self.__class__} should have `encode` method!"
-        # Instantiate model class after maybe loading creds
-        self.model = self.modelclass(self.model_name_or_path, echo=False)
+        self._setup()
+        self.model = self._load_model()
 
     def predict(self, program: GuidanceProgram, **kwargs) -> dict:
         # Modify fields used for tracking LLM usage
@@ -80,4 +80,7 @@ class LLM:
         return model._variables
 
     def _setup(self, **kwargs) -> None:
+        ...
+
+    def _load_model(self) -> guidance.models.Model:
         ...

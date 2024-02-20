@@ -18,8 +18,8 @@ class LLMJoin(JoinIngredient):
         res = llm.predict(
             program=JoinProgram,
             sep=CONST.DEFAULT_ANS_SEP,
-            left_values="\n".join(left_values),
-            right_values="\n".join(right_values),
+            left_values=left_values,
+            right_values=right_values,
             join_criteria=join_criteria,
             **kwargs,
         )
@@ -29,5 +29,7 @@ class LLMJoin(JoinIngredient):
         for item in _result:
             if CONST.DEFAULT_ANS_SEP in item:
                 k, v = item.rsplit(CONST.DEFAULT_ANS_SEP, 1)
+                if any(pred == CONST.DEFAULT_NAN_ANS for pred in {k, v}):
+                    continue
                 result[k] = v
         return result

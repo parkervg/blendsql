@@ -3,21 +3,10 @@ Contains programs for guidance.
 https://github.com/guidance-ai/guidance
 """
 from textwrap import dedent
-from guidance.models import Model, OpenAIChat
+from guidance.models import Model, Chat
 from guidance import gen, user, system, assistant, select
 from typing import List
 from contextlib import nullcontext
-
-
-def _get_contexts(model: Model):
-    usercontext = nullcontext()
-    systemcontext = nullcontext()
-    assistantcontext = nullcontext()
-    if isinstance(model, OpenAIChat):
-        usercontext = user()
-        systemcontext = system()
-        assistantcontext = assistant()
-    return (usercontext, systemcontext, assistantcontext)
 
 
 class GuidanceProgram:
@@ -26,7 +15,7 @@ class GuidanceProgram:
         model: Model,
         question: str,
         gen_kwargs: dict = None,
-        few_shot: bool = False,
+        few_shot: bool = True,
         **kwargs,
     ):
         self.model = model
@@ -36,13 +25,26 @@ class GuidanceProgram:
         assert isinstance(
             self.model, Model
         ), f"GuidanceProgram needs a guidance.models.Model object!\nGot {type(self.model)}"
-        self.usercontext, self.systemcontext, self.assistantcontext = _get_contexts(
-            self.model
-        )
+        (
+            self.usercontext,
+            self.systemcontext,
+            self.assistantcontext,
+        ) = self._get_contexts(self.model)
         return self.__call__(self, **kwargs)
 
     def __call__(self, *args, **kwargs):
         pass
+
+    @staticmethod
+    def _get_contexts(model: Model):
+        usercontext = nullcontext()
+        systemcontext = nullcontext()
+        assistantcontext = nullcontext()
+        if isinstance(model, Chat):
+            usercontext = user()
+            systemcontext = system()
+            assistantcontext = assistant()
+        return (usercontext, systemcontext, assistantcontext)
 
 
 class MapProgram(GuidanceProgram):
