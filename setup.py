@@ -65,5 +65,6 @@ setup(
             "emoji==1.7.0",
         ],
         "test": ["pytest", "huggingface_hub"],
+        "docs": ["mkdocstrings"],
     },
 )

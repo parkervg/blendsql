@@ -254,6 +254,23 @@ SELECT EXISTS(
 </details>
 </p>
 
+## Table of Contents
+* [Install](#install)
+* [Quickstart](#quickstart)
+* [FAQ](#faq)
+* [Documentation](#documentation)
+  * [Execute a BlendSQL Query](#execute-a-blendsql-query)
+    * [Smoothie](#smoothie)
+  * [Ingredients](#ingredients)
+    * [MapIngredient](#mapingredient)
+    * [QAIngredient](#qaingredient)
+      * [Constrained Decoding with 'options'](#constrained-decoding-with-options)
+    * [JoinIngredient](#joiningredient)
+    * [StringIngredient](#stringingredient)
+  * [LLMs](#llms)
+  * [Databases](#databases)
+* [Appendix](#appendix)
+
 ### Features 
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses AST with [sqlglot](https://github.com/tobymao/sqlglot) to minimize external function calls
@@ -261,6 +278,37 @@ SELECT EXISTS(
   - Enabled via [guidance](https://github.com/guidance-ai/guidance)
 - Easy logging of execution environment with `smoothie.save_recipe()` 🖥️
   - Enables reproducibility across machines
+
+
+For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
+
+## Install
+```
+pip install blendsql
+```
+
+## Quickstart
+
+```python
+from blendsql import blend, LLMQA, LLMMap
+from blendsql.db import SQLiteDBConnector
+from blendsql.llms import OpenaiLLM
+
+blendsql = """
+SELECT merchant FROM transactions WHERE 
+     {{LLMMap('is this a pizza shop?', 'transactions::merchant'}} = TRUE
+     AND parent_category = 'Food'
+"""
+# Make our smoothie - the executed BlendSQL script
+smoothie = blend(
+    query=blendsql,
+    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
+    ingredients={LLMMap, LLMQA},
+    db=SQLiteDBConnector(db_path="transactions.db"),
+    verbose=True
+)
+
+```
 
 ### FAQ
 
@@ -284,48 +332,75 @@ SELECT EXISTS(
 
 <hr>
 
-For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
-
-## Install
-```
-pip install blendsql
-```
-
-## Open Command Line BlendSQL Interpreter
-```
-blendsql {db_path} {secrets_path}
-```
-
-![blend-cli](./img/blend_cli.png)
-
-
-## Example Usage
-
-```python
-from blendsql import blend, LLMQA, LLMMap
-from blendsql.db import SQLiteDBConnector
-from blendsql.llms import OpenaiLLM
-
-blendsql = """
-SELECT merchant FROM transactions WHERE 
-     {{LLMMap('is this a pizza shop?', 'transactions::merchant'}} = TRUE
-     AND parent_category = 'Food'
-"""
-# Make our smoothie - the executed BlendSQL script
-smoothie = blend(
-    query=blendsql,
-    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
-    ingredients={LLMMap, LLMQA},
-    db=SQLiteDBConnector(db_path="transactions.db"),
-    verbose=True
-)
-
-```
-
 # Documentation
 
 > [!WARNING]
 > WIP, will be updated
+
+## Execute a BlendSQL Query
+The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
+
+::: blendsql.blendsql.blend
+  handler: python
+
+```python
+from blendsql import blend, LLMMap, LLMQA, LLMJoin
+from blendsql.db import SQLiteDBConnector
+from blendsql.llms import OpenaiLLM
+
+blendsql = """
+SELECT * FROM w
+WHERE city = {{
+    LLMQA(
+        'Which city is located 120 miles west of Sydney?',
+        (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+        options='w::city'
+    )
+}} 
+"""
+db = SQLiteDBConnector(db_path)
+smoothie = blend(
+    query=blendsql,
+    db=db,
+    ingredients={LLMMap, LLMQA, LLMJoin},
+    blender=AzureOpenaiLLM("gpt-4"),
+    # Optional args below
+    infer_map_constraints=True,
+    silence_db_exec_errors=False,
+    verbose=True,
+    blender_args={
+      "few_shot": True,
+      "temperature": 0.01
+    }
+)
+```
+
+
+### Smoothie 
+The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an executed BlendSQL script.
+
+```python
+@dataclass
+class Smoothie:
+    df: pd.DataFrame
+    meta: SmoothieMeta
+    
+@dataclass
+class SmoothieMeta:
+    process_time_seconds: float
+    num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
+    num_prompt_tokens: int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
+    prompts: List[str] # Log of prompts submitted to model
+    example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
+    ingredients: List[Ingredient]
+    query: str
+    db_path: str
+    contains_ingredient: bool = True
+
+def blend(*args, **kwargs) -> Smoothie:
+  ... 
+```
+<hr>
 
 ## Ingredients 
 
@@ -343,7 +418,7 @@ Ingredient calls are denoted by wrapping them in double curly brackets, `{{ingre
 
 The following ingredient types are valid.
 
-### `MapIngredient`
+### MapIngredient
 This type of ingredient applies a function on a given table/column pair to create a new column containing the function output.
 
 For example, take the following query.
@@ -363,7 +438,7 @@ SELECT merchant FROM transactions
 
 The temporary table shown above is then combined with the original "transactions" table with an `INNER JOIN` on the "merchant" column.
 
-### `JoinIngredient`
+### JoinIngredient
 Handles the logic of semantic `JOIN` clauses between tables.
 
 For example:
@@ -383,7 +458,7 @@ BlendSQL was built to interact with tables "in-the-wild", and many (such as thos
 
 For this reason, we can leverage the internal knowledge of a pre-trained LLM to do the `JOIN` operation for us.
 
-### `QAIngredient`
+### QAIngredient
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
 
 The `QAIngredient` is designed to return data of variable types, and is best used in cases when we either need:
@@ -448,7 +523,7 @@ For example, the BlendSQL query below translates to the valid (but rather confus
   }} * 10
   AND {{LLMMap('Offers a media streaming service?', 'portfolio::Description')}} = 1
 ```
-#### Changing QA Output with `options`
+#### Constrained Decoding with `options`
 Perhaps we want the answer to the above question in a different format. We call our LLM ingredient in a constrained setting by passing a `options` argument, where we provide either semicolon-separated options, or a reference to a column.
 
 ```sql
@@ -502,7 +577,7 @@ Or, from our running example:
 
 The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol` column from `account_history`.
 
-### `StringIngredient`
+### StringIngredient
 This is the simplest type of ingredient. This will output a string to be placed directly into the SQL query.
 
 We have the `DT` function as a builtin StringIngredient.
@@ -524,33 +599,18 @@ SELECT merchant FROM transactions
     WHERE date > '2022-09-30' AND date < '2022-12-01'
 ```
 
-### Smoothie 
-The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an executed BlendSQL script.
+<hr> 
+ 
 
-```python
-@dataclass
-class SmoothieMeta:
-    process_time_seconds: float
-    num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
-    num_prompt_tokens: int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
-    prompts: List[str] # Log of prompts submitted to model
-    example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
-    ingredients: List[Ingredient]
-    query: str
-    db_path: str
-    contains_ingredient: bool = True
+## LLMs
 
 
-@dataclass
-class Smoothie:
-    df: pd.DataFrame
-    meta: SmoothieMeta
+<hr> 
 
-def blend(*args, **kwargs) -> Smoothie:
-  ... 
-```
+## Databases
 
 
+<hr> 
 ### Appendix
 #### Run Line Profiling 
 First uncomment `@profile` above `blend()` in `blendsql.py`.
