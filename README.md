@@ -13,7 +13,7 @@
     <i> SQL 🤝 LLMs </i>
 
   </p>
-<b>Check out our <a href="https://parkervg.github.io/blendsql/home/index.html">online documentation</a> for a more comprehensive overview.</b>
+<b>Check out our <a href="https://parkervg.github.io/blendsql/home/index.html" target="_blank">online documentation</a> for a more comprehensive overview.</b>
 
 </div>
 <br/>
