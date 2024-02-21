@@ -1,4 +1,5 @@
 # QAIngredient
+
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
 
 The `QAIngredient` is designed to return data of variable types, and is best used in cases when we either need:

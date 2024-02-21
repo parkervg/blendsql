@@ -1,10 +1,9 @@
 ## Execute a BlendSQL Query
-The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
-
 ::: blendsql.blendsql.blend
     handler: python
     show_source: false
 
+### Usage:
 ```python
 from blendsql import blend, LLMMap, LLMQA, LLMJoin
 from blendsql.db import SQLiteDBConnector

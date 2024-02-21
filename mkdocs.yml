@@ -13,6 +13,9 @@ theme:
   features:
     - content.code.copy
     - header.autohide
+    - navigation.expand
+    - navigation.tabs
+    - navigation.sections
 
 markdown_extensions:
   - admonition
@@ -34,7 +37,12 @@ plugins:
   - section-index
 
 nav:
-  - Home: index.md
+  - Home:
+    - home.md
+    - Examples from QA Datasets:
+      - HybridQA: examples/hybridqa.md
+      - OTT-QA: examples/ottqa.md
+      - FEVEROUS: examples/feverous.md
   - Getting Started:
       - Installation: installation.md
       - Quickstart: quickstart.md
@@ -48,4 +56,4 @@ nav:
           - JoinIngredient: reference/join-ingredient.md
       - LLMs: reference/llms.md
       - Databases: reference/databases.md
-
+      - Technical Walkthrough: reference/technical_walkthrough.md

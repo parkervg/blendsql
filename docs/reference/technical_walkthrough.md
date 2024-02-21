@@ -1,4 +1,5 @@
-All the below logic can be found in the `blend()` function from [blendsql/grammar.py](blendsql/blendsql.py).
+All the below logic can be found in the `blend()` function from `blendsql/blendsql.py`.
+
 
 ## Example 
 
