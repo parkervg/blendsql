@@ -26,7 +26,5 @@ jobs:
       - run: pip install mkdocs-material
       - run: pip install mkdocstrings
       - run: pip install mkdocs-section-index
-      - run: pip install mkdocs
-      - run: pip install mkdocs-python
       - name: Build documentation
         run: mkdocs gh-deploy --force
