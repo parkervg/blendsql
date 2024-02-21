@@ -38,6 +38,7 @@ nav:
   - Getting Started:
       - Installation: installation.md
       - Quickstart: quickstart.md
+      - FAQ: faq.md
   - Documentation:
       - blend(): reference/execute-blendsql.md
       - Ingredients:
