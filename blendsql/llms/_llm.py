@@ -57,7 +57,9 @@ class LLM:
                     f"{self.__class__} requires a .env file to be present at '{env_filepath}' with necessary environment variables\nPut it somewhere else? Use the `env` argument to point me to the right directory."
                 )
         if self.refresh_interval_min:
-            timer = TokenTimer(init_fn=self._setup)
+            timer = TokenTimer(
+                init_fn=self._setup, refresh_interval_min=self.refresh_interval_min
+            )
             timer.start()
         if self.tokenizer is not None:
             assert hasattr(self.tokenizer, "encode") and callable(
