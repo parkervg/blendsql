@@ -11,11 +11,13 @@
 </picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
+
   </p>
+<b>Check out our <a href="https://parkervg.github.io/blendsql/home/index.html"> online documentation </a> for a more comprehensive overview.</b>
+
 </div>
 <br/>
 
-Check out our [online documentation](https://parkervg.github.io/blendsql/home/index.html) for a more comprehensive overview.
 
 ## Intro
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. It builds off of the syntax of SQL to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.
