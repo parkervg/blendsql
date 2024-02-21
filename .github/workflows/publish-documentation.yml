@@ -3,7 +3,7 @@ name: Publish the documentation
 on:
   push:
     branches:
-      - main
+      - llms-restructure
 
 permissions:
   contents: write
