@@ -6,8 +6,8 @@
 </div>
 
 <div align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="img/logo_dark.png">
-  <img alt="blendsql" src="img/logo_light.png" width=350">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo_dark.png">
+  <img alt="blendsql" src="docs/img/logo_light.png" width=350">
 </picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
@@ -21,7 +21,7 @@ BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
 Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
 
-![comparison](./img/comparison.jpg)
+![comparison](docs/img/comparison.jpg)
 
 For example, imagine we have the following tables.
 
@@ -404,7 +404,7 @@ def blend(*args, **kwargs) -> Smoothie:
 
 ## Ingredients 
 
-![ingredients](./img/ingredients.jpg)
+![ingredients](docs/img/ingredients.jpg)
 
 Ingredients are at the core of a BlendSQL script. 
 
