@@ -1,0 +1,51 @@
+site_name: BlendSQL
+site_description: Unified dialect for orchestrating SQLite logic and LLM reasoning.
+
+repo_name: parkervg/blendsql
+repo_url: https://github.com/parkervg/blendsql
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: white
+  logo: img/blender.png
+  features:
+    - content.code.copy
+    - header.autohide
+
+markdown_extensions:
+  - admonition
+  - def_list
+  - attr_list
+  - md_in_html
+  - pymdownx.superfences
+
+
+
+plugins:
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            show_source: false
+  - search
+  - section-index
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quickstart: quickstart.md
+      - FAQ: faq.md
+  - Documentation:
+      - blend(): reference/execute-blendsql.md
+      - Ingredients:
+          - reference/ingredients.md
+          - MapIngredient: reference/map-ingredient.md
+          - QAIngredient: reference/qa-ingredient.md
+          - JoinIngredient: reference/join-ingredient.md
+      - LLMs: reference/llms.md
+      - Databases: reference/databases.md
+

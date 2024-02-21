@@ -5,7 +5,7 @@ import uuid
 import pandas as pd
 import pyparsing
 import re
-from typing import Dict, Iterable, List, Set, Tuple, Generator
+from typing import Dict, Iterable, List, Set, Tuple, Generator, Optional
 from sqlite3 import OperationalError
 import sqlglot.expressions
 from attr import attrs, attrib
@@ -46,7 +46,7 @@ from ._constants import (
     IngredientType,
     IngredientKwarg,
 )
-from .ingredients.builtin.llm.llm import LLM
+from .llms._llm import LLM
 
 
 @attrs
@@ -178,7 +178,7 @@ def set_subquery_to_alias(
     aliasname: str,
     query: exp.Expression,
     db: SQLiteDBConnector,
-    llm: LLM,
+    blender: LLM,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
 ) -> exp.Expression:
@@ -187,7 +187,7 @@ def set_subquery_to_alias(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         query=str_subquery,
         db=db,
-        llm=llm,
+        blender=blender,
         aliasname=aliasname,
         **kwargs,
     ).df.to_sql(aliasname, db.con, if_exists="replace", index=False)
@@ -267,13 +267,12 @@ def disambiguate_and_submit_blend(
 def blend(
     query: str,
     db: SQLiteDBConnector,
-    llm: LLM,
-    ingredients: Iterable[Ingredient] = None,
-    # llm: Optional[LLM] = None,
+    blender: Optional[LLM] = None,
+    ingredients: Optional[Iterable[Ingredient]] = None,
     verbose: bool = False,
-    overwrite_args: Dict[str, str] = None,
+    blender_args: Optional[Dict[str, str]] = None,
     infer_map_constraints: bool = False,
-    table_to_title: Dict[str, str] = None,
+    table_to_title: Optional[Dict[str, str]] = None,
     silence_db_exec_errors: bool = True,
     # User shouldn't interact with below
     _prev_passed_values: int = 0,
@@ -286,7 +285,7 @@ def blend(
         db: Database connector object
         ingredients: List of ingredient objects, to use in interpreting BlendSQL query
         verbose: Boolean defining whether to run in logging.debug mode
-        llm: Optionally override whatever llm argument we pass to LLM ingredient.
+        blender: Optionally override whatever llm argument we pass to LLM ingredient.
             Useful for research applications, where we don't (necessarily) want the parser to choose endpoints.
         infer_map_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
@@ -301,6 +300,8 @@ def blend(
     cleanup_tables = set() if _prev_cleanup_tables is None else _prev_cleanup_tables
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.ERROR)
     try:
         start = time.time()
         example_map_outputs = []
@@ -346,6 +347,8 @@ def blend(
                 meta=SmoothieMeta(
                     process_time_seconds=time.time() - start,
                     num_values_passed=0,
+                    num_prompt_tokens=0,
+                    prompts=blender.prompts if blender is not None else [],
                     example_map_outputs=example_map_outputs,
                     ingredients=[],
                     query=original_query,
@@ -411,11 +414,12 @@ def blend(
                         subquery=aliased_subquery,
                         aliasname=tablename,
                         query=_query,
+                        blender=blender,
                         db=db,
                         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                         # Below are in case we need to call blend() again
                         ingredients=ingredients,
-                        overwrite_args=overwrite_args,
+                        blender_args=blender_args,
                         infer_map_constraints=infer_map_constraints,
                         silence_db_exec_errors=silence_db_exec_errors,
                         table_to_title=table_to_title,
@@ -448,12 +452,12 @@ def blend(
                     subquery=aliased_subquery,
                     aliasname=aliasname,
                     query=_query,
-                    llm=llm,
+                    blender=blender,
                     db=db,
                     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                     # Below are in case we need to call blend() again
                     ingredients=ingredients,
-                    overwrite_args=overwrite_args,
+                    blender_args=blender_args,
                     infer_map_constraints=infer_map_constraints,
                     silence_db_exec_errors=silence_db_exec_errors,
                     table_to_title=table_to_title,
@@ -493,9 +497,9 @@ def blend(
                 # maybe if I was better at pp.Suppress we wouldn't need this
                 kwargs_dict = {x[0]: x[-1] for x in parse_results_dict["kwargs"]}
 
-                # Optionally modify kwargs dict, depending on blend() overwrite_args
-                if overwrite_args is not None:
-                    for k, v in overwrite_args.items():
+                # Optionally modify kwargs dict, depending on blend() blender_args
+                if blender_args is not None:
+                    for k, v in blender_args.items():
                         if k in kwargs_dict:
                             logging.debug(
                                 Fore.YELLOW
@@ -513,7 +517,7 @@ def blend(
                 #     kwargs_dict["llm"] = initialize_llm(
                 #         DEFAULT_LLM_TYPE, DEFAULT_LLM_NAME
                 #     )
-                kwargs_dict["llm"] = llm
+                kwargs_dict["llm"] = blender
 
                 if _function.ingredient_type == IngredientType.MAP:
                     # Latter is the winner.
@@ -545,9 +549,9 @@ def blend(
                         _smoothie = blend(
                             query=context_arg,
                             db=db,
-                            llm=llm,
+                            blender=blender,
                             ingredients=ingredients,
-                            overwrite_args=overwrite_args,
+                            blender_args=blender_args,
                             infer_map_constraints=infer_map_constraints,
                             silence_db_exec_errors=silence_db_exec_errors,
                             table_to_title=table_to_title,
@@ -742,6 +746,10 @@ def blend(
                     ]
                 )
                 + _prev_passed_values,
+                num_prompt_tokens=blender.num_prompt_tokens
+                if blender is not None
+                else 0,
+                prompts=blender.prompts if blender is not None else [],
                 example_map_outputs=example_map_outputs,
                 ingredients=ingredients,
                 query=original_query,

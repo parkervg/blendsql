@@ -27,7 +27,7 @@ class ModelArguments:
         default=None,
         metadata={
             "help": "Model type of the prompt and pray model. Accepted values are openai (default), hf and sagemaker"
-        }
+        },
     )
     blender_model_name_or_path: str = field(
         default=None,

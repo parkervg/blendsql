@@ -6,8 +6,7 @@
 </div>
 
 <div align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../img/logo_dark.png">
-  <img alt="blendsql" src="../img/logo_light.png" width=350">
+  <img alt="blendsql" src="img/logo_light.png" width=350">
 </picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
@@ -21,7 +20,7 @@ BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
 Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
 
-![comparison](./img/
+![comparison](img/
 comparison.jpg)
 
 For example, imagine we have the following tables.
@@ -265,49 +264,3 @@ SELECT EXISTS(
 
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
-
-## Install
-```
-pip install blendsql
-```
-
-## Quickstart
-
-```python
-from blendsql import blend, LLMQA, LLMMap
-from blendsql.db import SQLiteDBConnector
-from blendsql.llms import OpenaiLLM
-
-blendsql = """
-SELECT merchant FROM transactions WHERE 
-     {{LLMMap('is this a pizza shop?', 'transactions::merchant'}} = TRUE
-     AND parent_category = 'Food'
-"""
-# Make our smoothie - the executed BlendSQL script
-smoothie = blend(
-    query=blendsql,
-    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
-    ingredients={LLMMap, LLMQA},
-    db=SQLiteDBConnector(db_path="transactions.db"),
-    verbose=True
-)
-
-```
-
-### FAQ
-
-#### Why not just implement BlendSQL as a [user-defined function in SQLite](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic)?
-> LLMs are expensive, both in terms of $ cost and compute time. When applying them to SQLite databases, we want to take special care in ensuring we're not applying them to contexts where they're not required. 
-> This is [not easily achievable with UDFs](https://sqlite.org/forum/info/649ad4c62fd4b4e8cb5d6407107b8c8a9a0afaaf95a87805e5a8403a79e6616c), even when marked as a [deterministic function](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic).
-> 
-> BlendSQL is specifically designed to enforce an order-of-operations that 1) prioritizes vanilla SQL operations first, and 2) caches results from LLM ingredients so they don't need to be recomputed.
-> For example:
-> ```sql 
-> SELECT {{LLMMap('What state is this NBA team from?', 'w::team')} FROM w 
->    WHERE num_championships > 3 
->    ORDER BY {{LLMMap('What state is this NBA team from?', 'w::team')}
-> 
-> ```
-> BlendSQL makes sure to only pass those `team` values from rows which satisfy the condition `num_championship > 3` to the LLM. Additionally, since we assume the function is deterministic, we make a single LLM call and cache the results, despite the ingredient function being used twice.
-#### So I get how to write BlendSQL queries. But why would I use this over vanilla SQLite? 
-> Certain ingredients, like [LLMJoin](#joiningredient), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an *intermediate representation for reasoning over structured + unstructured with LLMs*. Some examples of this can be found above [here](#more-examples-from-popular-qa-datasets).

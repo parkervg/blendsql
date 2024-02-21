@@ -1,15 +1,16 @@
 from typing import List, Any
-from .openai_llm import OpenaiLLM
-from .transformers_llm import TransformersLocalLLM
+
+from blendsql.llms import OpenaiLLM, TransformersLLM
+from blendsql.llms._llm import LLM
 
 
-def initialize_llm(llm_type: str, model_name_or_path: str) -> "LLM":
+def initialize_llm(llm_type: str, model_name_or_path: str) -> LLM:
     if llm_type == "hf":
-        return TransformersLocalLLM(model_name_or_path)
+        return TransformersLLM(model_name_or_path=model_name_or_path)
     elif llm_type == "openai":
-        return OpenaiLLM(model_name_or_path)
+        return OpenaiLLM(model_name_or_path=model_name_or_path)
     else:
-        raise ValueError(f"Unknown llm_type {llm_type}")
+        raise ValueError(f"Unknown llm_type '{llm_type}'")
 
 
 def construct_gen_clause(

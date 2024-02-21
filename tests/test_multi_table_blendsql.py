@@ -2,6 +2,7 @@ import pytest
 from blendsql import blend
 from blendsql.db import SQLiteDBConnector
 from tests.utils import (
+    fetch_from_hub,
     assert_equality,
     starts_with,
     get_length,
@@ -14,7 +15,7 @@ from tests.utils import (
 
 @pytest.fixture
 def db() -> SQLiteDBConnector:
-    return SQLiteDBConnector(db_path="./tests/data/multi_table.db")
+    return SQLiteDBConnector(fetch_from_hub("multi_table.db"))
 
 
 @pytest.fixture

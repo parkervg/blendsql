@@ -6,8 +6,8 @@
 </div>
 
 <div align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo_dark.png">
-  <img alt="blendsql" src="docs/img/logo_light.png" width=350">
+  <source media="(prefers-color-scheme: dark)" srcset="img/logo_dark.png">
+  <img alt="blendsql" src="img/logo_light.png" width=350">
 </picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
@@ -21,50 +21,64 @@ BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
 Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
 
-![comparison](./docs/img/comparison.jpg)
+![comparison](./img/comparison.jpg)
 
-For example, imagine we have the following table.
+For example, imagine we have the following tables.
 
-| **description**                         | **amount** | **merchant**             | **parent_category** | **child_category**   | **date**   |
-|-----------------------------------------|------------|--------------------------|---------------------|----------------------|------------|
-| PARKING METERS (POM) MONTEREY CA        | -0.75      | Keep The Change          | Fees & Charges      | Service Fee          | 2022-07-19 |
-| CHECKCARD 1228 90 WELCOME TO LAS VEGAS NV | -31.6      | Welcome To Las Vegas     | Gifts               | Gifts                | 2022-10-25 |
-| UWM PLAZA GIFT ESP                      | -6.62      | Uwmc Gift Shop           | Gifts               | Gifts                | 2022-05-10 |
-| MINERS DELIGHT ROCK ELKO NV             | -42.91     | Miners Delight Rock Shop | Gifts               | Gifts                | 2022-06-20 |
-| OLIVE GARDEN 00015826 TRACY, CA, US     | -50.41     | Olive Garden             | Food                | Restaurants & Dining | 2022-04-25 |
+### `w`
+| **date** | **rival**                 | **city**  | **venue**                   | **score** |
+|----------|---------------------------|-----------|-----------------------------|-----------|
+| 31 may   | nsw waratahs              | sydney    | agricultural society ground | 11-0      |
+| 5 jun    | northern districts        | newcastle | sports ground               | 29-0      |
+| 7 jun    | nsw waratahs              | sydney    | agricultural society ground | 21-2      |
+| 11 jun   | western districts         | bathurst  | bathurst ground             | 11-0      |
+| 12 jun   | wallaroo & university nsw | sydney    | cricket ground              | 23-10     |
+
+### `documents`
+| **title**                      | **content**                                       |
+|--------------------------------|---------------------------------------------------|
+| sydney                         | sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the ... |
+| new south wales waratahs       | the new south wales waratahs ( /ˈwɒrətɑːz/ or ... |
+| sydney showground (moore park) | the former sydney showground ( moore park ) at... |
+| sydney cricket ground          | the sydney cricket ground ( scg ) is a sports ... |
+| newcastle, new south wales     | the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) met... |
+| bathurst, new south wales      | bathurst /ˈbæθərst/ is a city in the central t... |
 
 BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
 The below examples work out of the box, but you are able to design your own ingredients as well! 
 
-*What Italian restaurants have I been to in California?*
+*What was the result of the game played 120 miles west of Sydney?*
 ```sql
-SELECT DISTINCT description, merchant FROM transactions WHERE
-   {{LLMMap('Is this an italian restaurant?', 'transactions::merchant')}} = TRUE
-   AND {{
-       LLMMap(
-           'What state is this transaction from?',
-           'transactions::description'
-       )
-   }} = 'CA'
-   AND child_category = 'Restaurants & Dining'
+SELECT * FROM w
+    WHERE city = {{
+        LLMQA(
+            'Which city is located 120 miles west of Sydney?',
+            (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+            options='w::city'
+        )
+    }}
 ```
 
-*Show me a place where I can buy a burger.*
+*Which venues in Sydney saw more than 30 points scored?*
 ```sql
-SELECT merchant FROM transactions
-  WHERE {{
-      LLMQA('Most likely to sell burgers?', 'transactions::merchant', options='transactions::merchant')
-  }} 
+SELECT DISTINCT venue FROM w
+    WHERE city = 'sydney' AND {{
+        LLMMap(
+            'More than 30 total points?',
+            'w::score'
+        )
+    }} = TRUE
 ```
 
-*Summarize my spending from Coffee shops.*
+*Show all NSW Waratahs games and a description of the team.*
 ```sql
-{{
-    LLMQA(
-        'Summarize my coffee spending.', 
-        (SELECT * FROM transactions WHERE child_category = 'Coffee')
-    )
-}}
+SELECT date, rival, score, documents.content AS "Team Description" FROM w
+    JOIN {{
+        LLMJoin(
+            left_on='documents::title',
+            right_on='w::rival'
+        )
+    }} WHERE rival = 'nsw waratahs'
 ```
 
 ### More Examples from Popular QA Datasets
@@ -202,90 +216,69 @@ These claims should be judged as "SUPPORTS" or "REFUTES". Using BlendSQL, we can
 *Oyedaea is part of the family Asteraceae in the order Asterales.*
 ```sql
 SELECT EXISTS (
-    SELECT * FROM w0 WHERE attribute = 'family:' and value = 'asteraceae'
-) AND EXISTS (
-    SELECT * FROM w0 WHERE attribute = 'order:' and value = 'asterales'
-)
+    SELECT * FROM w0 WHERE "family:" = 'asteraceae' AND "order:" = 'asterales'
+) 
 ```
 
 *The 2006-07 San Jose Sharks season, the 14th season of operation (13th season of play) for the National Hockey League (NHL) franchise, scored the most points in the Pacific Division.*
 ```sql
 SELECT (
-    SELECT (
-        {{
-            LLMQA('Is the Sharks 2006-07 season the 14th season (13th season of play)?', 'documents::content', options='t;f')
-        }} 
-    ) = 't'
-)
-AND (
-  SELECT 
-      (
-          SELECT filledcolumnname FROM w0 ORDER BY pts DESC LIMIT 1
-      ) = 'san jose sharks'
+    {{
+        LLMValidate(
+            'Is the Sharks 2006-07 season the 14th season (13th season of play)?', 
+            (SELECT * FROM documents)
+        )
+    }}
+) AND (
+    SELECT (SELECT filledcolumnname FROM w0 ORDER BY pts DESC LIMIT 1) = 'san jose sharks'
 )
 ```
 
-*Lindfield railway station has 3 bus routes, in which the first platform services routes to Emu plains via Central and Richmond and Hornbys via Strathfield.*
+*Saunders College of Business, which is accredited by the Association to Advance Collegiate Schools of Business International, is one of the colleges of Rochester Institute of Technology established in 1910 and is currently under the supervision of Dean Jacqueline R. Mozrall.*
 ```sql
-SELECT EXISTS (
-    SELECT * FROM w0 WHERE platform = 1 
-        AND {{
-            LLMMap(
-                'Does this service to Emu plains via Central and Richmond?', 
-                'w0::stopping pattern'
-            )
-        }} = TRUE
-    ) AND EXISTS (
-        SELECT * FROM w0 WHERE platform = 1 
-            AND {{
-                LLMMap(
-                    'Does this service to Hornbys via Strathfield?', 
-                    'w0::stopping pattern'
-                )
-            }} = TRUE
-    ) AND EXISTS (
-        SELECT * FROM documents 
-            WHERE {{
-                LLMMap(
-                    'How many bus routes operated by Transdev?', 
-                    'documents::content'
-                )
-            }} = 3
-    )
+SELECT EXISTS(
+    SELECT * FROM w0 
+    WHERE "parent institution" = 'rochester institute of technology'
+    AND "established" = '1910'
+    AND "dean" = 'jacqueline r. mozrall'
+) AND (
+    {{
+        LLMValidate(
+            'Is Saunders College of Business (SCB) accredited by the Association to Advance Collegiate Schools of Business International (AACSB)?',
+            (SELECT * FROM documents)
+        )
+    }}
+)
 ```
 
 </details>
 </p>
 
+## Table of Contents
+* [Install](#install)
+* [Quickstart](#quickstart)
+* [FAQ](#faq)
+* [Documentation](#documentation)
+  * [Execute a BlendSQL Query](#execute-a-blendsql-query)
+    * [Smoothie](#smoothie)
+  * [Ingredients](#ingredients)
+    * [MapIngredient](#mapingredient)
+    * [QAIngredient](#qaingredient)
+      * [Constrained Decoding with 'options'](#constrained-decoding-with-options)
+    * [JoinIngredient](#joiningredient)
+    * [StringIngredient](#stringingredient)
+  * [LLMs](#llms)
+  * [Databases](#databases)
+* [Appendix](#appendix)
+
 ### Features 
 - Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses AST to minimize external function calls
+  - Traverses AST with [sqlglot](https://github.com/tobymao/sqlglot) to minimize external function calls
 - Accelerated LLM calls, caching, and constrained decoding 🚀
   - Enabled via [guidance](https://github.com/guidance-ai/guidance)
 - Easy logging of execution environment with `smoothie.save_recipe()` 🖥️
   - Enables reproducibility across machines
 
-### FAQ
-
-> #### Why not just implement BlendSQL as a [user-defined function in SQLite](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic)?
->> LLMs are expensive, both in terms of $ cost and compute time. When applying them to SQLite databases, we want to take special care in ensuring we're not applying them to contexts where they're not required. 
->> This is [not easily achievable with UDFs](https://sqlite.org/forum/info/649ad4c62fd4b4e8cb5d6407107b8c8a9a0afaaf95a87805e5a8403a79e6616c), even when marked as a [deterministic function](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic).
->> 
->> BlendSQL is specifically designed to enforce an order-of-operations that 1) prioritizes vanilla SQL operations first, and 2) caches results from LLM ingredients so they don't need to be recomputed.
->> For example:
->> ```sql 
->> SELECT {{LLMMap('What state is this NBA team from?', 'w::team')} FROM w 
->>    WHERE num_championships > 3 
->>    ORDER BY {{LLMMap('What state is this NBA team from?', 'w::team')}
->> 
->> ```
->> BlendSQL makes sure to only pass those `team` values from rows which satisfy the condition `num_championship > 3` to the LLM. Additionally, since we assume the function is deterministic, we make a single LLM call and cache the results, despite the ingredient function being used twice.
-
-
-> #### So I get how to write BlendSQL queries. But why would I use this over vanilla SQLite? 
-> Certain ingredients, like [LLMJoin](#joiningredient), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an *intermediate representation for reasoning over structured + unstructured with LLMs*. Some examples of this can be found above [here](#more-examples-from-popular-qa-datasets).
-
-<hr>
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
 
@@ -294,49 +287,124 @@ For a technical walkthrough of how a BlendSQL query is executed, check out [tech
 pip install blendsql
 ```
 
-## Open Command Line BlendSQL Interpreter
-```
-blendsql {db_path} {secrets_path}
-```
-
-![blend-cli](./docs/img/blend_cli.png)
-
-
-## Example Usage
+## Quickstart
 
 ```python
-from blendsql import blend, init_secrets
+from blendsql import blend, LLMQA, LLMMap
 from blendsql.db import SQLiteDBConnector
-# Import our pre-built ingredients
-from blendsql.ingredients.builtin import LLMMap, LLMQA, DT
+from blendsql.llms import OpenaiLLM
 
-# Initialize our OpenAI secrets, so we can use LLM() calls
-init_secrets("secrets.json")
-db_path = "transactions.db"
-db = SQLiteDBConnector(db_path=db_path)
 blendsql = """
 SELECT merchant FROM transactions WHERE 
-     {{LLMMap('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = TRUE
+     {{LLMMap('is this a pizza shop?', 'transactions::merchant'}} = TRUE
      AND parent_category = 'Food'
 """
 # Make our smoothie - the executed BlendSQL script
 smoothie = blend(
     query=blendsql,
-    db=db,
-    ingredients={LLMMap, LLMQA, DT},
+    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
+    ingredients={LLMMap, LLMQA},
+    db=SQLiteDBConnector(db_path="transactions.db"),
     verbose=True
 )
 
 ```
+
+### FAQ
+
+#### Why not just implement BlendSQL as a [user-defined function in SQLite](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic)?
+> LLMs are expensive, both in terms of $ cost and compute time. When applying them to SQLite databases, we want to take special care in ensuring we're not applying them to contexts where they're not required. 
+> This is [not easily achievable with UDFs](https://sqlite.org/forum/info/649ad4c62fd4b4e8cb5d6407107b8c8a9a0afaaf95a87805e5a8403a79e6616c), even when marked as a [deterministic function](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic).
+> 
+> BlendSQL is specifically designed to enforce an order-of-operations that 1) prioritizes vanilla SQL operations first, and 2) caches results from LLM ingredients so they don't need to be recomputed.
+> For example:
+> ```sql 
+> SELECT {{LLMMap('What state is this NBA team from?', 'w::team')} FROM w 
+>    WHERE num_championships > 3 
+>    ORDER BY {{LLMMap('What state is this NBA team from?', 'w::team')}
+> 
+> ```
+> BlendSQL makes sure to only pass those `team` values from rows which satisfy the condition `num_championship > 3` to the LLM. Additionally, since we assume the function is deterministic, we make a single LLM call and cache the results, despite the ingredient function being used twice.
+
+
+ #### So I get how to write BlendSQL queries. But why would I use this over vanilla SQLite? 
+> Certain ingredients, like [LLMJoin](#joiningredient), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an *intermediate representation for reasoning over structured + unstructured with LLMs*. Some examples of this can be found above [here](#more-examples-from-popular-qa-datasets).
+
+<hr>
 
 # Documentation
 
 > [!WARNING]
 > WIP, will be updated
 
+## Execute a BlendSQL Query
+The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
+
+::: blendsql.blendsql.blend
+  handler: python
+
+```python
+from blendsql import blend, LLMMap, LLMQA, LLMJoin
+from blendsql.db import SQLiteDBConnector
+from blendsql.llms import OpenaiLLM
+
+blendsql = """
+SELECT * FROM w
+WHERE city = {{
+    LLMQA(
+        'Which city is located 120 miles west of Sydney?',
+        (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+        options='w::city'
+    )
+}} 
+"""
+db = SQLiteDBConnector(db_path)
+smoothie = blend(
+    query=blendsql,
+    db=db,
+    ingredients={LLMMap, LLMQA, LLMJoin},
+    blender=AzureOpenaiLLM("gpt-4"),
+    # Optional args below
+    infer_map_constraints=True,
+    silence_db_exec_errors=False,
+    verbose=True,
+    blender_args={
+      "few_shot": True,
+      "temperature": 0.01
+    }
+)
+```
+
+
+### Smoothie 
+The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an executed BlendSQL script.
+
+```python
+@dataclass
+class Smoothie:
+    df: pd.DataFrame
+    meta: SmoothieMeta
+    
+@dataclass
+class SmoothieMeta:
+    process_time_seconds: float
+    num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
+    num_prompt_tokens: int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
+    prompts: List[str] # Log of prompts submitted to model
+    example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
+    ingredients: List[Ingredient]
+    query: str
+    db_path: str
+    contains_ingredient: bool = True
+
+def blend(*args, **kwargs) -> Smoothie:
+  ... 
+```
+<hr>
+
 ## Ingredients 
 
-![ingredients](./docs/img/ingredients.jpg)
+![ingredients](./img/ingredients.jpg)
 
 Ingredients are at the core of a BlendSQL script. 
 
@@ -350,7 +418,7 @@ Ingredient calls are denoted by wrapping them in double curly brackets, `{{ingre
 
 The following ingredient types are valid.
 
-### `MapIngredient`
+### MapIngredient
 This type of ingredient applies a function on a given table/column pair to create a new column containing the function output.
 
 For example, take the following query.
@@ -368,10 +436,10 @@ SELECT merchant FROM transactions
 | Safeway  | 0                     |
 | Target   | 0                     |
 
-The temporary table shown above is then combined with the original "transactions" table with a `LEFT JOIN` on the "merchant" column.
+The temporary table shown above is then combined with the original "transactions" table with an `INNER JOIN` on the "merchant" column.
 
-### `JoinIngredient`
-Handles the logic of ambiguous, non-intuitive `JOIN` clauses between tables.
+### JoinIngredient
+Handles the logic of semantic `JOIN` clauses between tables.
 
 For example:
 ```sql
@@ -386,11 +454,11 @@ SELECT Capitals.name, State.name FROM Capitals
 ```
 The above example hints at a database schema that would make [E.F Codd](https://en.wikipedia.org/wiki/Edgar_F._Codd) very angry: why do we have two separate tables `States` and `Capitals` with no foreign key to join the two?
 
-However, BlendSQL was built to interact with tables "in-the-wild", and many (such as those on Wikipedia) do not have these convenient properties of well-designed relational models.
+BlendSQL was built to interact with tables "in-the-wild", and many (such as those on Wikipedia) do not have these convenient properties of well-designed relational models.
 
 For this reason, we can leverage the internal knowledge of a pre-trained LLM to do the `JOIN` operation for us.
 
-### `QAIngredient`
+### QAIngredient
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
 
 The `QAIngredient` is designed to return data of variable types, and is best used in cases when we either need:
@@ -455,7 +523,7 @@ For example, the BlendSQL query below translates to the valid (but rather confus
   }} * 10
   AND {{LLMMap('Offers a media streaming service?', 'portfolio::Description')}} = 1
 ```
-#### Changing QA Output with `options`
+#### Constrained Decoding with `options`
 Perhaps we want the answer to the above question in a different format. We call our LLM ingredient in a constrained setting by passing a `options` argument, where we provide either semicolon-separated options, or a reference to a column.
 
 ```sql
@@ -509,7 +577,7 @@ Or, from our running example:
 
 The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol` column from `account_history`.
 
-### `StringIngredient`
+### StringIngredient
 This is the simplest type of ingredient. This will output a string to be placed directly into the SQL query.
 
 We have the `DT` function as a builtin StringIngredient.
@@ -531,31 +599,18 @@ SELECT merchant FROM transactions
     WHERE date > '2022-09-30' AND date < '2022-12-01'
 ```
 
-### Smoothie 
-The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an executed BlendSQL script.
+<hr> 
+ 
 
-```python
-@dataclass
-class SmoothieMeta:
-    process_time_seconds: float
-    num_values_passed: int  # Number of values passed to a Map ingredient
-    example_map_outputs: List[Any] # 10 example outputs from a Map ingredient, for debugging
-    ingredients: List[Ingredient]
-    query: str
-    db_path: str
-    contains_ingredient: bool = True
+## LLMs
 
 
-@dataclass
-class Smoothie:
-    df: pd.DataFrame
-    meta: SmoothieMeta
+<hr> 
 
-def blend(*args, **kwargs) -> Smoothie:
-  ... 
-```
+## Databases
 
 
+<hr> 
 ### Appendix
 #### Run Line Profiling 
 First uncomment `@profile` above `blend()` in `blendsql.py`.

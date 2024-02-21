@@ -1,6 +1,6 @@
 blendsql_examples = [
     {
-    "serialized_db": """
+        "serialized_db": """
     Table Description: Andy Karl | Awards and nominations
     CREATE TABLE w (index INTEGER,
                 year INTEGER,
@@ -31,7 +31,7 @@ blendsql_examples = [
     """,
     },
     {
-    "serialized_db": """
+        "serialized_db": """
     Table Description: Pooja Ramachandran | Filmography
     CREATE TABLE w (
     index INTEGER,
@@ -64,7 +64,7 @@ blendsql_examples = [
     """,
     },
     {
-    "serialized_db": """
+        "serialized_db": """
     Table Description: Dyro | Awards and nominations
     CREATE TABLE w (
     index INTEGER,
@@ -96,8 +96,8 @@ blendsql_examples = [
     }}
     """,
     },
-{
-    "serialized_db": """
+    {
+        "serialized_db": """
     Table Description: List of best-selling albums in Japan | List of best-selling albums by domestic acts
     CREATE TABLE w (
     index INTEGER,
@@ -131,8 +131,8 @@ SELECT * FROM w LIMIT 3
     }}
     """,
     },
-{
-    "serialized_db": """
+    {
+        "serialized_db": """
     Table Description: Ben Platt (actor) | Theatre credits
     CREATE TABLE w (
     index INTEGER,
@@ -165,8 +165,8 @@ SELECT * FROM w LIMIT 3
     }}
     """,
     },
-{
-    "serialized_db": """
+    {
+        "serialized_db": """
     Table Description: E-UTRA | User Equipment (UE) categories
     CREATE TABLE w (
     "index" INTEGER,
@@ -199,8 +199,8 @@ SELECT * FROM w LIMIT 3
     }}
     """,
     },
-{
-    "serialized_db": """
+    {
+        "serialized_db": """
     Table Description: Austin Fyten | Career statistics
     CREATE TABLE "w" (
     "index" INTEGER,
@@ -243,8 +243,8 @@ SELECT * FROM "w" LIMIT 3
     }}
     """,
     },
-{
-"serialized_db": """
+    {
+        "serialized_db": """
 Table Description: World U-17 Hockey Challenge | Results
 CREATE TABLE "w" (
 "index" INTEGER,
@@ -263,9 +263,9 @@ SELECT * FROM "w" LIMIT 3
      2 2017 united states canada red czech republic     british columbia dawson creek and fort st. john
 */
 """,
-    "bridge_hints": "",
-    "question": "What countries did the World U-17 Hockey Challenge attract after 2016?",
-    "blendsql": """
+        "bridge_hints": "",
+        "question": "What countries did the World U-17 Hockey Challenge attract after 2016?",
+        "blendsql": """
 {{  
     LLMQA(
         'Summarize the country participating the World U-17 Hockey Challenge after 2016', 
@@ -275,8 +275,8 @@ SELECT * FROM "w" LIMIT 3
         )
 }}
 """,
-},
-{
+    },
+    {
         "serialized_db": """
     Table Description: Tigerair Australia | Fleet
     CREATE TABLE w (
@@ -309,7 +309,7 @@ SELECT * FROM w LIMIT 3
     }}
     """,
     },
-{
+    {
         "serialized_db": """
     Table Description: 1982 Illinois gubernatorial election | Results
     CREATE TABLE w (

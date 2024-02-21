@@ -1,9 +1,8 @@
 import pytest
-from tabulate import tabulate
-from functools import partial
 from blendsql import blend
 from blendsql.db import SQLiteDBConnector
 from tests.utils import (
+    fetch_from_hub,
     assert_equality,
     starts_with,
     get_length,
@@ -11,12 +10,10 @@ from tests.utils import (
     get_table_size,
 )
 
-tabulate = partial(tabulate, headers="keys", showindex="never")
-
 
 @pytest.fixture
 def db() -> SQLiteDBConnector:
-    return SQLiteDBConnector(db_path="./tests/data/single_table.db")
+    return SQLiteDBConnector(fetch_from_hub("single_table.db"))
 
 
 @pytest.fixture
@@ -38,7 +35,7 @@ def test_simple_exec(db, ingredients):
 
 def test_nested_exec(db, ingredients):
     blendsql = """
-    SELECT DISTINCT description FROM transactions WHERE
+    SELECT DISTINCT merchant FROM transactions WHERE
         merchant in (
             SELECT merchant FROM transactions
                 WHERE amount > 100
@@ -116,7 +113,7 @@ def test_simple_ingredient_exec_in_select(db, ingredients):
 
 def test_nested_ingredient_exec(db, ingredients):
     blendsql = """
-    SELECT DISTINCT description FROM transactions WHERE
+    SELECT DISTINCT merchant FROM transactions WHERE
         merchant in (
             SELECT merchant FROM transactions
                 WHERE amount > 100
@@ -124,7 +121,7 @@ def test_nested_ingredient_exec(db, ingredients):
         );
     """
     sql = """
-     SELECT DISTINCT description FROM transactions WHERE
+     SELECT DISTINCT merchant FROM transactions WHERE
         merchant in (
             SELECT merchant FROM transactions
                 WHERE amount > 100
@@ -149,7 +146,7 @@ def test_nested_ingredient_exec(db, ingredients):
 
 def test_nonexistent_column_exec(db, ingredients):
     blendsql = """
-    SELECT DISTINCT description, merchant, child_category FROM transactions WHERE
+    SELECT DISTINCT merchant, child_category FROM transactions WHERE
        (
            {{starts_with('Z', 'transactions::merchant')}} = 1
            AND child_category = 'this does not exist'
@@ -157,7 +154,7 @@ def test_nonexistent_column_exec(db, ingredients):
        OR child_category = 'Gifts'
     """
     sql = """
-    SELECT DISTINCT description, merchant, child_category FROM transactions WHERE
+    SELECT DISTINCT merchant, child_category FROM transactions WHERE
        (
            merchant LIKE "Z%"
            AND child_category = 'this does not exist'
@@ -182,7 +179,7 @@ def test_nonexistent_column_exec(db, ingredients):
 
 def test_nested_and_exec(db, ingredients):
     blendsql = """
-    SELECT DISTINCT description, merchant, child_category FROM transactions WHERE
+    SELECT DISTINCT merchant, child_category FROM transactions WHERE
        (
            {{starts_with('O', 'transactions::merchant')}} = 1
            AND child_category = 'Restaurants & Dining'
@@ -190,7 +187,7 @@ def test_nested_and_exec(db, ingredients):
        OR child_category = 'Gifts'
     """
     sql = """
-    SELECT DISTINCT description, merchant, child_category FROM transactions WHERE
+    SELECT DISTINCT merchant, child_category FROM transactions WHERE
        (
            merchant LIKE "O%"
            AND child_category = 'Restaurants & Dining'
@@ -215,19 +212,19 @@ def test_nested_and_exec(db, ingredients):
 
 def test_multiple_nested_ingredients(db, ingredients):
     blendsql = """
-    SELECT DISTINCT description, merchant FROM transactions WHERE
+    SELECT DISTINCT child_category, merchant FROM transactions WHERE
         (
-            {{starts_with('P', 'transactions::merchant')}} = 1
-            AND {{starts_with('T', 'transactions::description')}} = 1
+            {{starts_with('A', 'transactions::merchant')}} = 1
+            AND {{starts_with('T', 'transactions::child_category')}} = 1
             AND parent_category = 'Food'
         )
        OR child_category = 'Gifts'
     """
     sql = """
-    SELECT DISTINCT description, merchant FROM transactions WHERE
+    SELECT DISTINCT child_category, merchant FROM transactions WHERE
         (
-            merchant LIKE "P%"
-            AND description LIKE "T%"
+            merchant LIKE 'A%'
+            AND child_category LIKE 'T%'
             AND parent_category = 'Food'
         )
         OR child_category = 'Gifts'
@@ -238,11 +235,11 @@ def test_multiple_nested_ingredients(db, ingredients):
         ingredients=ingredients,
     )
     sql_df = db.execute_query(sql)
-    assert_equality(smoothie=smoothie, sql_df=sql_df, args=["P", "T"])
+    assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A", "T"])
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = db.execute_query(
         """
-    SELECT COUNT(DISTINCT merchant) + COUNT(DISTINCT description) FROM transactions WHERE parent_category = 'Food'
+    SELECT COUNT(DISTINCT merchant) + COUNT(DISTINCT child_category) FROM transactions WHERE parent_category = 'Food'
     """
     )
     assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
@@ -304,13 +301,13 @@ def test_max_length(db, ingredients):
 
 def test_limit(db, ingredients):
     blendsql = """
-    SELECT DISTINCT description, merchant, child_category FROM transactions WHERE
+    SELECT DISTINCT merchant, child_category FROM transactions WHERE
        {{starts_with('P', 'transactions::merchant')}} = 1
        AND child_category = 'Restaurants & Dining'
        LIMIT 1
     """
     sql = """
-    SELECT DISTINCT description, merchant, child_category FROM transactions WHERE
+    SELECT DISTINCT merchant, child_category FROM transactions WHERE
         merchant LIKE 'P%'
         AND child_category = 'Restaurants & Dining'
         LIMIT 1
@@ -333,11 +330,11 @@ def test_limit(db, ingredients):
 
 def test_select(db, ingredients):
     blendsql = """
-    SELECT DISTINCT description, merchant, child_category FROM transactions WHERE
+    SELECT DISTINCT merchant, child_category FROM transactions WHERE
        merchant = {{select_first_sorted(options='transactions::merchant')}}
     """
     sql = """
-    SELECT DISTINCT description, merchant, child_category FROM transactions 
+    SELECT DISTINCT merchant, child_category FROM transactions 
         ORDER BY merchant LIMIT 1
     """
     smoothie = blend(

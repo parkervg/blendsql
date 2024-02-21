@@ -5,15 +5,12 @@ import pandas as pd
 from colorama import Fore
 from tqdm import tqdm
 
-from blendsql.ingredients.builtin.llm.utils import (
-    construct_gen_clause,
-)
-from blendsql.ingredients.builtin.llm.llm import LLM
-from blendsql.ingredients.builtin.llm.openai_llm import OpenaiLLM
+from blendsql.llms._llm import LLM
+from blendsql.llms import OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql import _programs as programs
+from blendsql._programs import MapProgram
 
 
 class LLMMap(MapIngredient):
@@ -21,7 +18,7 @@ class LLMMap(MapIngredient):
         self,
         question: str,
         llm: LLM,
-        values: List[str],  
+        values: List[str],
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
         output_type: Optional[str] = None,
@@ -47,10 +44,7 @@ class LLMMap(MapIngredient):
         pattern = None if isinstance(llm, OpenaiLLM) else pattern
         if value_limit is not None:
             values = values[:value_limit]
-        values_dict = [
-            {"value": value if not pd.isna(value) else "-", "idx": idx}
-            for idx, value in enumerate(values)
-        ]
+        values = [value if not pd.isna(value) else "-" for value in values]
         table_title = None
         if table_to_title is not None:
             if tablename not in table_to_title:
@@ -61,46 +55,38 @@ class LLMMap(MapIngredient):
         # Only use tqdm if we're in debug mode
         context_manager = (
             tqdm(
-                range(0, len(values_dict), CONST.VALUE_BATCH_SIZE),
-                total=len(values_dict) // CONST.VALUE_BATCH_SIZE,
+                range(0, len(values), CONST.VALUE_BATCH_SIZE),
+                total=len(values) // CONST.VALUE_BATCH_SIZE,
                 desc=f"Making calls to LLM with batch_size {CONST.VALUE_BATCH_SIZE}",
                 bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
             )
             if logging.DEBUG >= logging.root.level
-            else range(0, len(values_dict), CONST.VALUE_BATCH_SIZE)
+            else range(0, len(values), CONST.VALUE_BATCH_SIZE)
         )
 
         for i in context_manager:
-            answer_length = len(values_dict[i : i + CONST.VALUE_BATCH_SIZE])
+            answer_length = len(values[i : i + CONST.VALUE_BATCH_SIZE])
             max_tokens = answer_length * 15
             include_tf_disclaimer = False
 
             if pattern is not None:
                 if pattern.startswith("(t|f"):
                     include_tf_disclaimer = True
-                    max_tokens = answer_length * 2
+                    # max_tokens = answer_length * 2
             elif isinstance(llm, OpenaiLLM):
                 include_tf_disclaimer = True
 
-            gen_clause: str = construct_gen_clause(
-                pattern=pattern, max_tokens=max_tokens, **{k: v for k, v in llm.gen_kwargs.items() if k not in {"pattern", "max_tokens"}}
-            )
-            program: str = (
-                programs.MAP_PROGRAM_CHAT(gen_clause)
-                if llm.model_name_or_path in CONST.OPENAI_CHAT_LLM
-                else programs.MAP_PROGRAM_COMPLETION(gen_clause)
-            )
             res = llm.predict(
-                program=program,
+                program=MapProgram,
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,
-                answer_length=len(values_dict[i : i + CONST.VALUE_BATCH_SIZE]),
-                values_dict=values_dict[i : i + CONST.VALUE_BATCH_SIZE],
+                values=values[i : i + CONST.VALUE_BATCH_SIZE],
                 example_outputs=example_outputs,
                 output_type=output_type,
                 include_tf_disclaimer=include_tf_disclaimer,
                 table_title=table_title,
-                colname=colname,
+                gen_kwargs={"max_tokens": max_tokens, "regex": pattern},
+                **kwargs,
             )
             _r = [
                 i.strip()
@@ -123,7 +109,7 @@ class LLMMap(MapIngredient):
                 }.get(i.lower(), i)
                 for i in _r
             ]
-            expected_len = len(values_dict[i : i + CONST.VALUE_BATCH_SIZE])
+            expected_len = len(values[i : i + CONST.VALUE_BATCH_SIZE])
             if len(_r) != expected_len:
                 logging.debug(
                     Fore.YELLOW
