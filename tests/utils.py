@@ -1,6 +1,7 @@
 import pandas as pd
 from typing import Iterable, Any, List, Union
 from blendsql.ingredients import MapIngredient, QAIngredient, JoinIngredient
+from blendsql.db.utils import single_quote_escape
 
 
 class starts_with(MapIngredient):
@@ -24,7 +25,7 @@ class get_length(MapIngredient):
 
 
 class select_first_sorted(QAIngredient):
-    def run(self, question: str, options: List[str], **kwargs) -> Iterable[Any]:
+    def run(self, question: str, options: set, **kwargs) -> Iterable[Any]:
         """Simple test function, equivalent to the following in SQL:
         `ORDER BY {colname} LIMIT 1`
         """
@@ -42,10 +43,19 @@ class return_aapl(QAIngredient):
 
 class get_table_size(QAIngredient):
     def run(
-        self, question: str, context: pd.DataFrame, options: str = None, **kwargs
+        self, question: str, context: pd.DataFrame, options: set = None, **kwargs
     ) -> Union[str, int, float]:
         """Returns the length of the context subtable passed to it."""
         return len(context)
+
+
+class select_first_option(QAIngredient):
+    def run(
+        self, question: str, context: pd.DataFrame, options: set = None, **kwargs
+    ) -> Union[str, int, float]:
+        """Returns the first item in the (ordered) options set"""
+        assert options is not None
+        return f"'{single_quote_escape(sorted(list(options))[0])}'"
 
 
 class do_join(JoinIngredient):

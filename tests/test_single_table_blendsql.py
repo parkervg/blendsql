@@ -8,6 +8,7 @@ from tests.utils import (
     get_length,
     select_first_sorted,
     get_table_size,
+    select_first_option,
 )
 
 
@@ -18,7 +19,13 @@ def db() -> SQLiteDBConnector:
 
 @pytest.fixture
 def ingredients() -> set:
-    return {starts_with, get_length, select_first_sorted, get_table_size}
+    return {
+        starts_with,
+        get_length,
+        select_first_sorted,
+        get_table_size,
+        select_first_option,
+    }
 
 
 def test_simple_exec(db, ingredients):
@@ -455,6 +462,26 @@ def test_exists_isolated_qa_call(db, ingredients):
     """
     )
     assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+
+
+def test_query_options_arg(db, ingredients):
+    # commit 5ffa26d
+    blendsql = """
+    {{
+        select_first_option(
+            'I hope this test works',
+            (SELECT * FROM transactions),
+            options=(SELECT DISTINCT merchant FROM transactions WHERE merchant = 'Paypal')
+        )
+    }}
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    assert len(smoothie.df) == 1
+    assert smoothie.df.values.flat[0] == "Paypal"
 
 
 if __name__ == "__main__":
