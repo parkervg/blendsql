@@ -1,4 +1,5 @@
 from enum import Enum, EnumMeta, auto
+from dataclasses import dataclass
 
 HF_REPO_ID = "parkervg/blendsql-test-dbs"
 
@@ -33,7 +34,8 @@ class IngredientType(str, Enum, metaclass=StrInMeta):
     JOIN = auto()
 
 
-class IngredientKwarg(str, Enum):
+@dataclass
+class IngredientKwarg:
     QUESTION = "question"
     CONTEXT = "context"
     OPTIONS = "options"

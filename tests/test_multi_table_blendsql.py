@@ -1,8 +1,8 @@
 import pytest
 from blendsql import blend
 from blendsql.db import SQLiteDBConnector
+from blendsql.utils import fetch_from_hub
 from tests.utils import (
-    fetch_from_hub,
     assert_equality,
     starts_with,
     get_length,

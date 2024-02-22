@@ -312,16 +312,18 @@ class QAIngredient(Ingredient):
                 raise IngredientException("Empty subtable passed to QAIngredient!")
         unpacked_options = options
         if options is not None:
-            try:
-                tablename, colname = utils.get_tablename_colname(options)
-                tablename = kwargs.get("aliases_to_tablenames").get(
-                    tablename, tablename
-                )
-                unpacked_options = self.db.execute_query(
-                    f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                )[colname].tolist()
-            except ValueError:
-                unpacked_options = options.split(";")
+            if not isinstance(options, list):
+                try:
+                    tablename, colname = utils.get_tablename_colname(options)
+                    tablename = kwargs.get("aliases_to_tablenames").get(
+                        tablename, tablename
+                    )
+                    unpacked_options = self.db.execute_query(
+                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                    )[colname].tolist()
+                except ValueError:
+                    unpacked_options = options.split(";")
+            unpacked_options = set(unpacked_options)
         self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[IngredientKwarg.OPTIONS] = unpacked_options
         kwargs[IngredientKwarg.CONTEXT] = subtable
