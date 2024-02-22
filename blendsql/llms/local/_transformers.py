@@ -8,7 +8,11 @@ logging.getLogger("guidance").setLevel(logging.CRITICAL)
 
 
 class TransformersLLM(LLM):
-    """Class for Transformers Local LLM."""
+    """Class for Transformers local LLM.
+
+    Args:
+        model_name_or_path: Name of the model on HuggingFace, or the path to a local model
+    """
 
     def __init__(self, model_name_or_path: str, **kwargs):
         try:

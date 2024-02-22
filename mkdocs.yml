@@ -10,6 +10,7 @@ theme:
     - scheme: default
       primary: white
   logo: img/blender.png
+  favicon: img/blender.png
   features:
     - content.code.copy
     - header.autohide
@@ -22,6 +23,7 @@ markdown_extensions:
   - def_list
   - attr_list
   - md_in_html
+  - pymdownx.details
   - pymdownx.superfences
 
 
@@ -32,7 +34,7 @@ plugins:
       handlers:
         python:
           options:
-            show_source: false
+            show_submodules: true
   - search
   - section-index
 
@@ -48,12 +50,15 @@ nav:
       - Quickstart: quickstart.md
       - FAQ: faq.md
   - Documentation:
-      - blend(): reference/execute-blendsql.md
+      - Execute a BlendSQL Query: reference/execute-blendsql.md
       - Ingredients:
-          - reference/ingredients.md
-          - MapIngredient: reference/map-ingredient.md
-          - QAIngredient: reference/qa-ingredient.md
-          - JoinIngredient: reference/join-ingredient.md
-      - LLMs: reference/llms.md
+          - reference/ingredients/ingredients.md
+          - MapIngredient: reference/ingredients/map-ingredient.md
+          - QAIngredient: reference/ingredients/qa-ingredient.md
+          - JoinIngredient: reference/ingredients/join-ingredient.md
+      - Blenders:
+          - reference/blenders/blenders.md
+          - OpenAI: reference/blenders/openai.md
+          - Transformers: reference/blenders/transformers.md
       - Databases: reference/databases.md
       - Technical Walkthrough: reference/technical_walkthrough.md

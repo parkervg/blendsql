@@ -1,4 +1,5 @@
-## Execute a BlendSQL Query
+## blend()
+
 ::: blendsql.blendsql.blend
     handler: python
     show_source: false

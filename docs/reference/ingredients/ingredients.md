@@ -1,6 +1,6 @@
 # Ingredients 
 
-![ingredients](../img/
+![ingredients](../../img/
 /ingredients.jpg)
 
 Ingredients are at the core of a BlendSQL script. 

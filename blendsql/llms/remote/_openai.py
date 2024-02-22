@@ -46,14 +46,22 @@ def openai_setup() -> None:
 
 
 class AzureOpenaiLLM(LLM):
-    """Class for OpenAI LLM API."""
+    """Class for Azure OpenAI LLM API.
 
-    def __init__(self, model_name_or_path: str, **kwargs):
+    Args:
+        model_name_or_path: Name of the Azure deployment to use
+        env: Path to directory of .env file, or to the file itself to load as a dotfile.
+            Should either contain the variable `OPENAI_API_KEY`,
+                or all of `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`
+    """
+
+    def __init__(self, model_name_or_path: str, env: str, **kwargs):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
+            env=env,
             **kwargs
         )
 
@@ -70,14 +78,21 @@ class AzureOpenaiLLM(LLM):
 
 
 class OpenaiLLM(LLM):
-    """Class for OpenAI LLM API."""
+    """Class for OpenAI LLM API.
 
-    def __init__(self, model_name_or_path: str, **kwargs):
+    Args:
+        model_name_or_path: Name of the OpenAI model to use
+        env: Path to directory of .env file, or to the file itself to load as a dotfile.
+            Should contain the variable `OPENAI_API_KEY`
+    """
+
+    def __init__(self, model_name_or_path: str, env: str, **kwargs):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
+            env=env,
             **kwargs
         )
 
