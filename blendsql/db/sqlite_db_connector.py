@@ -18,15 +18,10 @@ init(autoreset=True)
 @attrs(auto_detect=True)
 class SQLiteDBConnector:
     """
-    Method to connect to db which also has some utility ingredients.
+    Class used to connect to a SQLite database.
 
-    Parameter
-    ---------
-    path : str
-        Path of the db
-
-    db : str
-        File name of the db
+    Args:
+        db_path: Path to the db
     """
 
     db_path: str = attrib()

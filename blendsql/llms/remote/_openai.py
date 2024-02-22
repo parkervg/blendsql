@@ -70,6 +70,7 @@ class AzureOpenaiLLM(LLM):
             self.model_name_or_path,
             api_key=os.getenv("OPENAI_API_KEY"),
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
+            azure_deployment=os.getenv("API_VERSION"),
             echo=False,
         )
 

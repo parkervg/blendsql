@@ -283,7 +283,8 @@ def blend(
     _prev_passed_values: int = 0,
     _prev_cleanup_tables: Set[str] = None,
 ) -> Smoothie:
-    """Executes a BlendSQL query on a database given an ingredient context.
+    """The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
+    Execution is done on a database given an ingredient context.
 
     Args:
         query: The BlendSQL query to execute
@@ -298,6 +299,7 @@ def blend(
                 and put this in the `example_outputs` kwarg
         table_to_title: Optional mapping from table name to title of table.
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
+
     Returns:
         smoothie: Smoothie dataclass containing pd.DataFrame output and execution metadata
     """

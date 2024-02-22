@@ -35,20 +35,24 @@ plugins:
         python:
           options:
             show_submodules: true
+            show_source: true
+            docstring_style: google
+            docstring_section_style: table
+            show_docstring_examples: true
+            show_symbol_type_heading: true
   - search
   - section-index
 
 nav:
   - Home:
-    - index.md
+    - Home: index.md
     - Examples from QA Datasets:
       - HybridQA: examples/hybridqa.md
       - OTT-QA: examples/ottqa.md
       - FEVEROUS: examples/feverous.md
+    - FAQ: faq.md
   - Getting Started:
-      - Installation: installation.md
       - Quickstart: quickstart.md
-      - FAQ: faq.md
   - Documentation:
       - Execute a BlendSQL Query: reference/execute-blendsql.md
       - Ingredients:
@@ -60,5 +64,6 @@ nav:
           - reference/blenders/blenders.md
           - OpenAI: reference/blenders/openai.md
           - Transformers: reference/blenders/transformers.md
-      - Databases: reference/databases.md
+      - Databases:
+          - SQLite: reference/databases/sqlite.md
       - Technical Walkthrough: reference/technical_walkthrough.md
