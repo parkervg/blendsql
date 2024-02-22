@@ -55,7 +55,7 @@ class AzureOpenaiLLM(LLM):
                 or all of `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`
     """
 
-    def __init__(self, model_name_or_path: str, env: str, **kwargs):
+    def __init__(self, model_name_or_path: str, env: str = None, **kwargs):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
@@ -87,7 +87,7 @@ class OpenaiLLM(LLM):
             Should contain the variable `OPENAI_API_KEY`
     """
 
-    def __init__(self, model_name_or_path: str, env: str, **kwargs):
+    def __init__(self, model_name_or_path: str, env: str = None, **kwargs):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),

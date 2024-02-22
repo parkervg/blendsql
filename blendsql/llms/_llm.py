@@ -48,6 +48,8 @@ class LLM:
     def __attrs_post_init__(self):
         self.prompts: List[str] = []
         if self.requires_config:
+            if self.env is None:
+                self.env = "."
             _env = Path(self.env)
             env_filepath = _env / ".env" if _env.is_dir() else _env
             if env_filepath.is_file():
