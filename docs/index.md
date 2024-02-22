@@ -53,35 +53,35 @@ The below examples work out of the box, but you are able to design your own ingr
 *What was the result of the game played 120 miles west of Sydney?*
 ```sql
 SELECT * FROM w
-    WHERE city = {{
-        LLMQA(
-            'Which city is located 120 miles west of Sydney?',
-            (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
-            options='w::city'
-        )
-    }}
+  WHERE city = {{
+      LLMQA(
+          'Which city is located 120 miles west of Sydney?',
+          (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+          options='w::city'
+      )
+  }}
 ```
 
 *Which venues in Sydney saw more than 30 points scored?*
 ```sql
 SELECT DISTINCT venue FROM w
-    WHERE city = 'sydney' AND {{
-        LLMMap(
-            'More than 30 total points?',
-            'w::score'
-        )
-    }} = TRUE
+  WHERE city = 'sydney' AND {{
+      LLMMap(
+          'More than 30 total points?',
+          'w::score'
+      )
+  }} = TRUE
 ```
 
 *Show all NSW Waratahs games and a description of the team.*
 ```sql
 SELECT date, rival, score, documents.content AS "Team Description" FROM w
-    JOIN {{
-        LLMJoin(
-            left_on='documents::title',
-            right_on='w::rival'
-        )
-    }} WHERE rival = 'nsw waratahs'
+  JOIN {{
+      LLMJoin(
+          left_on='documents::title',
+          right_on='w::rival'
+      )
+  }} WHERE rival = 'nsw waratahs'
 ```
 
 ### Features 
