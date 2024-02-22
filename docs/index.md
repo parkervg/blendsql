@@ -10,7 +10,7 @@ hide:
 </div>
 
 <div align="center"><picture>
-  <img alt="blendsql" src="../img/logo_light.png" width=350">
+  <img alt="blendsql" src="img/logo_light.png" width=350">
 </picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
