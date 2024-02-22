@@ -298,7 +298,6 @@ def blend(
                 and put this in the `example_outputs` kwarg
         table_to_title: Optional mapping from table name to title of table.
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
-        _prev_passed_values: int used to track values passed to nested recursive `blend()` calls
     Returns:
         smoothie: Smoothie dataclass containing pd.DataFrame output and execution metadata
     """

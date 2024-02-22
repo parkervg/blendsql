@@ -93,4 +93,4 @@ SELECT date, rival, score, documents.content AS "Team Description" FROM w
   - Enables reproducibility across machines
 
 
-For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
+For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](reference/technical_walkthrough.md).
