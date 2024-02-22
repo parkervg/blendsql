@@ -1,8 +1,8 @@
 import pytest
 from blendsql import blend
 from blendsql.db import SQLiteDBConnector
+from blendsql.utils import fetch_from_hub
 from tests.utils import (
-    fetch_from_hub,
     assert_equality,
     starts_with,
     get_length,
@@ -270,6 +270,42 @@ def test_cte_qa_multi_exec(db, ingredients):
         get_table_size(
             'Table size?',
             (
+                WITH a AS (
+                    SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w 
+                        WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
+                ) SELECT * FROM a WHERE LENGTH(a.Symbol) > 2
+            )
+        )
+    }}
+    """
+    sql = """
+    WITH a AS (
+        SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
+            WHERE w.Symbol LIKE 'F%'
+    ) SELECT COUNT(*) FROM a WHERE LENGTH(a.Symbol) > 2
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_query(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
+    # Make sure we only pass what's necessary to our ingredient
+    # passed_to_ingredient = db.execute_query(
+    #     """
+    # SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3 AND Quantity > 200
+    # """
+    # )
+    # assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+
+
+def test_cte_qa_named_multi_exec(db, ingredients):
+    blendsql = """
+   {{
+        get_table_size(
+            question='Table size?',
+            context=(
                 WITH a AS (
                     SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w 
                         WHERE {{starts_with('F', 'w::Symbol')}} = TRUE

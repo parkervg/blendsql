@@ -1,4 +1,4 @@
-from typing import Dict, Union, Optional, List
+from typing import Dict, Union, Optional, Set
 
 import pandas as pd
 from blendsql.llms._llm import LLM
@@ -12,7 +12,7 @@ class LLMQA(QAIngredient):
         self,
         question: str,
         llm: LLM,
-        options: Optional[List[str]] = None,
+        options: Optional[Set[str]] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
         table_to_title: Optional[Dict[str, str]] = None,

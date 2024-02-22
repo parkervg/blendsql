@@ -159,11 +159,16 @@ def preprocess_blendsql(query: str) -> Tuple[str, dict]:
             for arg_type in {"args", "kwargs"}:
                 for idx in range(len(parsed_results_dict[arg_type])):
                     curr_arg = parsed_results_dict[arg_type][idx]
+                    curr_arg = curr_arg[-1] if arg_type == "kwargs" else curr_arg
                     if not isinstance(curr_arg, str):
                         continue
-                    parsed_results_dict[arg_type][idx] = re.sub(
+                    formatted_curr_arg = re.sub(
                         r"(^\()(.*)(\)$)", r"\2", curr_arg
                     ).strip()
+                    if arg_type == "args":
+                        parsed_results_dict[arg_type][idx] = formatted_curr_arg
+                    else:
+                        parsed_results_dict[arg_type][idx][-1] = formatted_curr_arg
             # Below we track the 'raw' representation, in case we need to pass into
             #   a recursive BlendSQL call later
             ingredient_alias_to_parsed_dict[
@@ -507,47 +512,40 @@ def blend(
                                 + Fore.RESET
                             )
                         kwargs_dict[k] = v
-                # Handle llm, make sure we initialize it if it's a string
-                # llm = kwargs_dict.get("llm", None)
-                # llm_type = kwargs_dict.get("llm_type", None)
-                # if llm is not None:
-                #     if not isinstance(llm, LLM):
-                #         kwargs_dict["llm"] = initialize_llm(llm_type, llm)
-                # else:
-                #     kwargs_dict["llm"] = initialize_llm(
-                #         DEFAULT_LLM_TYPE, DEFAULT_LLM_NAME
-                #     )
-                kwargs_dict["llm"] = blender
 
+                kwargs_dict["llm"] = blender
                 if _function.ingredient_type == IngredientType.MAP:
-                    # Latter is the winner.
-                    # So if we already define something in kwargs_dict,
-                    #   It's not overriden here
-                    kwargs_dict = (
-                        scm.infer_map_constraints(
-                            start=start,
-                            end=end,
+                    if infer_map_constraints:
+                        # Latter is the winner.
+                        # So if we already define something in kwargs_dict,
+                        #   It's not overriden here
+                        kwargs_dict = (
+                            scm.infer_map_constraints(
+                                start=start,
+                                end=end,
+                            )
+                            | kwargs_dict
                         )
-                        | kwargs_dict
-                        if infer_map_constraints
-                        else kwargs_dict
-                    )
+
                 if table_to_title is not None:
                     kwargs_dict["table_to_title"] = table_to_title
 
-                if _function.ingredient_type == IngredientType.QA:
-                    # Optionally, recursively call blend() again to get subtable
-                    context_arg = kwargs_dict.get(
-                        IngredientKwarg.CONTEXT,
-                        parse_results_dict["args"][1]
-                        if len(parse_results_dict["args"]) > 1
-                        else parse_results_dict["args"][0]
-                        if len(parse_results_dict["args"]) > 0
+                # Optionally, recursively call blend() again to get subtable
+                # This applies to `context` and `options`
+                for i, unpack_kwarg in enumerate(
+                    [IngredientKwarg.CONTEXT, IngredientKwarg.OPTIONS]
+                ):
+                    unpack_value = kwargs_dict.get(
+                        unpack_kwarg,
+                        parse_results_dict["args"][i + 1]
+                        if len(parse_results_dict["args"]) > i + 1
+                        else parse_results_dict["args"][i]
+                        if len(parse_results_dict["args"]) > i
                         else "",
                     )
-                    if context_arg.upper().startswith(("SELECT", "WITH")):
+                    if unpack_value.upper().startswith(("SELECT", "WITH")):
                         _smoothie = blend(
-                            query=context_arg,
+                            query=unpack_value,
                             db=db,
                             blender=blender,
                             ingredients=ingredients,
@@ -561,9 +559,14 @@ def blend(
                         )
                         _prev_passed_values = _smoothie.meta.num_values_passed
                         subtable = _smoothie.df
-                        kwargs_dict[IngredientKwarg.CONTEXT] = subtable
-                        # Below, we can remove the optional `context` arg we passed in args
-                        parse_results_dict["args"] = parse_results_dict["args"][:1]
+                        if unpack_kwarg == IngredientKwarg.OPTIONS:
+                            # Here, we need to format as a flat set
+                            kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
+                        else:
+                            kwargs_dict[unpack_kwarg] = subtable
+                            # Below, we can remove the optional `context` arg we passed in args
+                            parse_results_dict["args"] = parse_results_dict["args"][:1]
+
                 # Execute our ingredient function
                 function_out = _function(
                     *parse_results_dict["args"],
