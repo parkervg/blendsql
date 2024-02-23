@@ -300,7 +300,7 @@ from blendsql.llms import OpenaiLLM
 
 blendsql = """
 SELECT merchant FROM transactions WHERE 
-     {{LLMMap('is this a pizza shop?', 'transactions::merchant'}} = TRUE
+     {{LLMMap('is this a pizza shop?', 'transactions::merchant')}} = TRUE
      AND parent_category = 'Food'
 """
 # Make our smoothie - the executed BlendSQL script
