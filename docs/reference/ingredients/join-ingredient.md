@@ -1,5 +1,10 @@
 # JoinIngredient
-Handles the logic of semantic `JOIN` clauses between tables.
+![ingredients](../../img/
+/LLMJoin.jpg)
+
+This ingredient handles the logic of semantic `JOIN` clauses between tables. 
+
+In other words, it creates a custom mapping between a pair of value sets. Behind the scenes, this mapping is then used to create an auxiliary table to use in carrying out an [`INNER JOIN`](https://www.sqlite.org/optoverview.html#joins).
 
 For example:
 ```sql

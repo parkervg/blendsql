@@ -1,10 +1,15 @@
 # QAIngredient
+![ingredients](../../img/
+/LLMQA.jpg)
 
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
 
 The `QAIngredient` is designed to return data of variable types, and is best used in cases when we either need:
 1) Unstructured, free-text responses ("Give me a summary of all my spending in coffe")
 2) Complex, unintuitive relationships extracted from table subsets ("How many consecutive days did I spend in coffee?")
+3) Multi-hop reasoning from unstructured data, grounded in a structured schema (using the `options` arg)
+
+Formally, this is an [aggregate function](https://www.sqlite.org/lang_aggfunc.html) which transforms a table subset into a single value. 
 
 The following query demonstrates usage of the builtin `LLMQA` ingredient.
 

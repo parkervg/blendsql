@@ -1,5 +1,10 @@
 # MapIngredient
-This type of ingredient applies a function on a given table/column pair to create a new column containing the function output.
+![ingredients](../../img/
+/LLMMap.jpg)
+
+This type of ingredient applies a function on a given column to create a new column containing the function's output.
+
+In more formal terms, it is a unary scalar function, much like [`LENGTH`](https://www.sqlite.org/lang_corefunc.html#length) or [`ABS`](https://www.sqlite.org/lang_corefunc.html#abs) in standard SQLite.
 
 For example, take the following query.
 
