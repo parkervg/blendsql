@@ -526,6 +526,8 @@ class SubqueryContextManager:
         """
         Args:
             tablename: The target tablename to search and extract predicates for
+            disambiguate_multi_tables: `True` if we have multiple tables in our subquery,
+                and need to be sure we're only fetching the predicates for the specified `tablename`
         """
         # 2 places conditions can come in here
         # 'WHERE' statement and predicate in a 'JOIN' statement
