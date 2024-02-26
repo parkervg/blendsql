@@ -5,7 +5,7 @@ import uuid
 import pandas as pd
 import pyparsing
 import re
-from typing import Dict, Iterable, List, Set, Tuple, Generator, Optional
+from typing import Dict, Iterable, List, Set, Tuple, Generator, Optional, Callable
 from sqlite3 import OperationalError
 import sqlglot.expressions
 from attr import attrs, attrib
@@ -96,26 +96,32 @@ def autowrap_query(
     """
     Check to see if we have some BlendSQL ingredient syntax that needs to be formatted differently
         before passing to sqlglot.parse_one.
-    A single `QAIngredient` should be wrapped in `CASE` syntax.
-    A `JoinIngredient` needs to include a reference to the left tablename.
+        - A single `QAIngredient` should be wrapped in `CASE` syntax.
+        - A `JoinIngredient` needs to include a reference to the left tablename.
+
+    Args:
+        query: The BlendSQL query to wrap in SQLite logic
+        kitchen: Our collection of ingredients
+        ingredient_alias_to_parsed_dict: Mapping from abbreviates alias to pyparsing output
+
+    Returns:
+        _query: sqlglot Expression for the new BlendSQL query, wrapped in SQLite logic
+        original_query: A copy of the original (string) _query
     """
-    # TODO: i dont think we need to scanString again
-    for _parse_results, start, end in [i for i in grammar.scanString(query)][::-1]:
-        alias_function_str = query[start:end]
-        parse_results_dict = ingredient_alias_to_parsed_dict[alias_function_str]
-        _function: Ingredient = kitchen.get_from_name(parse_results_dict["function"])
+    for alias, d in ingredient_alias_to_parsed_dict.items():
+        _function: Ingredient = kitchen.get_from_name(d["function"])
         if _function.ingredient_type == IngredientType.QA:
             if not query.strip().lower().startswith("select"):
                 query = query.replace(
-                    alias_function_str,
-                    f"""SELECT CASE WHEN FALSE THEN FALSE WHEN TRUE THEN {alias_function_str} END""",
+                    alias,
+                    f"""SELECT CASE WHEN FALSE THEN FALSE WHEN TRUE THEN {alias} END""",
                 )
         elif _function.ingredient_type == IngredientType.JOIN:
-            kwargs_dict = {x[0]: x[-1] for x in parse_results_dict["kwargs"]}
+            kwargs_dict = {x[0]: x[-1] for x in d["kwargs"]}
             left_table, left_column = get_tablename_colname(kwargs_dict["left_on"])
             query = query.replace(
-                alias_function_str,
-                f'"{left_table}" ON {alias_function_str}',
+                alias,
+                f'"{left_table}" ON {alias}',
             )
         else:
             continue
@@ -320,12 +326,14 @@ def blend(
         kitchen.extend(ingredients)
         query, ingredient_alias_to_parsed_dict = preprocess_blendsql(query)
         try:
+            # Try to parse as a normal SQLite query
             _query: exp.Expression = _parse_one(query)
             original_query = copy.deepcopy(
                 recover_blendsql(_query.sql(dialect=FTS5SQLite))
             )
             query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
         except sqlglot.errors.ParseError:
+            # If we hit an error, wrap in SQLite logic so it's able to be executed
             _query, original_query = autowrap_query(
                 query=query,
                 kitchen=kitchen,
@@ -362,7 +370,7 @@ def blend(
                     contains_ingredient=False,
                 ),
             )
-        _get_temp_session_table = partial(get_temp_session_table, session_uuid)
+        _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
         # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
         function_call_to_res: Dict[str, str] = {}
         session_modified_tables = set()
@@ -377,7 +385,7 @@ def blend(
             # The same ingredient may have different results within a different subquery context
             executed_subquery_ingredients: Set[str] = set()
             prev_subquery_map_columns = set()
-            _get_temp_subquery_table = partial(
+            _get_temp_subquery_table: Callable = partial(
                 get_temp_subquery_table, session_uuid, subquery_idx
             )
             if not isinstance(subquery, exp.Select):
@@ -476,11 +484,11 @@ def blend(
             if prev_subquery_has_ingredient:
                 scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
 
-            # After above processing of ast, sync back to string repr
+            # After above processing of AST, sync back to string repr
             subquery_str = scm.sql()
-            # Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
-            # Track when we've created a new table from a MapIngredient call
-            # only at the end of parsing a subquery, we can merge to the original session_uuid table
+            # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
+            # 2) Track when we've created a new table from a MapIngredient call
+            #   only at the end of parsing a subquery, we can merge to the original session_uuid table
             tablename_to_map_out: Dict[str, List[pd.DataFrame]] = {}
             for (
                 start,
@@ -561,7 +569,7 @@ def blend(
                         _prev_passed_values = _smoothie.meta.num_values_passed
                         subtable = _smoothie.df
                         if unpack_kwarg == IngredientKwarg.OPTIONS:
-                            # Here, we need to format as a flat set
+                            # Here, we need to format as a flat list
                             kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
                         else:
                             kwargs_dict[unpack_kwarg] = subtable
@@ -726,6 +734,7 @@ def blend(
                 query = sub_tablename(
                     a, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
                 )
+
         logging.debug("")
         logging.debug(
             "**********************************************************************************"
