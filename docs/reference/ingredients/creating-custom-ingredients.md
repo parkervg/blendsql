@@ -101,12 +101,10 @@ if __name__ == "__main__":
     from blendsql.db import SQLiteDBConnector
     from blendsql.utils import fetch_from_hub
     
-    blendsql = "SELECT {{GetQRCode('Link to QR code:', 'w::url')}} FROM w WHERE genre = 'social'"
+    blendsql = "SELECT genre, url, {{GetQRCode('Link to QR code:', 'w::url')}} FROM w WHERE genre = 'social'"
     
     smoothie = blend(
-        query="""
-        SELECT genre, {{GetQRCode('Link to QR code:', 'w::url')}} FROM w WHERE genre = 'social'
-        """,
+        query=blendsql,
         blender=None,
         db=SQLiteDBConnector(fetch_from_hub("urls.db")),
         ingredients={GetQRCode}
