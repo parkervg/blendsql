@@ -26,7 +26,7 @@ CONDITIONS = (
     exp.Except,
     exp.Order,
 )
-MODIFIERS = (exp.Delete, exp.AlterColumn, exp.AlterTable, exp.Drop)
+MODIFIERS = (exp.Delete, exp.AlterColumn, exp.AlterTable, exp.Drop, exp.RenameTable, exp.Drop, exp.DropPartition)
 
 
 def is_in_subquery(node):
