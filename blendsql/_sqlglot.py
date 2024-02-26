@@ -376,12 +376,14 @@ class SubqueryContextManager:
     alias_to_subquery: dict = attrib(default=None)
 
     alias_to_tablename: dict = attrib(init=False)
+    tablename_to_alias: dict = attrib(init=False)
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
 
     def __attrs_post_init__(self):
         if self.alias_to_subquery is None:
             self.alias_to_subquery = {}
         self.alias_to_tablename = {}
+        self.tablename_to_alias = {}
         # https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
         self.root = build_scope(self.node)
 
@@ -506,6 +508,7 @@ class SubqueryContextManager:
                 or (table_alias_node is not None),
             )
             self.alias_to_tablename = self.alias_to_tablename | curr_alias_to_tablename
+            self.tablename_to_alias = self.tablename_to_alias | {v: k for k, v in curr_alias_to_tablename.items()}
             self.alias_to_subquery = self.alias_to_subquery | curr_alias_to_subquery
             if table_conditions_str:
                 yield (
