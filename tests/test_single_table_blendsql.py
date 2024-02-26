@@ -12,7 +12,7 @@ from tests.utils import (
 )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def db() -> SQLiteDBConnector:
     return SQLiteDBConnector(fetch_from_hub("single_table.db"))
 
