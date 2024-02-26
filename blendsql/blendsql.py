@@ -131,9 +131,10 @@ def autowrap_query(
     return (_query, original_query)
 
 
-def preprocess_blendsql(query: str) -> Tuple[str, dict]:
+def preprocess_blendsql(query: str, blender_args: dict, blender: LLM) -> Tuple[str, dict, set]:
     ingredient_alias_to_parsed_dict = {}
     ingredient_str_to_alias = {}
+    tables_in_ingredients = set()
     query = re.sub(r"(\s+)", " ", query)
     reversed_scan_res = [scan_res for scan_res in grammar.scanString(query)][::-1]
     for idx, (parse_results, start, end) in enumerate(reversed_scan_res):
@@ -174,14 +175,39 @@ def preprocess_blendsql(query: str) -> Tuple[str, dict]:
                     if arg_type == "args":
                         parsed_results_dict[arg_type][idx] = formatted_curr_arg
                     else:
-                        parsed_results_dict[arg_type][idx][-1] = formatted_curr_arg
+                        parsed_results_dict[arg_type][idx][-1] = formatted_curr_arg# kwargs gets returned as ['limit', '=', 10] sort of list
+            # So we need to parse by indices in dict expression
+            # maybe if I was better at pp.Suppress we wouldn't need this
+            kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
+            # Optionally modify kwargs dict, depending on blend() blender_args
+            if blender_args is not None:
+                for k, v in blender_args.items():
+                    if k in kwargs_dict:
+                        logging.debug(
+                            Fore.YELLOW
+                            + f"Overriding passed arg for '{k}'!"
+                            + Fore.RESET
+                        )
+                    kwargs_dict[k] = v
+            kwargs_dict["llm"] = blender
+            context_arg = kwargs_dict.get(
+                IngredientKwarg.CONTEXT,
+                parsed_results_dict["args"][1]
+                if len(parsed_results_dict["args"]) > 1
+                else parsed_results_dict["args"][1]
+                if len(parsed_results_dict["args"]) > 1
+                else "",
+            )
+            if context_arg and not context_arg.upper().startswith(("SELECT", "WITH")):
+                tablename, _ = get_tablename_colname(context_arg)
+                tables_in_ingredients.add(tablename)
             # Below we track the 'raw' representation, in case we need to pass into
             #   a recursive BlendSQL call later
             ingredient_alias_to_parsed_dict[
                 substituted_ingredient_alias
-            ] = parsed_results_dict | {"raw": query[start:end]}
+            ] = parsed_results_dict | {"raw": query[start:end], "kwargs_dict": kwargs_dict}
         query = query[:start] + substituted_ingredient_alias + query[end:]
-    return (query, ingredient_alias_to_parsed_dict)
+    return (query, ingredient_alias_to_parsed_dict, tables_in_ingredients)
 
 
 def set_subquery_to_alias(
@@ -274,7 +300,7 @@ def disambiguate_and_submit_blend(
     )
     return blend(query=query, **kwargs)
 
-
+# @profile
 def blend(
     query: str,
     db: SQLiteDBConnector,
@@ -325,7 +351,7 @@ def blend(
         # Create our Kitchen
         kitchen = Kitchen(db=db, session_uuid=session_uuid)
         kitchen.extend(ingredients)
-        query, ingredient_alias_to_parsed_dict = preprocess_blendsql(query)
+        query, ingredient_alias_to_parsed_dict, tables_in_ingredients = preprocess_blendsql(query, blender_args=blender_args, blender=blender)
         try:
             # Try to parse as a normal SQLite query
             _query: exp.Expression = _parse_one(query)
@@ -356,7 +382,7 @@ def blend(
             query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
 
         # If we don't have any ingredient calls, execute as normal SQL
-        if len(ingredients) == 0 or grammar.searchString(query).as_list() == []:
+        if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
             return Smoothie(
                 df=db.execute_query(query, silence_errors=silence_db_exec_errors),
                 meta=SmoothieMeta(
@@ -381,7 +407,8 @@ def blend(
         prev_subquery_has_ingredient = False
         for subquery_idx, subquery in enumerate(get_reversed_subqueries(_query)):
             # At this point, we should have already handled cte statements and created associated tables
-            subquery = subquery.transform(remove_ctes)
+            if subquery.find(exp.With) is not None:
+                subquery = subquery.transform(remove_ctes)
             # Only cache executed_ingredients within the same subquery
             # The same ingredient may have different results within a different subquery context
             executed_subquery_ingredients: Set[str] = set()
@@ -413,12 +440,17 @@ def blend(
             in_cte, table_alias_name = is_in_cte(subquery, return_name=True)
             scm = SubqueryContextManager(
                 node=_parse_one(
-                    subquery_str, schema=db.get_sqlglot_schema()
+                    subquery_str,
+                    schema=db.get_sqlglot_schema()
                 ),  # Need to do this so we don't track parents into construct_abstracted_selects
                 prev_subquery_has_ingredient=prev_subquery_has_ingredient,
                 alias_to_subquery={table_alias_name: subquery} if in_cte else None,
             )
             for tablename, abstracted_query in scm.abstracted_table_selects():
+                # If this table isn't being used in any ingredient calls, there's no
+                #   need to create a temporary session table
+                if (tablename not in tables_in_ingredients) and (scm.tablename_to_alias.get(tablename, None) not in tables_in_ingredients):
+                    continue
                 aliased_subquery = scm.alias_to_subquery.pop(tablename, None)
                 if aliased_subquery is not None:
                     # First, we need to explicitly create the aliased subquery as a table
@@ -507,23 +539,8 @@ def blend(
                     # Don't execute same ingredient twice
                     continue
                 executed_subquery_ingredients.add(alias_function_str)
-                # kwargs gets returned as ['limit', '=', 10] sort of list
-                # So we need to parse by indices in dict expression
-                # maybe if I was better at pp.Suppress we wouldn't need this
-                kwargs_dict = {x[0]: x[-1] for x in parse_results_dict["kwargs"]}
+                kwargs_dict = parse_results_dict["kwargs_dict"]
 
-                # Optionally modify kwargs dict, depending on blend() blender_args
-                if blender_args is not None:
-                    for k, v in blender_args.items():
-                        if k in kwargs_dict:
-                            logging.debug(
-                                Fore.YELLOW
-                                + f"Overriding passed arg for '{k}'!"
-                                + Fore.RESET
-                            )
-                        kwargs_dict[k] = v
-
-                kwargs_dict["llm"] = blender
                 if _function.ingredient_type == IngredientType.MAP:
                     if infer_gen_constraints:
                         # Latter is the winner.
