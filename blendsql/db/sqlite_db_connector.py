@@ -71,6 +71,24 @@ class SQLiteDBConnector:
     def create_clause(self, tablename):
         return (tablename, _create_clause(con=self.con, tablename=tablename))
 
+    def get_sqlglot_schema(self) -> dict:
+        """Returns database schema as a dictionary, in the format that
+        sqlglot.optimizer expects.
+
+        Example:
+            >>> {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
+        """
+        schema = {}
+        for tablename in self._iter_tables():
+            schema[tablename] = {}
+            for _, row in self.execute_query(
+                f"""
+            SELECT name, type FROM pragma_table_info('{tablename}')
+            """
+            ).iterrows():
+                schema[tablename]['"' + row["name"] + '"'] = row["type"]
+        return schema
+
     def to_serialized(
         self,
         ignore_tables: Iterable[str] = None,

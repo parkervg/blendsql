@@ -110,6 +110,43 @@ def test_join_multi_exec(db, ingredients):
     assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
+def test_join_not_qualified_multi_exec(db, ingredients):
+    """Same test as test_join_multi_exec(), but without qualifying columns if we don't need to.
+    i.e. 'Action' and 'Sector' don't have tablename preceding them.
+    commit fefbc0a
+    """
+    blendsql = """
+    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+        FROM account_history
+        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+        WHERE Sector = 'Information Technology'
+        AND {{starts_with('A', 'constituents::Name')}} = 1
+        AND lower(Action) like "%dividend%"
+        """
+    sql = """
+    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+        FROM account_history
+        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+        WHERE Sector = 'Information Technology'
+        AND constituents.Name LIKE "A%"
+        AND lower(Action) like "%dividend%"
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_query(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_query(
+        """
+    SELECT COUNT(DISTINCT Name) FROM constituents WHERE Sector = 'Information Technology'
+    """
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+
+
 def test_select_multi_exec(db, ingredients):
     blendsql = """
     SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name 
@@ -154,6 +191,38 @@ def test_complex_multi_exec(db, ingredients):
     WHERE fundamentals.MARKET_DAY_DT > '2023-02-23'
     AND (LENGTH(constituents.Name) > 3 OR portfolio.Symbol LIKE "A%")
     AND portfolio.Symbol IS NOT NULL
+    ORDER BY LENGTH(constituents.Name) LIMIT 1
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_query(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+def test_complex_not_qualified_multi_exec(db, ingredients):
+    """Same test as test_complex_multi_exec(), but without qualifying columns if we don't need to.
+    i.e. MARKET_DAY_DT and Symbol don't have tablename preceding them.
+    commit fefbc0a
+    """
+    blendsql = """
+    SELECT DISTINCT constituents.Symbol as Symbol FROM constituents
+    LEFT JOIN fundamentals ON constituents.Symbol = fundamentals.FPS_SYMBOL
+    LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
+    WHERE MARKET_DAY_DT > '2023-02-23'
+    AND ({{get_length('n_length', 'constituents::Name')}} > 3 OR {{starts_with('A', 'portfolio::Symbol')}})
+    AND Symbol IS NOT NULL
+    ORDER BY {{get_length('n_length', 'constituents::Name')}} LIMIT 1
+    """
+    sql = """
+    SELECT DISTINCT constituents.Symbol as Symbol FROM constituents
+    LEFT JOIN fundamentals ON constituents.Symbol = fundamentals.FPS_SYMBOL
+    LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
+    WHERE MARKET_DAY_DT > '2023-02-23'
+    AND (LENGTH(constituents.Name) > 3 OR portfolio.Symbol LIKE "A%")
+    AND Symbol IS NOT NULL
     ORDER BY LENGTH(constituents.Name) LIMIT 1
     """
     smoothie = blend(

@@ -1,6 +1,9 @@
 from sqlglot.dialects import SQLite
 from sqlglot.tokens import TokenType
+from sqlglot.optimizer.qualify_columns import qualify_columns
+from sqlglot.schema import Schema
 from sqlglot import exp, parse_one
+from typing import Union, Optional
 
 
 def glob_to_match(self: SQLite.Generator, expression: exp.Where) -> str:
@@ -23,8 +26,10 @@ class FTS5SQLite(SQLite):
         }
 
 
-def _parse_one(sql: str):
+def _parse_one(sql: str, schema: Optional[Union[dict, Schema]] = None):
     """Utility to make sure we parse/read queries with the correct dialect."""
     # https://www.sqlite.org/optoverview.html
     node = parse_one(sql, dialect=FTS5SQLite)
+    if schema is not None:
+        node = qualify_columns(expression=node, schema=schema)
     return node

@@ -404,7 +404,7 @@ def blend(
             in_cte, table_alias_name = is_in_cte(subquery, return_name=True)
             scm = SubqueryContextManager(
                 node=_parse_one(
-                    subquery_str
+                    subquery_str, schema=db.get_sqlglot_schema()
                 ),  # Need to do this so we don't track parents into construct_abstracted_selects
                 prev_subquery_has_ingredient=prev_subquery_has_ingredient,
                 alias_to_subquery={table_alias_name: subquery} if in_cte else None,
