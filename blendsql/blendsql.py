@@ -26,7 +26,7 @@ from .db.sqlite_db_connector import SQLiteDBConnector
 from .db.utils import double_quote_escape, single_quote_escape
 from ._sqlglot import (
     MODIFIERS,
-    get_singleton_child,
+    get_first_child,
     get_reversed_subqueries,
     replace_join_with_ingredient_single_ingredient,
     replace_join_with_ingredient_multiple_ingredient,
@@ -282,14 +282,15 @@ def blend(
     ingredients: Optional[Iterable[Ingredient]] = None,
     verbose: bool = False,
     blender_args: Optional[Dict[str, str]] = None,
-    infer_map_constraints: bool = False,
+    infer_gen_constraints: bool = False,
     table_to_title: Optional[Dict[str, str]] = None,
     silence_db_exec_errors: bool = True,
     # User shouldn't interact with below
     _prev_passed_values: int = 0,
     _prev_cleanup_tables: Set[str] = None,
 ) -> Smoothie:
-    """The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
+    """The `blend()` function is used to execute a BlendSQL query against a database and
+    return the final result, in addition to the intermediate reasoning steps taken.
     Execution is done on a database given an ingredient context.
 
     Args:
@@ -299,7 +300,7 @@ def blend(
         verbose: Boolean defining whether to run in logging.debug mode
         blender: Optionally override whatever llm argument we pass to LLM ingredient.
             Useful for research applications, where we don't (necessarily) want the parser to choose endpoints.
-        infer_map_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
+        infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
             We can infer the output format should look like '1960-12-31'
                 and put this in the `example_outputs` kwarg
@@ -398,7 +399,7 @@ def blend(
                 if len(parent_select_tablenames) == 1:
                     subquery_str = recover_blendsql(
                         f"SELECT * FROM {parent_select_tablenames[0]} WHERE "
-                        + get_singleton_child(subquery).sql(dialect=FTS5SQLite)
+                        + get_first_child(subquery).sql(dialect=FTS5SQLite)
                     )
                 else:
                     logging.debug(
@@ -434,7 +435,7 @@ def blend(
                         # Below are in case we need to call blend() again
                         ingredients=ingredients,
                         blender_args=blender_args,
-                        infer_map_constraints=infer_map_constraints,
+                        infer_gen_constraints=infer_gen_constraints,
                         silence_db_exec_errors=silence_db_exec_errors,
                         table_to_title=table_to_title,
                         verbose=verbose,
@@ -472,7 +473,7 @@ def blend(
                     # Below are in case we need to call blend() again
                     ingredients=ingredients,
                     blender_args=blender_args,
-                    infer_map_constraints=infer_map_constraints,
+                    infer_gen_constraints=infer_gen_constraints,
                     silence_db_exec_errors=silence_db_exec_errors,
                     table_to_title=table_to_title,
                     verbose=verbose,
@@ -524,12 +525,12 @@ def blend(
 
                 kwargs_dict["llm"] = blender
                 if _function.ingredient_type == IngredientType.MAP:
-                    if infer_map_constraints:
+                    if infer_gen_constraints:
                         # Latter is the winner.
                         # So if we already define something in kwargs_dict,
                         #   It's not overriden here
                         kwargs_dict = (
-                            scm.infer_map_constraints(
+                            scm.infer_gen_constraints(
                                 start=start,
                                 end=end,
                             )
@@ -559,7 +560,7 @@ def blend(
                             blender=blender,
                             ingredients=ingredients,
                             blender_args=blender_args,
-                            infer_map_constraints=infer_map_constraints,
+                            infer_gen_constraints=infer_gen_constraints,
                             silence_db_exec_errors=silence_db_exec_errors,
                             table_to_title=table_to_title,
                             verbose=verbose,
