@@ -115,9 +115,9 @@ Returns:
 
 | genre  | url           | Link to QR code:      |
 |--------|---------------|-----------------------|
-| social | facebook.com  | img/facebook.com.png  |
-| social | instagram.com | img/instagram.com.png |
-| social | tiktok.com    | img/tiktok.com.png    |
+| social | facebook.com  | qr_codes/facebook.com.png  |
+| social | instagram.com | qr_codes/instagram.com.png |
+| social | tiktok.com    | qr_codes/tiktok.com.png    |
 
 ## JoinIngredient
 
