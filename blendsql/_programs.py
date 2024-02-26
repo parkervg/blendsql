@@ -7,6 +7,7 @@ from guidance.models import Model, Chat
 from guidance import gen, user, system, assistant, select
 from typing import List
 from contextlib import nullcontext
+import inspect
 
 
 class GuidanceProgram:
@@ -34,6 +35,9 @@ class GuidanceProgram:
 
     def __call__(self, *args, **kwargs):
         pass
+
+    def __str__(self):
+        return inspect.getsource(self.__call__)
 
     @staticmethod
     def _get_contexts(model: Model):
@@ -63,15 +67,11 @@ class MapProgram(GuidanceProgram):
         **kwargs,
     ):
         with self.systemcontext:
-            self.model += dedent(
-                """Given a set of values from a database, answer the question row-by-row, in order."""
-            )
+            self.model += """Given a set of values from a database, answer the question row-by-row, in order."""
             if include_tf_disclaimer:
-                self.model += dedent(
-                    " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-                )
+                self.model += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
             self.model += dedent(
-                f"""
+            f"""
             The answer should be a list separated by '{sep}', and have {len(values)} items in total.
             When you have given all {len(values)} answers, stop responding.
             If a given value has no appropriate answer, give '-' as a response.
@@ -80,7 +80,7 @@ class MapProgram(GuidanceProgram):
         with self.usercontext:
             if self.few_shot:
                 self.model += dedent(
-                    """
+                """
                 --- 
     
                 The following values come from the column 'Home Town', in a table titled '2010\u201311 North Carolina Tar Heels men's basketball team'.
