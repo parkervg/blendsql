@@ -83,6 +83,11 @@ def prune_empty_where(node) -> Union[exp.Expression, None]:
 
 
 def prune_with(node):
+    """
+    Removes any exp.With nodes.
+
+    Used with node.transform()
+    """
     if isinstance(node, exp.With):
         return None
     return node
@@ -257,10 +262,9 @@ def extract_multi_table_predicates(
     return node
 
 
-def get_singleton_child(node):
+def get_first_child(node):
     """
-    Helper function to get child of a node with exactly one child.
-    TODO: this actually doesn't assert there's only 1 child. It just gets the 1st child.
+    Helper function to get first child of a node.
     """
     gen = node.walk()
     _ = next(gen)
@@ -279,7 +283,7 @@ def get_alias_identifiers(node) -> Set[str]:
 
 def get_predicate_literals(node) -> List[str]:
     """From a given SQL clause, gets all literals appearing as object of predicate.
-    We treat booleans as literals here, which might be a misuse of terminology.
+    (We treat booleans as literals here, which might be a misuse of terminology.)
     Example:
         >>> get_predicate_literals(_parse_one("{{LLM('year', 'w::year')}} IN ('2010', '2011', '2012')"))
         Returns:
@@ -309,8 +313,9 @@ def get_predicate_literals(node) -> List[str]:
 
 
 def get_reversed_subqueries(node):
-    # Iterate through all subqueries (either parentheses or select)
-    # But, CTEs should stay in order
+    """Iterates through all subqueries (either parentheses or select).
+    Reverses all EXCEPT for CTEs, which should remain in order.
+    """
     r = [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if is_in_cte(i)]
     return (
         r
@@ -351,10 +356,12 @@ def maybe_set_subqueries_to_true(node):
     return node.transform(set_subqueries_to_true).transform(prune_empty_where)
 
 
-def all_terminals_are_true(node):
+def all_terminals_are_true(node) -> bool:
+    """Check to see if all terminal nodes of a given node are TRUE booleans.
+    """
     for n, _, _ in node.walk():
         try:
-            get_singleton_child(n)
+            get_first_child(n)
         except StopIteration:
             if n != exp.true():
                 return False
@@ -507,7 +514,8 @@ class SubqueryContextManager:
                 )
 
     def _get_scope_nodes(self, nodetype, restrict_scope: bool = False) -> Generator:
-        """
+        """Utility to get nodes of a certain type within our subquery scope.
+
         https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
         """
         if restrict_scope:
@@ -522,8 +530,9 @@ class SubqueryContextManager:
             ]:
                 yield tablenode
 
-    def get_table_predicates_str(self, tablename, disambiguate_multi_tables: bool):
-        """
+    def get_table_predicates_str(self, tablename, disambiguate_multi_tables: bool) -> str:
+        """Returns str containing all predicates acting on a specific tablename.
+
         Args:
             tablename: The target tablename to search and extract predicates for
             disambiguate_multi_tables: `True` if we have multiple tables in our subquery,
@@ -550,7 +559,21 @@ class SubqueryContextManager:
         )
         return table_conditions_str
 
-    def infer_map_constraints(self, start: int, end: int):
+    def infer_gen_constraints(self, start: int, end: int) -> dict:
+        """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
+            downstream LLM generations.
+
+        For example:
+            >>> SELECT * FROM w WHERE {{LLMMap('Is this true?', 'w::colname')}}
+
+        We can infer given the structure above that we expect `LLMMap` to return a boolean.
+        This function identifies that.
+
+        Returns:
+            dict, with keys:
+                output_type: numeric | string | boolean
+                pattern: regular expression pattern to use in constrained decoding with LLM
+        """
         added_kwargs = {}
         ingredient_node = _parse_one(self.sql()[start:end])
         child = None
