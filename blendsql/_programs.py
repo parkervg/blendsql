@@ -14,7 +14,7 @@ class GuidanceProgram:
     def __new__(
         self,
         model: Model,
-        question: str,
+        question: str = None,
         gen_kwargs: dict = None,
         few_shot: bool = True,
         **kwargs,
@@ -52,9 +52,6 @@ class GuidanceProgram:
 
 
 class MapProgram(GuidanceProgram):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def __call__(
         self,
         values: List[str],
@@ -157,9 +154,6 @@ class MapProgram(GuidanceProgram):
 
 
 class QAProgram(GuidanceProgram):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def __call__(
         self,
         serialized_db: str,
@@ -188,9 +182,6 @@ class QAProgram(GuidanceProgram):
 
 
 class ValidateProgram(GuidanceProgram):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def __call__(self, serialized_db: str, table_title: str = None):
         with self.systemcontext:
             self.model += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
@@ -205,9 +196,6 @@ class ValidateProgram(GuidanceProgram):
 
 
 class JoinProgram(GuidanceProgram):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def __call__(
         self,
         join_criteria: str,
