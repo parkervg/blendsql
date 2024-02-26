@@ -26,7 +26,15 @@ CONDITIONS = (
     exp.Except,
     exp.Order,
 )
-MODIFIERS = (exp.Delete, exp.AlterColumn, exp.AlterTable, exp.Drop, exp.RenameTable, exp.Drop, exp.DropPartition)
+MODIFIERS = (
+    exp.Delete,
+    exp.AlterColumn,
+    exp.AlterTable,
+    exp.Drop,
+    exp.RenameTable,
+    exp.Drop,
+    exp.DropPartition,
+)
 
 
 def is_in_subquery(node):
@@ -357,8 +365,7 @@ def maybe_set_subqueries_to_true(node):
 
 
 def all_terminals_are_true(node) -> bool:
-    """Check to see if all terminal nodes of a given node are TRUE booleans.
-    """
+    """Check to see if all terminal nodes of a given node are TRUE booleans."""
     for n, _, _ in node.walk():
         try:
             get_first_child(n)
@@ -508,7 +515,9 @@ class SubqueryContextManager:
                 or (table_alias_node is not None),
             )
             self.alias_to_tablename = self.alias_to_tablename | curr_alias_to_tablename
-            self.tablename_to_alias = self.tablename_to_alias | {v: k for k, v in curr_alias_to_tablename.items()}
+            self.tablename_to_alias = self.tablename_to_alias | {
+                v: k for k, v in curr_alias_to_tablename.items()
+            }
             self.alias_to_subquery = self.alias_to_subquery | curr_alias_to_subquery
             if table_conditions_str:
                 yield (
@@ -533,7 +542,9 @@ class SubqueryContextManager:
             ]:
                 yield tablenode
 
-    def get_table_predicates_str(self, tablename, disambiguate_multi_tables: bool) -> str:
+    def get_table_predicates_str(
+        self, tablename, disambiguate_multi_tables: bool
+    ) -> str:
         """Returns str containing all predicates acting on a specific tablename.
 
         Args:

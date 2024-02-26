@@ -14,6 +14,7 @@ import hashlib
 
 from blendsql._programs import GuidanceProgram
 
+
 class TokenTimer(threading.Thread):
     """Class to handle refreshing tokens."""
 
@@ -51,7 +52,8 @@ class LLM:
 
     def __attrs_post_init__(self):
         self.cache = Cache(
-            Path(platformdirs.user_cache_dir("blendsql")) / f"{self.__class__}_{self.model_name_or_path}.diskcache"
+            Path(platformdirs.user_cache_dir("blendsql"))
+            / f"{self.__class__}_{self.model_name_or_path}.diskcache"
         )
         self.prompts: List[str] = []
         if self.requires_config:
@@ -97,7 +99,15 @@ class LLM:
     def _create_key(self, program: GuidanceProgram, **kwargs):
         hasher = hashlib.md5()
         # Ignore partials, which create a random key within session
-        options_str = str(sorted([(k, v) for k, v in kwargs.items() if not isinstance(v, functools.partial)]))
+        options_str = str(
+            sorted(
+                [
+                    (k, v)
+                    for k, v in kwargs.items()
+                    if not isinstance(v, functools.partial)
+                ]
+            )
+        )
         combined = "{}{}".format(str(program), options_str).encode()
         hasher.update(combined)
         return hasher.hexdigest()

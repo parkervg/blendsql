@@ -131,7 +131,9 @@ def autowrap_query(
     return (_query, original_query)
 
 
-def preprocess_blendsql(query: str, blender_args: dict, blender: LLM) -> Tuple[str, dict, set]:
+def preprocess_blendsql(
+    query: str, blender_args: dict, blender: LLM
+) -> Tuple[str, dict, set]:
     ingredient_alias_to_parsed_dict = {}
     ingredient_str_to_alias = {}
     tables_in_ingredients = set()
@@ -175,7 +177,9 @@ def preprocess_blendsql(query: str, blender_args: dict, blender: LLM) -> Tuple[s
                     if arg_type == "args":
                         parsed_results_dict[arg_type][idx] = formatted_curr_arg
                     else:
-                        parsed_results_dict[arg_type][idx][-1] = formatted_curr_arg# kwargs gets returned as ['limit', '=', 10] sort of list
+                        parsed_results_dict[arg_type][idx][
+                            -1
+                        ] = formatted_curr_arg  # kwargs gets returned as ['limit', '=', 10] sort of list
             # So we need to parse by indices in dict expression
             # maybe if I was better at pp.Suppress we wouldn't need this
             kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
@@ -205,7 +209,10 @@ def preprocess_blendsql(query: str, blender_args: dict, blender: LLM) -> Tuple[s
             #   a recursive BlendSQL call later
             ingredient_alias_to_parsed_dict[
                 substituted_ingredient_alias
-            ] = parsed_results_dict | {"raw": query[start:end], "kwargs_dict": kwargs_dict}
+            ] = parsed_results_dict | {
+                "raw": query[start:end],
+                "kwargs_dict": kwargs_dict,
+            }
         query = query[:start] + substituted_ingredient_alias + query[end:]
     return (query, ingredient_alias_to_parsed_dict, tables_in_ingredients)
 
@@ -300,6 +307,7 @@ def disambiguate_and_submit_blend(
     )
     return blend(query=query, **kwargs)
 
+
 # @profile
 def blend(
     query: str,
@@ -351,7 +359,11 @@ def blend(
         # Create our Kitchen
         kitchen = Kitchen(db=db, session_uuid=session_uuid)
         kitchen.extend(ingredients)
-        query, ingredient_alias_to_parsed_dict, tables_in_ingredients = preprocess_blendsql(query, blender_args=blender_args, blender=blender)
+        (
+            query,
+            ingredient_alias_to_parsed_dict,
+            tables_in_ingredients,
+        ) = preprocess_blendsql(query, blender_args=blender_args, blender=blender)
         try:
             # Try to parse as a normal SQLite query
             _query: exp.Expression = _parse_one(query)
@@ -397,7 +409,9 @@ def blend(
                     contains_ingredient=False,
                 ),
             )
-        _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
+        _get_temp_session_table: Callable = partial(
+            get_temp_session_table, session_uuid
+        )
         # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
         function_call_to_res: Dict[str, str] = {}
         session_modified_tables = set()
@@ -440,8 +454,7 @@ def blend(
             in_cte, table_alias_name = is_in_cte(subquery, return_name=True)
             scm = SubqueryContextManager(
                 node=_parse_one(
-                    subquery_str,
-                    schema=db.get_sqlglot_schema()
+                    subquery_str, schema=db.get_sqlglot_schema()
                 ),  # Need to do this so we don't track parents into construct_abstracted_selects
                 prev_subquery_has_ingredient=prev_subquery_has_ingredient,
                 alias_to_subquery={table_alias_name: subquery} if in_cte else None,
@@ -449,7 +462,10 @@ def blend(
             for tablename, abstracted_query in scm.abstracted_table_selects():
                 # If this table isn't being used in any ingredient calls, there's no
                 #   need to create a temporary session table
-                if (tablename not in tables_in_ingredients) and (scm.tablename_to_alias.get(tablename, None) not in tables_in_ingredients):
+                if (tablename not in tables_in_ingredients) and (
+                    scm.tablename_to_alias.get(tablename, None)
+                    not in tables_in_ingredients
+                ):
                     continue
                 aliased_subquery = scm.alias_to_subquery.pop(tablename, None)
                 if aliased_subquery is not None:
