@@ -364,18 +364,18 @@ WHERE city = {{
 """
 db = SQLiteDBConnector(db_path)
 smoothie = blend(
-    query=blendsql,
-    db=db,
-    ingredients={LLMMap, LLMQA, LLMJoin},
-    blender=AzureOpenaiLLM("gpt-4"),
-    # Optional args below
-    infer_map_constraints=True,
-    silence_db_exec_errors=False,
-    verbose=True,
-    blender_args={
-      "few_shot": True,
-      "temperature": 0.01
-    }
+  query=blendsql,
+  db=db,
+  ingredients={LLMMap, LLMQA, LLMJoin},
+  blender=AzureOpenaiLLM("gpt-4"),
+  # Optional args below
+  infer_gen_constraints=True,
+  silence_db_exec_errors=False,
+  verbose=True,
+  blender_args={
+    "few_shot": True,
+    "temperature": 0.01
+  }
 )
 ```
 

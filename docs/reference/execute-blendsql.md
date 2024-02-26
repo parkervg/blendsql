@@ -5,6 +5,7 @@
     show_source: false
 
 ### Usage:
+
 ```python
 from blendsql import blend, LLMMap, LLMQA, LLMJoin
 from blendsql.db import SQLiteDBConnector
@@ -27,12 +28,12 @@ smoothie = blend(
     ingredients={LLMMap, LLMQA, LLMJoin},
     blender=AzureOpenaiLLM("gpt-4"),
     # Optional args below
-    infer_map_constraints=True,
+    infer_gen_constraints=True,
     silence_db_exec_errors=False,
     verbose=True,
     blender_args={
-      "few_shot": True,
-      "temperature": 0.01
+        "few_shot": True,
+        "temperature": 0.01
     }
 )
 ```
