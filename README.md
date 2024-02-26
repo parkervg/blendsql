@@ -278,10 +278,8 @@ SELECT EXISTS(
 ### Features 
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses AST with [sqlglot](https://github.com/tobymao/sqlglot) to minimize external function calls
-- Accelerated LLM calls, caching, and constrained decoding 🚀
-  - Enabled via [guidance](https://github.com/guidance-ai/guidance)
-- Easy logging of execution environment with `smoothie.save_recipe()` 🖥️
-  - Enables reproducibility across machines
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑 
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
 
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
