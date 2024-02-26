@@ -39,6 +39,7 @@ setup(
         "pandas>=2.0.0",
         "bottleneck>=1.3.6",
         "python-dotenv==1.0.1",
+        "platformdirs",
         "sqlglot",
         "pre-commit",
         "attrs",

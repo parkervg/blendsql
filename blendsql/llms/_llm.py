@@ -1,3 +1,4 @@
+import functools
 from typing import Callable, List
 import guidance
 from attr import attrib, attrs
@@ -7,9 +8,11 @@ from colorama import Fore
 import time
 import threading
 import re
+from diskcache import Cache
+import platformdirs
+import hashlib
 
 from blendsql._programs import GuidanceProgram
-
 
 class TokenTimer(threading.Thread):
     """Class to handle refreshing tokens."""
@@ -40,12 +43,16 @@ class LLM:
 
     model: guidance.models.Model = attrib(init=False)
     prompts: list = attrib(init=False)
+    cache: Cache = attrib(init=False)
 
     gen_kwargs: dict = {}
     num_llm_calls: int = 0
     num_prompt_tokens: int = 0
 
     def __attrs_post_init__(self):
+        self.cache = Cache(
+            Path(platformdirs.user_cache_dir("blendsql")) / f"{self.__class__}_{self.model_name_or_path}.diskcache"
+        )
         self.prompts: List[str] = []
         if self.requires_config:
             if self.env is None:
@@ -71,6 +78,9 @@ class LLM:
         self.model = self._load_model()
 
     def predict(self, program: GuidanceProgram, **kwargs) -> dict:
+        key = self._create_key(program, **kwargs)
+        if key in self.cache:
+            return self.cache.get(key)
         # Modify fields used for tracking LLM usage
         self.num_llm_calls += 1
         model = program(model=self.model, **kwargs)
@@ -81,7 +91,16 @@ class LLM:
             prompt = re.sub(r"\<.*?\>", "", prompt)
             self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
             self.prompts.append(prompt)
+        self.cache[key] = model._variables
         return model._variables
+
+    def _create_key(self, program: GuidanceProgram, **kwargs):
+        hasher = hashlib.md5()
+        # Ignore partials, which create a random key within session
+        options_str = str(sorted([(k, v) for k, v in kwargs.items() if not isinstance(v, functools.partial)]))
+        combined = "{}{}".format(str(program), options_str).encode()
+        hasher.update(combined)
+        return hasher.hexdigest()
 
     def _setup(self, **kwargs) -> None:
         ...
