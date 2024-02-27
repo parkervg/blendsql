@@ -2,6 +2,7 @@
 Contains base class for guidance programs for LLMs.
 https://github.com/guidance-ai/guidance
 """
+from typing import Optional
 from guidance.models import Model, Chat
 from guidance import user, system, assistant
 from contextlib import nullcontext
@@ -12,8 +13,8 @@ class Program:
     def __new__(
         self,
         model: Model,
-        question: str = None,
-        gen_kwargs: dict = None,
+        question: Optional[str] = None,
+        gen_kwargs: Optional[dict] = None,
         few_shot: bool = True,
         **kwargs,
     ):

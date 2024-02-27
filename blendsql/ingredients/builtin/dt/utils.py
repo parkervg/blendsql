@@ -1,5 +1,4 @@
-from typing import Dict, Tuple, Union
-
+from typing import Dict, Tuple, Union, Optional
 from fiscalyear import FiscalDateTime, FiscalQuarter
 from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
@@ -97,10 +96,10 @@ def initialize_date_map(today_dt: datetime):
 
 
 def _parse_date(
-    date_map: Dict[str, Dict[str, datetime]] = None,
-    start: str = None,
-    end: str = None,
-    today_dt: datetime = None,
+    date_map: Optional[Dict[str, Dict[str, datetime]]] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    today_dt: Optional[datetime] = None,
 ) -> Tuple[Union[datetime, None], Union[datetime, None]]:
     """A couple cases for dt logic
     - start and end are passed.

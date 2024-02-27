@@ -1,7 +1,7 @@
 import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.scope import build_scope
-from typing import Any, Generator, List, Set, Tuple, Union
+from typing import Generator, List, Set, Tuple, Union
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope, find_in_scope
 from attr import attrs, attrib
@@ -160,7 +160,7 @@ def replace_join_with_ingredient_multiple_ingredient(
     if isinstance(node, exp.Join):
         anon_child_nodes = node.find_all(exp.Anonymous)
         to_return = []
-        join_alias = None
+        join_alias: str = ""
         for anon_child_node in anon_child_nodes:
             if anon_child_node.name == ingredient_name:
                 join_alias = ingredient_alias
@@ -281,10 +281,9 @@ def get_first_child(node):
 
 def get_alias_identifiers(node) -> Set[str]:
     """Given a SQL statement, returns defined aliases.
-    Example:
+    Examples:
         >>> get_alias_identifiers(_parse_one("SELECT {{LLMMap('year from date', 'w::date')}} AS year FROM w")
-        Returns:
-            >>> ['year']
+        ['year']
     """
     return set([i.find(exp.Identifier).name for i in node.find_all(exp.Alias)])
 
@@ -292,10 +291,10 @@ def get_alias_identifiers(node) -> Set[str]:
 def get_predicate_literals(node) -> List[str]:
     """From a given SQL clause, gets all literals appearing as object of predicate.
     (We treat booleans as literals here, which might be a misuse of terminology.)
-    Example:
+
+    Examples:
         >>> get_predicate_literals(_parse_one("{{LLM('year', 'w::year')}} IN ('2010', '2011', '2012')"))
-        Returns:
-            >>> ['2010', '2011', '2012']
+        ['2010', '2011', '2012']
     """
     literals = set()
     gen = node.walk()
@@ -407,15 +406,15 @@ class SubqueryContextManager:
         We say `unneeded` in the sense that to minimize the data that gets passed to an ingredient,
         we don't need to factor in this operation at the moment.
 
-        Example:
-            {{LLM('is this an italian restaurant?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1
-            AND child_category = 'Restaurants & Dining'
-            Returns:
-                >>> ('transactions', 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
         Args:
             node: exp.Select node from which to construct abstracted versions of queries for each table.
+
         Returns:
             abstracted_queries: Generator with (tablename, exp.Select, alias_to_table). The exp.Select is the abstracted query.
+
+        Examples:
+            >>> {{LLM('is this an italian restaurant?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1 AND child_category = 'Restaurants & Dining'
+            ('transactions', 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
         """
         # TODO: don't really know how to optimize with 'CASE' queries right now
         if self.node.find(exp.Case):
@@ -461,16 +460,14 @@ class SubqueryContextManager:
         Returns:
             table_star_queries: Generator with (tablename, exp.Select). The exp.Select is the table_star query
 
-        Example:
-            SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-              FROM account_history
-              LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-              WHERE constituents.Sector = 'Information Technology'
-              AND lower(Action) like "%dividend%"
-
-              Returns:
-                >>> ('account_history', 'SELECT * FROM account_history WHERE lower(Action) like "%dividend%')
-                >>> ('constituents', 'SELECT * FROM constituents WHERE sector = \'Information Technology\'')
+        Examples:
+            >>> SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+            >>>  FROM account_history
+            >>>  LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            >>>  WHERE constituents.Sector = 'Information Technology'
+            >>>  AND lower(Action) like "%dividend%"
+            ('account_history', 'SELECT * FROM account_history WHERE lower(Action) like "%dividend%')
+            ('constituents', 'SELECT * FROM constituents WHERE sector = \'Information Technology\'')
         """
         # Use `scope` to get all unique tablenodes in ast
         tablenodes = set(
@@ -567,7 +564,7 @@ class SubqueryContextManager:
             if isinstance(table_predicates, exp.Expression):
                 all_table_predicates.append(table_predicates)
         if len(all_table_predicates) == 0:
-            return
+            return ""
         table_conditions_str = " AND ".join(
             [c.sql(dialect=FTS5SQLite) for c in all_table_predicates]
         )
@@ -602,9 +599,9 @@ class SubqueryContextManager:
         # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
         while isinstance(start_node, exp.Func) and start_node is not None:
             start_node = start_node.parent
-        predicate_literals = []
+        predicate_literals: List[str] = []
         if start_node is not None:
-            predicate_literals: List[Any] = get_predicate_literals(start_node)
+            predicate_literals = get_predicate_literals(start_node)
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
                 # Add our bool pattern

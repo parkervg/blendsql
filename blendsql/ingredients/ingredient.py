@@ -1,7 +1,7 @@
 from attr import attrs, attrib
 from abc import abstractmethod, ABC
 import pandas as pd
-from typing import Any, Iterable, Union, Dict, Tuple, Type, Callable
+from typing import Any, Iterable, Union, Dict, Tuple, Type, Callable, Set
 import uuid
 from typeguard import check_type
 
@@ -14,23 +14,7 @@ class IngredientException(ValueError):
     pass
 
 
-def map_base_unpack_default_kwargs(**kwargs):
-    """Unpack default kwargs for all ingredients where
-    we get some list of column values as default kwargs.
-    Includes MapIngredient.
-    """
-    return (
-        # kwargs.get("values"),
-        # kwargs.get("original_table"),
-        kwargs.get("tablename"),
-        kwargs.get("colname"),
-    )
-
-
-def string_base_unpack_default_kwargs(**kwargs):
-    """Here we don't need values or table,
-    so we just get basic tablename, colname.
-    """
+def unpack_default_kwargs(**kwargs):
     return (
         kwargs.get("tablename"),
         kwargs.get("colname"),
@@ -92,29 +76,36 @@ class MapIngredient(Ingredient):
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
 
     def unpack_default_kwargs(self, **kwargs):
-        return map_base_unpack_default_kwargs(**kwargs)
+        return unpack_default_kwargs(**kwargs)
 
     def __call__(
         self, question: str = None, context: str = None, *args, **kwargs
     ) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
+        # Unpack kwargs
+        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
+        get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
+        get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
+        prev_subquery_map_columns: Set[str] = kwargs.get("prev_subquery_map_columns")
+
         tablename, colname = utils.get_tablename_colname(context)
-        tablename = kwargs.get("aliases_to_tablenames").get(tablename, tablename)
+        tablename = aliases_to_tablenames.get(tablename, tablename)
         kwargs["tablename"] = tablename
         kwargs["colname"] = colname
         # Check for previously created temporary tables
         value_source_tablename, _ = self.maybe_get_temp_table(
-            temp_table_func=kwargs.get("get_temp_subquery_table"), tablename=tablename
+            temp_table_func=get_temp_subquery_table, tablename=tablename
         )
         temp_session_tablename, temp_session_table_exists = self.maybe_get_temp_table(
-            temp_table_func=kwargs.get("get_temp_session_table"), tablename=tablename
+            temp_table_func=get_temp_session_table, tablename=tablename
         )
 
         # Need to be sure the new column doesn't already exist here
         new_arg_column = question
-        while new_arg_column in set(
-            self.db.iter_columns(tablename)
-        ) or new_arg_column in kwargs.get("prev_subquery_map_columns"):
+        while (
+            new_arg_column in set(self.db.iter_columns(tablename))
+            or new_arg_column in prev_subquery_map_columns
+        ):
             new_arg_column = "_" + new_arg_column
 
         original_table = self.db.execute_query(
@@ -201,9 +192,15 @@ class JoinIngredient(Ingredient):
         question: str = None,
         left_on: str = None,
         right_on: str = None,
+        join_criteria: str = None,
         *args,
         **kwargs,
     ) -> tuple:
+        # Unpack kwargs
+        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
+        get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
+        get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
+
         values = []
         original_lr_identifiers = []
         modified_lr_identifiers = []
@@ -211,10 +208,10 @@ class JoinIngredient(Ingredient):
         mapping = {}
         for on_arg in [left_on, right_on]:
             tablename, colname = utils.get_tablename_colname(on_arg)
-            tablename = kwargs.get("aliases_to_tablenames").get(tablename, tablename)
+            tablename = aliases_to_tablenames.get(tablename, tablename)
             original_lr_identifiers.append((tablename, colname))
             tablename, _ = self.maybe_get_temp_table(
-                temp_table_func=kwargs.get("get_temp_subquery_table"),
+                temp_table_func=get_temp_subquery_table,
                 tablename=tablename,
             )
             values.append(
@@ -226,7 +223,7 @@ class JoinIngredient(Ingredient):
             )
             modified_lr_identifiers.append((tablename, colname))
 
-        if kwargs.get("join_criteria", None) is None:
+        if join_criteria is None:
             # First, check which values we actually need to call LLM on
             # We don't want to join when there's already an intuitive alignment
             mapping = {}
@@ -264,9 +261,7 @@ class JoinIngredient(Ingredient):
 
         # Using mapped left/right values, create intermediary mapping table
         # This needs a new unique id. We add to the session's `cleanup_tables` after returning.
-        temp_join_tablename = kwargs.get("get_temp_session_table")(
-            str(uuid.uuid4())[:4]
-        )
+        temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         joined_values_df = pd.DataFrame(
             data={"left": mapping.keys(), "right": mapping.values()}
         )
@@ -301,6 +296,9 @@ class QAIngredient(Ingredient):
         *args,
         **kwargs,
     ) -> Union[str, int, float]:
+        # Unpack kwargs
+        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
+
         subtable = context
         if context is not None:
             if isinstance(context, str):
@@ -319,9 +317,7 @@ class QAIngredient(Ingredient):
             if not isinstance(options, list):
                 try:
                     tablename, colname = utils.get_tablename_colname(options)
-                    tablename = kwargs.get("aliases_to_tablenames").get(
-                        tablename, tablename
-                    )
+                    tablename = aliases_to_tablenames.get(tablename, tablename)
                     unpacked_options = self.db.execute_query(
                         f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
                     )[colname].tolist()
@@ -348,7 +344,7 @@ class StringIngredient(Ingredient):
     allowed_output_types: Tuple[Type] = (str,)
 
     def unpack_default_kwargs(self, **kwargs):
-        return string_base_unpack_default_kwargs(**kwargs)
+        return unpack_default_kwargs(**kwargs)
 
     def __call__(self, identifier: str, *args, **kwargs) -> str:
         tablename, colname = utils.get_tablename_colname(identifier)

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Any
+from typing import List, Any, Collection
 import pandas as pd
 
 from .ingredients import Ingredient
@@ -16,7 +16,7 @@ class SmoothieMeta:
     num_prompt_tokens: int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
     prompts: List[str]  # Log of prompts submitted to model
     example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
-    ingredients: List[Ingredient]
+    ingredients: Collection[Ingredient]
     query: str
     db_path: str
     contains_ingredient: bool = True

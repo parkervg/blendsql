@@ -5,7 +5,18 @@ import uuid
 import pandas as pd
 import pyparsing
 import re
-from typing import Dict, Iterable, List, Set, Tuple, Generator, Optional, Callable
+from typing import (
+    Dict,
+    Iterable,
+    List,
+    Set,
+    Tuple,
+    Generator,
+    Optional,
+    Callable,
+    Collection,
+    Any,
+)
 from sqlite3 import OperationalError
 import sqlglot.expressions
 from attr import attrs, attrib
@@ -40,7 +51,7 @@ from ._sqlglot import (
 )
 from ._dialect import _parse_one, FTS5SQLite
 from ._grammar import grammar
-from .ingredients.ingredient import Ingredient
+from .ingredients.ingredient import Ingredient, IngredientException
 from ._smoothie import Smoothie, SmoothieMeta
 from ._constants import (
     IngredientType,
@@ -72,22 +83,28 @@ class Kitchen(list):
             f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
         )
 
-    def extend(self, functions: Iterable[Ingredient]) -> None:
-        assert all(
-            issubclass(x, Ingredient) for x in functions
-        ), "All arguments passed to `Kitchen` must be ingredients!"
-        for function in functions:
-            name = function.__name__.upper()
+    def extend(self, ingredients: Iterable[Ingredient]) -> None:
+        try:
+            if not all(issubclass(x, Ingredient) for x in ingredients):
+                raise IngredientException(
+                    "All arguments passed to `Kitchen` must be ingredients!"
+                )
+        except TypeError:
+            raise IngredientException(
+                "All arguments passed to `Kitchen` must be ingredients!"
+            ) from None
+        for ingredient in ingredients:
+            name = ingredient.__name__.upper()
             assert (
                 name not in self.added_ingredient_names
             ), f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{name}"
-            function = function(name)
+            ingredient = ingredient(name=name)
             self.added_ingredient_names.add(name)
             # Add db and session_uuid as default kwargs
             # This way, ingredients are able to interact with data
-            function.db = self.db
-            function.session_uuid = self.session_uuid
-            self.append(function)
+            ingredient.db = self.db
+            ingredient.session_uuid = self.session_uuid
+            self.append(ingredient)
 
 
 def autowrap_query(
@@ -117,8 +134,7 @@ def autowrap_query(
                     f"""SELECT CASE WHEN FALSE THEN FALSE WHEN TRUE THEN {alias} END""",
                 )
         elif _function.ingredient_type == IngredientType.JOIN:
-            kwargs_dict = {x[0]: x[-1] for x in d["kwargs"]}
-            left_table, left_column = get_tablename_colname(kwargs_dict["left_on"])
+            left_table, _ = get_tablename_colname(d["kwargs_dict"]["left_on"])
             query = query.replace(
                 alias,
                 f'"{left_table}" ON {alias}',
@@ -134,9 +150,50 @@ def autowrap_query(
 def preprocess_blendsql(
     query: str, blender_args: dict, blender: LLM
 ) -> Tuple[str, dict, set]:
-    ingredient_alias_to_parsed_dict = {}
-    ingredient_str_to_alias = {}
-    tables_in_ingredients = set()
+    """Parses BlendSQL string with our pyparsing grammar and returns objects
+    required for interpretation and execution.
+
+    Args:
+        query: The BlendSQL query to preprocess
+        blender_args: Arguments used as default in ingredient calls with LLMs
+        blender: LLM object, which we attach to each parsed_dict
+
+    Returns:
+        Tuple, containing:
+
+            - query
+
+            - ingredient_alias_to_parsed_dict
+
+            - tables_in_ingredients
+
+    Examples:
+          >>> preprocess_blendsql(
+          >>>  query=" SELECT * FROM documents JOIN {{LLMJoin(left_on='w::player', right_on='documents::title')}} WHERE rank = 2",
+          >>>  blender_args={},
+          >>>  blender=blender
+          >>> )
+          (
+            'SELECT documents.title AS \'Player\' , documents.content FROM documents JOIN {{A()}} WHERE w. "rank" = 2',
+            {
+                '{{A()}}': {
+                    'function': 'LLMJoin',
+                    'args': [],
+                    'ingredient_aliasname': 'A',
+                    'raw': "{{ LLMJoin ( left_on= 'w::player' , right_on= 'documents::title' ) }}",
+                    'kwargs_dict': {
+                        'left_on': 'w::player',
+                        'right_on': 'documents::title',
+                        'llm': AzureOpenaiLLM(model_name_or_path='gpt-4', ...)
+                    }
+                }
+            },
+            {'documents', 'w'}
+          )
+    """
+    ingredient_alias_to_parsed_dict: Dict[str, dict] = {}
+    ingredient_str_to_alias: Dict[str, str] = {}
+    tables_in_ingredients: Set[str] = set()
     query = re.sub(r"(\s+)", " ", query)
     reversed_scan_res = [scan_res for scan_res in grammar.scanString(query)][::-1]
     for idx, (parse_results, start, end) in enumerate(reversed_scan_res):
@@ -156,13 +213,13 @@ def preprocess_blendsql(
                 original_ingredient_string
             ]
         else:
-            substituted_ingredient_alias = (
-                "{{" + f"{string.ascii_uppercase[idx]}()" + "}}"
-            )
+            parsed_results_dict = parse_results.as_dict()
+            ingredient_aliasname = string.ascii_uppercase[idx]
+            parsed_results_dict["ingredient_aliasname"] = ingredient_aliasname
+            substituted_ingredient_alias = "{{" + f"{ingredient_aliasname}()" + "}}"
             ingredient_str_to_alias[
                 original_ingredient_string
             ] = substituted_ingredient_alias
-            parsed_results_dict = parse_results.as_dict()
             # Remove parentheses at beginning and end of arg/kwarg
             # TODO: this should be handled by pyparsing
             for arg_type in {"args", "kwargs"}:
@@ -200,11 +257,21 @@ def preprocess_blendsql(
                 if len(parsed_results_dict["args"]) > 1
                 else parsed_results_dict["args"][1]
                 if len(parsed_results_dict["args"]) > 1
-                else "",
+                else None,
             )
-            if context_arg and not context_arg.upper().startswith(("SELECT", "WITH")):
-                tablename, _ = get_tablename_colname(context_arg)
-                tables_in_ingredients.add(tablename)
+            for arg in {
+                context_arg,
+                kwargs_dict.get("left_on", None),
+                kwargs_dict.get("right_on", None),
+            }:
+                if arg is None:
+                    continue
+                if not arg.upper().startswith(("SELECT", "WITH")):
+                    tablename, _ = get_tablename_colname(arg)
+                    tables_in_ingredients.add(tablename)
+            # We don't need raw kwargs anymore
+            # in the future, we just refer to kwargs_dict
+            parsed_results_dict.pop("kwargs")
             # Below we track the 'raw' representation, in case we need to pass into
             #   a recursive BlendSQL call later
             ingredient_alias_to_parsed_dict[
@@ -250,22 +317,26 @@ def get_sorted_grammar_matches(
     q: str,
     ingredient_alias_to_parsed_dict: dict,
     kitchen: Kitchen,
-) -> Generator[Tuple[int, int, dict, Ingredient], None, None]:
+) -> Generator[Tuple[int, int, str, dict, Ingredient], None, None]:
     """
     Yields parsed matches from grammar, according to a specified order of operations.
 
-    Arguments:
+    Args:
         q: str, the current BlendSQL query to parse. Should contain ingredient aliases.
         ingredient_alias_to_parsed_dict: Mapping from ingredient alias to their parsed representations.
             Example:
                 {"{{A()}}": {"function": "LLMMap", "args": ...}
-        kitchen: Contains inventory of ingredients (aka BlendSQL functions)
+        kitchen: Contains inventory of ingredients (aka BlendSQL ingredients)
 
     Returns:
         Generator containing tuple of:
+
             - start index of grammar match
+
             - end index of grammar match
+
             - parsed_results_dict
+
             - `Function` object that is matched
     """
     ooo = [IngredientType.MAP, IngredientType.QA, IngredientType.JOIN]
@@ -313,7 +384,7 @@ def blend(
     query: str,
     db: SQLiteDBConnector,
     blender: Optional[LLM] = None,
-    ingredients: Optional[Iterable[Ingredient]] = None,
+    ingredients: Optional[Collection[Ingredient]] = None,
     verbose: bool = False,
     blender_args: Optional[Dict[str, str]] = None,
     infer_gen_constraints: bool = False,
@@ -351,7 +422,7 @@ def blend(
         logging.getLogger().setLevel(logging.ERROR)
     try:
         start = time.time()
-        example_map_outputs = []
+        example_map_outputs: List[Tuple[Any, Any]] = []
         naive_execution = False
         session_uuid = str(uuid.uuid4())[:4]
         if ingredients is None:
@@ -426,7 +497,7 @@ def blend(
             # Only cache executed_ingredients within the same subquery
             # The same ingredient may have different results within a different subquery context
             executed_subquery_ingredients: Set[str] = set()
-            prev_subquery_map_columns = set()
+            prev_subquery_map_columns: Set[str] = set()
             _get_temp_subquery_table: Callable = partial(
                 get_temp_subquery_table, session_uuid, subquery_idx
             )
@@ -543,8 +614,8 @@ def blend(
                 start,
                 end,
                 alias_function_str,
-                parse_results_dict,
-                _function,
+                parsed_results_dict,
+                ingredient,
             ) in get_sorted_grammar_matches(
                 q=subquery_str,
                 ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -555,9 +626,9 @@ def blend(
                     # Don't execute same ingredient twice
                     continue
                 executed_subquery_ingredients.add(alias_function_str)
-                kwargs_dict = parse_results_dict["kwargs_dict"]
+                kwargs_dict = parsed_results_dict["kwargs_dict"]
 
-                if _function.ingredient_type == IngredientType.MAP:
+                if ingredient.ingredient_type == IngredientType.MAP:
                     if infer_gen_constraints:
                         # Latter is the winner.
                         # So if we already define something in kwargs_dict,
@@ -580,10 +651,10 @@ def blend(
                 ):
                     unpack_value = kwargs_dict.get(
                         unpack_kwarg,
-                        parse_results_dict["args"][i + 1]
-                        if len(parse_results_dict["args"]) > i + 1
-                        else parse_results_dict["args"][i]
-                        if len(parse_results_dict["args"]) > i
+                        parsed_results_dict["args"][i + 1]
+                        if len(parsed_results_dict["args"]) > i + 1
+                        else parsed_results_dict["args"][i]
+                        if len(parsed_results_dict["args"]) > i
                         else "",
                     )
                     if unpack_value.upper().startswith(("SELECT", "WITH")):
@@ -608,11 +679,13 @@ def blend(
                         else:
                             kwargs_dict[unpack_kwarg] = subtable
                             # Below, we can remove the optional `context` arg we passed in args
-                            parse_results_dict["args"] = parse_results_dict["args"][:1]
+                            parsed_results_dict["args"] = parsed_results_dict["args"][
+                                :1
+                            ]
 
                 # Execute our ingredient function
-                function_out = _function(
-                    *parse_results_dict["args"],
+                function_out = ingredient(
+                    *parsed_results_dict["args"],
                     **kwargs_dict
                     | {
                         "get_temp_subquery_table": _get_temp_subquery_table,
@@ -622,7 +695,7 @@ def blend(
                     },
                 )
                 # Check how to handle output, depending on ingredient type
-                if _function.ingredient_type == IngredientType.MAP:
+                if ingredient.ingredient_type == IngredientType.MAP:
                     # Parse so we replace this function in blendsql with 1st arg
                     #   (new_col, which is the question we asked)
                     #  But also update our underlying table, so we can execute correctly at the end
@@ -641,13 +714,13 @@ def blend(
                     function_call_to_res[
                         alias_function_str
                     ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
-                elif _function.ingredient_type in (
+                elif ingredient.ingredient_type in (
                     IngredientType.STRING,
                     IngredientType.QA,
                 ):
                     # Here, we can simply insert the function's output
                     function_call_to_res[alias_function_str] = function_out
-                elif _function.ingredient_type == IngredientType.JOIN:
+                elif ingredient.ingredient_type == IngredientType.JOIN:
                     # 1) Get the `JOIN` clause containing function
                     # 2) Replace with just the function alias
                     # 3) Assign `function_out` to `alias_function_str`
@@ -670,9 +743,7 @@ def blend(
                         temp_uuid = str(uuid.uuid4())
                         _query = _query.transform(
                             replace_join_with_ingredient_multiple_ingredient,
-                            ingredient_name=re.sub(
-                                r"(\{|\}|\(|\))", "", alias_function_str
-                            ),
+                            ingredient_name=parsed_results_dict["ingredient_aliasname"],
                             ingredient_alias=alias_function_str,
                             temp_uuid=temp_uuid,
                         ).transform(prune_true_where)
@@ -690,16 +761,14 @@ def blend(
                         #   Should probably modify in the future.
                         _query = _query.transform(
                             replace_join_with_ingredient_single_ingredient,
-                            ingredient_name=re.sub(
-                                r"(\{|\}|\(|\))", "", alias_function_str
-                            ),
+                            ingredient_name=parsed_results_dict["ingredient_aliasname"],
                             ingredient_alias=alias_function_str,
                         )
                         query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
                     function_call_to_res[alias_function_str] = join_clause
                 else:
                     raise ValueError(
-                        f"Not sure what to do with ingredient_type '{_function.ingredient_type}' yet\n(Also, we should have never hit this error....)"
+                        f"Not sure what to do with ingredient_type '{ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                     )
                 if naive_execution:
                     break

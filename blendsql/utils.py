@@ -1,4 +1,4 @@
-from typing import Tuple, Iterable
+from typing import Tuple, Collection
 import re
 import logging
 from colorama import Fore
@@ -56,7 +56,7 @@ def sub_tablename(original_tablename: str, new_tablename: str, query: str) -> st
     )
 
 
-def delete_session_tables(db: SQLiteDBConnector, cleanup_tables: Iterable[str]):
+def delete_session_tables(db: SQLiteDBConnector, cleanup_tables: Collection[str]):
     """Deletes the temporary tables made for the sake of a BlendSQL execution session.
 
     Args:
@@ -75,8 +75,9 @@ def delete_session_tables(db: SQLiteDBConnector, cleanup_tables: Iterable[str]):
 def recover_blendsql(select_sql: str):
     """Given a SQL `SELECT` statement, recovers BlendSQL syntax from SQLGlot SQLiteDialect interpretation.
     TODO: this is hack to convert sqlglot SQLite to BlendSQL.
-    Example:
-        STRUCT(STRUCT(QA('can i get my car fixed here?', 'transactions::merchant'))) -> {{QA('can i get my car fixed here?', 'transactions::merchant')}}
+    Examples:
+        >>> recover_blendsql("STRUCT(STRUCT(QA('can i get my car fixed here?', 'transactions::merchant')))")
+        {{QA('can i get my car fixed here?', 'transactions::merchant')}}
     """
     recovered = re.sub(
         r"(STRUCT\( ?STRUCT\()(.*?)(\)\)([^\)]|$))(,)?", r" {{\2}}\4 ", select_sql

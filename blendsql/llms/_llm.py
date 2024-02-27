@@ -1,5 +1,5 @@
 import functools
-from typing import Callable, List
+from typing import Any, List
 import guidance
 from attr import attrib, attrs
 from pathlib import Path
@@ -37,7 +37,7 @@ class LLM:
     """Parent class for all LLM endpoints"""
 
     model_name_or_path: str = attrib()
-    tokenizer: Callable = attrib(default=None)
+    tokenizer: Any = attrib(default=None)
     requires_config: bool = attrib(default=False)
     refresh_interval_min: int = attrib(default=None)
     env: str = attrib(default=".")
@@ -90,9 +90,11 @@ class LLM:
         Returns:
             dict containing all LLM variable names and their values.
 
-        Example:
-            >>> {"result": '"This is LLM generated output"'}
+        Examples:
+            >>> llm.predict(program, **kwargs)
+            {"result": '"This is LLM generated output"'}
         """
+        # First, check our cache
         key = self._create_key(program, **kwargs)
         if key in self.cache:
             return self.cache.get(key)

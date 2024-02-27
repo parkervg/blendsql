@@ -75,8 +75,9 @@ class SQLiteDBConnector:
         """Returns database schema as a dictionary, in the format that
         sqlglot.optimizer expects.
 
-        Example:
-            >>> {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
+        Examples:
+            >>> db.get_sqlglot_schema()
+            {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
         """
         schema = {}
         for tablename in self._iter_tables():
@@ -135,6 +136,7 @@ class SQLiteDBConnector:
         serialized_db = "\n\n".join(serialized_db).strip()
         return serialized_db
 
+    # @profile
     def execute_query(
         self, query: str, return_error: bool = False, silence_errors: bool = True
     ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, str]]:
