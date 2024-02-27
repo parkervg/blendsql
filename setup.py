@@ -49,8 +49,6 @@ setup(
         "fiscalyear",
         "tabulate",
         "typeguard",
-        "azure-identity",
-        "nbformat",
     ],
     extras_require={
         "research": [
