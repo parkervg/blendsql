@@ -15,6 +15,8 @@
 </div>
 <br/>
 
+**If you're looking for the prediction files from the paper, check out [./research/paper-results](./research/paper-results).**
+
 ## Intro
 BlendSQL is a *superset of SQLite*. It allows the user to leverage external functions (LLMs, Python code, APIs) within the expressive structure of SQL.
 
