@@ -4,6 +4,8 @@ All the built-in LLM ingredients inherit from the base classes `QAIngredient`, `
 
 These are intended to be helpful abstractions, so that the user can easily implement their own functions to run within a BlendSQL script.
 
+The processing logic for a custom ingredient should go in a `run()` class function, and accept `**kwargs` in their signature.
+
 ## QAIngredient
 
 ::: blendsql.ingredients.ingredient.QAIngredient.run
@@ -15,11 +17,13 @@ These are intended to be helpful abstractions, so that the user can easily imple
 ```python
 import pandas as pd
 from blendsql.ingredients import QAIngredient
-from blendsql._programs import GuidanceProgram, gen
+from blendsql._program import Program, gen
 
-class SummaryProgram(GuidanceProgram):
+
+class SummaryProgram(Program):
     """Program to call LLM and return summary of the passed table.
     """
+
     def __call__(self, serialized_db: str):
         with self.usercontext:
             self.model += f"Summarize the table below.\n\n{serialized_db}\n"
@@ -27,17 +31,19 @@ class SummaryProgram(GuidanceProgram):
             self.model += gen(name="result", **self.gen_kwargs)
         return self.model
 
+
 class TableSummary(QAIngredient):
     def run(self, context: pd.DataFrame, llm: 'LLM', **kwargs) -> str:
         result = llm.predict(program=SummaryProgram, serialized_db=context.to_string())["result"]
         return f"'{result}'"
+
 
 if __name__ == "__main__":
     from blendsql import blend
     from blendsql.db import SQLiteDBConnector
     from blendsql.utils import fetch_from_hub
     from blendsql.llms import OpenaiLLM
-    
+
     blendsql = """
     {{
         TableSummary(

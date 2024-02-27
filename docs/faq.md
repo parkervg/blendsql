@@ -14,4 +14,4 @@
 > ```
 > BlendSQL makes sure to only pass those `team` values from rows which satisfy the condition `num_championship > 3` to the LLM. Additionally, since we assume the function is deterministic, we make a single LLM call and cache the results, despite the ingredient function being used twice.
 #### So I get how to write BlendSQL queries. But why would I use this over vanilla SQLite? 
-> Certain ingredients, like [LLMJoin](reference/ingredients/join-ingredient.md), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an *intermediate representation for reasoning over structured + unstructured with LLMs*. Some examples of this can be found [here](examples/hybridqa.md).
+> Certain ingredients, like [LLMJoin](reference/ingredients/LLMJoin.md), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an *intermediate representation for reasoning over structured + unstructured with LLMs*. Some examples of this can be found [here](examples/hybridqa.md).

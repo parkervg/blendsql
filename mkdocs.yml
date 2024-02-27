@@ -59,9 +59,9 @@ nav:
           - reference/ingredients/ingredients.md
           - Creating Custom Ingredients: reference/ingredients/creating-custom-ingredients.md
           - Built-in:
-            - MapIngredient: reference/ingredients/map-ingredient.md
-            - QAIngredient: reference/ingredients/qa-ingredient.md
-            - JoinIngredient: reference/ingredients/join-ingredient.md
+            - LLMMap: reference/ingredients/LLMMap.md
+            - LLMQA: reference/ingredients/LLMQA.md
+            - LLMJoin: reference/ingredients/LLMJoin.md
       - Blenders:
           - reference/blenders/blenders.md
           - OpenAI: reference/blenders/openai.md

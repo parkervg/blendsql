@@ -2,6 +2,7 @@
 ![ingredients](../../img/
 /LLMQA.jpg)
 
+## Description
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
 
 The `QAIngredient` is designed to return data of variable types, and is best used in cases when we either need:
@@ -122,3 +123,13 @@ Or, from our running example:
 ```
 
 The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol` column from `account_history`.
+
+### `QAProgram`
+::: blendsql.ingredients.builtin.llm.qa.main.QAProgram
+    handler: python
+    show_source: true
+
+### `LLMQA`
+::: blendsql.ingredients.builtin.llm.qa.main.LLMQA
+    handler: python
+    show_source: true
