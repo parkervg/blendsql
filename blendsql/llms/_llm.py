@@ -12,7 +12,7 @@ from diskcache import Cache
 import platformdirs
 import hashlib
 
-from blendsql._programs import GuidanceProgram
+from blendsql._program import Program
 
 
 class TokenTimer(threading.Thread):
@@ -79,7 +79,7 @@ class LLM:
         self._setup()
         self.model = self._load_model()
 
-    def predict(self, program: GuidanceProgram, **kwargs) -> dict:
+    def predict(self, program: Program, **kwargs) -> dict:
         key = self._create_key(program, **kwargs)
         if key in self.cache:
             return self.cache.get(key)
@@ -96,7 +96,7 @@ class LLM:
         self.cache[key] = model._variables
         return model._variables
 
-    def _create_key(self, program: GuidanceProgram, **kwargs):
+    def _create_key(self, program: Program, **kwargs):
         hasher = hashlib.md5()
         # Ignore partials, which create a random key within session
         options_str = str(

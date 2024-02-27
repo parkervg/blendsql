@@ -4,13 +4,117 @@ from typing import Union, Iterable, Any, Dict, Optional, List
 import pandas as pd
 from colorama import Fore
 from tqdm import tqdm
+from textwrap import dedent
+from guidance import gen
 
 from blendsql.llms._llm import LLM
 from blendsql.llms import OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._programs import MapProgram
+from blendsql._program import Program
+
+
+class MapProgram(Program):
+    def __call__(
+        self,
+        values: List[str],
+        sep: str,
+        include_tf_disclaimer: bool = False,
+        output_type: str = None,
+        example_outputs: str = None,
+        table_title: str = None,
+        colname: str = None,
+        **kwargs,
+    ):
+        with self.systemcontext:
+            self.model += """Given a set of values from a database, answer the question row-by-row, in order."""
+            if include_tf_disclaimer:
+                self.model += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
+            self.model += dedent(
+                f"""
+            The answer should be a list separated by '{sep}', and have {len(values)} items in total.
+            When you have given all {len(values)} answers, stop responding.
+            If a given value has no appropriate answer, give '-' as a response.
+            """
+            )
+        with self.usercontext:
+            if self.few_shot:
+                self.model += dedent(
+                    """
+                --- 
+
+                The following values come from the column 'Home Town', in a table titled '2010\u201311 North Carolina Tar Heels men's basketball team'.
+                Q: What state is this?
+                Values:
+                `Ames, IA`
+                `Carrboro, NC`
+                `Kinston, NC`
+                `Encino, CA`
+
+                Output type: string
+                Here are some example outputs: `MA;CA;-;`
+
+                A: IA;NC;NC;CA
+
+                --- 
+
+                The following values come from the column 'Penalties (P+P+S+S)', in a table titled 'Biathlon World Championships 2013 \u2013 Men's pursuit'.
+                Q: Total penalty count?
+                Values:
+                `1 (0+0+0+1)`
+                `10 (5+3+2+0)`
+                `6 (2+2+2+0)`
+
+                Output type: numeric
+                Here are some example outputs: `9;-`
+
+                A: 1;10;6
+
+                ---
+
+                The following values come from the column 'term', in a table titled 'Electoral district of Lachlan'.
+                Q: how long did it last?
+                Values:
+                `1859–1864`
+                `1864–1869`
+                `1869–1880`
+
+                Output type: numeric
+
+                A: 5;5;11
+
+                ---
+
+                The following values come from the column 'Length of use', in a table titled 'Crest Whitestrips'.
+                Q: Is the time less than a week?
+                Values:
+                `14 days`
+                `10 days`
+                `daily`
+                `2 hours`
+
+                Output type: boolean
+                A: f;f;t;t
+
+                ---
+                """
+                )
+            if table_title:
+                self.model += dedent(
+                    f"The following values come from the column '{colname}', in a table titled '{table_title}'."
+                )
+            self.model += dedent(f"""Q: {self.question}\nValues:\n""")
+            for value in values:
+                self.model += f"`{value}`\n"
+            if output_type:
+                self.model += f"\nOutput type: {output_type}"
+            if example_outputs:
+                self.model += f"\nHere are some example outputs: {example_outputs}\n"
+            self.model += "\nA:"
+        with self.assistantcontext:
+            self.model += gen(name="result", **self.gen_kwargs)
+        return self.model
 
 
 class LLMMap(MapIngredient):
@@ -26,14 +130,16 @@ class LLMMap(MapIngredient):
         table_to_title: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Iterable[Any]:
-        """For each value in a given column, calls an OpenAI LLM model_name_or_path and retrieves the output.
+        """For each value in a given column, calls a LLM and retrieves the output.
 
         Args:
             question: The question to map onto the values. Will also be the new column name
+            llm: The LLM (blender) we will make calls to.
             value_limit: Optional limit on the number of values to pass to the LLM
-            example_outputs: str, if binary == False, this gives the LLM an example of the output we expect.
-            pattern: str, optional regex to constrain answer generation.
-            model_name_or_path: str, name of the OpenAI model_name_or_path we will make calls to.
+            example_outputs: If binary == False, this gives the LLM an example of the output we expect.
+            output_type: One of 'numeric', 'string', 'bool'
+            pattern: Optional regex to constrain answer generation.
+            table_to_title: Mapping from tablename to a title providing some more context.
 
         Returns:
             Iterable[Any] containing the output of the LLM for each value.
