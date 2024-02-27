@@ -26,7 +26,7 @@ smoothie = blend(
     query=blendsql,
     db=db,
     ingredients={LLMMap, LLMQA, LLMJoin},
-    blender=AzureOpenaiLLM("gpt-4"),
+    blender=OpenaiLLM("gpt-4"),
     # Optional args below
     infer_gen_constraints=True,
     silence_db_exec_errors=False,
@@ -37,3 +37,9 @@ smoothie = blend(
     }
 )
 ```
+
+### Appendix
+
+::: blendsql.blendsql.preprocess_blendsql
+    handler: python
+    show_source: false

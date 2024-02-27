@@ -99,7 +99,7 @@ For example (from the [HybridQA dataset](https://hybridqa.github.io/)):
  SELECT capacity FROM w WHERE venue = {{
         LLMQA(
             'Which venue is named in honor of Juan Antonio Samaranch?',
-            (SELECT title, content FROM documents WHERE content LIKE '%venue%'),
+            (SELECT title, content FROM documents WHERE content MATCH 'venue'),
             options='w::venue'
         )
 }}

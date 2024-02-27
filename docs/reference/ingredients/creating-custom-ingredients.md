@@ -77,10 +77,7 @@ Returns:
 ```python
 from typing import List
 from blendsql.ingredients import MapIngredient
-import PIL.Image as Image
-import io
 import requests
-from pathlib import Path
 
 class GetQRCode(MapIngredient):
     """Calls API to generate QR code for a given URL.
@@ -88,26 +85,20 @@ class GetQRCode(MapIngredient):
     https://goqr.me/api/doc/create-qr-code/
     """
     def run(self, values: List[str], **kwargs) -> List[str]:
-        dest_dir = Path("./qr_codes")
-        if not dest_dir.is_dir():
-            dest_dir.mkdir(parents=True)
-        img_paths = []
+        imgs_as_bytes = []
         for value in values:
-            img_path = str(dest_dir / f"{value}.png")
-            qr_bytes = requests.get(
+            qr_code_bytes = requests.get(
                 "https://api.qrserver.com/v1/create-qr-code/?data=https://{}/&size=100x100".format(value)
             ).content
-            image = Image.open(io.BytesIO(qr_bytes))
-            image.save(img_path)
-            img_paths.append(img_path)
-        return img_paths
+            imgs_as_bytes.append(qr_code_bytes)
+        return imgs_as_bytes
 
 if __name__ == "__main__":
     from blendsql import blend
     from blendsql.db import SQLiteDBConnector
     from blendsql.utils import fetch_from_hub
     
-    blendsql = "SELECT genre, url, {{GetQRCode('Link to QR code:', 'w::url')}} FROM w WHERE genre = 'social'"
+    blendsql = "SELECT genre, url, {{GetQRCode('QR Code as Bytes:', 'w::url')}} FROM w WHERE genre = 'social'"
     
     smoothie = blend(
         query=blendsql,
@@ -119,11 +110,11 @@ if __name__ == "__main__":
 
 Returns:
 
-| genre  | url           | Link to QR code:      |
+| genre  | url           | QR Code as Bytes:      |
 |--------|---------------|-----------------------|
-| social | facebook.com  | qr_codes/facebook.com.png  |
-| social | instagram.com | qr_codes/instagram.com.png |
-| social | tiktok.com    | qr_codes/tiktok.com.png    |
+| social | facebook.com  | b'\x89PNG\r\n\x1a\n\x00\x00...  |
+| social | instagram.com | b'\x89PNG\r\n\x1a\n\x00\x00... |
+| social | tiktok.com    | b'\x89PNG\r\n\x1a\n\x00\x00...    |
 
 ## JoinIngredient
 

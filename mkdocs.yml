@@ -33,6 +33,9 @@ plugins:
       default_handler: python
       handlers:
         python:
+          docstring_options:
+            ignore_init_summary: true
+            merge_init_into_class: true
           options:
             show_submodules: true
             show_source: true
@@ -40,6 +43,7 @@ plugins:
             docstring_section_style: table
             show_docstring_examples: true
             show_symbol_type_heading: true
+            show_if_no_docstring: False
   - search
   - section-index
 
