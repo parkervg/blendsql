@@ -282,6 +282,10 @@ class JoinIngredient(Ingredient):
             temp_join_tablename,
         )
 
+    @abstractmethod
+    def run(self, *args, **kwargs) -> dict:
+        ...
+
 
 @attrs
 class QAIngredient(Ingredient):
@@ -330,6 +334,10 @@ class QAIngredient(Ingredient):
         kwargs[IngredientKwarg.QUESTION] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
         return response
+
+    @abstractmethod
+    def run(self, *args, **kwargs) -> Union[str, int, float]:
+        ...
 
 
 @attrs
