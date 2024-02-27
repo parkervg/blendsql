@@ -1,18 +1,27 @@
 import pytest
+import pandas as pd
+import sqlite3
+from pathlib import Path
 from blendsql import blend
 from blendsql.db import SQLiteDBConnector
-from blendsql.utils import fetch_from_hub
 from blendsql.ingredients.ingredient import IngredientException
 
 
 @pytest.fixture(scope="session")
 def db() -> SQLiteDBConnector:
-    return SQLiteDBConnector(fetch_from_hub("single_table.db"))
+    """Create a dummy sqlite db to use in tests."""
+    dbpath = "./test_generic.db"
+    df = pd.DataFrame({"Name": ["Danny", "Emma", "Tony"], "Age": [23, 26, 19]})
+    con = sqlite3.connect(dbpath)
+    df.to_sql("w", con=con)
+    con.close()
+    yield SQLiteDBConnector(dbpath)
+    Path(dbpath).unlink()
 
 
 def test_error_on_delete1(db):
     blendsql = """
-    DELETE FROM transactions WHERE TRUE;
+    DELETE FROM w WHERE TRUE;
     """
     with pytest.raises(ValueError):
         _ = blend(
@@ -24,7 +33,7 @@ def test_error_on_delete1(db):
 
 def test_error_on_delete2(db):
     blendsql = """
-    DROP TABLE transactions;
+    DROP TABLE w;
     """
     with pytest.raises(ValueError):
         _ = blend(
