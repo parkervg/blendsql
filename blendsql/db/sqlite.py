@@ -16,7 +16,7 @@ init(autoreset=True)
 
 
 @attrs(auto_detect=True)
-class SQLiteDBConnector:
+class SQLite:
     """
     Class used to connect to a SQLite database.
 

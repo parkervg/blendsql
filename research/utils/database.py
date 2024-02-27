@@ -5,7 +5,7 @@ from blendsql.db.utils import double_quote_escape
 
 
 def to_serialized(
-    db: "SQLiteDBConnector",
+    db: "SQLite",
     ignore_tables: Iterable[str] = None,
     use_tables: Set[str] = None,
     num_rows: int = 0,

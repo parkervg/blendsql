@@ -1,5 +1,5 @@
 # SQLite 
 
-::: blendsql.db.sqlite_db_connector.SQLiteDBConnector
+::: blendsql.db.sqlite.SQLite
     handler: python
     show_source: true

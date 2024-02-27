@@ -1,47 +1,80 @@
-import os
 import time
+import os
 import pandas as pd
 import sqlite3
-from blendsql import init_secrets
-import openai
+from openai import AzureOpenAI
 import statistics
 import logging
 from colorama import Fore
 from typing import List, Union
+from dotenv import load_dotenv
 
-init_secrets("secrets.json")
+from blendsql._constants import VALUE_BATCH_SIZE
+from blendsql.utils import fetch_from_hub
+from constants import model
 
 
 def construct_messages_payload(prompt: Union[str, None], question: str) -> List:
     messages = []
     # Add system prompt
-    messages.append({"role": "system", "content": "" if prompt is None else prompt})
-    """
-    At this point we cannot provide the conversation history to Azure models
-    so just passing the current user input as input to the model.
-    """
-    messages.append({"role": "user", "content": question})
+    # messages.append({"role": "system", "content": "" if prompt is None else prompt})
+    messages.append({"role": "user", "content": prompt})
     return messages
 
 
 map_prompt = """Answer the question row-by-row, in order.
 Values can be either '1' (True) or '0' (False).
-The answer should be a list separataed by ';', and have {answer_length} items in total.
+The answer should be a list separated by ';', and have {answer_length} items in total.
 
 Question: {question}
 
 {values}
 """
 
+
+def openai_setup() -> None:
+    """Setup helper for AzureOpenAI and OpenAI models."""
+    if all(
+        x is not None
+        for x in {
+            os.getenv("TENANT_ID"),
+            os.getenv("CLIENT_ID"),
+            os.getenv("CLIENT_SECRET"),
+        }
+    ):
+        try:
+            from azure.identity import ClientSecretCredential
+        except ImportError:
+            raise ValueError(
+                "Found ['TENANT_ID', 'CLIENT_ID', 'CLIENT_SECRET'] in .env file, using Azure OpenAI\nIn order to use Azure OpenAI, run `pip install azure-identity`!"
+            ) from None
+        credential = ClientSecretCredential(
+            tenant_id=os.environ["TENANT_ID"],
+            client_id=os.environ["CLIENT_ID"],
+            client_secret=os.environ["CLIENT_SECRET"],
+            disable_instance_discovery=True,
+        )
+        access_token = credential.get_token(
+            os.environ["TOKEN_SCOPE"],
+            tenant_id=os.environ["TENANT_ID"],
+        )
+        os.environ["AZURE_OPENAI_API_KEY"] = access_token.token
+    elif os.getenv("AZURE_OPENAI_API_KEY") is not None:
+        pass
+    else:
+        raise ValueError(
+            "Error authenticating with OpenAI\n Without explicit `OPENAI_API_KEY`, you need to provide ['TENANT_ID', 'CLIENT_ID', 'CLIENT_SECRET']"
+        ) from None
+
+
 if __name__ == "__main__":
-    db_path = "./tests/multi_table.db"
-    con = sqlite3.connect(db_path)
-    iterations = 10
+    load_dotenv()
+    openai_setup()
+    con = sqlite3.connect(fetch_from_hub("multi_table.db"))
+    iterations = 1
     times = []
-    openai.api_type = os.getenv("API_TYPE", "azure")
-    openai.api_version = os.getenv("API_VERSION", "2023-03-15-preview")
-    openai.api_base = os.getenv("OPENAI_API_BASE")
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    client = AzureOpenAI()
+    print(f"Using {model}...")
     for _ in range(iterations):
         start = time.time()
         # Select initial query results
@@ -57,7 +90,7 @@ if __name__ == "__main__":
         # values_dict = [{"value": value, "idx": idx} for idx, value in enumerate(values)]
         split_results = []
         # Pass in batches
-        batch_size = 20
+        batch_size = VALUE_BATCH_SIZE
         for i in range(0, len(values), batch_size):
             prompt = map_prompt.format(
                 answer_length=len(values[i : i + batch_size]),
@@ -65,15 +98,16 @@ if __name__ == "__main__":
                 values="\n".join(values[i : i + batch_size]),
             )
             # print(prompt)
-            payload = construct_messages_payload(
-                prompt=prompt, question="What's the total value of my portfolio?"
+            payload = construct_messages_payload(prompt=prompt, question="")
+            res = (
+                client.chat.completions.create(
+                    model=model,
+                    # Can be one of {"gpt-4", "gpt-4-32k", "gpt-35-turbo", "text-davinci-003"}, or others in Azure
+                    messages=payload,
+                )
+                .choices[0]
+                .message.content
             )
-            res = openai.ChatCompletion.create(
-                engine="gpt-4",
-                # Can be one of {"gpt-4", "gpt-4-32k", "gpt-35-turbo", "text-davinci-003"}, or others in Azure
-                messages=payload,
-                temperature=0.0,
-            )["choices"][0]["message"]["content"]
             _r = [i.strip() for i in res.strip(";").split(";")]
             expected_len = len(values[i : i + batch_size])
             if len(_r) != expected_len:

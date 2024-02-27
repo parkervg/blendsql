@@ -8,7 +8,7 @@
 
 ```python
 from blendsql import blend, LLMMap, LLMQA, LLMJoin
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from blendsql.llms import OpenaiLLM
 
 blendsql = """
@@ -21,7 +21,7 @@ WHERE city = {{
     )
 }} 
 """
-db = SQLiteDBConnector(db_path)
+db = SQLite(db_path)
 smoothie = blend(
     query=blendsql,
     db=db,

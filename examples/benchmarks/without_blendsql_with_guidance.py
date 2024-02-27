@@ -2,19 +2,21 @@ import statistics
 import time
 import pandas as pd
 import sqlite3
-from blendsql import init_secrets
-from tqdm import tqdm
 import logging
 from colorama import Fore
 
-init_secrets("secrets.json")
+from blendsql.llms import AzureOpenaiLLM
+from blendsql._constants import VALUE_BATCH_SIZE
+from blendsql._programs import MapProgram
+from blendsql.utils import fetch_from_hub
+from constants import model
 
 if __name__ == "__main__":
     start = time.time()
-    db_path = "./tests/multi_table.db"
-    con = sqlite3.connect(db_path)
-    iterations = 10
+    con = sqlite3.connect(fetch_from_hub("multi_table.db"))
+    iterations = 1
     times = []
+    print(f"Using {model}...")
     for _ in range(iterations):
         # Select initial query results
         sql = """
@@ -25,30 +27,22 @@ if __name__ == "__main__":
         df = pd.read_sql(sql, con)
 
         # Make our calls to the LLM
-        endpoint = OpenaiEndpoint(endpoint="gpt-4")
+        blender = AzureOpenaiLLM("gpt-4")
         values = df[target_column].unique().tolist()
-        values_dict = [{"value": value, "idx": idx} for idx, value in enumerate(values)]
         split_results = []
         # Pass in batches
-        batch_size = 20
-        for i in tqdm(
-            range(0, len(values_dict), batch_size),
-            total=len(values_dict) // batch_size,
-            desc=f"Making calls to LLM with batch_size {batch_size}",
-            bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
-        ):
-            res = endpoint.predict(
-                program=programs.MAP_PROGRAM_CHAT,
-                chat=True,
+        batch_size = VALUE_BATCH_SIZE
+        for i in range(0, len(values), batch_size):
+            res = MapProgram(
+                model=blender.model,
                 question=question,
                 sep=";",
-                answer_length=len(values_dict[i : i + batch_size]),
-                values_dict=values_dict[i : i + batch_size],
-                binary=1,
+                values=values[i : i + batch_size],
                 example_outputs=None,
+                few_shot=False,
             )
             _r = [i.strip() for i in res["result"].strip(";").split(";")]
-            expected_len = len(values_dict[i : i + batch_size])
+            expected_len = len(values[i : i + batch_size])
             if len(_r) != expected_len:
                 logging.debug(
                     Fore.YELLOW
@@ -95,5 +89,5 @@ if __name__ == "__main__":
         print(f"Passed {values_passed} total values to LLM")
         times.append(runtime)
     print(
-        f"For {iterations} iterations, average runtime is {statistics.mean(times)} with stdev {statistics.stdev(times)}"
+        f"For {iterations} iterations, average runtime is {statistics.mean(times)} with stdev {statistics.stdev(times) if len(times) > 1 else 0}"
     )

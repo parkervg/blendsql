@@ -6,7 +6,7 @@ from tabulate import tabulate
 from functools import partial
 
 
-from .db.sqlite_db_connector import SQLiteDBConnector
+from .db.sqlite import SQLite
 from ._constants import HF_REPO_ID
 
 tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
@@ -56,7 +56,7 @@ def sub_tablename(original_tablename: str, new_tablename: str, query: str) -> st
     )
 
 
-def delete_session_tables(db: SQLiteDBConnector, cleanup_tables: Collection[str]):
+def delete_session_tables(db: SQLite, cleanup_tables: Collection[str]):
     """Deletes the temporary tables made for the sake of a BlendSQL execution session.
 
     Args:

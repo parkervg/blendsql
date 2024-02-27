@@ -2,7 +2,7 @@ import os
 import argparse
 
 from blendsql import blend, init_secrets
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from blendsql.utils import tabulate
 from blendsql.ingredients.builtin import LLMQA, LLMMap, LLMJoin, DT
 
@@ -33,7 +33,7 @@ def main():
     args = parser.parse_args()
 
     init_secrets(args.secrets_path)
-    db = SQLiteDBConnector(db_path=args.db_path)
+    db = SQLite(db_path=args.db_path)
     print_msg_box(f"Beginning BlendSQL session with '{args.db_path}'...")
     print()
     while True:
@@ -55,7 +55,7 @@ def main():
                 db=db,
                 ingredients={LLMQA, LLMMap, LLMJoin, DT},
                 blender_args={"endpoint": "gpt-4", "long_answer": False},
-                infer_map_constraints=True,
+                infer_gen_constraints=True,
                 verbose=True,
             )
             print()

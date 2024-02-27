@@ -20,7 +20,7 @@ from ...prompts.few_shot.fetaqa import blendsql_examples, sql_examples
 from ...utils.bridge_content_encoder import get_database_matches
 from ...constants import SINGLE_TABLE_NAME, EvalField
 from ..normalizer import prepare_df_for_neuraldb_from_table
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 
 
 def fetaqa_metric_format_func(item: dict) -> dict:
@@ -73,7 +73,7 @@ def fetaqa_get_input(
             SINGLE_TABLE_NAME, sqlite_conn
         )
     db_path = str(db_path)
-    db = SQLiteDBConnector(db_path)
+    db = SQLite(db_path)
     serialized_db = db.to_serialized(
         num_rows=data_training_args.num_serialized_rows,
         table_description=title,

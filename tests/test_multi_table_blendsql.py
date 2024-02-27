@@ -1,6 +1,6 @@
 import pytest
 from blendsql import blend
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
 from tests.utils import (
     assert_equality,
@@ -14,8 +14,8 @@ from tests.utils import (
 
 
 @pytest.fixture(scope="session")
-def db() -> SQLiteDBConnector:
-    return SQLiteDBConnector(fetch_from_hub("multi_table.db"))
+def db() -> SQLite:
+    return SQLite(fetch_from_hub("multi_table.db"))
 
 
 @pytest.fixture

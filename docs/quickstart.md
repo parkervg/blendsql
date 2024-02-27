@@ -2,7 +2,7 @@
 
 ```python
 from blendsql import blend, LLMQA, LLMMap
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from blendsql.llms import OpenaiLLM
 from blendsql.utils import fetch_from_hub
 
@@ -16,7 +16,7 @@ smoothie = blend(
     query=blendsql,
     blender=OpenaiLLM("gpt-3.5-turbo-0613"),
     ingredients={LLMMap, LLMQA},
-    db=SQLiteDBConnector(fetch_from_hub("single_table.db")),
+    db=SQLite(fetch_from_hub("single_table.db")),
     verbose=True
 )
 

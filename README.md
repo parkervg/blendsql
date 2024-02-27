@@ -293,7 +293,7 @@ pip install blendsql
 
 ```python
 from blendsql import blend, LLMQA, LLMMap
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from blendsql.llms import OpenaiLLM
 
 blendsql = """
@@ -303,11 +303,11 @@ SELECT merchant FROM transactions WHERE
 """
 # Make our smoothie - the executed BlendSQL script
 smoothie = blend(
-    query=blendsql,
-    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
-    ingredients={LLMMap, LLMQA},
-    db=SQLiteDBConnector(db_path="transactions.db"),
-    verbose=True
+  query=blendsql,
+  blender=OpenaiLLM("gpt-3.5-turbo-0613"),
+  ingredients={LLMMap, LLMQA},
+  db=SQLite(db_path="transactions.db"),
+  verbose=True
 )
 
 ```
@@ -347,7 +347,7 @@ The `blend()` function is used to execute a BlendSQL query against a database an
 
 ```python
 from blendsql import blend, LLMMap, LLMQA, LLMJoin
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from blendsql.llms import OpenaiLLM
 
 blendsql = """
@@ -360,7 +360,7 @@ WHERE city = {{
     )
 }} 
 """
-db = SQLiteDBConnector(db_path)
+db = SQLite(db_path)
 smoothie = blend(
   query=blendsql,
   db=db,

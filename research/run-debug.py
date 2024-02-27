@@ -1,7 +1,9 @@
 from blendsql import LLMMap, LLMQA, LLMJoin, blend
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from blendsql.llms import AzureOpenaiLLM
+from dotenv import load_dotenv
 
+load_dotenv()
 if __name__ == "__main__":
     blendsql = """
        {{
@@ -21,7 +23,7 @@ if __name__ == "__main__":
        """
     db_path = "research/db/hybridqa/List_of_National_Football_League_rushing_yards_leaders_0.db"
 
-    db = SQLiteDBConnector(db_path)
+    db = SQLite(db_path)
     smoothie = blend(
         query=blendsql,
         db=db,

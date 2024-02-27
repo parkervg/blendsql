@@ -20,13 +20,13 @@ from ...utils.bridge_content_encoder import (
     get_database_matches,
 )
 
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from pathlib import Path
 import json
 from diskcache import Cache
 
 ottqa_db_path = "./research/db/ottqa/ottqa.db"
-db = SQLiteDBConnector(ottqa_db_path)
+db = SQLite(ottqa_db_path)
 cache = Cache()
 
 ottqa_question_id_to_retriever_results = {}

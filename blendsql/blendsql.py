@@ -33,7 +33,7 @@ from .utils import (
     recover_blendsql,
     get_tablename_colname,
 )
-from .db.sqlite_db_connector import SQLiteDBConnector
+from .db.sqlite import SQLite
 from .db.utils import double_quote_escape, single_quote_escape
 from ._sqlglot import (
     MODIFIERS,
@@ -64,7 +64,7 @@ from .llms._llm import LLM
 class Kitchen(list):
     """Superset of list. A collection of ingredients."""
 
-    db: SQLiteDBConnector = attrib()
+    db: SQLite = attrib()
     session_uuid: str = attrib()
 
     added_ingredient_names: set = attrib(init=False)
@@ -288,7 +288,7 @@ def set_subquery_to_alias(
     subquery: exp.Expression,
     aliasname: str,
     query: exp.Expression,
-    db: SQLiteDBConnector,
+    db: SQLite,
     blender: LLM,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
@@ -382,7 +382,7 @@ def disambiguate_and_submit_blend(
 # @profile
 def blend(
     query: str,
-    db: SQLiteDBConnector,
+    db: SQLite,
     blender: Optional[LLM] = None,
     ingredients: Optional[Collection[Ingredient]] = None,
     verbose: bool = False,

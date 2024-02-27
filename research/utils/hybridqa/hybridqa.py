@@ -28,7 +28,7 @@ from ...constants import (
 )
 from ...prompts.few_shot.hybridqa import blendsql_examples, sql_examples
 from ..normalizer import prepare_df_for_neuraldb_from_table
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 
 
 def hybridqa_metric_format_func(item: dict) -> dict:
@@ -98,7 +98,7 @@ def hybridqa_get_input(
         ).to_sql(DOCS_TABLE_NAME, sqlite_conn, if_exists="append", index=False)
         sqlite_conn.close()
     db_path = str(db_path)
-    db = SQLiteDBConnector(db_path)
+    db = SQLite(db_path)
     serialized_db = to_serialized(
         db=db,
         num_rows=data_training_args.num_serialized_rows,

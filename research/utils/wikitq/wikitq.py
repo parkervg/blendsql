@@ -20,7 +20,7 @@ from ...utils.bridge_content_encoder import get_database_matches
 from ...constants import DOCS_TABLE_NAME, EvalField, SINGLE_TABLE_NAME
 from ...prompts.few_shot.wikitq import blendsql_examples, sql_examples
 from ..normalizer import prepare_df_for_neuraldb_from_table
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 
 
 def wikitq_metric_format_func(item: dict) -> dict:
@@ -80,7 +80,7 @@ def wikitq_get_input(
             SINGLE_TABLE_NAME, sqlite_conn
         )
     db_path = str(db_path)
-    db = SQLiteDBConnector(db_path)
+    db = SQLite(db_path)
     serialized_db = db.to_serialized(
         num_rows=data_training_args.num_serialized_rows,
         table_description=title,

@@ -40,7 +40,7 @@ class TableSummary(QAIngredient):
 
 if __name__ == "__main__":
     from blendsql import blend
-    from blendsql.db import SQLiteDBConnector
+    from blendsql.db import SQLite
     from blendsql.utils import fetch_from_hub
     from blendsql.llms import OpenaiLLM
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     smoothie = blend(
         query=blendsql,
         blender=OpenaiLLM("gpt-4"),
-        db=SQLiteDBConnector(fetch_from_hub("single_table.db")),
+        db=SQLite(fetch_from_hub("single_table.db")),
         ingredients={TableSummary}
     )
 ```
@@ -79,11 +79,13 @@ from typing import List
 from blendsql.ingredients import MapIngredient
 import requests
 
+
 class GetQRCode(MapIngredient):
     """Calls API to generate QR code for a given URL.
     Saves bytes to file in qr_codes/ and returns list of paths.
     https://goqr.me/api/doc/create-qr-code/
     """
+
     def run(self, values: List[str], **kwargs) -> List[str]:
         imgs_as_bytes = []
         for value in values:
@@ -93,17 +95,18 @@ class GetQRCode(MapIngredient):
             imgs_as_bytes.append(qr_code_bytes)
         return imgs_as_bytes
 
+
 if __name__ == "__main__":
     from blendsql import blend
-    from blendsql.db import SQLiteDBConnector
+    from blendsql.db import SQLite
     from blendsql.utils import fetch_from_hub
-    
+
     blendsql = "SELECT genre, url, {{GetQRCode('QR Code as Bytes:', 'w::url')}} FROM w WHERE genre = 'social'"
-    
+
     smoothie = blend(
         query=blendsql,
         blender=None,
-        db=SQLiteDBConnector(fetch_from_hub("urls.db")),
+        db=SQLite(fetch_from_hub("urls.db")),
         ingredients={GetQRCode}
     )
 ```

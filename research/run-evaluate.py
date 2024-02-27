@@ -34,7 +34,7 @@ from datasets.metric import Metric
 from transformers.training_args_seq2seq import Seq2SeqTrainingArguments
 from transformers.hf_argparser import HfArgumentParser
 
-from blendsql.db import SQLiteDBConnector
+from blendsql.db import SQLite
 from blendsql.db.utils import double_quote_escape
 from blendsql import LLMMap, LLMQA, LLMJoin, LLMValidate, blend
 from blendsql._smoothie import Smoothie
@@ -91,7 +91,7 @@ def fewshot_parse_to_blendsql(
     return textwrap.dedent(res["result"])
 
 
-def post_process_blendsql(blendsql: str, db: SQLiteDBConnector, use_tables=None) -> str:
+def post_process_blendsql(blendsql: str, db: SQLite, use_tables=None) -> str:
     """Clean up some common mistakes made by LLM parser.
     This includes:
         - Aligning hallucinated columns to their closest match in the database
@@ -205,7 +205,7 @@ class BlendSQLEvaluation:
     model_args: ModelArguments = attrib()
     data_args: DataArguments = attrib()
     data_training_args: DataTrainingArguments = attrib()
-    db: SQLiteDBConnector = attrib(default=None)
+    db: SQLite = attrib(default=None)
 
     results: List[dict] = attrib(init=False)
     results_dict: dict = attrib(init=False)
@@ -277,7 +277,7 @@ class BlendSQLEvaluation:
             )
             self.results_dict[EvalField.DB_PATH] = item[EvalField.DB_PATH]
             if self.db is None:
-                db = SQLiteDBConnector(item[EvalField.DB_PATH])
+                db = SQLite(item[EvalField.DB_PATH])
             else:
                 db = self.db
             if not self.data_training_args.bypass_models:
@@ -336,7 +336,7 @@ class BlendSQLEvaluation:
             self.results_dict = self.results_dict | to_add
             return [""]
 
-    def _get_blendsql_prediction(self, item: dict, db: SQLiteDBConnector) -> List[str]:
+    def _get_blendsql_prediction(self, item: dict, db: SQLite) -> List[str]:
         to_add = {"solver": "blendsql"}
         try:
             blendsql = fewshot_parse_to_blendsql(
@@ -364,7 +364,7 @@ class BlendSQLEvaluation:
                 table_to_title={
                     SINGLE_TABLE_NAME: item["table"].get("page_title", None)
                 },
-                infer_map_constraints=True,
+                infer_gen_constraints=True,
                 silence_db_exec_errors=False,
                 verbose=True,
             )
@@ -524,7 +524,7 @@ def main() -> None:
 
     if data_args.dataset == "ottqa":
         # Load the massive db only once
-        db = SQLiteDBConnector("./research/db/ottqa/ottqa.db")
+        db = SQLite("./research/db/ottqa/ottqa.db")
     else:
         db = None
 

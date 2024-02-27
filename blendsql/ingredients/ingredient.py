@@ -7,7 +7,7 @@ from typeguard import check_type
 
 from .. import utils
 from .._constants import IngredientKwarg, IngredientType
-from ..db.sqlite_db_connector import SQLiteDBConnector
+from ..db.sqlite import SQLite
 
 
 class IngredientException(ValueError):
@@ -21,7 +21,7 @@ def unpack_default_kwargs(**kwargs):
     )
 
 
-def align_to_real_columns(db: SQLiteDBConnector, colname: str, tablename: str) -> str:
+def align_to_real_columns(db: SQLite, colname: str, tablename: str) -> str:
     table_columns = db.execute_query(f'SELECT * FROM "{tablename}" LIMIT 1').columns
     if colname not in table_columns:
         # Try to align with column, according to some normalization rules
@@ -38,7 +38,7 @@ class Ingredient(ABC):
     ingredient_type: str = attrib(init=False)
     allowed_output_types: Tuple[Type] = attrib(init=False)
     # Below gets passed via `Kitchen.extend()`
-    db: SQLiteDBConnector = attrib(init=False)
+    db: SQLite = attrib(init=False)
     session_uuid: str = attrib(init=False)
 
     def __repr__(self):
