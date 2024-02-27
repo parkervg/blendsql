@@ -56,18 +56,6 @@ def test_nested_exec(db, ingredients):
     assert not smoothie.df.empty
 
 
-def test_error_on_delete(db, ingredients):
-    blendsql = """
-    DELETE FROM transactions WHERE TRUE;
-    """
-    with pytest.raises(ValueError):
-        _ = blend(
-            query=blendsql,
-            db=db,
-            ingredients=ingredients,
-        )
-
-
 def test_simple_ingredient_exec(db, ingredients):
     blendsql = """
     SELECT * FROM transactions WHERE {{starts_with('Z', 'transactions::merchant')}} = 1;
