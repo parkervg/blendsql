@@ -6,6 +6,8 @@ We enable integration with many existing LLMs by building on top of [`guidance` 
 
 Certain models may be better geared towards some BlendSQL tasks than others, so choose carefully!
 
+
+## `LLM`
 ::: blendsql.llms._llm.LLM
     handler: python
     show_source: true

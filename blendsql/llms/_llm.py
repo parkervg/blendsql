@@ -80,6 +80,19 @@ class LLM:
         self.model = self._load_model()
 
     def predict(self, program: Program, **kwargs) -> dict:
+        """Takes a `Program` and some kwargs, and evaluates it with context of
+        current LLM.
+
+        Args:
+            program: guidance program used to generate LLM output
+            **kwargs: any additional kwargs will get passed to the program
+
+        Returns:
+            dict containing all LLM variable names and their values.
+
+        Example:
+            >>> {"result": '"This is LLM generated output"'}
+        """
         key = self._create_key(program, **kwargs)
         if key in self.cache:
             return self.cache.get(key)
@@ -96,7 +109,14 @@ class LLM:
         self.cache[key] = model._variables
         return model._variables
 
-    def _create_key(self, program: Program, **kwargs):
+    def _create_key(self, program: Program, **kwargs) -> str:
+        """Generates a hash to use in diskcache Cache.
+        This way, we don't need to send our prompts to the same LLM
+        if our context of LLM + program + kwargs is the same.
+
+        Returns:
+            md5 hash used as key in diskcache
+        """
         hasher = hashlib.md5()
         # Ignore partials, which create a random key within session
         options_str = str(
@@ -113,7 +133,12 @@ class LLM:
         return hasher.hexdigest()
 
     def _setup(self, **kwargs) -> None:
+        """Any additional setup required to get this LLM up and functioning
+        should go here. For example, in the AzureOpenaiLLM, we have some logic
+        to refresh our client secrets every 30 min.
+        """
         ...
 
     def _load_model(self) -> guidance.models.Model:
+        """Logic for instantiating the guidance model class goes here."""
         ...
