@@ -90,7 +90,7 @@ SELECT date, rival, score, documents.content AS "Team Description" FROM w
 
 ### Features 
 - Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses AST with [sqlglot](https://github.com/tobymao/sqlglot) to minimize external function calls
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑 
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
 
