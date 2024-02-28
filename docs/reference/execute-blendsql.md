@@ -40,6 +40,8 @@ smoothie = blend(
 
 ### Appendix
 
+#### preprocess_blendsql()
+
 ::: blendsql.blendsql.preprocess_blendsql
     handler: python
     show_source: false
