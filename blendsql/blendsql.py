@@ -529,6 +529,7 @@ def blend(
                 ),  # Need to do this so we don't track parents into construct_abstracted_selects
                 prev_subquery_has_ingredient=prev_subquery_has_ingredient,
                 alias_to_subquery={table_alias_name: subquery} if in_cte else None,
+                tables_in_ingredients=tables_in_ingredients,
             )
             for tablename, abstracted_query in scm.abstracted_table_selects():
                 # If this table isn't being used in any ingredient calls, there's no

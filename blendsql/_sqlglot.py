@@ -378,9 +378,10 @@ def all_terminals_are_true(node) -> bool:
 class SubqueryContextManager:
     node: exp.Select = attrib()
     prev_subquery_has_ingredient: bool = attrib()
+    tables_in_ingredients: set = attrib()
+
     # Keep a running log of what aliases we've initialized so far, per subquery
     alias_to_subquery: dict = attrib(default=None)
-
     alias_to_tablename: dict = attrib(init=False)
     tablename_to_alias: dict = attrib(init=False)
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
@@ -419,6 +420,48 @@ class SubqueryContextManager:
         # TODO: don't really know how to optimize with 'CASE' queries right now
         if self.node.find(exp.Case):
             return
+        # Special condition: If...
+        #   1) We have a `JOIN` clause
+        #   2) We *only* have an ingredient in the top-level `SELECT` clause
+        #   3) Our ingredients *only* call a single table
+        # ... then we should execute entire rest of SQL first and assign to temporary session table.
+        # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
+        #         FROM images JOIN w ON w.title = images.title
+        #         WHERE "designer ( s )" = 'georgia gerber'"""
+        join_exp = self.node.find(exp.Join)
+        if join_exp is not None:
+            select_exps = list(self.node.find_all(exp.Select))
+            if len(select_exps) == 1:
+                # Check if the only `STRUCT` nodes are found in select
+                all_struct_exps = list(self.node.find_all(exp.Struct))
+                if len(all_struct_exps) > 0:
+                    num_select_struct_exps = sum(
+                        [
+                            len(list(n.find_all(exp.Struct)))
+                            for n in select_exps[0].find_all(exp.Alias)
+                        ]
+                    )
+                    if num_select_struct_exps == len(all_struct_exps):
+                        if len(self.tables_in_ingredients) == 1:
+                            tablename = next(iter(self.tables_in_ingredients))
+                            join_tablename = set(
+                                [i.name for i in self.node.find_all(exp.Table)]
+                            ).difference({tablename})
+                            if len(join_tablename) == 1:
+                                join_tablename = next(iter(join_tablename))
+                                base_select_str = f'SELECT "{tablename}".* FROM "{tablename}", {join_tablename} WHERE '
+                                table_conditions_str = self.get_table_predicates_str(
+                                    tablename=tablename,
+                                    disambiguate_multi_tables=False,
+                                )
+                                abstracted_query = _parse_one(
+                                    base_select_str + table_conditions_str
+                                )
+                                abstracted_query_str = recover_blendsql(
+                                    abstracted_query.sql(dialect=FTS5SQLite)
+                                )
+                                yield (tablename, abstracted_query_str)
+                                return
         for tablename, table_star_query in self._table_star_queries():
             # If this table_star_query doesn't have an ingredient at the top-level, we can safely ignore
             if len(list(self._get_scope_nodes(exp.Struct, restrict_scope=True))) == 0:
