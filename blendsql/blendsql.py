@@ -339,7 +339,12 @@ def get_sorted_grammar_matches(
 
             - `Function` object that is matched
     """
-    ooo = [IngredientType.MAP, IngredientType.QA, IngredientType.JOIN]
+    ooo = [
+        IngredientType.STRING,
+        IngredientType.MAP,
+        IngredientType.QA,
+        IngredientType.JOIN,
+    ]
     parse_results = [i for i in grammar.scanString(q)]
     while len(parse_results) > 0:
         curr_ingredient_target = ooo.pop(0)
@@ -379,7 +384,6 @@ def disambiguate_and_submit_blend(
     return blend(query=query, **kwargs)
 
 
-# @profile
 def blend(
     query: str,
     db: SQLite,
