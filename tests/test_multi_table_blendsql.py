@@ -402,6 +402,40 @@ def test_cte_qa_named_multi_exec(db, ingredients):
     # assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
+def test_ingredient_in_select_with_join_multi_exec(db, ingredients):
+    """If the query only has an ingredient in the `SELECT` statement, and `JOIN` clause,
+    we should run the `JOIN` statement first, and then call the ingredient.
+
+    commit de4a7bc
+    """
+    blendsql = """
+    SELECT {{get_length('n_length', 'constituents::Name')}} 
+        FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
+        WHERE account_history.Action like "%dividend%"
+    """
+    sql = """
+    SELECT LENGTH(constituents.Name)
+        FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
+        WHERE account_history.Action like "%dividend%"
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_query(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_query(
+        """
+    SELECT COUNT(DISTINCT constituents.Name)  
+    FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
+    WHERE account_history.Action like "%dividend%"
+    """
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+
+
 # def test_subquery_alias_with_join_multi_exec(db, ingredients):
 #     blendsql = """
 #     SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today''s Gain/Loss Percent" > 0.05) as w
