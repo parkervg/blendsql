@@ -69,6 +69,7 @@ setup(
             "mkdocstrings",
             "mkdocs-section-index",
             "mkdocstrings-python",
+            "mkdocs-jupyter",
         ],
     },
 )
