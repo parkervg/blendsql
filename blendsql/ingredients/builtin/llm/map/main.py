@@ -18,6 +18,7 @@ from blendsql._program import Program
 class MapProgram(Program):
     def __call__(
         self,
+        question: str,
         values: List[str],
         sep: str,
         include_tf_disclaimer: bool = False,
@@ -104,7 +105,7 @@ class MapProgram(Program):
                 self.model += dedent(
                     f"The following values come from the column '{colname}', in a table titled '{table_title}'."
                 )
-            self.model += dedent(f"""Q: {self.question}\nValues:\n""")
+            self.model += dedent(f"""Q: {question}\nValues:\n""")
             for value in values:
                 self.model += f"`{value}`\n"
             if output_type:

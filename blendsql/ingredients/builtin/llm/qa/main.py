@@ -10,6 +10,7 @@ from blendsql.db.utils import single_quote_escape
 class QAProgram(Program):
     def __call__(
         self,
+        question: str,
         serialized_db: str,
         options: List[str] = None,
         long_answer: bool = False,
@@ -23,7 +24,7 @@ class QAProgram(Program):
             else:
                 self.model += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'."
         with self.usercontext:
-            self.model += f"Question: {self.question}"
+            self.model += f"Question: {question}"
             if table_title is not None:
                 self.model = f"Table Description: {table_title}"
             self.model += f"\n\n {serialized_db}"

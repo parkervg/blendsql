@@ -13,13 +13,11 @@ class Program:
     def __new__(
         self,
         model: Model,
-        question: Optional[str] = None,
         gen_kwargs: Optional[dict] = None,
         few_shot: bool = True,
         **kwargs,
     ):
         self.model = model
-        self.question = question
         self.gen_kwargs = gen_kwargs if gen_kwargs is not None else {}
         self.few_shot = few_shot
         assert isinstance(

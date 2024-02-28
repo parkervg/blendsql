@@ -8,11 +8,11 @@ from blendsql.ingredients.ingredient import QAIngredient
 
 
 class ValidateProgram(Program):
-    def __call__(self, serialized_db: str, table_title: str = None):
+    def __call__(self, claim: str, serialized_db: str, table_title: str = None):
         with self.systemcontext:
             self.model += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
         with self.usercontext:
-            self.model += f"Claim: {self.question}"
+            self.model += f"Claim: {claim}"
             if table_title:
                 self.model += f"\nTable Description: {table_title}"
             self.model += f"\n{serialized_db}\n\nAnswer:"
