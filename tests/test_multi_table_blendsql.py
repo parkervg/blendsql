@@ -239,7 +239,6 @@ def test_join_ingredient_multi_exec(db, ingredients):
     SELECT Account, Quantity FROM returns
     JOIN {{
         do_join(
-            'Hello BlendSQL, please do your very best',
             left_on='account_history::Account',
             right_on='returns::Annualized Returns'
         )
@@ -337,7 +336,6 @@ def test_cte_qa_multi_exec(db, ingredients):
     blendsql = """
    {{
         get_table_size(
-            'Table size?',
             (
                 WITH a AS (
                     SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w 
@@ -373,8 +371,7 @@ def test_cte_qa_named_multi_exec(db, ingredients):
     blendsql = """
    {{
         get_table_size(
-            question='Table size?',
-            context=(
+            (
                 WITH a AS (
                     SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w 
                         WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
