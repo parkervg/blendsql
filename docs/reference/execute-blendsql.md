@@ -10,6 +10,7 @@
 from blendsql import blend, LLMMap, LLMQA, LLMJoin
 from blendsql.db import SQLite
 from blendsql.llms import OpenaiLLM
+from blendsql.utils import fetch_from_hub
 
 blendsql = """
 SELECT * FROM w
@@ -21,10 +22,9 @@ WHERE city = {{
     )
 }} 
 """
-db = SQLite(db_path)
 smoothie = blend(
     query=blendsql,
-    db=db,
+    db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
     ingredients={LLMMap, LLMQA, LLMJoin},
     blender=OpenaiLLM("gpt-4"),
     # Optional args below
