@@ -7,12 +7,9 @@ import logging
 from functools import lru_cache
 import pandas as pd
 from attr import attrib, attrs
-from colorama import Fore, init
+from colorama import Fore
 
 from .utils import single_quote_escape, double_quote_escape
-
-
-init(autoreset=True)
 
 
 @attrs(auto_detect=True)
@@ -152,7 +149,7 @@ class SQLite:
             return df
         except Exception as e:
             if silence_errors:
-                print(Fore.RED + "Something went wrong!")
+                print(Fore.RED + "Something went wrong!" + Fore.RESET)
                 print(e)
                 if return_error:
                     return (pd.DataFrame(), str(e))
