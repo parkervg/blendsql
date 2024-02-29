@@ -2,13 +2,13 @@ import logging
 
 from guidance.models import Transformers, Model
 
-from .._llm import LLM
+from .._model import Model
 
 logging.getLogger("guidance").setLevel(logging.CRITICAL)
 
 
-class TransformersLLM(LLM):
-    """Class for Transformers local LLM.
+class TransformersLLM(Model):
+    """Class for Transformers local Model.
 
     Args:
         model_name_or_path: Name of the model on HuggingFace, or the path to a local model

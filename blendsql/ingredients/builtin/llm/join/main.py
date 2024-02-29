@@ -2,7 +2,7 @@ from typing import List
 from guidance import gen
 from textwrap import dedent
 
-from blendsql.llms._llm import LLM
+from blendsql.models._model import Model
 from blendsql._program import Program
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
@@ -89,11 +89,11 @@ class LLMJoin(JoinIngredient):
         self,
         left_values: List[str],
         right_values: List[str],
-        llm: LLM,
+        model: Model,
         join_criteria: str = "Join to same topics.",
         **kwargs,
     ) -> dict:
-        res = llm.predict(
+        res = model.predict(
             program=JoinProgram,
             sep=CONST.DEFAULT_ANS_SEP,
             left_values=left_values,

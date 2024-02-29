@@ -294,7 +294,7 @@ pip install blendsql
 ```python
 from blendsql import blend, LLMQA, LLMMap
 from blendsql.db import SQLite
-from blendsql.llms import OpenaiLLM
+from blendsql.models import OpenaiLLM
 
 blendsql = """
 SELECT merchant FROM transactions WHERE 
@@ -303,11 +303,11 @@ SELECT merchant FROM transactions WHERE
 """
 # Make our smoothie - the executed BlendSQL script
 smoothie = blend(
-  query=blendsql,
-  blender=OpenaiLLM("gpt-3.5-turbo-0613"),
-  ingredients={LLMMap, LLMQA},
-  db=SQLite(db_path="transactions.db"),
-  verbose=True
+    query=blendsql,
+    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
+    ingredients={LLMMap, LLMQA},
+    db=SQLite(db_path="transactions.db"),
+    verbose=True
 )
 
 ```
@@ -348,7 +348,7 @@ The `blend()` function is used to execute a BlendSQL query against a database an
 ```python
 from blendsql import blend, LLMMap, LLMQA, LLMJoin
 from blendsql.db import SQLite
-from blendsql.llms import OpenaiLLM
+from blendsql.models import OpenaiLLM
 
 blendsql = """
 SELECT * FROM w
@@ -362,18 +362,18 @@ WHERE city = {{
 """
 db = SQLite(db_path)
 smoothie = blend(
-  query=blendsql,
-  db=db,
-  ingredients={LLMMap, LLMQA, LLMJoin},
-  blender=AzureOpenaiLLM("gpt-4"),
-  # Optional args below
-  infer_gen_constraints=True,
-  silence_db_exec_errors=False,
-  verbose=True,
-  blender_args={
-    "few_shot": True,
-    "temperature": 0.01
-  }
+    query=blendsql,
+    db=db,
+    ingredients={LLMMap, LLMQA, LLMJoin},
+    blender=AzureOpenaiLLM("gpt-4"),
+    # Optional args below
+    infer_gen_constraints=True,
+    silence_db_exec_errors=False,
+    verbose=True,
+    blender_args={
+        "few_shot": True,
+        "temperature": 0.01
+    }
 )
 ```
 

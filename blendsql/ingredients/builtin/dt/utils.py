@@ -2,6 +2,7 @@ from typing import Dict, Tuple, Union, Optional
 from fiscalyear import FiscalDateTime, FiscalQuarter
 from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
+import dateparser
 
 
 def initialize_date_map(today_dt: datetime):

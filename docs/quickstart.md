@@ -3,7 +3,7 @@
 ```python
 from blendsql import blend, LLMQA, LLMMap
 from blendsql.db import SQLite
-from blendsql.llms import OpenaiLLM
+from blendsql.models import OpenaiLLM
 from blendsql.utils import fetch_from_hub
 
 blendsql = """

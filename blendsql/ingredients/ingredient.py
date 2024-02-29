@@ -224,13 +224,13 @@ class JoinIngredient(Ingredient):
             modified_lr_identifiers.append((tablename, colname))
 
         if join_criteria is None:
-            # First, check which values we actually need to call LLM on
+            # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
             mapping = {}
             left_values, right_values = values
             for l in left_values:
                 if l in right_values:
-                    # Define this mapping, and remove from LLM inference call
+                    # Define this mapping, and remove from Model inference call
                     mapping[l] = l
 
             processed_values = set(list(mapping.keys()))

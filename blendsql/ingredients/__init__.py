@@ -4,6 +4,7 @@ from .ingredient import (
     JoinIngredient,
     StringIngredient,
     QAIngredient,
+    IngredientException,
 )
 
 from .builtin import LLMQA, LLMJoin, LLMMap, LLMValidate, DT

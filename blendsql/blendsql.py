@@ -57,7 +57,7 @@ from ._constants import (
     IngredientType,
     IngredientKwarg,
 )
-from .llms._llm import LLM
+from .models._model import Model
 
 
 @attrs
@@ -148,7 +148,7 @@ def autowrap_query(
 
 
 def preprocess_blendsql(
-    query: str, blender_args: dict, blender: LLM
+    query: str, blender_args: dict, blender: Model
 ) -> Tuple[str, dict, set]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
@@ -156,7 +156,7 @@ def preprocess_blendsql(
     Args:
         query: The BlendSQL query to preprocess
         blender_args: Arguments used as default in ingredient calls with LLMs
-        blender: LLM object, which we attach to each parsed_dict
+        blender: Model object, which we attach to each parsed_dict
 
     Returns:
         Tuple, containing:
@@ -250,7 +250,7 @@ def preprocess_blendsql(
                             + Fore.RESET
                         )
                     kwargs_dict[k] = v
-            kwargs_dict["llm"] = blender
+            kwargs_dict[IngredientKwarg.MODEL] = blender
             context_arg = kwargs_dict.get(
                 IngredientKwarg.CONTEXT,
                 parsed_results_dict["args"][1]
@@ -289,7 +289,7 @@ def set_subquery_to_alias(
     aliasname: str,
     query: exp.Expression,
     db: SQLite,
-    blender: LLM,
+    blender: Model,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
 ) -> exp.Expression:
@@ -339,7 +339,12 @@ def get_sorted_grammar_matches(
 
             - `Function` object that is matched
     """
-    ooo = [IngredientType.MAP, IngredientType.QA, IngredientType.JOIN]
+    ooo = [
+        IngredientType.STRING,
+        IngredientType.MAP,
+        IngredientType.QA,
+        IngredientType.JOIN,
+    ]
     parse_results = [i for i in grammar.scanString(q)]
     while len(parse_results) > 0:
         curr_ingredient_target = ooo.pop(0)
@@ -379,11 +384,10 @@ def disambiguate_and_submit_blend(
     return blend(query=query, **kwargs)
 
 
-# @profile
 def blend(
     query: str,
     db: SQLite,
-    blender: Optional[LLM] = None,
+    blender: Optional[Model] = None,
     ingredients: Optional[Collection[Ingredient]] = None,
     verbose: bool = False,
     blender_args: Optional[Dict[str, str]] = None,
@@ -403,7 +407,7 @@ def blend(
         db: Database connector object
         ingredients: List of ingredient objects, to use in interpreting BlendSQL query
         verbose: Boolean defining whether to run in logging.debug mode
-        blender: Optionally override whatever llm argument we pass to LLM ingredient.
+        blender: Optionally override whatever llm argument we pass to Model ingredient.
             Useful for research applications, where we don't (necessarily) want the parser to choose endpoints.
         infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
@@ -529,6 +533,7 @@ def blend(
                 ),  # Need to do this so we don't track parents into construct_abstracted_selects
                 prev_subquery_has_ingredient=prev_subquery_has_ingredient,
                 alias_to_subquery={table_alias_name: subquery} if in_cte else None,
+                tables_in_ingredients=tables_in_ingredients,
             )
             for tablename, abstracted_query in scm.abstracted_table_selects():
                 # If this table isn't being used in any ingredient calls, there's no

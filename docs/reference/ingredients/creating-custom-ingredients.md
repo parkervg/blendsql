@@ -17,11 +17,12 @@ The processing logic for a custom ingredient should go in a `run()` class functi
 ```python
 import pandas as pd
 from blendsql.ingredients import QAIngredient
-from blendsql._program import Program, gen
+from blendsql._program import Program
+from guidance import gen
 
 
 class SummaryProgram(Program):
-    """Program to call LLM and return summary of the passed table.
+    """Program to call Model and return summary of the passed table.
     """
 
     def __call__(self, serialized_db: str):
@@ -33,8 +34,8 @@ class SummaryProgram(Program):
 
 
 class TableSummary(QAIngredient):
-    def run(self, context: pd.DataFrame, llm: 'LLM', **kwargs) -> str:
-        result = llm.predict(program=SummaryProgram, serialized_db=context.to_string())["result"]
+    def run(self, model: 'Model', context: pd.DataFrame, **kwargs) -> str:
+        result = model.predict(program=SummaryProgram, serialized_db=context.to_string())["result"]
         return f"'{result}'"
 
 
@@ -42,7 +43,7 @@ if __name__ == "__main__":
     from blendsql import blend
     from blendsql.db import SQLite
     from blendsql.utils import fetch_from_hub
-    from blendsql.llms import OpenaiLLM
+    from blendsql.models import OpenaiLLM
 
     blendsql = """
     {{

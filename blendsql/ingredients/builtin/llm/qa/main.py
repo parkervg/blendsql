@@ -1,7 +1,7 @@
 from typing import Dict, Union, Optional, Set, List
 from guidance import gen, select
 import pandas as pd
-from blendsql.llms._llm import LLM
+from blendsql.models._model import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
@@ -10,6 +10,7 @@ from blendsql.db.utils import single_quote_escape
 class QAProgram(Program):
     def __call__(
         self,
+        question: str,
         serialized_db: str,
         options: List[str] = None,
         long_answer: bool = False,
@@ -23,10 +24,14 @@ class QAProgram(Program):
             else:
                 self.model += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'."
         with self.usercontext:
-            self.model += f"Question: {self.question}"
+            self.model += f"Question: {question}"
             if table_title is not None:
                 self.model = f"Table Description: {table_title}"
-            self.model += f"\n\n {serialized_db}"
+            self.model += f"\n\n {serialized_db}\n"
+            if options is not None:
+                self.model += "\nSelect from one of the following options.\n"
+                for option in options:
+                    self.model += f"- {option}\n"
         with self.assistantcontext:
             if options is not None:
                 self.model += select(options=[str(i) for i in options], name="result")
@@ -39,7 +44,7 @@ class LLMQA(QAIngredient):
     def run(
         self,
         question: str,
-        llm: LLM,
+        model: Model,
         options: Optional[Set[str]] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
@@ -50,7 +55,7 @@ class LLMQA(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
-        res = llm.predict(
+        res = model.predict(
             program=QAProgram,
             options=options,
             question=question,

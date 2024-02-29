@@ -2,13 +2,14 @@
 
 ## TransformersLLM
 
-::: blendsql.llms.local._transformers.TransformersLLM
+::: blendsql.models.local._transformers.TransformersLLM
     handler: python
     show_source: false
  
 ### Example Usage
+
 ```python
-from blendsql.llms import TransformersLLM
+from blendsql.models import TransformersLLM
 
 blender = TransformersLLM("openai-community/gpt2")
 ```

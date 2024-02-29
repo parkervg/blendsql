@@ -7,12 +7,9 @@ import logging
 from functools import lru_cache
 import pandas as pd
 from attr import attrib, attrs
-from colorama import Fore, init
+from colorama import Fore
 
 from .utils import single_quote_escape, double_quote_escape
-
-
-init(autoreset=True)
 
 
 @attrs(auto_detect=True)
@@ -96,8 +93,16 @@ class SQLite:
         num_rows: int = 0,
         table_description: str = None,
     ) -> str:
+        """Generates a string representation of a database, via `CREATE` statements.
+        This can then be passed to a LLM as context.
+
+        Args:
+            ignore_tables: Name of tables to ignore in serialization. Default is just 'documents'.
+            num_rows: How many rows per table to include in serialization
+            table_description: Optional table description to add at top
+        """
         if ignore_tables is None:
-            ignore_tables = set()
+            ignore_tables = {"documents"}
         serialized_db = (
             []
             if table_description is None
@@ -108,18 +113,12 @@ class SQLite:
                 continue
             serialized_db.append(create_clause)
             serialized_db.append("\n")
-            if num_rows > 0 and tablename != "docs":
+            if num_rows > 0:
                 get_rows_query = (
                     f'SELECT * FROM "{double_quote_escape(tablename)}" LIMIT {num_rows}'
                 )
                 serialized_db.append("\n/*")
                 serialized_db.append(f"\n{num_rows} example rows:")
-                serialized_db.append(f"\n{get_rows_query}")
-            elif tablename == "docs":
-                get_rows_query = (
-                    f'SELECT DISTINCT title FROM "{double_quote_escape(tablename)}"'
-                )
-                serialized_db.append("\n/*")
                 serialized_db.append(f"\n{get_rows_query}")
             else:
                 continue
@@ -150,7 +149,7 @@ class SQLite:
             return df
         except Exception as e:
             if silence_errors:
-                print(Fore.RED + "Something went wrong!")
+                print(Fore.RED + "Something went wrong!" + Fore.RESET)
                 print(e)
                 if return_error:
                     return (pd.DataFrame(), str(e))

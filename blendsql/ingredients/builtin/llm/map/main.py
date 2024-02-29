@@ -7,8 +7,8 @@ from tqdm import tqdm
 from textwrap import dedent
 from guidance import gen
 
-from blendsql.llms._llm import LLM
-from blendsql.llms import OpenaiLLM
+from blendsql.models._model import Model
+from blendsql.models import OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
@@ -18,6 +18,7 @@ from blendsql._program import Program
 class MapProgram(Program):
     def __call__(
         self,
+        question: str,
         values: List[str],
         sep: str,
         include_tf_disclaimer: bool = False,
@@ -104,7 +105,7 @@ class MapProgram(Program):
                 self.model += dedent(
                     f"The following values come from the column '{colname}', in a table titled '{table_title}'."
                 )
-            self.model += dedent(f"""Q: {self.question}\nValues:\n""")
+            self.model += dedent(f"""Q: {question}\nValues:\n""")
             for value in values:
                 self.model += f"`{value}`\n"
             if output_type:
@@ -121,7 +122,7 @@ class LLMMap(MapIngredient):
     def run(
         self,
         question: str,
-        llm: LLM,
+        model: Model,
         values: List[str],
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
@@ -130,24 +131,24 @@ class LLMMap(MapIngredient):
         table_to_title: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Iterable[Any]:
-        """For each value in a given column, calls a LLM and retrieves the output.
+        """For each value in a given column, calls a Model and retrieves the output.
 
         Args:
             question: The question to map onto the values. Will also be the new column name
-            llm: The LLM (blender) we will make calls to.
-            value_limit: Optional limit on the number of values to pass to the LLM
-            example_outputs: If binary == False, this gives the LLM an example of the output we expect.
+            model: The Model (blender) we will make calls to.
+            value_limit: Optional limit on the number of values to pass to the Model
+            example_outputs: If binary == False, this gives the Model an example of the output we expect.
             output_type: One of 'numeric', 'string', 'bool'
             pattern: Optional regex to constrain answer generation.
             table_to_title: Mapping from tablename to a title providing some more context.
 
         Returns:
-            Iterable[Any] containing the output of the LLM for each value.
+            Iterable[Any] containing the output of the Model for each value.
         """
         # Unpack default kwargs
         tablename, colname = self.unpack_default_kwargs(**kwargs)
         # OpenAI endpoints can't use patterns
-        pattern = None if isinstance(llm, OpenaiLLM) else pattern
+        pattern = None if isinstance(model, OpenaiLLM) else pattern
         if value_limit is not None:
             values = values[:value_limit]
         values = [value if not pd.isna(value) else "-" for value in values]
@@ -163,7 +164,7 @@ class LLMMap(MapIngredient):
             tqdm(
                 range(0, len(values), CONST.VALUE_BATCH_SIZE),
                 total=len(values) // CONST.VALUE_BATCH_SIZE,
-                desc=f"Making calls to LLM with batch_size {CONST.VALUE_BATCH_SIZE}",
+                desc=f"Making calls to Model with batch_size {CONST.VALUE_BATCH_SIZE}",
                 bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
             )
             if logging.DEBUG >= logging.root.level
@@ -179,10 +180,10 @@ class LLMMap(MapIngredient):
                 if pattern.startswith("(t|f"):
                     include_tf_disclaimer = True
                     # max_tokens = answer_length * 2
-            elif isinstance(llm, OpenaiLLM):
+            elif isinstance(model, OpenaiLLM):
                 include_tf_disclaimer = True
 
-            res = llm.predict(
+            res = model.predict(
                 program=MapProgram,
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,

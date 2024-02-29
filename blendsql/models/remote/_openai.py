@@ -3,7 +3,7 @@ import os
 from guidance.models import OpenAI, AzureOpenAI, Model
 import tiktoken
 
-from .._llm import LLM
+from .._model import Model
 
 logging.getLogger("openai").setLevel(logging.CRITICAL)
 logging.getLogger("guidance").setLevel(logging.CRITICAL)
@@ -45,8 +45,8 @@ def openai_setup() -> None:
         ) from None
 
 
-class AzureOpenaiLLM(LLM):
-    """Class for Azure OpenAI LLM API.
+class AzureOpenaiLLM(Model):
+    """Class for Azure OpenAI Model API.
 
     Args:
         model_name_or_path: Name of the Azure deployment to use
@@ -78,8 +78,8 @@ class AzureOpenaiLLM(LLM):
         return openai_setup()
 
 
-class OpenaiLLM(LLM):
-    """Class for OpenAI LLM API.
+class OpenaiLLM(Model):
+    """Class for OpenAI Model API.
 
     Args:
         model_name_or_path: Name of the OpenAI model to use
