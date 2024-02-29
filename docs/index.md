@@ -102,7 +102,7 @@ SELECT date, rival, score, documents.content AS "Team Description" FROM w
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](reference/technical_walkthrough.md).
 
-### BibTeX
+### Citation
 
 ```
 @article{glenn2024blendsql,
