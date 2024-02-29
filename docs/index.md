@@ -9,23 +9,28 @@ hide:
 <br>
 </div>
 
-<div align="center"><picture>
+<center>
+<picture> 
   <img alt="blendsql" src="img/logo_light.png" width=350">
 </picture>
-<p align="center">
+<br>
     <i> SQL 🤝 LLMs </i>
-  </p>
-</div>
-<br/>
+<br><br>
+[Paper :simple-arxiv:](https://arxiv.org/pdf/2402.17882.pdf){ .md-button } [GitHub :simple-github:](https://github.com/parkervg/blendsql){ .md-button }
 
+<div class="index-pre-code">
 ```bash
 pip install blendsql
 ```
+</div>
+</center>
 
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. It builds off of the syntax of SQL to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.
 
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
 Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
+
+As shown in our paper, using BlendSQL as an intermediate representation for complex reasoning tasks can <b>boost performance by 8.63%</b> and <b>use 35% fewer tokens</b> compared to the naive end-to-end approach.
 
 ![comparison](img/
 comparison.jpg)
@@ -96,3 +101,16 @@ SELECT date, rival, score, documents.content AS "Team Description" FROM w
 
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](reference/technical_walkthrough.md).
+
+### BibTeX
+
+```
+@article{glenn2024blendsql,
+      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra}, 
+      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
+      year={2024},
+      eprint={2402.17882},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
