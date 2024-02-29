@@ -27,7 +27,11 @@ class QAProgram(Program):
             self.model += f"Question: {question}"
             if table_title is not None:
                 self.model = f"Table Description: {table_title}"
-            self.model += f"\n\n {serialized_db}"
+            self.model += f"\n\n {serialized_db}\n"
+            if options is not None:
+                self.model += "\nSelect from one of the following options.\n"
+                for option in options:
+                    self.model += f"- {option}\n"
         with self.assistantcontext:
             if options is not None:
                 self.model += select(options=[str(i) for i in options], name="result")
