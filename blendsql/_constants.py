@@ -37,3 +37,4 @@ class IngredientKwarg:
     QUESTION = "question"
     CONTEXT = "context"
     OPTIONS = "options"
+    MODEL = "model"
