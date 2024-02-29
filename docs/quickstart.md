@@ -19,5 +19,5 @@ smoothie = blend(
     db=SQLite(fetch_from_hub("single_table.db")),
     verbose=True
 )
-
+print(smoothie.df)
 ```
