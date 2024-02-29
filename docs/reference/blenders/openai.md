@@ -6,7 +6,7 @@
 
 ## OpenaiLLM
 
-::: blendsql.llms.remote._openai.OpenaiLLM
+::: blendsql.models.remote._openai.OpenaiLLM
     handler: python
     show_source: false
  
@@ -17,13 +17,13 @@ OPENAI_API_KEY=my_api_key
 ```
 
 ```python
-from blendsql.llms import OpenaiLLM
+from blendsql.models import OpenaiLLM
 
 blender = OpenaiLLM("text-davinci-003", env=".")
 ```
 ## AzureOpenaiLLM
 
-::: blendsql.llms.remote._openai.AzureOpenaiLLM
+::: blendsql.models.remote._openai.AzureOpenaiLLM
     handler: python
     show_source: false
 
@@ -36,7 +36,7 @@ CLIENT_SECRET=my_client_secret
 ```
 
 ```python
-from blendsql.llms import AzureOpenaiLLM
+from blendsql.models import AzureOpenaiLLM
 
 blender = AzureOpenaiLLM("text-davinci-003", env=".")
 ```

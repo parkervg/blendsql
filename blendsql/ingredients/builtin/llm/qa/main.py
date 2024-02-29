@@ -1,7 +1,7 @@
 from typing import Dict, Union, Optional, Set, List
 from guidance import gen, select
 import pandas as pd
-from blendsql.llms._llm import LLM
+from blendsql.models._model import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
@@ -40,7 +40,7 @@ class LLMQA(QAIngredient):
     def run(
         self,
         question: str,
-        llm: LLM,
+        model: Model,
         options: Optional[Set[str]] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
@@ -51,7 +51,7 @@ class LLMQA(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
-        res = llm.predict(
+        res = model.predict(
             program=QAProgram,
             options=options,
             question=question,

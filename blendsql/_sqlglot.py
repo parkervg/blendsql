@@ -293,7 +293,7 @@ def get_predicate_literals(node) -> List[str]:
     (We treat booleans as literals here, which might be a misuse of terminology.)
 
     Examples:
-        >>> get_predicate_literals(_parse_one("{{LLM('year', 'w::year')}} IN ('2010', '2011', '2012')"))
+        >>> get_predicate_literals(_parse_one("{{Model('year', 'w::year')}} IN ('2010', '2011', '2012')"))
         ['2010', '2011', '2012']
     """
     literals = set()
@@ -414,7 +414,7 @@ class SubqueryContextManager:
             abstracted_queries: Generator with (tablename, exp.Select, alias_to_table). The exp.Select is the abstracted query.
 
         Examples:
-            >>> {{LLM('is this an italian restaurant?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1 AND child_category = 'Restaurants & Dining'
+            >>> {{Model('is this an italian restaurant?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1 AND child_category = 'Restaurants & Dining'
             ('transactions', 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
         """
         # TODO: don't really know how to optimize with 'CASE' queries right now
@@ -615,7 +615,7 @@ class SubqueryContextManager:
 
     def infer_gen_constraints(self, start: int, end: int) -> dict:
         """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
-            downstream LLM generations.
+            downstream Model generations.
 
         For example:
             >>> SELECT * FROM w WHERE {{LLMMap('Is this true?', 'w::colname')}}
@@ -626,7 +626,7 @@ class SubqueryContextManager:
         Returns:
             dict, with keys:
                 output_type: numeric | string | boolean
-                pattern: regular expression pattern to use in constrained decoding with LLM
+                pattern: regular expression pattern to use in constrained decoding with Model
         """
         added_kwargs = {}
         ingredient_node = _parse_one(self.sql()[start:end])

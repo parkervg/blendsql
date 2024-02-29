@@ -144,7 +144,7 @@ def format_nested_table_json(table_json: dict):
     naive_df = naive_df.ffill()
     naive_df = naive_df.fillna("")
     if len(naive_df.columns) == 2:
-        # Transpose, so LLM gets whole `attribute` context
+        # Transpose, so Model gets whole `attribute` context
         # naive_df.columns = ["attribute", "value"]
         naive_df = naive_df.T
     try:

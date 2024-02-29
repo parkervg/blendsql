@@ -11,6 +11,7 @@ import re
 from diskcache import Cache
 import platformdirs
 import hashlib
+from abc import abstractmethod
 
 from blendsql._program import Program
 
@@ -33,8 +34,8 @@ class TokenTimer(threading.Thread):
 
 
 @attrs
-class LLM:
-    """Parent class for all LLM endpoints"""
+class Model:
+    """Parent class for all BlendSQL Models."""
 
     model_name_or_path: str = attrib()
     tokenizer: Any = attrib(default=None)
@@ -81,24 +82,24 @@ class LLM:
 
     def predict(self, program: Program, **kwargs) -> dict:
         """Takes a `Program` and some kwargs, and evaluates it with context of
-        current LLM.
+        current Model.
 
         Args:
-            program: guidance program used to generate LLM output
+            program: guidance program used to generate Model output
             **kwargs: any additional kwargs will get passed to the program
 
         Returns:
-            dict containing all LLM variable names and their values.
+            dict containing all Model variable names and their values.
 
         Examples:
             >>> llm.predict(program, **kwargs)
-            {"result": '"This is LLM generated output"'}
+            {"result": '"This is Model generated output"'}
         """
         # First, check our cache
         key = self._create_key(program, **kwargs)
         if key in self.cache:
             return self.cache.get(key)
-        # Modify fields used for tracking LLM usage
+        # Modify fields used for tracking Model usage
         self.num_llm_calls += 1
         model = program(model=self.model, **kwargs)
         if self.tokenizer is not None:
@@ -113,8 +114,8 @@ class LLM:
 
     def _create_key(self, program: Program, **kwargs) -> str:
         """Generates a hash to use in diskcache Cache.
-        This way, we don't need to send our prompts to the same LLM
-        if our context of LLM + program + kwargs is the same.
+        This way, we don't need to send our prompts to the same Model
+        if our context of Model + program + kwargs is the same.
 
         Returns:
             md5 hash used as key in diskcache
@@ -134,13 +135,15 @@ class LLM:
         hasher.update(combined)
         return hasher.hexdigest()
 
+    @abstractmethod
     def _setup(self, **kwargs) -> None:
-        """Any additional setup required to get this LLM up and functioning
+        """Any additional setup required to get this Model up and functioning
         should go here. For example, in the AzureOpenaiLLM, we have some logic
         to refresh our client secrets every 30 min.
         """
         ...
 
-    def _load_model(self) -> guidance.models.Model:
+    @abstractmethod
+    def _load_model(self) -> Any:
         """Logic for instantiating the guidance model class goes here."""
         ...

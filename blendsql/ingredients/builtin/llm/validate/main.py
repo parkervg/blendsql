@@ -2,7 +2,7 @@ from typing import Dict, Union, Optional
 import pandas as pd
 from guidance import select
 
-from blendsql.llms._llm import LLM
+from blendsql.models._model import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 
@@ -25,7 +25,7 @@ class LLMValidate(QAIngredient):
     def run(
         self,
         question: str,
-        llm: LLM,
+        model: Model,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
         table_to_title: Optional[Dict[str, str]] = None,
@@ -35,7 +35,7 @@ class LLMValidate(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
-        res = llm.predict(
+        res = model.predict(
             program=ValidateProgram,
             claim=question,
             serialized_db=context.to_string() if context is not None else "",
