@@ -30,7 +30,7 @@ BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
 Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
 
-As shown in our paper, using BlendSQL as an intermediate representation for complex reasoning tasks can <b>boost performance by 8.63%</b> and <b>use 35% fewer tokens</b> compared to the naive end-to-end approach.
+As shown in our paper, using BlendSQL as an intermediate representation for complex reasoning tasks can <b>boost performance by 8.63%</b> and <b>use 35% fewer tokens</b> compared to the naive end-to-end approach. For an example of this approach, see [this notebook](reference/examples/teaching-blendsql-via-in-context-learning).
 
 ![comparison](img/
 comparison.jpg)

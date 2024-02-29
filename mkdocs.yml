@@ -6,6 +6,7 @@ repo_url: https://github.com/parkervg/blendsql
 
 theme:
   name: material
+  custom_dir: docs/overrides
   palette:
     - scheme: default
       primary: white
