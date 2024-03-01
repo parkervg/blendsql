@@ -11,10 +11,10 @@
 </picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
-
   </p>
 <b>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</b>
 
+<i>Results from the paper are available [here](https://github.com/parkervg/blendsql/tree/research-paper/research/paper-results)</i>
 </div>
 <br/>
 
