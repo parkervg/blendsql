@@ -154,7 +154,7 @@ The examples below also demonstrate how BlendSQL unpacks [CTE statements](https:
 ```sql
 {{
     LLMQA(
-        'When was the Rangers Player born?'
+        'When was the Rangers Player born?',
         (
             WITH t AS (
                 SELECT player FROM (
@@ -199,8 +199,8 @@ The examples below also demonstrate how BlendSQL unpacks [CTE statements](https:
 SELECT director FROM "./List of African films (4)" as w
 WHERE title = {{
     LLMQA(
-        'What is the name of the Togolese film that was 30 minutes and shot in 16mm?'
-        (SELECT * FROM documents WHERE documents MATCH 'togolese OR 30 OR 16mm OR film' ORDER BY rank LIMIT 5)
+        'What is the name of the Togolese film that was 30 minutes and shot in 16mm?',
+        (SELECT * FROM documents WHERE documents MATCH 'togolese OR 30 OR 16mm OR film' ORDER BY rank LIMIT 5),
         options='w::title'
     )
 }}
