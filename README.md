@@ -108,17 +108,17 @@ WHERE state = {{
 ```sql
 {{
     LLMQA(
-        'Name of the builders?',
+        'Who were the builders of the mosque?',
         (
-            SELECT title AS 'Building', content FROM documents
-                WHERE title = {{
-                    LLMQA(
-                        'Align the name to the correct title.',
-                        (SELECT name FROM w WHERE city = 'herat' AND remarks LIKE '%fire temple%'),
-                        options='documents::title'
-                    )
-                }}
-        ) 
+            SELECT documents.title AS 'Building', documents.content FROM documents
+            JOIN {{
+                LLMJoin(
+                    left_on='w::name',
+                    right_on='documents::title'
+                )
+            }}
+            WHERE w.city = 'herat' AND w.remarks LIKE '%fire temple%'
+        )
     )
 }}
 ```
