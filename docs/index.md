@@ -104,7 +104,7 @@ For a technical walkthrough of how a BlendSQL query is executed, check out [tech
 
 ### Citation
 
-```
+```bibtex
 @article{glenn2024blendsql,
       title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra}, 
       author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},

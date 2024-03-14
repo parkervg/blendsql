@@ -18,7 +18,6 @@
 </div>
 <br/>
 
-
 ## Intro
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. It builds off of the syntax of SQL to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.
 
@@ -154,7 +153,7 @@ The examples below also demonstrate how BlendSQL unpacks [CTE statements](https:
 ```sql
 {{
     LLMQA(
-        'When was the Rangers Player born?'
+        'When was the Rangers Player born?',
         (
             WITH t AS (
                 SELECT player FROM (
@@ -199,8 +198,8 @@ The examples below also demonstrate how BlendSQL unpacks [CTE statements](https:
 SELECT director FROM "./List of African films (4)" as w
 WHERE title = {{
     LLMQA(
-        'What is the name of the Togolese film that was 30 minutes and shot in 16mm?'
-        (SELECT * FROM documents WHERE documents MATCH 'togolese OR 30 OR 16mm OR film' ORDER BY rank LIMIT 5)
+        'What is the name of the Togolese film that was 30 minutes and shot in 16mm?',
+        (SELECT * FROM documents WHERE documents MATCH 'togolese OR 30 OR 16mm OR film' ORDER BY rank LIMIT 5),
         options='w::title'
     )
 }}
@@ -333,6 +332,18 @@ smoothie = blend(
 > Certain ingredients, like [LLMJoin](#joiningredient), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an *intermediate representation for reasoning over structured + unstructured with LLMs*. Some examples of this can be found above [here](#more-examples-from-popular-qa-datasets).
 
 <hr>
+
+### Citation
+```bibtex
+@article{glenn2024blendsql,
+      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra}, 
+      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
+      year={2024},
+      eprint={2402.17882},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
 
 # Documentation
 
