@@ -46,9 +46,6 @@ class Program:
     def __call__(self, *args, **kwargs):
         pass
 
-    def to_string(self) -> str:
-        return inspect.getsource(self.__call__)
-
 
 def program_to_str(program: Program):
     """Create a string representation of a program.
