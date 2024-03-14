@@ -13,7 +13,7 @@ import platformdirs
 import hashlib
 from abc import abstractmethod
 
-from blendsql._program import Program
+from blendsql._program import Program, program_to_str
 
 
 class TokenTimer(threading.Thread):
@@ -42,6 +42,7 @@ class Model:
     requires_config: bool = attrib(default=False)
     refresh_interval_min: int = attrib(default=None)
     env: str = attrib(default=".")
+    caching: bool = attrib(default=True)
 
     model: guidance.models.Model = attrib(init=False)
     prompts: list = attrib(init=False)
@@ -95,10 +96,11 @@ class Model:
             >>> llm.predict(program, **kwargs)
             {"result": '"This is Model generated output"'}
         """
-        # First, check our cache
-        key = self._create_key(program, **kwargs)
-        if key in self.cache:
-            return self.cache.get(key)
+        if self.caching:
+            # First, check our cache
+            key = self._create_key(program, **kwargs)
+            if key in self.cache:
+                return self.cache.get(key)
         # Modify fields used for tracking Model usage
         self.num_llm_calls += 1
         model = program(model=self.model, **kwargs)
@@ -109,7 +111,8 @@ class Model:
             prompt = re.sub(r"\<.*?\>", "", prompt)
             self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
             self.prompts.append(prompt)
-        self.cache[key] = model._variables
+        if self.caching:
+            self.cache[key] = model._variables
         return model._variables
 
     def _create_key(self, program: Program, **kwargs) -> str:
@@ -131,7 +134,11 @@ class Model:
                 ]
             )
         )
-        combined = "{}{}".format(str(program), options_str).encode()
+        combined = "{}||{}||{}".format(
+            f"{self.model_name_or_path}||{type(self)}",
+            program_to_str(program),
+            options_str,
+        ).encode()
         hasher.update(combined)
         return hasher.hexdigest()
 
