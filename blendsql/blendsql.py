@@ -50,7 +50,7 @@ from ._sqlglot import (
     is_in_cte,
 )
 from ._dialect import _parse_one, FTS5SQLite
-from ._grammar import grammar
+from .grammars._peg_grammar import grammar
 from .ingredients.ingredient import Ingredient, IngredientException
 from ._smoothie import Smoothie, SmoothieMeta
 from ._constants import (

@@ -3,7 +3,12 @@ import pyparsing as pp
 
 pp.ParserElement.enable_packrat()
 
-"""Define pyparsing grammar to extract positional + named args from function."""
+"""Defines PEG (parsing expression grammar) in pyparsing 
+grammar to extract positional + named args from function.
+
+Since we use sqlglot for the main SQLite parsing, we only need to define the BlendSQL
+operations (between "{{", "}}") below.
+"""
 grammar = pp.Forward()
 blendsql_function_name = pp.Word(pp.alphanums + "_")
 nums = pp.Word(pp.nums)
