@@ -75,7 +75,8 @@ class AzureOpenaiLLM(Model):
         )
 
     def _setup(self, **kwargs) -> None:
-        return openai_setup()
+        openai_setup()
+        self.model = self._load_model()
 
 
 class OpenaiLLM(Model):
@@ -103,4 +104,5 @@ class OpenaiLLM(Model):
         )
 
     def _setup(self, **kwargs) -> None:
-        return openai_setup()
+        openai_setup()
+        self.model = self._load_model()
