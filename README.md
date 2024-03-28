@@ -5,10 +5,7 @@
 <br>
 </div>
 
-<div align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./img/logo_dark.png">
-  <img alt="blendsql" src="./img/logo_light.png" width=350">
-</picture>
+<div align="center"><img alt="blendsql" src="./img/logo_light.png" width=350">
 <p align="center">
     <i> SQL 🤝 LLMs </i>
   </p>
