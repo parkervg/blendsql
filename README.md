@@ -1,6 +1,6 @@
 <div align="right">
 <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
-<a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
+<a><img src=""/></a>
 <a><img src="https://img.shields.io/badge/PRs-Welcome-Green"/></a>
 <br>
 </div>
@@ -12,9 +12,9 @@
 <p align="center">
     <i> SQL 🤝 LLMs </i>
   </p>
-<b>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</b>
+<b>Check out our <a href="" target="_blank">online documentation</a> for a more comprehensive overview.</b>
 
-<i>Results from the paper are available [here](https://github.com/parkervg/blendsql/tree/research-paper/research/paper-results)</i>
+<i>Results from the paper are available [here]()</i>
 </div>
 <br/>
 

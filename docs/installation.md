@@ -1,5 +1,0 @@
-# Installation
-
-```
-pip install blendsql
-```
