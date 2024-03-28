@@ -6,8 +6,8 @@
 </div>
 
 <div align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo_dark.png">
-  <img alt="blendsql" src="docs/img/logo_light.png" width=350">
+  <source media="(prefers-color-scheme: dark)" srcset="./img/logo_dark.png">
+  <img alt="blendsql" src="./img/logo_light.png" width=350">
 </picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
@@ -24,7 +24,7 @@ BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
 Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
 
-![comparison](docs/img/comparison.jpg)
+![comparison](./img/comparison.jpg)
 
 For example, imagine we have the following tables.
 
@@ -277,11 +277,11 @@ SELECT EXISTS(
 ### Features 
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑 
+- LLM function caching, built on [diskcache](https://grantjenks.com/./diskcache/) 🔑 
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
 
 
-For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
+For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](././technical_walkthrough.md).
 
 ## Install
 ```
@@ -417,7 +417,7 @@ def blend(*args, **kwargs) -> Smoothie:
 
 ## Ingredients 
 
-![ingredients](docs/img/ingredients.jpg)
+![ingredients](./img/ingredients.jpg)
 
 Ingredients are at the core of a BlendSQL script. 
 
