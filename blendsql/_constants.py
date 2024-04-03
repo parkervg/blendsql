@@ -11,7 +11,7 @@ class StrInMeta(EnumMeta):
 
 DEFAULT_ANS_SEP = ";"
 DEFAULT_NAN_ANS = "-"
-VALUE_BATCH_SIZE = 10
+VALUE_BATCH_SIZE = 5
 
 
 class IngredientType(str, Enum, metaclass=StrInMeta):
