@@ -64,7 +64,7 @@ class Model:
             _env = Path(self.env)
             env_filepath = _env / ".env" if _env.is_dir() else _env
             if env_filepath.is_file():
-                load_dotenv()
+                load_dotenv(str(env_filepath))
             else:
                 raise FileNotFoundError(
                     f"{self.__class__} requires a .env file to be present at '{env_filepath}' with necessary environment variables\nPut it somewhere else? Use the `env` argument to point me to the right directory."
