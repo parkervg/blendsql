@@ -615,12 +615,18 @@ SELECT merchant FROM transactions
 <hr> 
  
 
-## LLMs
+## Grammar Prompting
+If you use the grammar prompting feature of BlendSQL, please cite the original grammar prompting paper below. 
 
-
-<hr> 
-
-## Databases
+```bibtex
+@article{wang2024grammar,
+  title={Grammar prompting for domain-specific language generation with large language models},
+  author={Wang, Bailin and Wang, Zi and Wang, Xuezhi and Cao, Yuan and A Saurous, Rif and Kim, Yoon},
+  journal={Advances in Neural Information Processing Systems},
+  volume={36},
+  year={2024}
+}
+```
 
 
 <hr> 
