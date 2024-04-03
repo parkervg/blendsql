@@ -80,10 +80,9 @@ def recover_blendsql(select_sql: str):
         {{QA('can i get my car fixed here?', 'transactions::merchant')}}
     """
     recovered = re.sub(
-        r"(STRUCT\( ?STRUCT\()(.*?)(\)\)([^\)]|$))(,)?", r" {{\2}}\4 ", select_sql
+        r"(STRUCT\( ?STRUCT\()(.*?)(\){3})(,)?", r" {{\2)}}\4 ", select_sql
     )
-    # TODO: below is a hack for MIN(), MAX() type wrappings around an ingredient
-    return re.sub(re.escape("))}}"), ")}})", recovered)
+    return recovered
 
 
 def get_temp_subquery_table(
