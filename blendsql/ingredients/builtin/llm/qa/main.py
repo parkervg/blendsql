@@ -1,6 +1,8 @@
+import copy
 from typing import Dict, Union, Optional, Set, List
 from guidance import gen, select
 import pandas as pd
+import re
 from blendsql.models._model import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
@@ -17,27 +19,45 @@ class QAProgram(Program):
         table_title: str = None,
         **kwargs,
     ):
+        _model = self.model
         with self.systemcontext:
-            self.model += "Answer the question for the table. "
+            _model += "Answer the question for the table. "
             if long_answer:
-                self.model += "Make the answer as concrete as possible, providing more context and reasoning using the entire table."
+                _model += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
             else:
-                self.model += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'."
-        with self.usercontext:
-            self.model += f"Question: {question}"
-            if table_title is not None:
-                self.model = f"Table Description: {table_title}"
-            self.model += f"\n\n {serialized_db}\n"
+                _model += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
             if options is not None:
-                self.model += "\nSelect from one of the following options.\n"
+                _model += "Your answer should be a selection from one of the following options:\n"
+                int_prefix_options = []
+                for _idx, option in enumerate(options):
+                    int_prefix_option = f"{option}"
+                    int_prefix_options.append(int_prefix_option)
+                    _model += f"{int_prefix_option}\n"
+                # Add in title case, since this helps with selection
+                modified_option_to_original = {}
+                _options = copy.deepcopy(options)
                 for option in options:
-                    self.model += f"- {option}\n"
+                    option = str(option)
+                    for modified_option in [option.title(), option.upper()]:
+                        _options.add(modified_option)
+                        modified_option_to_original[modified_option] = option
+                options = _options
+        with self.usercontext:
+            _model += f"\n\nQuestion: {question}"
+            if table_title is not None:
+                _model += f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
+            else:
+                _model += f"\n\nContext: \n {serialized_db}"
         with self.assistantcontext:
             if options is not None:
-                self.model += select(options=[str(i) for i in options], name="result")
+                _model += select(options=[str(i) for i in options], name="result")
             else:
-                self.model += gen(name="result", **self.gen_kwargs)
-        return self.model
+                _model += gen(name="result", **self.gen_kwargs)
+        if options:
+            _model._variables["result"] = modified_option_to_original.get(
+                _model._variables["result"], _model._variables["result"]
+            )
+        return _model
 
 
 class LLMQA(QAIngredient):
@@ -64,4 +84,6 @@ class LLMQA(QAIngredient):
             table_title=None,
             **kwargs,
         )
-        return "'{}'".format(single_quote_escape(res["result"].strip()))
+        return "'{}'".format(
+            single_quote_escape(re.sub(r"^\d+\):", "", res["result"]).strip().lower())
+        )

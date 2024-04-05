@@ -17,14 +17,15 @@ class JoinProgram(Program):
         sep: str,
         **kwargs,
     ):
+        _model = self.model
         left_values = "\n".join(left_values)
         right_values = "\n".join(right_values)
         with self.systemcontext:
-            self.model += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
-            self.model += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
+            _model += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
+            _model += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
         with self.usercontext:
             if self.few_shot:
-                self.model += dedent(
+                _model += dedent(
                     """
                 Criteria: Join to same topics.
 
@@ -68,20 +69,22 @@ class JoinProgram(Program):
                 ---
                 """
                 )
-            self.model += dedent(
+            _model += dedent(
                 f"""
                 Criteria: {join_criteria}
 
-                Left Values: {left_values}
+                Left Values: 
+                {left_values}
 
-                Right Values: {right_values}
+                Right Values: 
+                {right_values}
 
                 Output:
                 """
             )
         with self.assistantcontext:
-            self.model += gen(name="result", **self.gen_kwargs)
-        return self.model
+            _model += gen(name="result", **self.gen_kwargs)
+        return _model
 
 
 class LLMJoin(JoinIngredient):

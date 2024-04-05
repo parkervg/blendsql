@@ -28,11 +28,12 @@ class MapProgram(Program):
         colname: str = None,
         **kwargs,
     ):
+        _model = self.model
         with self.systemcontext:
-            self.model += """Given a set of values from a database, answer the question row-by-row, in order."""
+            _model += """Given a set of values from a database, answer the question row-by-row, in order."""
             if include_tf_disclaimer:
-                self.model += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-            self.model += dedent(
+                _model += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
+            _model += dedent(
                 f"""
             The answer should be a list separated by '{sep}', and have {len(values)} items in total.
             When you have given all {len(values)} answers, stop responding.
@@ -41,7 +42,7 @@ class MapProgram(Program):
             )
         with self.usercontext:
             if self.few_shot:
-                self.model += dedent(
+                _model += dedent(
                     """
                 --- 
 
@@ -102,20 +103,20 @@ class MapProgram(Program):
                 """
                 )
             if table_title:
-                self.model += dedent(
+                _model += dedent(
                     f"The following values come from the column '{colname}', in a table titled '{table_title}'."
                 )
-            self.model += dedent(f"""Q: {question}\nValues:\n""")
+            _model += dedent(f"""Q: {question}\nValues:\n""")
             for value in values:
-                self.model += f"`{value}`\n"
+                _model += f"`{value}`\n"
             if output_type:
-                self.model += f"\nOutput type: {output_type}"
+                _model += f"\nOutput type: {output_type}"
             if example_outputs:
-                self.model += f"\nHere are some example outputs: {example_outputs}\n"
-            self.model += "\nA:"
+                _model += f"\nHere are some example outputs: {example_outputs}\n"
+            _model += "\nA:"
         with self.assistantcontext:
-            self.model += gen(name="result", **self.gen_kwargs)
-        return self.model
+            _model += gen(name="result", **self.gen_kwargs)
+        return _model
 
 
 class LLMMap(MapIngredient):
