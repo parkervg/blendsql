@@ -85,8 +85,9 @@ def prune_empty_where(node) -> Union[exp.Expression, None]:
     # Don't check *all* predicates here
     # Since 'WHERE a = TRUE' is valid and should be kept
     elif isinstance(node, exp.In):
-        if isinstance(node.args["query"], exp.Boolean):
-            return None
+        if "query" in node.args:
+            if isinstance(node.args["query"], exp.Boolean):
+                return None
     return node
 
 
