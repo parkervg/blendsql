@@ -19,10 +19,15 @@
 <br/>
 
 ## Intro
-BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. It builds off of the syntax of SQL to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.
+BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
+
+As a result, we can *Blend* together...
+- 🥤 ...operations over heterogeneous data sources (e.g. structured, unstructured, visual)
+- 🥤 ...the structured reasoning of SQL with the generalizable reasoning of LLMs
 
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
-Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
+
+**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
 
 ![comparison](docs/img/comparison.jpg)
 
