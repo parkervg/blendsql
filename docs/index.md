@@ -28,6 +28,7 @@ pip install blendsql
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
 
 As a result, we can *Blend* together...
+
 - 🥤 ...operations over heterogeneous data sources (e.g. structured, unstructured, visual)
 - 🥤 ...the structured reasoning of SQL with the generalizable reasoning of LLMs
 
