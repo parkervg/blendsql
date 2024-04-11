@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from colorama import Fore
 import time
 import threading
-import re
 from diskcache import Cache
 import platformdirs
 import hashlib
@@ -26,7 +25,6 @@ class TokenTimer(threading.Thread):
         self.init_fn = init_fn
 
     def run(self):
-        self.init_fn()
         while True:
             time.sleep(self.refresh_interval_min * 60)
             print(Fore.YELLOW + "Refreshing the access tokens..." + Fore.RESET)
@@ -47,6 +45,7 @@ class Model:
     model: guidance.models.Model = attrib(init=False)
     prompts: list = attrib(init=False)
     cache: Cache = attrib(init=False)
+    run_setup_on_load: bool = attrib(default=True)
 
     gen_kwargs: dict = {}
     num_llm_calls: int = 0
@@ -78,7 +77,8 @@ class Model:
             assert hasattr(self.tokenizer, "encode") and callable(
                 self.tokenizer.encode
             ), f"`tokenizer` passed to {self.__class__} should have `encode` method!"
-        self._setup()
+        if self.run_setup_on_load:
+            self._setup()
         self.model = self._load_model()
 
     def predict(self, program: Program, **kwargs) -> dict:
@@ -105,10 +105,7 @@ class Model:
         self.num_llm_calls += 1
         model = program(model=self.model, **kwargs)
         if self.tokenizer is not None:
-            prompt = re.sub(
-                r"(?<=\>)(assistant|user|system)", "", model._current_prompt()
-            )
-            prompt = re.sub(r"\<.*?\>", "", prompt)
+            prompt = model._current_prompt()
             self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
             self.prompts.append(prompt)
         if self.caching:
