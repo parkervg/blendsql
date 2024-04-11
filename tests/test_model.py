@@ -137,3 +137,15 @@ def test_different_global_vars():
     )["uuid"]
 
     assert a != b
+
+
+def test_with_set_vars():
+    a = DummyModel(MODEL_A).predict(
+        program=DummyProgram, question=TEST_QUESTION, random_set={"a", "b", "c"}
+    )["uuid"]
+
+    b = DummyModel(MODEL_A).predict(
+        program=DummyProgram, question=TEST_QUESTION, random_set={"b", "c", "a"}
+    )["uuid"]
+
+    assert a == b
