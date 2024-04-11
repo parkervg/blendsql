@@ -216,9 +216,12 @@ class JoinIngredient(Ingredient):
             )
             values.append(
                 set(
-                    self.db.execute_query(
-                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )[colname].tolist()
+                    [
+                        str(i)
+                        for i in self.db.execute_query(
+                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                        )[colname].tolist()
+                    ]
                 )
             )
             modified_lr_identifiers.append((tablename, colname))
