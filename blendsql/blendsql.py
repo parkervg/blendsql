@@ -394,6 +394,7 @@ def blend(
     infer_gen_constraints: bool = False,
     table_to_title: Optional[Dict[str, str]] = None,
     silence_db_exec_errors: bool = True,
+    schema_qualify: bool = True,
     # User shouldn't interact with below
     _prev_passed_values: int = 0,
     _prev_cleanup_tables: Set[str] = None,
@@ -415,6 +416,12 @@ def blend(
                 and put this in the `example_outputs` kwarg
         table_to_title: Optional mapping from table name to title of table.
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
+        silence_db_exec_errors: Optional bool, will ignore any db execution errors and attempt to fallback to naive logic.
+            A BlendSQL script could have a SQLite execution error in a subquery but still return some output.
+        schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
+            This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
+            However, we need to call db.get_sqlglot_schema() if schema_qualify=True, which may add some latency.
+            With single-table queries, we can set this to False.
 
     Returns:
         smoothie: Smoothie dataclass containing pd.DataFrame output and execution metadata
@@ -527,9 +534,12 @@ def blend(
                 subquery_str = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
 
             in_cte, table_alias_name = is_in_cte(subquery, return_name=True)
+            schema = None
+            if schema_qualify:  # Only construct sqlglot schema if we need to
+                schema = db.get_sqlglot_schema()
             scm = SubqueryContextManager(
                 node=_parse_one(
-                    subquery_str, schema=db.get_sqlglot_schema()
+                    subquery_str, schema=schema
                 ),  # Need to do this so we don't track parents into construct_abstracted_selects
                 prev_subquery_has_ingredient=prev_subquery_has_ingredient,
                 alias_to_subquery={table_alias_name: subquery} if in_cte else None,
@@ -662,7 +672,9 @@ def blend(
                         if len(parsed_results_dict["args"]) > i
                         else "",
                     )
-                    if unpack_value.upper().startswith(("SELECT", "WITH")):
+                    if isinstance(
+                        unpack_value, str
+                    ) and unpack_value.upper().startswith(("SELECT", "WITH")):
                         _smoothie = blend(
                             query=unpack_value,
                             db=db,
