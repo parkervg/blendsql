@@ -1,15 +1,19 @@
 import sqlite3
 from pathlib import Path
 from sqlite3 import OperationalError
-from typing import Generator, Tuple, Union, List, Dict
+from typing import Generator, Tuple, Union, List, Dict, Set
 from typing import Iterable
 import logging
 from functools import lru_cache
 import pandas as pd
 from attr import attrib, attrs
 from colorama import Fore
+import re
 
 from .utils import single_quote_escape, double_quote_escape
+
+
+DOCS_TABLE_NAME = "documents"
 
 
 @attrs(auto_detect=True)
@@ -22,8 +26,9 @@ class SQLite:
     """
 
     db_path: str = attrib()
-    con: sqlite3.Connection = attrib(init=False)
+    check_same_thread: bool = attrib(default=True)
 
+    con: sqlite3.Connection = attrib(init=False)
     all_tables: List[str] = attrib(init=False)
     tablename_to_columns: Dict[str, Iterable] = attrib(init=False)
 
@@ -31,7 +36,9 @@ class SQLite:
         if not Path(self.db_path).exists():
             raise ValueError(f"{self.db_path} does not exist")
         try:
-            self.con = sqlite3.connect(self.db_path)
+            self.con = sqlite3.connect(
+                self.db_path, check_same_thread=self.check_same_thread
+            )
         except OperationalError:
             print(self.db_path)
             raise
@@ -78,20 +85,27 @@ class SQLite:
         """
         schema = {}
         for tablename in self._iter_tables():
-            schema[tablename] = {}
+            schema[f'"{double_quote_escape(tablename)}"'] = {}
             for _, row in self.execute_query(
                 f"""
-            SELECT name, type FROM pragma_table_info('{tablename}')
+            SELECT name, type FROM pragma_table_info("{double_quote_escape(tablename)}")
             """
             ).iterrows():
-                schema[tablename]['"' + row["name"] + '"'] = row["type"]
+                schema[f'"{double_quote_escape(tablename)}"'][
+                    '"' + row["name"] + '"'
+                ] = row["type"]
         return schema
 
     def to_serialized(
         self,
         ignore_tables: Iterable[str] = None,
+        use_tables: Set[str] = None,
         num_rows: int = 0,
-        table_description: str = None,
+        tablename_to_description: dict = None,
+        whole_table: bool = False,
+        truncate_content: int = None,
+        truncate_content_tokens: int = None,
+        tokenizer=None,
     ) -> str:
         """Generates a string representation of a database, via `CREATE` statements.
         This can then be passed to a LLM as context.
@@ -101,38 +115,58 @@ class SQLite:
             num_rows: How many rows per table to include in serialization
             table_description: Optional table description to add at top
         """
+        if all(x is not None for x in [ignore_tables, use_tables]):
+            raise ValueError("Both `ignore_tables` and `use_tables` cannot be passed!")
         if ignore_tables is None:
-            ignore_tables = {"documents"}
-        serialized_db = (
-            []
-            if table_description is None
-            else [f"Table Description: {table_description}\n"]
-        )
-        for tablename, create_clause in self.create_clauses():
+            ignore_tables = set()
+        serialized_db = []
+        if use_tables:
+            _create_clause_iter = [
+                self.create_clause(tablename) for tablename in use_tables
+            ]
+        else:
+            _create_clause_iter = self.create_clauses()
+        for tablename, create_clause in _create_clause_iter:
+            # Check if it's an artifact of virtual table
+            if re.search(r"^{}_".format(DOCS_TABLE_NAME), tablename):
+                continue
             if tablename in ignore_tables:
                 continue
-            serialized_db.append(create_clause)
-            serialized_db.append("\n")
-            if num_rows > 0:
+            if use_tables is not None and tablename not in use_tables:
+                continue
+            if tablename_to_description is not None:
+                if tablename in tablename_to_description:
+                    if tablename_to_description[tablename] is not None:
+                        serialized_db.append(
+                            f"Table Description: {tablename_to_description[tablename]}"
+                        )
+            if not whole_table:
+                serialized_db.append(f"\t{create_clause}")
+            if (
+                num_rows > 0 and not tablename.startswith(DOCS_TABLE_NAME)
+            ) or whole_table:
                 get_rows_query = (
                     f'SELECT * FROM "{double_quote_escape(tablename)}" LIMIT {num_rows}'
+                    if not whole_table
+                    else f'SELECT * FROM "{double_quote_escape(tablename)}"'
                 )
-                serialized_db.append("\n/*")
-                serialized_db.append(f"\n{num_rows} example rows:")
-                serialized_db.append(f"\n{get_rows_query}")
-            else:
-                continue
-            rows = self.execute_query(get_rows_query)
-            # Truncate long strings
-            rows = rows.apply(
-                lambda x: f"{str(x)[:50]}..."
-                if isinstance(x, str) and len(str(x)) > 50
-                else x,
-                axis=1,
-            )
-            serialized_db.append(f"\n{rows.to_string(index=False)}")
-            serialized_db.append("\n*/")
-        serialized_db = "\n\n".join(serialized_db).strip()
+                serialized_db.append("/*")
+                if whole_table:
+                    serialized_db.append("Entire table:")
+                else:
+                    serialized_db.append(f"{num_rows} example rows:")
+                serialized_db.append(f"{get_rows_query}")
+                rows = self.execute_query(get_rows_query)
+                if truncate_content is not None:
+                    # Truncate long strings
+                    rows = rows.map(
+                        lambda x: f"{str(x)[:truncate_content]}..."
+                        if isinstance(x, str) and len(str(x)) > truncate_content
+                        else x
+                    )
+                serialized_db.append(f"{rows.to_string(index=False)}")
+                serialized_db.append("*/\n")
+        serialized_db = "\n".join(serialized_db).strip()
         return serialized_db
 
     # @profile
