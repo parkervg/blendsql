@@ -13,13 +13,14 @@ class QAProgram(Program):
     def __call__(
         self,
         question: str,
-        serialized_db: str,
-        options: List[str] = None,
-        long_answer: bool = False,
-        table_title: str = None,
+        context: Optional[pd.DataFrame] = None,
+        options: Optional[List[str]] = None,
+        long_answer: Optional[bool] = False,
+        table_title: Optional[str] = None,
         **kwargs,
     ):
         _model = self.model
+        serialized_db = context.to_string() if context is not None else ""
         with self.systemcontext:
             _model += "Answer the question for the table. "
             if long_answer:
@@ -36,11 +37,19 @@ class QAProgram(Program):
                 # Add in title case, since this helps with selection
                 modified_option_to_original = {}
                 _options = copy.deepcopy(options)
+                # Below we check to see if our options have a unique first word
+                # sometimes, the model will generate 'Frank' instead of 'Frank Smith'
+                # We still want to align that, in this case
+                add_first_word = False
+                if len(set([i.split(" ")[0] for i in options])) == len(options):
+                    add_first_word = True
                 for option in options:
                     option = str(option)
                     for modified_option in [option.title(), option.upper()]:
                         _options.add(modified_option)
                         modified_option_to_original[modified_option] = option
+                    if add_first_word:
+                        modified_option_to_original[option.split(" ")[0]] = option
                 options = _options
         with self.usercontext:
             _model += f"\n\nQuestion: {question}"
@@ -79,7 +88,7 @@ class LLMQA(QAIngredient):
             program=QAProgram,
             options=options,
             question=question,
-            serialized_db=context.to_string() if context is not None else "",
+            context=context,
             long_answer=long_answer,
             table_title=None,
             **kwargs,
