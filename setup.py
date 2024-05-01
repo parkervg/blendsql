@@ -71,5 +71,6 @@ setup(
             "mkdocstrings-python",
             "mkdocs-jupyter",
         ],
+        "demo": ["chainlit"],
     },
 )
