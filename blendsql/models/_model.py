@@ -1,6 +1,7 @@
 import functools
 from typing import Any, List
 import guidance
+import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
 from dotenv import load_dotenv
@@ -13,6 +14,8 @@ import hashlib
 from abc import abstractmethod
 
 from blendsql._program import Program, program_to_str
+
+CONTEXT_TRUNCATION_LIMIT = 100
 
 
 class TokenTimer(threading.Thread):
@@ -100,6 +103,9 @@ class Model:
             # First, check our cache
             key = self._create_key(program, **kwargs)
             if key in self.cache:
+                self.prompts.insert(
+                    -1, self.format_prompt(self.cache.get(key), **kwargs)
+                )
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
         self.num_llm_calls += 1
@@ -107,7 +113,7 @@ class Model:
         if self.tokenizer is not None:
             prompt = model._current_prompt()
             self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
-            self.prompts.append(prompt)
+        self.prompts.insert(-1, self.format_prompt(model._variables, **kwargs))
         if self.caching:
             self.cache[key] = model._variables
         return model._variables
@@ -138,6 +144,25 @@ class Model:
         ).encode()
         hasher.update(combined)
         return hasher.hexdigest()
+
+    @staticmethod
+    def format_prompt(res, **kwargs):
+        d = {"answer": res}
+        if "question" in kwargs:
+            d["question"] = kwargs.get("question")
+        if "context" in kwargs:
+            context = kwargs.get("context")
+            if isinstance(context, pd.DataFrame):
+                # Truncate long strings
+                context = context.map(
+                    lambda x: f"{str(x)[:CONTEXT_TRUNCATION_LIMIT]}..."
+                    if isinstance(x, str) and len(str(x)) > CONTEXT_TRUNCATION_LIMIT
+                    else x
+                )
+                d["context"] = context.to_dict(orient="records")
+        if "values" in kwargs:
+            d["values"] = kwargs.get("values")
+        return d
 
     @abstractmethod
     def _setup(self, **kwargs) -> None:
