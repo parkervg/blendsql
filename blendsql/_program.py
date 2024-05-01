@@ -33,9 +33,9 @@ class Program:
         self.model = model
         self.gen_kwargs = gen_kwargs if gen_kwargs is not None else {}
         self.few_shot = few_shot
-        assert isinstance(
-            self.model, Model
-        ), f"GuidanceProgram needs a guidance.models.Model object!\nGot {type(self.model)}"
+        # assert issubclass(
+        #     Model, type(self.model)
+        # ), f"GuidanceProgram needs a guidance.models.Model object!\nGot {type(self.model)}"
         (
             self.usercontext,
             self.systemcontext,
