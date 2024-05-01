@@ -1,0 +1,601 @@
+When possible, use the alias `t` to refer to relevant table context, and `d` to refer to relevant document context.
+
+Examples:
+
+CREATE TABLE "./List of Rangers F.C. records and statistics (0)" (
+  "#" INTEGER,
+  "player" TEXT,
+  "to" TEXT,
+  "fee" TEXT,
+  "date" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of Rangers F.C. records and statistics (0)" LIMIT 3
+ #                   player                to      fee      date
+ 1              alan hutton tottenham hotspur \u00a39000000 2008-1-30
+ 2 giovanni van bronckhorst           arsenal \u00a38500000 2001-6-20
+ 3      jean-alain boumsong  newcastle united \u00a38000000  2005-1-1
+*/
+
+CREATE TABLE "./List of Rangers F.C. records and statistics (1)" (
+  "#" INTEGER,
+  "player" TEXT,
+  "from" TEXT,
+  "fee" TEXT,
+  "date" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of Rangers F.C. records and statistics (1)" LIMIT 3
+ #         player      from       fee       date
+ 1 tore andr\u00e9 flo   chelsea \u00a312000000 2000-11-23
+ 2      ryan kent liverpool  \u00a36500000   2019-9-2
+ 2   michael ball   everton  \u00a36500000  2001-8-20
+*/
+
+CREATE TABLE "./List of Rangers F.C. players (2)" (
+  "inductee" TEXT,
+  "induction year" TEXT,
+  "position" TEXT,
+  "rangers career" TEXT,
+  "appearances" INTEGER,
+  "honours" TEXT,
+  "interntional caps" INTEGER
+)
+/*
+3 example rows:
+SELECT * FROM "./List of Rangers F.C. players (2)" LIMIT 3
+      inductee induction year position rangers career  appearances honours  interntional caps
+  moses mcneil           2000       mf      1872-1882           34    none                  2
+  peter mcneil           2010       mf      1872-1877            7    none                  0
+peter campbell           2010       fw      1872-1879           24    none                  2
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: When was the third highest paid Rangers F.C . player born ?
+BlendSQL:
+{{
+    LLMQA(
+        'When was the Rangers Player born?'
+        (
+            WITH t AS (
+                SELECT player FROM (
+                    SELECT * FROM "./List of Rangers F.C. records and statistics (0)"
+                    UNION ALL SELECT * FROM "./List of Rangers F.C. records and statistics (1)"
+                ) ORDER BY trim(fee, '£') DESC LIMIT 1 OFFSET 2
+            ), d AS (
+                SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.player || '"' || ' OR rangers OR fc' ORDER BY rank LIMIT 5
+            ) SELECT d.content, t.player AS 'Rangers Player' FROM d JOIN t
+        )
+    )
+}}
+
+---
+
+CREATE TABLE "./2006 League of Ireland Premier Division (1)" (
+  "team" TEXT,
+  "manager" TEXT,
+  "main sponsor" TEXT,
+  "kit supplier" TEXT,
+  "stadium" TEXT,
+  "capacity" INTEGER
+)
+/*
+3 example rows:
+SELECT * FROM "./2006 League of Ireland Premier Division (1)" LIMIT 3
+          team           manager      main sponsor kit supplier          stadium  capacity
+     bohemians   gareth farrelly des kelly carpets     o\'neills   dalymount park      8500
+bray wanderers     eddie gormley      slevin group       adidas carlisle grounds      7000
+     cork city damien richardson            nissan     o\'neills    turners cross      8000
+*/
+
+CREATE TABLE "./2006 League of Ireland Premier Division (5)" (
+  "team" TEXT,
+  "manager" TEXT,
+  "main sponsor" TEXT,
+  "kit supplier" TEXT,
+  "stadium" TEXT,
+  "capacity" INTEGER
+)
+/*
+3 example rows:
+SELECT * FROM "./2006 League of Ireland Premier Division (5)" LIMIT 3
+          team           manager      main sponsor kit supplier          stadium  capacity
+     bohemians   gareth farrelly des kelly carpets     o\'neills   dalymount park      8500
+bray wanderers     eddie gormley      slevin group       adidas carlisle grounds      7000
+     cork city damien richardson            nissan     o\'neills    turners cross      8000
+*/
+
+CREATE TABLE "./2006 SK Brann season (2)" (
+  "date" TEXT,
+  "host" TEXT,
+  "agg" TEXT,
+  "visitor" TEXT,
+  "ground" TEXT,
+  "attendance" TEXT,
+  "tournament" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./2006 SK Brann season (2)" LIMIT 3
+   date      host agg     visitor                     ground attendance                tournament
+ 2 july   ham-kam 4-0       brann briskeby gressbane , hamar       6218               tippeligaen
+ 5 july     brann 3-1 levanger il     brann stadion , bergen       1948             norwegian cup
+13 july glentoran 0-1       brann         the oval , belfast       1743 uefa cup qualifying round
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: The home stadium of the Bray Wanderers of 2006 League of Ireland is situated behind what station ?
+BlendSQL:
+{{
+    LLMQA(
+        'What station is the Bray Wanderers home stadium situated behind?',
+        (
+            WITH t AS (
+                SELECT stadium FROM "./2006 League of Ireland Premier Division (1)" WHERE team = 'bray wanderers'
+            ), d AS (
+                SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.stadium || '"' ORDER BY rank LIMIT 5
+            ) SELECT d.content, t.stadium AS 'Home Stadium' FROM d JOIN t
+        )
+    )
+}}
+
+---
+
+CREATE TABLE "./List of medical recipients of the Victoria Cross (0)" (
+  "name" TEXT,
+  "regiment/corps" TEXT,
+  "date" TEXT,
+  "conflict" TEXT,
+  "location" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of medical recipients of the Victoria Cross (0)" LIMIT 3
+          name           regiment/corps                         date            conflict      location
+harold ackroyd royal berkshire regiment (xxxx-7-311917-8-1,p-38715d)     first world war passchendaele
+ william allen          royal artillery                     1916-9-3     first world war   near mesnil
+ henry andrews  indian medical services                   1919-10-22 waziristan campaign  khajuri post
+*/
+
+CREATE TABLE "./List of living recipients of the George Cross (0)" (
+  "name" TEXT,
+  "year of award" INTEGER,
+  "location of gallantry" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of living recipients of the George Cross (0)" LIMIT 3
+                       name  year of award                 location of gallantry
+             henry flintoff           1944            farndale , north yorkshire
+                   alf lowe           1949             portland harbour , dorset
+margaret purves nee vaughan           1949 near sully island , vale of glamorgan
+*/
+
+CREATE TABLE "./List of Australian Victoria Cross recipients (0)" (
+  "name" TEXT,
+  "date of action" TEXT,
+  "conflict" TEXT,
+  "unit" TEXT,
+  "place of action" TEXT,
+  "location of medal" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of Australian Victoria Cross recipients (0)" LIMIT 3
+            name date of action         conflict                          unit     place of action location of medal
+charles anderson           1942 second world war              2/19th battalion muar river , malaya               awm
+   thomas axford           1918  first world war                16th battalion hamel wood , france               awm
+    peter badcoe          1967*      vietnam war australian army training team huong tra , vietnam               awm
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: What nationality was the winner of the 1945 award of the Victoria Cross ?
+BlendSQL:
+{{
+    LLMQA(
+        "What was the Victoria Cross recipient's nationality?",
+        (
+            WITH t AS (
+                SELECT name FROM "./List of medical recipients of the Victoria Cross (0)"
+                    WHERE SUBSTR(date, 0, 5) = '1945'
+            ), d AS (
+                SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.name || '"' || ' OR victoria cross' ORDER BY rank LIMIT 5
+            ) SELECT d.content, t.name AS recipient FROM d JOIN t
+        )
+    )
+}}
+
+---
+
+CREATE TABLE "./Atlantic Hockey Player of the Year (1)" (
+  "year" TEXT,
+  "winner" TEXT,
+  "position" TEXT,
+  "school" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Atlantic Hockey Player of the Year (1)" LIMIT 3
+   year           winner   position       school
+2019-20     jason cotton    forward sacred heart
+2018-19    joseph duszak defenceman   mercyhurst
+2017-18 dylan mclaughlin    forward      cansius
+*/
+
+CREATE TABLE "./List of Atlantic Hockey Most Valuable Player in Tournament (0)" (
+  "year" INTEGER,
+  "winner" TEXT,
+  "position" TEXT,
+  "school" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of Atlantic Hockey Most Valuable Player in Tournament (0)" LIMIT 3
+ year          winner  position     school
+ 2004     greg kealey   forward holy cross
+ 2005 scott champagne left wing mercyhurst
+ 2006  james sixsmith left wing holy cross
+*/
+
+CREATE TABLE "./Atlantic Hockey Player of the Year (0)" (
+  "year" TEXT,
+  "winner" TEXT,
+  "position" TEXT,
+  "school" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Atlantic Hockey Player of the Year (0)" LIMIT 3
+   year           winner   position     school
+2018-19    joseph duszak defenceman mercyhurst
+2017-18 dylan mclaughlin    forward    cansius
+2016-17 charles williams goaltender    cansius
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: Which NHL team has the Player of the Year of Atlantic Hockey for the season ending in 2019 signed a agreement with ?
+BlendSQL:
+{{
+    LLMQA(
+        'Which team has the NHL player signed with?',
+        (
+            WITH t AS (
+                SELECT winner FROM (
+                    SELECT * FROM "./Atlantic Hockey Player of the Year (0)"
+                    UNION ALL SELECT * FROM "./Atlantic Hockey Player of the Year (1)"
+                ) AS w WHERE {{LLMMap('Does this end in 2019?', 'w::year')}} = TRUE
+            ), d AS (
+                SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.winner || '"' || ' OR hockey' ORDER BY rank LIMIT 5
+            ) SELECT d.content, t.winner AS 'NHL Player' FROM d JOIN t
+        )
+    )
+}}
+
+---
+
+CREATE TABLE "./Cuba at the UCI Track Cycling World Championships (1)" (
+  "name" TEXT,
+  "event" TEXT,
+  "result" TEXT,
+  "rank" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Cuba at the UCI Track Cycling World Championships (1)" LIMIT 3
+           name                       event         result rank
+lisandra guerra             women \'s sprint 11.121 ( q ) ,   18
+lisandra guerra   women \'s 500 m time trial         34.226    9
+ marlies mejias women \'s individual pursuit        3:35.57    8
+*/
+
+CREATE TABLE "./Cuba at the UCI Track Cycling World Championships (2)" (
+  "medal" TEXT,
+  "championship" TEXT,
+  "name" TEXT,
+  "event" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Cuba at the UCI Track Cycling World Championships (2)" LIMIT 3
+ medal   championship            name                     event
+  gold 2003 stuttgart yoanka gonz\u00e1lez      women \'s points race
+  gold 2004 melbourne yoanka gonz\u00e1lez          women \'s scratch
+bronze  2006 bordeaux lisandra guerra women \'s 500 m time trial
+*/
+
+CREATE TABLE "./Cuba at the UCI Track Cycling World Championships (0)" (
+  "name" TEXT,
+  "event" TEXT,
+  "result" TEXT,
+  "rank" INTEGER
+)
+/*
+3 example rows:
+SELECT * FROM "./Cuba at the UCI Track Cycling World Championships (0)" LIMIT 3
+                     name                     event    result  rank
+lisandra guerra rodriguez           women \'s sprint      none    30
+lisandra guerra rodriguez women \'s 500 m time trial pt34.692s     9
+lisandra guerra rodriguez           women \'s keirin      none    13
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: In which Track Cycling World Championships event was the person born in Matanzas , Cuba ranked highest ?
+BlendSQL:
+{{
+    LLMQA(
+        'In what event was the cyclist ranked highest?',
+        (
+            SELECT * FROM (
+                SELECT * FROM "./Cuba at the UCI Track Cycling World Championships (2)"
+            ) as w WHERE w.name = {{
+                LLMQA(
+                    "Which cyclist was born in Matanzas, Cuba?",
+                    (
+                        SELECT * FROM documents
+                            WHERE documents MATCH 'matanzas OR cycling OR track OR born'
+                            ORDER BY rank LIMIT 3
+                    ),
+                    options="w::name"
+                )
+            }}
+        ),
+        options='w::event'
+    )
+}}
+
+---
+
+CREATE TABLE "./2011 Thai Premier League (1)" (
+  "team" TEXT,
+  "sponsor" TEXT,
+  "kit maker" TEXT,
+  "team captain" TEXT,
+  "head coach" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./2011 Thai Premier League (1)" LIMIT 3
+           team      sponsor kit maker      team captain           head coach
+    army united        chang       pan  wanchana rattana       adul rungruang
+  bangkok glass     leo beer     umbro    amnaj kaewkiew arjhan srong-ngamsub
+bec tero sasana 3000 battery       fbt teeratep winothai     phayong khunnaen
+*/
+
+CREATE TABLE "./2013 Thai Premier League (5)" (
+  "team" TEXT,
+  "head coach" TEXT,
+  "captain" TEXT,
+  "kit manufacturer" TEXT,
+  "shirt sponsor" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./2013 Thai Premier League (5)" LIMIT 3
+          team        head coach           captain kit manufacturer shirt sponsor
+   army united alexandr\u00e9 p\u00f6lking   chaiwat nak-iem              pan         chang
+ bangkok glass attaphol buspakom teeratep winothai            umbro      leo beer
+bangkok united  sasom pobprasert nattaporn phanrit              fbt          true
+*/
+
+CREATE TABLE "./2012 Thai Premier League (0)" (
+  "team" TEXT,
+  "sponsor" TEXT,
+  "kit maker" TEXT,
+  "team captain" TEXT,
+  "head coach" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./2012 Thai Premier League (0)" LIMIT 3
+           team   sponsor kit maker          team captain          head coach
+    army united     chang       pan        tatree sing-ha    paniphon kerdyam
+  bangkok glass  leo beer     umbro       amnart kaewkiew       phil stubbins
+bec tero sasana channel 3       fbt rangsan viwatchaichok sven-g\u00f6ran eriksson
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: What is the home stadium of the team Buriram United whose team captain is Apichet Puttan ?
+
+BlendSQL:
+{{
+    LLMQA(
+        'What is the home stadium of Buriram United?',
+        (
+            SELECT * FROM documents WHERE documents MATCH 'buriram united' ORDER BY rank LIMIT 5
+        )
+    )
+}}
+
+---
+
+CREATE TABLE "./List of fictional canines in animation (2)" (
+  "name" TEXT,
+  "species" TEXT,
+  "origin" TEXT,
+  "notes" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of fictional canines in animation (2)" LIMIT 3
+ name species                origin                                                                                                                                                                                                                                                                                                                                                                                                notes
+ aleu wolfdog balto ii : wolf quest                                                                                                                                                                                                                                                                                                                                                              aleu is a wolfdog like her father balto
+balto wolfdog                 balto balto is a wolf-dog hybrid , shunned by both humans and dogs in the town of nome . he is a rugged spirit , adventurer of his social domain ; a rebel soul , no 1 to turn to but himself . his only friends are boris , a russian goose , jenna , a siberian husky and muk and luk , 2 polar bears . balto and boris live on a grounded boat outside nome , while muk and luk are occasional visitors
+danny   dingo           blinky bill                                                                                                                                                                                                                                                                                                                                 oldest brother of the family and main antagonist of the first season
+*/
+
+CREATE TABLE "./List of fictional canines in animation (1)" (
+  "name" TEXT,
+  "origin" TEXT,
+  "notes" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of fictional canines in animation (1)" LIMIT 3
+                name                       origin                                                               notes
+  antoine d\'coolette           sonic the hedgehog                                                                none
+bent-tail the coyote various walt disney cartoons a brown coyote who appeared as a nemesis of pluto in a few cartoons
+    bent-tail junior various walt disney cartoons                                      bent-tail \'s unintelligent son
+*/
+
+CREATE TABLE "./List of fictional canines in animation (0)" (
+  "name" TEXT,
+  "origin" TEXT,
+  "notes" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of fictional canines in animation (0)" LIMIT 3
+       name                   origin                                                                                                                                     notes
+brother fox        song of the south                                              fox who tries to eat br\'er rabbit and often collaborates with br\'er fox to achieve this goal
+brother fox                 coonskin a satirical subversion of joel chandler harris and disney \'s similar character from song of the south , reimagined as an african-american
+  cajun fox courage the cowardly dog                                                                                                                                      none
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: What is the setting of the animated series featuring the fictional canine Daisy the Dingo ?
+BlendSQL:
+{{
+    LLMQA(
+        'Where is the animated TV series set?',
+        (
+            WITH t AS (
+                SELECT origin FROM "./List of fictional canines in animation (2)" AS w
+                WHERE w.name = 'daisy' AND w.species = 'dingo'
+            ), d AS (
+                SELECT * FROM documents JOIN t WHERE documents MATCH '"' || t.origin || '"' || ' OR animated OR set' ORDER BY rank LIMIT 5
+            ) SELECT d.content, t.origin AS 'Animated TV Series' FROM d JOIN t
+        )
+    )
+}}
+
+---
+
+CREATE TABLE "./Primera B Nacional (0)" (
+  "season" TEXT,
+  "champion" TEXT,
+  "runner-up" TEXT,
+  "third place" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Primera B Nacional (0)" LIMIT 3
+ season          champion        runner-up    third place
+1986-87 deportivo armenio         banfield       belgrano
+1987-88 deportivo mandiy\u00fa san martin ( t ) chaco for ever
+1988-89    chaco for ever            uni\u00f3n          col\u00f3n
+*/
+
+CREATE TABLE "./Categor\u00eda Primera B (2)" (
+  "season" TEXT,
+  "champion ( title count )" TEXT,
+  "runner-up" TEXT,
+  "third place" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Categor\u00eda Primera B (2)" LIMIT 3
+season champion ( title count )               runner-up      third place
+  1991           envigado ( 1 )          alianza llanos   atl\u00e9tico huila
+  1992     atl\u00e9tico huila ( 1 )          alianza llanos         cortulu\u00e1
+  1993           cortulu\u00e1 ( 1 ) fiorentina de florencia atl\u00e9tico palmira
+*/
+
+CREATE TABLE "./Primera B Nacional (1)" (
+  "team" TEXT,
+  "titles" INTEGER,
+  "years won" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Primera B Nacional (1)" LIMIT 3
+    team  titles                  years won
+banfield       3 1992-93 , 2000-1 , 2013-14
+  olimpo       3  2001-2 , 2006-7 , 2009-10
+ hurac\u00e1n       2           1989-90 , 1999-0
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: Which Primera B Nacional team finished second in the year the club founded on 21 January 1896 finished third ?
+BlendSQL:
+SELECT "runner-up" FROM "./Primera B Nacional (0)" AS w
+WHERE "third place" = {{
+    LLMQA(
+        'Which club was founded on 21 January 1896?'
+        (SELECT * FROM documents WHERE documents MATCH 'primera OR founded OR (club AND 1896)' ORDER BY rank LIMIT 5)
+        options='w::third place'
+    )
+}}
+
+---
+
+CREATE TABLE "./List of African films (4)" (
+  "year" INTEGER,
+  "title" TEXT,
+  "director" TEXT,
+  "genre" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./List of African films (4)" LIMIT 3
+ year                        title         director             genre
+ 1972                       kouami metonou do kokou             short
+ 1979 au rendez-vous du r\u00eave ab\u00eati  kodjo goncalves short documentary
+ 1986        the blooms of banjeli   carlyn saltman short documentary
+*/
+
+CREATE TABLE "./Cinema of Chad (0)" (
+  "year" INTEGER,
+  "title" TEXT,
+  "director" TEXT,
+  "genre" TEXT,
+  "notes" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Cinema of Chad (0)" LIMIT 3
+ year                                         title                   director              genre                                notes
+ 1958                           the roots of heaven                john huston     drama , action    american film partly shot in chad
+ 1960 les tonnes de l\'audace - mission t\u00e9n\u00e9r\u00e9 tchad ren\u00e9 quinet & louis sommet        documentary                                 none
+ 1966                             p\u00eacheurs du chari             edouard sailly ethnographic short english title : fishers of the chari
+*/
+
+CREATE TABLE "./Cinema of Chad (1)" (
+  "year" INTEGER,
+  "title" TEXT,
+  "director" TEXT,
+  "genre" TEXT,
+  "notes" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM "./Cinema of Chad (1)" LIMIT 3
+ year                                         title                   director              genre                                notes
+ 1958                           the roots of heaven                john huston     drama , action    american film partly shot in chad
+ 1960 les tonnes de l\'audace - mission t\u00e9n\u00e9r\u00e9 tchad ren\u00e9 quinet & louis sommet        documentary                                 none
+ 1966                             p\u00eacheurs du chari             edouard sailly ethnographic short english title : fishers of the chari
+*/
+
+CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
+
+Q: Who is the director the Togolese film that was a 30 minute film that was shot in 16mm ?
+BlendSQL:
+SELECT director FROM "./List of African films (4)" as w
+WHERE title = {{
+    LLMQA(
+        'What is the name of the Togolese film that was 30 minutes and shot in 16mm?'
+        (SELECT * FROM documents WHERE documents MATCH 'togolese OR 30 OR 16mm OR film' ORDER BY rank LIMIT 5)
+        options='w::title'
+    )
+}}
+
+---

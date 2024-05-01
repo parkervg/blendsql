@@ -26,7 +26,6 @@ from ...constants import (
     DOCS_TABLE_NAME,
     EvalField,
 )
-from ...prompts.few_shot.feverous import blendsql_examples, sql_examples
 from ..normalizer import prepare_df_for_neuraldb_from_table
 from blendsql.db import SQLite
 
@@ -135,9 +134,10 @@ def feverous_get_input(
     return (
         db_path,
         {
-            "examples": blendsql_examples
-            if model_args.blender_model_name_or_path is not None
-            else sql_examples,
+            "few_shot_prompt": open("./research/prompts/feverous/few_shot.txt").read(),
+            "ingredients_prompt": open(
+                "./research/prompts/feverous/ingredients.txt"
+            ).read(),
             "question": statement,
             "serialized_db": serialized_db,
             "entire_serialized_db": entire_serialized_db,
