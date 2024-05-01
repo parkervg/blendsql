@@ -26,7 +26,6 @@ from ...constants import (
     CREATE_VIRTUAL_TABLE_CMD,
     EvalField,
 )
-from ...prompts.few_shot.hybridqa import blendsql_examples, sql_examples
 from ..normalizer import prepare_df_for_neuraldb_from_table
 from blendsql.db import SQLite
 
@@ -132,19 +131,19 @@ def hybridqa_get_input(
                             values=value_sep.join(matches),
                         )
                     )
-        bridge_hints = "\n".join(bridge_hints)
+        bridge_hints = " , ".join(bridge_hints)
     db.con.close()
     return (
         db_path,
         {
-            "examples": blendsql_examples
-            if model_args.blender_model_name_or_path is not None
-            else sql_examples,
+            "few_shot_prompt": open("./research/prompts/hybridqa/few_shot.txt").read(),
+            "ingredients_prompt": open(
+                "./research/prompts/hybridqa/ingredients.txt"
+            ).read(),
             "question": question,
             "serialized_db": serialized_db,
             "entire_serialized_db": entire_serialized_db,
             "bridge_hints": bridge_hints,
-            "extra_task_description": f"Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table.",
         },
     )
 
