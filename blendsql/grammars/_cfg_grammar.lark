@@ -172,7 +172,7 @@ time: HOURS ":" MINUTES ":" SECONDS
 HOURS: /[0-9]{2}/
 MINUTES: /[0-9]{2}/
 SECONDS: /[0-9]{2}/
-name: CNAME | ESCAPED_STRING
+name: CNAME | ESCAPED_STRING | | /`([^`]|\s)+`|``/
 SEMICOLON: ";"
 
 %import common.ESCAPED_STRING
