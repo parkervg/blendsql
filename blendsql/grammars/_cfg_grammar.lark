@@ -11,19 +11,23 @@ set_expr: query_expr
 ?expression_product: expression_parens
                   | expression_product "*" expression_parens -> expression_mul
                   | expression_product "/" expression_parens -> expression_div
+                  | expression_product "+" expression_parens -> expression_add
+                  | expression_product "-" expression_parens -> expression_sub
+                  | expression_product "||" expression_parens -> expression_concat
 
 ?expression_parens: expression
                   | "(" expression_parens "*" expression ")" -> expression_mul
                   | "(" expression_parens "/" expression ")" -> expression_div
                   | "(" expression_parens "+" expression ")" -> expression_add
                   | "(" expression_parens "-" expression ")" -> expression_sub
+                  | "(" expression_product "||" expression_parens ")" -> expression_concat
 
 ?expression: [name "."] (name | STAR) -> column_name
             | literal
 
 query_expr: select [ "ORDER"i "BY"i (order_by_expr ",")*  order_by_expr] [ "LIMIT"i limit_count [ "OFFSET"i skip_rows ] ]
 
-select: cte_expr? "SELECT"i [SELECT_CONSTRAINT] [(select_expr ",")*] select_expr "FROM"i [(from_expr ",")*] from_expr [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ]
+select: [cte_expr] "SELECT"i [SELECT_CONSTRAINT] [(select_expr ",")*] select_expr "FROM"i [(from_expr ",")*] from_expr [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ]
 
 cte_expr: "WITH"i ["RECURSIVE"i] name "AS"i "(" set_expr ")" ("," name "AS"i "(" set_expr ")")*
 
@@ -48,7 +52,8 @@ groupby_expr: expression -> group_by
 
 window_expr: [window_expr ","] _window_name "AS"i ( window_definition )
 
-subquery: ( "(" (query_expr | join | cross_join) ")" ) [ [ "AS"i ] alias ]
+// TODO: can a subquery be a whole new `start` node?
+subquery: ( "(" set_expr ")" ) [ [ "AS"i ] alias ]
 
 cross_join: from_item "CROSS"i "JOIN"i from_item
 blendsql_join: from_item "JOIN"i blendsql_join_expr
@@ -61,14 +66,15 @@ JOIN_TYPE: "INNER"i | "FULL"i ["OUTER"i] | "LEFT"i["OUTER"i] | "RIGHT"i ["OUTER"
                | "CASE"i (when_then)+ "ELSE"i expression_math "END"i -> case_expression
                | "CAST"i "(" expression_math "AS"i TYPENAME ")" -> as_type
                | "CAST"i "(" literal "AS"i TYPENAME ")" -> literal_cast
-               | AGGREGATION expression_math ")" [window_form] -> sql_aggregation
+               | AGGREGATION_FUNCTIONS expression_math ")" [window_form] -> sql_aggregation
+               | SCALAR_FUNCTIONS [(expression_math ",")*] expression_math ")" -> sql_scalar
                | blendsql_aggregation_expr -> blendsql_aggregation
                | "RANK"i "(" ")" window_form -> rank_expression
                | "DENSE_RANK"i "(" ")" window_form -> dense_rank_expression
-               | "COALESCE"i "(" [(expression_math ",")*] expression_math ")" -> coalesce_expression
+               | "|" "|" expression_math
 
-BLENDSQL_AGGREGATION: ("llmqa("i | "llmverify("i)
-BLENDSQL_JOIN: ("llmjoin("i)
+BLENDSQL_AGGREGATION: ("LLMQA("i | "LLMVerify("i)
+BLENDSQL_JOIN: ("LLMJoin("i)
 left_on_arg: "left_on" "=" string
 right_on_arg: "right_on" "=" string
 blendsql_arg: (name "=" literal | literal | "(" start ")")
@@ -117,7 +123,10 @@ TYPENAME:  "object"i
          | "date"i
          | "category"i
          | "string"i
-AGGREGATION: ("sum("i | "avg("i | "min("i | "max("i | "count("i ["distinct"i] )
+
+// https://www.sqlite.org/lang_expr.html#*funcinexpr
+AGGREGATION_FUNCTIONS: ("sum("i | "avg("i | "min("i | "max("i | "count("i ["distinct"i] )
+SCALAR_FUNCTIONS: ("trim("i | "coalesce("i | "abs("i)
 
 alias: string -> alias_string
 _window_name: name
