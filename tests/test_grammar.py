@@ -42,9 +42,11 @@ accept_queries = [
         )
     }}
     """,
+    "select count(`driver`) from w",
 ]
 
 reject_queries = [
+    # not_an_arg
     """
     {{
         LLMQA(
@@ -79,15 +81,30 @@ reject_queries = [
         )
     }}
     """,
+    # Non-subquery in LLMQA arg
+    """
+    {{
+        LLMQA(
+            'What borough is the Kia Oval located in?',
+            (
+                this is not a query
+            )
+        )
+    }}
+    """,
+    # Missing predicate arg
+    """
+    select * from w where x 'string';
+    """,
 ]
 
 
-def test_accept(parser):
-    for q in accept_queries:
+@pytest.mark.parametrize("q", accept_queries)
+def test_accept(parser, q):
+    parser.parse(q)
+
+
+@pytest.mark.parametrize("q", reject_queries)
+def test_reject(parser, q):
+    with pytest.raises(UnexpectedInput):
         parser.parse(q)
-
-
-def test_reject(parser):
-    for q in reject_queries:
-        with pytest.raises(UnexpectedInput):
-            parser.parse(q)
