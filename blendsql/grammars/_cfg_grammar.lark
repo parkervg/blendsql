@@ -23,11 +23,13 @@ set_expr: query_expr
 
 query_expr: select [ "ORDER"i "BY"i (order_by_expr ",")*  order_by_expr] [ "LIMIT"i limit_count [ "OFFSET"i skip_rows ] ]
 
-select: "SELECT"i [SELECT_CONSTRAINT] [(select_expr ",")*] select_expr "FROM"i [(from_expr ",")*] from_expr [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ]
+select: cte_expr? "SELECT"i [SELECT_CONSTRAINT] [(select_expr ",")*] select_expr "FROM"i [(from_expr ",")*] from_expr [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ]
+
+cte_expr: "WITH"i name "AS"i "(" set_expr ")" ("," name "AS"i "(" set_expr ")")*
 
 where_expr: bool_expression
 
-select_expr.0: expression_math [ [ "AS"i ] alias ] -> select_expression
+select_expr: expression_math [ [ "AS"i ] alias ] -> select_expression
 
 ?from_expr: from_item -> from_expression
 from_item: name [ [ "AS"i ] alias ] -> table
