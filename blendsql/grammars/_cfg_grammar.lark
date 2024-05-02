@@ -25,7 +25,7 @@ query_expr: select [ "ORDER"i "BY"i (order_by_expr ",")*  order_by_expr] [ "LIMI
 
 select: cte_expr? "SELECT"i [SELECT_CONSTRAINT] [(select_expr ",")*] select_expr "FROM"i [(from_expr ",")*] from_expr [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ]
 
-cte_expr: "WITH"i name "AS"i "(" set_expr ")" ("," name "AS"i "(" set_expr ")")*
+cte_expr: "WITH"i "RECURSIVE"i? name "AS"i "(" set_expr ")" ("," name "AS"i "(" set_expr ")")*
 
 where_expr: bool_expression
 
