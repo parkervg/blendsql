@@ -127,7 +127,7 @@ class SQLite:
         else:
             _create_clause_iter = self.create_clauses()
         for tablename, create_clause in _create_clause_iter:
-            # Check if it's an artifact of virtual table
+            # Check if it's an artifact of virtual table, and ignore
             if re.search(r"^{}_".format(DOCS_TABLE_NAME), tablename):
                 continue
             if tablename in ignore_tables:
@@ -141,7 +141,7 @@ class SQLite:
                             f"Table Description: {tablename_to_description[tablename]}"
                         )
             if not whole_table:
-                serialized_db.append(f"\t{create_clause}")
+                serialized_db.append(f"{create_clause}")
             if (
                 num_rows > 0 and not tablename.startswith(DOCS_TABLE_NAME)
             ) or whole_table:
