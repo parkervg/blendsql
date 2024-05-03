@@ -3,7 +3,8 @@ Contains base class for guidance programs for LLMs.
 https://github.com/guidance-ai/guidance
 """
 from typing import Optional
-from guidance.models import Model, Chat
+from guidance.models import Model as GuidanceModel
+from guidance.models import Chat as GuidanceChatModel
 from guidance import user, system, assistant
 from contextlib import nullcontext
 import inspect
@@ -11,11 +12,11 @@ import ast
 import textwrap
 
 
-def get_contexts(model: Model):
+def get_contexts(model: GuidanceModel):
     usercontext = nullcontext()
     systemcontext = nullcontext()
     assistantcontext = nullcontext()
-    if isinstance(model, Chat):
+    if isinstance(model, GuidanceChatModel):
         usercontext = user()
         systemcontext = system()
         assistantcontext = assistant()
@@ -23,19 +24,27 @@ def get_contexts(model: Model):
 
 
 class Program:
+    """
+    TODO: how to add streaming?
+        if isinstance(res, ModelStream):
+        # Fetch actual model by iterating
+        # https://github.com/guidance-ai/guidance/blob/main/tests/models/test_model.py#L85
+        for idx, event in enumerate(res):
+            print(Fore.LIGHTCYAN_EX + str(event) + Fore.RESET)
+            res = event
+    """
+
     def __new__(
         self,
-        model: Model,
+        model: GuidanceModel,
         gen_kwargs: Optional[dict] = None,
         few_shot: bool = True,
         **kwargs,
     ):
         self.model = model
-        self.gen_kwargs = gen_kwargs if gen_kwargs is not None else {}
+        self.gen_kwargs = gen_kwargs
+        self.gen_kwargs = {} if gen_kwargs is None else gen_kwargs
         self.few_shot = few_shot
-        # assert issubclass(
-        #     Model, type(self.model)
-        # ), f"GuidanceProgram needs a guidance.models.Model object!\nGot {type(self.model)}"
         (
             self.usercontext,
             self.systemcontext,
@@ -66,18 +75,19 @@ def program_to_str(program: Program):
     Some helpful refs:
         - https://github.com/universe-proton/universe-topology/issues/15
     """
-    call_content = textwrap.dedent(inspect.getsource(program.__call__))
+    source_func = program.__call__
+    call_content = textwrap.dedent(inspect.getsource(source_func))
     root = ast.parse(call_content)
     root_names = {node.id for node in ast.walk(root) if isinstance(node, ast.Name)}
-    co_varnames = set(program.__call__.__code__.co_varnames)
+    co_varnames = set(source_func.__code__.co_varnames)
     names_to_resolve = sorted(root_names.difference(co_varnames))
     resolved_names = ""
     if len(names_to_resolve) > 0:
-        globals_as_dict = dict(inspect.getmembers(program.__call__))["__globals__"]
+        globals_as_dict = dict(inspect.getmembers(source_func))["__globals__"]
         for name in names_to_resolve:
             if name in globals_as_dict:
                 val = globals_as_dict[name]
-                # Ignore functions
+                # Ignore functions - we really only want scalars here
                 if not callable(val):
                     resolved_names += f"{val}\n"
     return f"{call_content}{resolved_names}"
