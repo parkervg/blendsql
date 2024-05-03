@@ -3,7 +3,7 @@ from typing import List, Any, Collection
 from dataclasses import dataclass
 
 import exrex
-from lark.lexer import TerminalDef
+from lark.lexer import TerminalDef, PatternRE, PatternStr, Pattern
 from lark.load_grammar import load_grammar
 
 from .earley import Parser
@@ -94,11 +94,11 @@ class EarleyParser:
                 candidates.add(candidate)
             return candidates
 
-        def pattern_to_candidates(pattern):
+        def pattern_to_candidates(pattern: Pattern):
             candidates = set()
-            if pattern.type == "str":
+            if isinstance(pattern, PatternStr):
                 candidates.add(pattern.value)
-            elif pattern.type == "regex":
+            elif isinstance(pattern, PatternRE):
                 candidates.update(regex_to_candidates(pattern.value))
             return candidates
 
@@ -113,7 +113,6 @@ class EarleyParser:
             # TODO: handle case where no candidate is found
             if len(candidate_terminals) == 0:
                 candidate_terminals = [""]
-            return prefix, candidate_terminals
         elif isinstance(e, UnexpectedEOF):
             candidate_terminals = set()
             for terminal_name in e.expected:
@@ -123,6 +122,6 @@ class EarleyParser:
 
             assert len(candidate_terminals) > 0
             prefix = e.text
-            return prefix, candidate_terminals
         else:
             raise e
+        return (prefix, candidate_terminals, e.pos_in_stream)
