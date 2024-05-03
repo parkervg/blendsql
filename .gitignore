@@ -1,3 +1,5 @@
+.chainlit/
+.files/
 proxies.py
 site/
 tests/data/
@@ -104,3 +106,4 @@ target/
 
 # kernprof line profiling
 *.lprof
+/lark-constrained-parsing/
