@@ -42,7 +42,49 @@ accept_queries = [
         )
     }}
     """,
+    """
+    {{
+        LLMQA(
+            'In what event was the cyclist ranked highest?',
+            (
+                SELECT * FROM (
+                    SELECT * FROM "./Cuba at the UCI Track Cycling World Championships (2)"
+                ) as w WHERE w.name = {{
+                    LLMQA(
+                        "Which cyclist was born in Matanzas, Cuba?",
+                        (
+                            SELECT * FROM documents 
+                                WHERE documents MATCH 'matanzas AND (cycling OR track OR born)' 
+                                ORDER BY rank LIMIT 3
+                        ),
+                        options="w::name"
+                    )
+                }}
+            ),
+            options='w::event'
+        )
+    }}
+    """,
+    """
+    {{
+        LLMQA(
+            'When was the Rangers Player born?',
+            (
+                WITH t AS (
+                    SELECT player FROM (
+                        SELECT * FROM "./List of Rangers F.C. records and statistics (0)"
+                        UNION ALL SELECT * FROM "./List of Rangers F.C. records and statistics (1)"
+                    ) ORDER BY trim(fee, '£') DESC LIMIT 1 OFFSET 2
+                ), d AS (
+                    SELECT * FROM documents JOIN t WHERE documents MATCH t.player || ' OR rangers OR fc' ORDER BY rank LIMIT 5
+                ) SELECT d.content, t.player AS 'Rangers Player' FROM d JOIN t
+            )
+        )
+    }}
+    """,
     "select count(`driver`) from w",
+    "with t as (SELECT count(`driver`) from w), d as (SELECT * FROM w) SELECT * FROM t;",
+    "select w.driver || w.constructor from w",
 ]
 
 reject_queries = [
@@ -96,6 +138,10 @@ reject_queries = [
     """
     select * from w where x 'string';
     """,
+    # Duplicate 'with' in CTE
+    "with t as (SELECT count(`driver`) from w), with d as (SELECT * FROM w) SELECT * FROM t;",
+    # Invalid use of concat
+    "select driver from w || t;",
 ]
 
 
