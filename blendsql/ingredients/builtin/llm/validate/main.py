@@ -9,8 +9,13 @@ from blendsql.ingredients.ingredient import QAIngredient
 
 class ValidateProgram(Program):
     def __call__(
-        self, question: str, serialized_db: str, table_title: str = None, **kwargs
+        self,
+        question: str,
+        context: pd.DataFrame = None,
+        table_title: str = None,
+        **kwargs,
     ):
+        serialized_db = context.to_string() if context is not None else ""
         _model = self.model
         with self.systemcontext:
             _model += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
@@ -41,7 +46,7 @@ class LLMValidate(QAIngredient):
         res = model.predict(
             program=ValidateProgram,
             question=question,
-            serialized_db=context.to_string() if context is not None else "",
+            context=context,
             table_title=None,
             **kwargs,
         )
