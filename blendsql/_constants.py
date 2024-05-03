@@ -11,6 +11,7 @@ class StrInMeta(EnumMeta):
 
 DEFAULT_ANS_SEP = ";"
 DEFAULT_NAN_ANS = "-"
+PARSER_STOP_TOKENS = ["---", ";"]
 VALUE_BATCH_SIZE = 5
 
 
