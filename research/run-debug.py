@@ -1,36 +1,31 @@
 from blendsql import LLMMap, LLMQA, LLMJoin, blend
 from blendsql.db import SQLite
-from blendsql.llms import AzureOpenaiLLM
+from blendsql.models import TransformersLLM
+from blendsql.utils import fetch_from_hub
 from dotenv import load_dotenv
 
 load_dotenv()
 if __name__ == "__main__":
     blendsql = """
-       {{
-            LLMQA(
-                'What is the middle name of this player?',
-                (
-                    SELECT documents.title AS 'Player', documents.content FROM documents
-                    JOIN {{
-                        LLMJoin(
-                            left_on='w::player',
-                            right_on='documents::title'
-                        )
-                    }} WHERE w."rank" = 2
-                )
-            )
-        }}
+    SELECT * FROM w
+      WHERE city = {{
+          LLMQA(
+              'Which city is located 120 miles west of Sydney?',
+              (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+              options='w::city'
+          )
+      }}
        """
-    db_path = "research/db/hybridqa/List_of_National_Football_League_rushing_yards_leaders_0.db"
 
-    db = SQLite(db_path)
+    db = SQLite(
+        fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
+    )
     smoothie = blend(
         query=blendsql,
         db=db,
         ingredients={LLMMap, LLMQA, LLMJoin},
-        blender=AzureOpenaiLLM("gpt-4"),
+        blender=TransformersLLM("Qwen/Qwen1.5-0.5B"),
         infer_gen_constraints=True,
-        silence_db_exec_errors=False,
         verbose=True,
     )
     print("--------------------------------------------------")

@@ -396,7 +396,7 @@ def blend(
     schema_qualify: bool = True,
     # User shouldn't interact with below
     _prev_passed_values: int = 0,
-    _prev_cleanup_tables: Set[str] = None,
+    _prev_cleanup_tables: Optional[Set[str]] = None,
 ) -> Smoothie:
     """The `blend()` function is used to execute a BlendSQL query against a database and
     return the final result, in addition to the intermediate reasoning steps taken.
@@ -415,8 +415,6 @@ def blend(
                 and put this in the `example_outputs` kwarg
         table_to_title: Optional mapping from table name to title of table.
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
-        silence_db_exec_errors: Optional bool, will ignore any db execution errors and attempt to fallback to naive logic.
-            A BlendSQL script could have a SQLite execution error in a subquery but still return some output.
         schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
             This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
             However, we need to call db.get_sqlglot_schema() if schema_qualify=True, which may add some latency.

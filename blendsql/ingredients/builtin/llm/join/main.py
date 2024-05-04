@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from guidance import gen
 from textwrap import dedent
 
@@ -29,38 +29,38 @@ class JoinProgram(Program):
                     """
                 Criteria: Join to same topics.
 
-                Left Values: 
+                Left Values:
                 joshua fields
                 bob brown
                 ron ryan
 
-                Right Values: 
+                Right Values:
                 ron ryan
                 colby mules
                 bob brown (ice hockey)
                 josh fields (pitcher)
 
-                Output: 
+                Output:
                 joshua fields;josh fields (pitcher)
                 bob brown;bob brown (ice hockey)
                 ron ryan;ron ryan
 
-                --- 
+                ---
 
                 Criteria: Align the fruit to their corresponding colors.
 
-                Left Values: 
+                Left Values:
                 apple
                 banana
                 blueberry
                 orange
 
-                Right Values: 
+                Right Values:
                 blue
                 yellow
                 red
 
-                Output: 
+                Output:
                 apple;red
                 banana;yellow
                 blueberry;blue
@@ -73,10 +73,10 @@ class JoinProgram(Program):
                 f"""
                 Criteria: {join_criteria}
 
-                Left Values: 
+                Left Values:
                 {left_values}
 
-                Right Values: 
+                Right Values:
                 {right_values}
 
                 Output:
@@ -93,7 +93,7 @@ class LLMJoin(JoinIngredient):
         left_values: List[str],
         right_values: List[str],
         model: Model,
-        join_criteria: str = "Join to same topics.",
+        question: Optional[str] = "Join to same topics.",
         **kwargs,
     ) -> dict:
         res = model.predict(
@@ -101,7 +101,7 @@ class LLMJoin(JoinIngredient):
             sep=CONST.DEFAULT_ANS_SEP,
             left_values=left_values,
             right_values=right_values,
-            join_criteria=join_criteria,
+            join_criteria=question,
             **kwargs,
         )
 
