@@ -298,17 +298,17 @@ For 'difference of points'
         "bridge_hints": "",
         "examples": [
             {
-                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{LLM('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{Model('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                 "question": "Pizza shops in MA",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             },
             {
-                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{LLM('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
+                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{Model('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
                 "question": "Show gifts for my kid",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             }
         ],
-        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
+        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
         "question": "total number of players whose home town was in north carolina (nc)",
         "serialized_db": "CREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"name\" TEXT,\n  \"#\" INTEGER,\n  \"position\" TEXT,\n  \"height\" TEXT,\n  \"weight\" INTEGER,\n  \"year\" TEXT,\n  \"home town\" TEXT,\n  \"high school\" TEXT\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id            name  # position height  weight     year    home town high school\n     0       0 harrison barnes 40  forward    6\u20138     210 freshman     ames, ia        ames\n     1       1   daniel bolick  3    guard   5\u201310     175   senior carrboro, nc chapel hill\n     2       2  reggie bullock 35    guard    6\u20137     190 freshman  kinston, nc     kinston\n*/"
     },
@@ -316,7 +316,7 @@ For 'difference of points'
     "pred_text": [
         7
     ],
-    "pred_sql": "SELECT COUNT(*) FROM w WHERE {{LLM('is this town in North Carolina?', 'w::home town')}} = 1"
+    "pred_sql": "SELECT COUNT(*) FROM w WHERE {{Model('is this town in North Carolina?', 'w::home town')}} = 1"
 }
 ```
 ### <a id="good_example_2"></a> Good Example 2
@@ -590,17 +590,17 @@ For 'difference of points'
         "bridge_hints": "",
         "examples": [
             {
-                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{LLM('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{Model('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                 "question": "Pizza shops in MA",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             },
             {
-                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{LLM('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
+                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{Model('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
                 "question": "Show gifts for my kid",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             }
         ],
-        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
+        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
         "question": "in how many games did sri lanka score at least 2 goals?",
         "serialized_db": "CREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"#\" REAL,\n  \"date\" TEXT,\n  \"venue\" TEXT,\n  \"opponent\" TEXT,\n  \"score\" TEXT,\n  \"result\" TEXT,\n  \"competition\" TEXT\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id   #      date                                 venue opponent score result                        competition\n     0       0 1.0  2000-5-1 rasmee dhandu stadium, mal\u00e9, maldives maldives   1\u20131    1\u20131 2000 mff golden jubilee tournament\n     1       1 2.0 2000-8-25             ho chi minh city, vietnam  vietnam   2\u20131    2\u20132                       2000 hcm cup\n     2       2 3.0 2001-3-28                    colombo, sri lanka cambodia   1\u20130    1\u20130                           friendly\n*/"
     },
@@ -608,7 +608,7 @@ For 'difference of points'
     "pred_text": [
         16
     ],
-    "pred_sql": "SELECT COUNT(*) FROM w WHERE {{LLM('how many goals did sri lanka score in this game?', 'w::score')}} >= 2"
+    "pred_sql": "SELECT COUNT(*) FROM w WHERE {{Model('how many goals did sri lanka score in this game?', 'w::score')}} >= 2"
 }
 ```
 
@@ -711,17 +711,17 @@ For 'difference of points'
                 "serialized_db": "\nTable Description: Virtual Console (Titles)\nCREATE TABLE w (\n\trow_id int,\n\tsystem text,\n\tjapan int,\n\t[[list of virtual console games for wii u (north america)|north  america]] real,\n\tpal region - europe real,\n\tpal region - australia real\n)\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3;\nrow_id\tsystem\tjapan\t[[list of virtual console games for wii u (north america)|north  america]]\tpal region - europe\tpal region - australia\n0\tnes/famicom\t148\t94.0\t89.0\t89.0\n1\tsuper nes/super famicom\t101\t51.0\t49.0\t49.0\n2\tnintendo 64\t22\t21.0\t21.0\t21.0\n*/  \n            "
             },
             {
-                "blendsql": "SELECT player FROM w WHERE \n            {{\n                LLM('Has crossed swords on its logo?'; 'w::gold coast titans')\n            }} = 1\n        ",
+                "blendsql": "SELECT player FROM w WHERE \n            {{\n                Model('Has crossed swords on its logo?'; 'w::gold coast titans')\n            }} = 1\n        ",
                 "question": "What player was transferred from the team that has crossed swords on its logo to the Warrington Wolves in the 2018 season?",
                 "serialized_db": "\nTable Description: 2018 Warrington Wolves season (Transfers | In)\nCREATE TABLE w(\n\trow_id int,\n\tplayer text,\n\tsigned from text,\n\tcontract length text,\n\tannounced text)\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3;\nrow_id\tplayer\tsigned from\tcontract length\tannounced\n0\tsitaleki akauola\tpenrith panthers\tp2y\t2017-08-01 00:00:00\n1\tbryson goodwin\tsouth sydney rabbitohs\tp2y\t2017-10-01 00:00:00\n2\ttyrone roberts\tgold coast titans\tp3y\t2017-10-01 00:00:00\n*/\nCREATE TABLE Images(\n\trow_id int,\n\tgold coast titans text)\n/*\nAll rows of the table:\nSELECT * FROM w;\nrow_id\tgold coast titans\n0\ta logo for the golden knights is painted on the beach.\n*/\n"
             },
             {
-                "blendsql": "SELECT DISTINCT merchant FROM w WHERE\n    {{LLM('is this a pizza shop?', 'w::merchant'}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'w::description',\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                "blendsql": "SELECT DISTINCT merchant FROM w WHERE\n    {{Model('is this a pizza shop?', 'w::merchant'}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'w::description',\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                 "question": "Pizza shop merchants in MA",
                 "serialized_db": "\nTable Description: transactions\nCREATE TABLE w (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n/*\n3 example rows:\nSELECT * FROM transactions LIMIT 3\n index                                    description  amount merchant cash_flow parent_category         child_category       date  confidence_score\n     0  Zelle payment from JUSTIN ORENIC BACucw5n1t14  2000.0    Zelle   Expense        Cash/ATM Online Payment Service 2022-06-20          0.698891\n     1 Zelle Transfer Conf  UJ7QJF7TE  Emilia Galindo  1500.0    Zelle   Expense        Cash/ATM Online Payment Service 2022-01-16          0.701658\n     2   Zelle payment from SOPHIA YANEZ WFCT0Q9R3CNR  1474.0    Zelle   Expense        Cash/ATM Online Payment Service 2022-03-27          0.861237\n*/\n)"
             }
         ],
-        "program": "\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL: {{gen \"result\" temperature=0.0}}\n",
+        "program": "\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL: {{gen \"result\" temperature=0.0}}\n",
         "question": "tell me the number of shows that only have one host per day.",
         "serialized_db": "Table Description: List of programs broadcast by Fox News Channel\nCREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"et\" TEXT,\n  \"days available\" TEXT,\n  \"program\" TEXT,\n  \"host(s)\" TEXT,\n  \"description\" TEXT\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id                 et              days available       program                                                                                                        host(s)                    description\n     0       0     (t09,t10,pt1h) (xxxx-wxx-1,xxxx-wxx-5,p4d) the tmo click                                                                       jamie colby (m,t), harris faulkner (w\u2013f)                current events.\n     1       1 (t10,t10:30,pt30m) (xxxx-wxx-1,xxxx-wxx-5,p4d)          none lauren green (m), uma pemmaraju (t), gregg jarrett (w), arthel neville (f), rick folbaum (f), heather childers                current events.\n     2       2 (t11,t11:30,pt30m) (xxxx-wxx-1,xxxx-wxx-5,p4d)      fbn live                                                                                               lauren simonetti business news and information.\n*/"
     },
@@ -729,7 +729,7 @@ For 'difference of points'
     "pred_text": [
         7
     ],
-    "pred_sql": " SELECT COUNT(*) FROM w WHERE \n            {{\n                LLM('How many hosts per day?', 'w::host(s)')\n            }} = 1",
+    "pred_sql": " SELECT COUNT(*) FROM w WHERE \n            {{\n                Model('How many hosts per day?', 'w::host(s)')\n            }} = 1",
     "pred_has_ingredient": true,
     "example_map_outputs": [
         [
@@ -942,17 +942,17 @@ For 'difference of points'
             "endpoint_name": "gpt-4",
             "examples": [
                 {
-                    "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{LLM('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;',\n           endpoint_name='gpt-4'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                    "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{Model('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;',\n           endpoint_name='gpt-4'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                     "question": "Pizza shops in MA",
                     "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
                 },
                 {
-                    "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{LLM('would this gift be appropriate for a child?', 'transactions::description', enpoint_name='gpt-4')}} = 1\n      AND child_category = 'Gifts'",
+                    "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{Model('would this gift be appropriate for a child?', 'transactions::description', enpoint_name='gpt-4')}} = 1\n      AND child_category = 'Gifts'",
                     "question": "Show gifts for my kid",
                     "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
                 }
             ],
-            "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
+            "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
             "question": "what was the number of silver medals won by ukraine?",
             "serialized_db": "CREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"rank\" TEXT,\n  \"nation\" TEXT,\n  \"gold\" INTEGER,\n  \"silver\" INTEGER,\n  \"bronze\" INTEGER,\n  \"total\" INTEGER\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id rank              nation  gold  silver  bronze  total\n     0       0    1 great britain\u00a0(gbr)     2       1       2      5\n     1       1    2        brazil\u00a0(bra)     2       0       0      2\n     2       2    3         spain\u00a0(esp)     1       2       0      3\n*/"
         },
@@ -960,7 +960,7 @@ For 'difference of points'
         "pred_text": [
             2
         ],
-        "pred_sql": "SELECT silver FROM w WHERE {{LLM('is this the country ukraine?', 'w::nation', endpoint_name='gpt-4')}} = 1"
+        "pred_sql": "SELECT silver FROM w WHERE {{Model('is this the country ukraine?', 'w::nation', endpoint_name='gpt-4')}} = 1"
     }
 ```
 
@@ -1593,17 +1593,17 @@ For 'difference of points'
         "bridge_hints": "name ( erik lesser )",
         "examples": [
             {
-                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{LLM('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{Model('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                 "question": "Pizza shops in MA",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             },
             {
-                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{LLM('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
+                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{Model('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
                 "question": "Show gifts for my kid",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             }
         ],
-        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
+        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
         "question": "between bjorn ferry, simon elder and erik lesser - who had the most penalties?",
         "serialized_db": "CREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"rank\" REAL,\n  \"bib\" INTEGER,\n  \"name\" TEXT,\n  \"nationality\" TEXT,\n  \"start\" TEXT,\n  \"penalties (p+p+s+s)\" TEXT,\n  \"time\" TEXT,\n  \"deficit\" TEXT\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id rank  bib                name nationality start penalties (p+p+s+s)    time deficit\n     0       0 None    1 emil hegle svendsen      norway   0:0         1 (0+0+0+1) 32:35.5    none\n     1       1 None    2     martin fourcade      france   0:8         2 (0+1+1+0) 32:35.6    +0.1\n     2       2 None    7      anton shipulin      russia  0:33         1 (0+0+1+0) 32:39.1    +3.6\n*/"
     },
@@ -1612,7 +1612,7 @@ For 'difference of points'
         "erik lesser",
         null
     ],
-    "pred_sql": "SELECT name, MAX({{LLM('how many penalties does this person have?', 'w::penalties (p+p+s+s)', binary=0, example_outputs='0;1;2;3;4;5;6;7;8;9;10;') }}) as penalties FROM w WHERE name IN ('bjorn ferry', 'simon elder', 'erik lesser') GROUP BY name ORDER BY penalties DESC LIMIT 1"
+    "pred_sql": "SELECT name, MAX({{Model('how many penalties does this person have?', 'w::penalties (p+p+s+s)', binary=0, example_outputs='0;1;2;3;4;5;6;7;8;9;10;') }}) as penalties FROM w WHERE name IN ('bjorn ferry', 'simon elder', 'erik lesser') GROUP BY name ORDER BY penalties DESC LIMIT 1"
 }
 ```
 ## Interesting Mistakes
@@ -1779,17 +1779,17 @@ For 'difference of points'
             "bridge_hints": "",
             "examples": [
                 {
-                    "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{LLM('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                    "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{Model('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                     "question": "Pizza shops in MA",
                     "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
                 },
                 {
-                    "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{LLM('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
+                    "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{Model('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
                     "question": "Show gifts for my kid",
                     "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
                 }
             ],
-            "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
+            "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
             "question": "what is the total number of pylons listed?",
             "serialized_db": "CREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"name\" TEXT,\n  \"year built\" TEXT,\n  \"country\" TEXT,\n  \"town\" TEXT,\n  \"height\" TEXT,\n  \"remarks\" TEXT\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id                              name year built country        town  height                                                                        remarks\n     0       0 glacial aerial tramway kaprun iii       1966 austria      kaprun 113.6 m                                      the tallest pylon is on the third section\n     1       1  mississippi aerial river transit       1984     usa new orleans   109 m the tallest pylon on a gondola lift; on 87 m pile foundations; demolished 1994\n     2       2                     torre jaume i       1931   spain   barcelona   107 m        intermediate stop of the harbour aerial tramway, also observation tower\n*/"
         },
@@ -1797,7 +1797,7 @@ For 'difference of points'
         "pred_text": [
             12
         ],
-        "pred_sql": "SELECT COUNT(*) FROM w WHERE {{LLM('does this remark mention a pylon?', 'w::remarks')}} = 1"
+        "pred_sql": "SELECT COUNT(*) FROM w WHERE {{Model('does this remark mention a pylon?', 'w::remarks')}} = 1"
     }
 ```
 
@@ -1964,17 +1964,17 @@ For 'difference of points'
         "bridge_hints": "",
         "examples": [
             {
-                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{LLM('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{Model('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                 "question": "Pizza shops in MA",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             },
             {
-                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{LLM('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
+                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{Model('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
                 "question": "Show gifts for my kid",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             }
         ],
-        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
+        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
         "question": "what is the pylon with the least height listed here?",
         "serialized_db": "CREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"name\" TEXT,\n  \"year built\" TEXT,\n  \"country\" TEXT,\n  \"town\" TEXT,\n  \"height\" TEXT,\n  \"remarks\" TEXT\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id                              name year built country        town  height                                                                        remarks\n     0       0 glacial aerial tramway kaprun iii       1966 austria      kaprun 113.6 m                                      the tallest pylon is on the third section\n     1       1  mississippi aerial river transit       1984     usa new orleans   109 m the tallest pylon on a gondola lift; on 87 m pile foundations; demolished 1994\n     2       2                     torre jaume i       1931   spain   barcelona   107 m        intermediate stop of the harbour aerial tramway, also observation tower\n*/"
     },
@@ -1983,7 +1983,7 @@ For 'difference of points'
         "mississippi aerial river transit",
         "109 m"
     ],
-    "pred_sql": "SELECT name, height FROM w ORDER BY {{LLM('what is the numerical value of this height?', 'w::height')}} ASC LIMIT 1"
+    "pred_sql": "SELECT name, height FROM w ORDER BY {{Model('what is the numerical value of this height?', 'w::height')}} ASC LIMIT 1"
 }
 ```
 
@@ -2391,17 +2391,17 @@ For 'difference of points'
         "bridge_hints": "province ( kabul )\ncenters ( kabul )",
         "examples": [
             {
-                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{LLM('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{Model('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                 "question": "Pizza shops in MA",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             },
             {
-                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{LLM('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
+                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{Model('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
                 "question": "Show gifts for my kid",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             }
         ],
-        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
+        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
         "question": "how many provinces have the same number of districts as kabul?",
         "serialized_db": "CREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"province\" TEXT,\n  \"map #\" INTEGER,\n  \"iso 3166-2:af\" TEXT,\n  \"centers\" TEXT,\n  \"population\" INTEGER,\n  \"area (km\u00b2)\" INTEGER,\n  \"language\" TEXT,\n  \"notes\" TEXT,\n  \"u.n. region\" TEXT\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id   province  map # iso 3166-2:af     centers  population  area (km\u00b2)                            language                    notes            u.n. region\n     0       0 badakhshan     30        af-bds    fayzabad      823000       44059                       dari persian, composed of 29 districts north east afghanistan\n     1       1    badghis      4        af-bdg  qala i naw      429500       20591                dari persian, pashto              7 districts       west afghanistan\n     2       2    baghlan     19        af-bgl puli khumri      779000       21118 dari persian uzbek, turkmen, pashto             16 districts north east afghanistan\n*/"
     },
@@ -2409,7 +2409,7 @@ For 'difference of points'
     "pred_text": [
         34
     ],
-    "pred_sql": "SELECT COUNT(DISTINCT province) FROM w WHERE\n    {{LLM('how many districts does this province have?', 'w::notes')}} = \n    {{LLM('how many districts does this province have?', 'w::notes', example_inputs='kabul')}}"
+    "pred_sql": "SELECT COUNT(DISTINCT province) FROM w WHERE\n    {{Model('how many districts does this province have?', 'w::notes')}} = \n    {{Model('how many districts does this province have?', 'w::notes', example_inputs='kabul')}}"
 }
 ``` 
 4) **IMPORTANT** Didn't know what 'that year' means if we don't pass in table header
@@ -2641,17 +2641,17 @@ For 'difference of points'
         "bridge_hints": "",
         "examples": [
             {
-                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{LLM('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                "blendsql": "SELECT DISTINCT description, merchant FROM transactions WHERE\n    {{Model('is this a pizza shop?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'transactions::description',\n           binary=0,\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                 "question": "Pizza shops in MA",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             },
             {
-                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{LLM('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
+                "blendsql": "SELECT DISTINCT description, merchant, child_category, date FROM transactions WHERE\n      {{Model('would this gift be appropriate for a child?', 'transactions::description')}} = 1\n      AND child_category = 'Gifts'",
                 "question": "Show gifts for my kid",
                 "serialized_db": "CREATE TABLE \"transactions\" (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n)"
             }
         ],
-        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
+        "program": "\n{{#system~}}\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{~/system}}\n\n{{#user~}}\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL:\n{{~/user}}\n\n{{#assistant~}}\n{{gen \"result\" temperature=0.0}}\n{{~/assistant}}\n",
         "question": "how many players made an appearance that year?",
         "serialized_db": "CREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"player\" TEXT,\n  \"-1967\" TEXT,\n  \"03.30\" TEXT,\n  \"03.31\" TEXT,\n  \"04.04\" TEXT,\n  \"10.14\" TEXT,\n  \"1968\" TEXT,\n  \"total\" TEXT\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id             player  -1967 03.30 03.31 04.04 10.14 1968  total\n     0       0    shigeo yaegashi 41(11)     o     o     o     o 4(0) 45(11)\n     1       1      mitsuo kamata  37(2)     o  none     o     o 3(0)  40(2)\n     2       2 masakatsu miyamoto  36(1)  none     o  none     o 2(0)  38(1)\n*/"
     },
@@ -2659,7 +2659,7 @@ For 'difference of points'
     "pred_text": [
         12
     ],
-    "pred_sql": "SELECT COUNT(DISTINCT player) FROM w WHERE {{LLM('did this player make an appearance this year?', 'w::total')}} = 1"
+    "pred_sql": "SELECT COUNT(DISTINCT player) FROM w WHERE {{Model('did this player make an appearance this year?', 'w::total')}} = 1"
 }
 ```
 5) Unnecessary use of BlendSQL
@@ -2799,17 +2799,17 @@ For 'difference of points'
                 "serialized_db": "\nTable Description: Virtual Console (Titles)\nCREATE TABLE w (\n\trow_id int,\n\tsystem text,\n\tjapan int,\n\t[[list of virtual console games for wii u (north america)|north  america]] real,\n\tpal region - europe real,\n\tpal region - australia real\n)\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3;\nrow_id\tsystem\tjapan\t[[list of virtual console games for wii u (north america)|north  america]]\tpal region - europe\tpal region - australia\n0\tnes/famicom\t148\t94.0\t89.0\t89.0\n1\tsuper nes/super famicom\t101\t51.0\t49.0\t49.0\n2\tnintendo 64\t22\t21.0\t21.0\t21.0\n*/  \n            "
             },
             {
-                "blendsql": "SELECT player FROM w WHERE \n            {{\n                LLM('Has crossed swords on its logo?'; 'w::gold coast titans')\n            }} = 1\n        ",
+                "blendsql": "SELECT player FROM w WHERE \n            {{\n                Model('Has crossed swords on its logo?'; 'w::gold coast titans')\n            }} = 1\n        ",
                 "question": "What player was transferred from the team that has crossed swords on its logo to the Warrington Wolves in the 2018 season?",
                 "serialized_db": "\nTable Description: 2018 Warrington Wolves season (Transfers | In)\nCREATE TABLE w(\n\trow_id int,\n\tplayer text,\n\tsigned from text,\n\tcontract length text,\n\tannounced text)\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3;\nrow_id\tplayer\tsigned from\tcontract length\tannounced\n0\tsitaleki akauola\tpenrith panthers\tp2y\t2017-08-01 00:00:00\n1\tbryson goodwin\tsouth sydney rabbitohs\tp2y\t2017-10-01 00:00:00\n2\ttyrone roberts\tgold coast titans\tp3y\t2017-10-01 00:00:00\n*/\nCREATE TABLE Images(\n\trow_id int,\n\tgold coast titans text)\n/*\nAll rows of the table:\nSELECT * FROM w;\nrow_id\tgold coast titans\n0\ta logo for the golden knights is painted on the beach.\n*/\n"
             },
             {
-                "blendsql": "SELECT DISTINCT merchant FROM w WHERE\n    {{LLM('is this a pizza shop?', 'w::merchant'}} = 1\n    AND {{\n       LLM(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'w::description',\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
+                "blendsql": "SELECT DISTINCT merchant FROM w WHERE\n    {{Model('is this a pizza shop?', 'w::merchant'}} = 1\n    AND {{\n       Model(\n           'what state is this transaction from? Choose -1 when N.A.',\n           'w::description',\n           example_outputs='TX;CA;MA;-1;'\n       )\n    }} = 'MA'\n    AND parent_category = 'Food'",
                 "question": "Pizza shop merchants in MA",
                 "serialized_db": "\nTable Description: transactions\nCREATE TABLE w (\n    \"index\" INTEGER,\n    \"description\" TEXT,\n    \"amount\" REAL,\n    \"merchant\" TEXT,\n    \"cash_flow\" TEXT,\n    \"parent_category\" TEXT,\n    \"child_category\" TEXT,\n    \"date\" TEXT,\n/*\n3 example rows:\nSELECT * FROM transactions LIMIT 3\n index                                    description  amount merchant cash_flow parent_category         child_category       date  confidence_score\n     0  Zelle payment from JUSTIN ORENIC BACucw5n1t14  2000.0    Zelle   Expense        Cash/ATM Online Payment Service 2022-06-20          0.698891\n     1 Zelle Transfer Conf  UJ7QJF7TE  Emilia Galindo  1500.0    Zelle   Expense        Cash/ATM Online Payment Service 2022-01-16          0.701658\n     2   Zelle payment from SOPHIA YANEZ WFCT0Q9R3CNR  1474.0    Zelle   Expense        Cash/ATM Online Payment Service 2022-03-27          0.861237\n*/\n)"
             }
         ],
-        "program": "\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `LLM('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL: {{gen \"result\" temperature=0.0}}\n",
+        "program": "\nGenerate BlendSQL given the question, table, passages, image captions to answer the question correctly.\nBlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.\nThese external ingredients should be wrapped in double curly brackets.\n\nIf question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column with clean content by a new grammar:\n    `Model('question', '{table}::{column})'`\n\nExamples:\n{{~#each examples}}\n{{this.serialized_db}}\nQuestion: {{this.question}}\nBlendSQL: {{this.blendsql}}\n{{/each}}\n\n{{serialized_db}}\n\n{{#if bridge_hints}}\nHere are some values that may be helpful:\n{{bridge_hints}}\n{{/if}}\n\nQuestion: {{question}}\nBlendSQL: {{gen \"result\" temperature=0.0}}\n",
         "question": "what is the total of deaths in internment camps and during the wartime flight?",
         "serialized_db": "Table Description: Demographic estimates of the flight and expulsion of Germans\nCREATE TABLE \"w\" (\n\"index\" INTEGER,\n  \"row_id\" INTEGER,\n  \"description\" TEXT,\n  \"total\" INTEGER,\n  \"poland\" TEXT,\n  \"baltic states(resettled in poland during war)\" INTEGER,\n  \"resettled in poland during war(from ussr and romania)\" INTEGER,\n  \"sudetendeutsch\" INTEGER,\n  \"se europe\\n(hungary, romania, yugoslavia & slovakia)\" INTEGER\n)\n\n/*\n3 example rows:\nSELECT * FROM w LIMIT 3\n index  row_id                                description    total   poland  baltic states(resettled in poland during war)  resettled in poland during war(from ussr and romania)  sudetendeutsch  se europe\\n(hungary, romania, yugoslavia & slovakia)\n     0       0 total population before flight & expulsion 16199086 11038826                                         145615                                                 365622         3160216                                               1488807\n     1       1                             violent deaths    58256    44603                                            383                                                    747            5596                                                  6927\n     2       2                                   suicides    14356    10330                                            157                                                     84            3411                                                   374\n*/"
     },
@@ -2817,7 +2817,7 @@ For 'difference of points'
     "pred_text": [
         173805
     ],
-    "pred_sql": " SELECT SUM(\"total\") FROM w WHERE \n            {{\n                LLM('is this a death during the wartime flight or in internment camps?', 'w::description', example_outputs='during the wartime flight;in internment camps;')\n            }} IN ('during the wartime flight', 'in internment camps')",
+    "pred_sql": " SELECT SUM(\"total\") FROM w WHERE \n            {{\n                Model('is this a death during the wartime flight or in internment camps?', 'w::description', example_outputs='during the wartime flight;in internment camps;')\n            }} IN ('during the wartime flight', 'in internment camps')",
     "pred_has_ingredient": true
 }
 ```

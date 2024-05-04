@@ -8,16 +8,16 @@ class ModelArguments:
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
     """
 
-    parser_model_type: str = field(
-        metadata={
-            "help": "Model type of the parser model. Accepted values are openai (default), hf and sagemaker"
-        }
-    )
-    blender_model_type: str = field(
-        metadata={
-            "help": "Model type of the blender model. Accepted values are openai (default), hf and sagemaker"
-        }
-    )
+    # parser_model_type: str = field(
+    #     metadata={
+    #         "help": "Model type of the parser model. Accepted values are openai (default), hf and sagemaker"
+    #     }
+    # )
+    # blender_model_type: str = field(
+    #     metadata={
+    #         "help": "Model type of the blender model. Accepted values are openai (default), hf and sagemaker"
+    #     }
+    # )
     parser_model_name_or_path: str = field(
         metadata={
             "help": "Path to pretrained model or model identifier from huggingface.co/models"

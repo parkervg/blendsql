@@ -1,9 +1,8 @@
 {
-    "max_val_samples": 200,
     "overwrite_cache": true,
     "overwrite_output_dir": true,
     "use_bridge_encoder": true,
-    "parser_model_name_or_path": "gpt-4",
+    "parser_model_name_or_path": "dlsg-ds-starcoder2-15b-v1-fp16-ept",
     "blender_model_name_or_path": "gpt-4",
     "fallback_to_prompt_and_pray": false,
     "run_name": "base",
@@ -14,6 +13,6 @@
     "source_prefix": "",
     "schema_serialization_type": "code",
     "normalize_query": true,
-    "output_dir": "./research/outputs/hybridqa-test/blendsql-ablation-test/gpt-4-blendsql-only",
+    "output_dir": "./research/outputs/new-paper-results/hybridqa/gpt-4-blendsql-starcoder2-temp0",
     "report_to": []
 }

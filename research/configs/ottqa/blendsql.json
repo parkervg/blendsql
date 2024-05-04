@@ -1,5 +1,4 @@
 {
-    "max_val_samples": 200,
     "overwrite_cache": false,
     "overwrite_output_dir": true,
     "use_bridge_encoder": true,
@@ -10,10 +9,12 @@
     "do_eval": true,
     "do_predict": false,
     "do_train": false,
-    "dataset": "feverous",
+    "dataset": "ottqa",
+    "schema_qualify": false,
+    "num_serialized_rows": 5,
     "source_prefix": "",
     "schema_serialization_type": "code",
     "normalize_query": true,
-    "output_dir": "./research/outputs/feverous-test/test",
+    "output_dir": "./research/outputs/new-paper-results/ottqa/gpt-4-blendsql-only-3-tables",
     "report_to": []
 }
