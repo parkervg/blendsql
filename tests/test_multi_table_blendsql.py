@@ -41,7 +41,7 @@ def test_simple_multi_exec(db, ingredients):
             SELECT Symbol FROM portfolio
             WHERE {{starts_with('A', 'portfolio::Description')}} = 1
             AND portfolio.Symbol in (
-                SELECT Symbol FROM constituents 
+                SELECT Symbol FROM constituents
                 WHERE constituents.Sector = 'Information Technology'
             )
         )
@@ -52,7 +52,7 @@ def test_simple_multi_exec(db, ingredients):
             SELECT Symbol FROM portfolio
             WHERE portfolio.Description LIKE "A%"
             AND Symbol in (
-                SELECT Symbol FROM constituents 
+                SELECT Symbol FROM constituents
                 WHERE constituents.Sector = 'Information Technology'
             )
         )
@@ -149,9 +149,9 @@ def test_join_not_qualified_multi_exec(db, ingredients):
 
 def test_select_multi_exec(db, ingredients):
     blendsql = """
-    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name 
-        FROM account_history 
-        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol 
+    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+        FROM account_history
+        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
         WHERE constituents.Sector = {{select_first_sorted(options='constituents::Sector')}}
         AND lower(account_history.Action) like "%dividend%"
     """
@@ -160,7 +160,7 @@ def test_select_multi_exec(db, ingredients):
         FROM account_history
         LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
         WHERE constituents.Sector = (
-            SELECT Sector FROM constituents 
+            SELECT Sector FROM constituents
             ORDER BY Sector LIMIT 1
         )
         AND lower(account_history.Action) like "%dividend%"
@@ -176,19 +176,19 @@ def test_select_multi_exec(db, ingredients):
 
 def test_complex_multi_exec(db, ingredients):
     blendsql = """
-    SELECT DISTINCT constituents.Symbol as Symbol FROM constituents
-    LEFT JOIN fundamentals ON constituents.Symbol = fundamentals.FPS_SYMBOL
+    SELECT DISTINCT constituents.Symbol, Action FROM constituents
+    LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
     LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
-    WHERE fundamentals.MARKET_DAY_DT > '2023-02-23'
+    WHERE account_history."Run Date" > '2021-02-23'
     AND ({{get_length('n_length', 'constituents::Name')}} > 3 OR {{starts_with('A', 'portfolio::Symbol')}})
     AND portfolio.Symbol IS NOT NULL
-    ORDER BY {{get_length('n_length', 'constituents::Name')}} LIMIT 1
+    ORDER BY LENGTH(constituents.Name) LIMIT 1
     """
     sql = """
-    SELECT DISTINCT constituents.Symbol as Symbol FROM constituents
-    LEFT JOIN fundamentals ON constituents.Symbol = fundamentals.FPS_SYMBOL
+    SELECT DISTINCT constituents.Symbol, Action FROM constituents
+    LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
     LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
-    WHERE fundamentals.MARKET_DAY_DT > '2023-02-23'
+    WHERE account_history."Run Date" > '2021-02-23'
     AND (LENGTH(constituents.Name) > 3 OR portfolio.Symbol LIKE "A%")
     AND portfolio.Symbol IS NOT NULL
     ORDER BY LENGTH(constituents.Name) LIMIT 1
@@ -204,26 +204,25 @@ def test_complex_multi_exec(db, ingredients):
 
 def test_complex_not_qualified_multi_exec(db, ingredients):
     """Same test as test_complex_multi_exec(), but without qualifying columns if we don't need to.
-    i.e. MARKET_DAY_DT and Symbol don't have tablename preceding them.
     commit fefbc0a
     """
     blendsql = """
-    SELECT DISTINCT constituents.Symbol as Symbol FROM constituents
-    LEFT JOIN fundamentals ON constituents.Symbol = fundamentals.FPS_SYMBOL
+    SELECT DISTINCT constituents.Symbol, Action FROM constituents
+    LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
     LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
-    WHERE MARKET_DAY_DT > '2023-02-23'
+    WHERE "Run Date" > '2021-02-23'
     AND ({{get_length('n_length', 'constituents::Name')}} > 3 OR {{starts_with('A', 'portfolio::Symbol')}})
-    AND Symbol IS NOT NULL
-    ORDER BY {{get_length('n_length', 'constituents::Name')}} LIMIT 1
+    AND portfolio.Symbol IS NOT NULL
+    ORDER BY LENGTH(Name) LIMIT 1
     """
     sql = """
-    SELECT DISTINCT constituents.Symbol as Symbol FROM constituents
-    LEFT JOIN fundamentals ON constituents.Symbol = fundamentals.FPS_SYMBOL
+    SELECT DISTINCT constituents.Symbol, Action FROM constituents
+    LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
     LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
-    WHERE MARKET_DAY_DT > '2023-02-23'
+    WHERE "Run Date" > '2021-02-23'
     AND (LENGTH(constituents.Name) > 3 OR portfolio.Symbol LIKE "A%")
-    AND Symbol IS NOT NULL
-    ORDER BY LENGTH(constituents.Name) LIMIT 1
+    AND portfolio.Symbol IS NOT NULL
+    ORDER BY LENGTH(Name) LIMIT 1
     """
     smoothie = blend(
         query=blendsql,
@@ -242,7 +241,7 @@ def test_join_ingredient_multi_exec(db, ingredients):
             left_on='account_history::Account',
             right_on='returns::Annualized Returns'
         )
-    }} 
+    }}
     """
     sql = """
     SELECT Account, Quantity FROM returns JOIN account_history ON returns."Annualized Returns" = account_history."Account"
@@ -259,7 +258,7 @@ def test_join_ingredient_multi_exec(db, ingredients):
 def test_qa_equals_multi_exec(db, ingredients):
     blendsql = """
     SELECT Action FROM account_history
-    WHERE Symbol = {{return_aapl()}} 
+    WHERE Symbol = {{return_aapl()}}
     """
     sql = """
     SELECT Action FROM account_history
@@ -338,7 +337,7 @@ def test_cte_qa_multi_exec(db, ingredients):
         get_table_size(
             (
                 WITH a AS (
-                    SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w 
+                    SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
                         WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
                 ) SELECT * FROM a WHERE LENGTH(a.Symbol) > 2
             )
@@ -373,7 +372,7 @@ def test_cte_qa_named_multi_exec(db, ingredients):
         get_table_size(
             (
                 WITH a AS (
-                    SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w 
+                    SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
                         WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
                 ) SELECT * FROM a WHERE LENGTH(a.Symbol) > 2
             )
@@ -409,7 +408,7 @@ def test_ingredient_in_select_with_join_multi_exec(db, ingredients):
     commit de4a7bc
     """
     blendsql = """
-    SELECT {{get_length('n_length', 'constituents::Name')}} 
+    SELECT {{get_length('n_length', 'constituents::Name')}}
         FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
         WHERE account_history.Action like "%dividend%"
     """
@@ -428,7 +427,7 @@ def test_ingredient_in_select_with_join_multi_exec(db, ingredients):
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = db.execute_query(
         """
-    SELECT COUNT(DISTINCT constituents.Name)  
+    SELECT COUNT(DISTINCT constituents.Name)
     FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
     WHERE account_history.Action like "%dividend%"
     """
