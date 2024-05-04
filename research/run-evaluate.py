@@ -365,7 +365,6 @@ class BlendSQLEvaluation:
                     SINGLE_TABLE_NAME: item["table"].get("page_title", None)
                 },
                 infer_gen_constraints=True,
-                silence_db_exec_errors=False,
                 verbose=True,
             )
             pred_has_ingredient = res.meta.contains_ingredient

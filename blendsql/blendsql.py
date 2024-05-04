@@ -393,7 +393,6 @@ def blend(
     blender_args: Optional[Dict[str, str]] = None,
     infer_gen_constraints: bool = False,
     table_to_title: Optional[Dict[str, str]] = None,
-    silence_db_exec_errors: bool = True,
     schema_qualify: bool = True,
     # User shouldn't interact with below
     _prev_passed_values: int = 0,
@@ -478,7 +477,7 @@ def blend(
         # If we don't have any ingredient calls, execute as normal SQL
         if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
             return Smoothie(
-                df=db.execute_query(query, silence_errors=silence_db_exec_errors),
+                df=db.execute_query(query),
                 meta=SmoothieMeta(
                     process_time_seconds=time.time() - start,
                     num_values_passed=0,
@@ -570,7 +569,6 @@ def blend(
                         ingredients=ingredients,
                         blender_args=blender_args,
                         infer_gen_constraints=infer_gen_constraints,
-                        silence_db_exec_errors=silence_db_exec_errors,
                         table_to_title=table_to_title,
                         verbose=verbose,
                         _prev_passed_values=_prev_passed_values,
@@ -608,7 +606,6 @@ def blend(
                     ingredients=ingredients,
                     blender_args=blender_args,
                     infer_gen_constraints=infer_gen_constraints,
-                    silence_db_exec_errors=silence_db_exec_errors,
                     table_to_title=table_to_title,
                     verbose=verbose,
                     _prev_passed_values=_prev_passed_values,
@@ -682,7 +679,6 @@ def blend(
                             ingredients=ingredients,
                             blender_args=blender_args,
                             infer_gen_constraints=infer_gen_constraints,
-                            silence_db_exec_errors=silence_db_exec_errors,
                             table_to_title=table_to_title,
                             verbose=verbose,
                             _prev_passed_values=_prev_passed_values,
@@ -865,7 +861,7 @@ def blend(
         )
         logging.debug("")
 
-        df = db.execute_query(query, silence_errors=silence_db_exec_errors)
+        df = db.execute_query(query)
 
         return Smoothie(
             df=df,

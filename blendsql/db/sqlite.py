@@ -1,13 +1,12 @@
 import sqlite3
 from pathlib import Path
 from sqlite3 import OperationalError
-from typing import Generator, Tuple, Union, List, Dict, Set
+from typing import Generator, Tuple, List, Dict, Set, Optional
 from typing import Iterable
 import logging
 from functools import lru_cache
 import pandas as pd
 from attr import attrib, attrs
-from colorama import Fore
 import re
 
 from .utils import single_quote_escape, double_quote_escape
@@ -56,7 +55,7 @@ class SQLite:
         return False
 
     def iter_tables(
-        self, use_tables: Iterable[str] = None
+        self, use_tables: Optional[Iterable[str]] = None
     ) -> Generator[str, None, None]:
         for tablename in self._iter_tables():
             if use_tables is not None and tablename not in use_tables:
@@ -98,13 +97,13 @@ class SQLite:
 
     def to_serialized(
         self,
-        ignore_tables: Iterable[str] = None,
-        use_tables: Set[str] = None,
-        num_rows: int = 0,
-        tablename_to_description: dict = None,
-        whole_table: bool = False,
-        truncate_content: int = None,
-        truncate_content_tokens: int = None,
+        ignore_tables: Optional[Iterable[str]] = None,
+        use_tables: Optional[Set[str]] = None,
+        num_rows: Optional[int] = 3,
+        tablename_to_description: Optional[dict] = None,
+        whole_table: Optional[bool] = False,
+        truncate_content: Optional[int] = None,
+        truncate_content_tokens: Optional[int] = None,
         tokenizer=None,
     ) -> str:
         """Generates a string representation of a database, via `CREATE` statements.
@@ -169,32 +168,17 @@ class SQLite:
         serialized_db = "\n".join(serialized_db).strip()
         return serialized_db
 
-    # @profile
-    def execute_query(
-        self, query: str, return_error: bool = False, silence_errors: bool = True
-    ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, str]]:
+    def execute_query(self, query: str) -> pd.DataFrame:
         """
         Execute the given query.
         """
-        try:
-            df = pd.read_sql(query, self.con)
-            if return_error:
-                return (df, None)
-            return df
-        except Exception as e:
-            if silence_errors:
-                print(Fore.RED + "Something went wrong!" + Fore.RESET)
-                print(e)
-                if return_error:
-                    return (pd.DataFrame(), str(e))
-                return pd.DataFrame()  # Return empty pd.DataFrame
-            raise (e)
+        return pd.read_sql(query, self.con)
 
     def _iter_tables(self):
         if self.all_tables is None:
             self.all_tables = pd.read_sql(
                 "SELECT tbl_name FROM sqlite_master WHERE type='table'", self.con
-            )["tbl_name"]
+            )["tbl_name"].tolist()
         return self.all_tables
 
     def _get_columns(self, tablename: str):

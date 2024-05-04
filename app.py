@@ -67,7 +67,6 @@ async def main(message: cl.Message):
             ingredients={LLMMap, LLMQA, LLMJoin},
             blender=blender_model,
             infer_gen_constraints=True,
-            silence_db_exec_errors=False,
             verbose=False,
         )
         blender_step.output = json.dumps(res.meta.prompts, indent=4)
