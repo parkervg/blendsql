@@ -11,7 +11,6 @@ class StrInMeta(EnumMeta):
 
 DEFAULT_ANS_SEP = ";"
 DEFAULT_NAN_ANS = "-"
-PARSER_STOP_TOKENS = ["---", ";"]
 VALUE_BATCH_SIZE = 5
 
 
@@ -26,5 +25,6 @@ class IngredientType(str, Enum, metaclass=StrInMeta):
 class IngredientKwarg:
     QUESTION = "question"
     CONTEXT = "context"
+    VALUES = "values"
     OPTIONS = "options"
     MODEL = "model"
