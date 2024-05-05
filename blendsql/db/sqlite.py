@@ -9,7 +9,7 @@ import pandas as pd
 from attr import attrib, attrs
 import re
 
-from .utils import single_quote_escape, double_quote_escape
+from .utils import single_quote_escape, double_quote_escape, truncate_df_content
 
 
 DOCS_TABLE_NAME = "documents"
@@ -157,12 +157,7 @@ class SQLite:
                 serialized_db.append(f"{get_rows_query}")
                 rows = self.execute_query(get_rows_query)
                 if truncate_content is not None:
-                    # Truncate long strings
-                    rows = rows.map(
-                        lambda x: f"{str(x)[:truncate_content]}..."
-                        if isinstance(x, str) and len(str(x)) > truncate_content
-                        else x
-                    )
+                    rows = truncate_df_content(rows, truncate_content)
                 serialized_db.append(f"{rows.to_string(index=False)}")
                 serialized_db.append("*/\n")
         serialized_db = "\n".join(serialized_db).strip()

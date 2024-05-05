@@ -13,7 +13,9 @@ import platformdirs
 import hashlib
 from abc import abstractmethod
 
-from blendsql._program import Program, program_to_str
+from .._program import Program, program_to_str
+from .._constants import IngredientKwarg
+from ..db.utils import truncate_df_content
 
 CONTEXT_TRUNCATION_LIMIT = 100
 
@@ -146,22 +148,17 @@ class Model:
         return hasher.hexdigest()
 
     @staticmethod
-    def format_prompt(res, **kwargs):
+    def format_prompt(res, **kwargs) -> dict:
         d = {"answer": res}
-        if "question" in kwargs:
-            d["question"] = kwargs.get("question")
-        if "context" in kwargs:
-            context = kwargs.get("context")
+        if IngredientKwarg.QUESTION in kwargs:
+            d[IngredientKwarg.QUESTION] = kwargs.get(IngredientKwarg.QUESTION)
+        if IngredientKwarg.CONTEXT in kwargs:
+            context = kwargs.get(IngredientKwarg.CONTEXT)
             if isinstance(context, pd.DataFrame):
-                # Truncate long strings
-                context = context.map(
-                    lambda x: f"{str(x)[:CONTEXT_TRUNCATION_LIMIT]}..."
-                    if isinstance(x, str) and len(str(x)) > CONTEXT_TRUNCATION_LIMIT
-                    else x
-                )
-                d["context"] = context.to_dict(orient="records")
-        if "values" in kwargs:
-            d["values"] = kwargs.get("values")
+                context = truncate_df_content(context, CONTEXT_TRUNCATION_LIMIT)
+                d[IngredientKwarg.CONTEXT] = context.to_dict(orient="records")
+        if IngredientKwarg.VALUES in kwargs:
+            d[IngredientKwarg.VALUES] = kwargs.get(IngredientKwarg.VALUES)
         return d
 
     @abstractmethod
