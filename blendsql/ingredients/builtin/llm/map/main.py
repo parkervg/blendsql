@@ -44,7 +44,7 @@ class MapProgram(Program):
             if self.few_shot:
                 _model += dedent(
                     """
-                --- 
+                ---
 
                 The following values come from the column 'Home Town', in a table titled '2010\u201311 North Carolina Tar Heels men's basketball team'.
                 Q: What state is this?
@@ -59,7 +59,7 @@ class MapProgram(Program):
 
                 A: IA;NC;NC;CA
 
-                --- 
+                ---
 
                 The following values come from the column 'Penalties (P+P+S+S)', in a table titled 'Biathlon World Championships 2013 \u2013 Men's pursuit'.
                 Q: Total penalty count?
@@ -120,6 +120,11 @@ class MapProgram(Program):
 
 
 class LLMMap(MapIngredient):
+    DESCRIPTION = """
+    If question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column using the scalar function:
+        `{{LLMMap('question', 'table::column')}}`
+    """
+
     def run(
         self,
         question: str,

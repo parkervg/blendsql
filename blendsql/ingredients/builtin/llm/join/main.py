@@ -88,6 +88,11 @@ class JoinProgram(Program):
 
 
 class LLMJoin(JoinIngredient):
+    DESCRIPTION = """
+    If we need to do a `join` operation where there is imperfect alignment between table values, use the new function:
+        `{{LLMJoin(left_on='table::column', right_on='table::column')}}`
+    """
+
     def run(
         self,
         left_values: List[str],

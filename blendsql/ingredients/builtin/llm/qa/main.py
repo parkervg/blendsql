@@ -70,6 +70,13 @@ class QAProgram(Program):
 
 
 class LLMQA(QAIngredient):
+    DESCRIPTION = """
+    If mapping to a new column still cannot answer the question with valid SQL, turn to an end-to-end solution using the aggregate function:
+        `{{LLMQA('question', (blendsql))}}`
+        Optionally, this function can take an `options` argument to restrict its output to an existing SQL column.
+        For example: `... WHERE column = {{LLMQA('question', (blendsql), options='table::column)}}`
+    """
+
     def run(
         self,
         question: str,
