@@ -153,7 +153,7 @@ class MapIngredient(Ingredient):
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
 
-        kwargs["values"] = values
+        kwargs[IngredientKwarg.VALUES] = values
         kwargs["original_table"] = original_table
         kwargs[IngredientKwarg.QUESTION] = question
         mapped_values: Collection[Any] = self._run(*args, **kwargs)
