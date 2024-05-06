@@ -343,7 +343,7 @@ def test_select(db, ingredients):
 
 def test_ingredient_in_select_stmt(db, ingredients):
     blendsql = """
-    SELECT MAX({{get_length('length', 'transactions::merchant')}}) as l FROM transactions
+    SELECT MAX({{get_length('length', 'transactions::merchant')}}) as l FROM transactions 
     """
     sql = """
     SELECT MAX(LENGTH(merchant)) as l FROM transactions
@@ -355,6 +355,37 @@ def test_ingredient_in_select_stmt(db, ingredients):
     )
     sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_query(
+        """
+    SELECT COUNT(DISTINCT merchant) FROM transactions 
+    """
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+
+
+def test_ingredient_in_select_stmt_with_filter(db, ingredients):
+    # commit de4a7bc
+    blendsql = """
+    SELECT MAX({{get_length('length', 'transactions::merchant')}}) as l FROM transactions WHERE child_category = 'Restaurants & Dining'
+    """
+    sql = """
+    SELECT MAX(LENGTH(merchant)) as l FROM transactions WHERE child_category = 'Restaurants & Dining'
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_query(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_query(
+        """
+    SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category = 'Restaurants & Dining'
+    """
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_nested_duplicate_map_calls(db, ingredients):
