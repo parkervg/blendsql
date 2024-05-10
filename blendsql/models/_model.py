@@ -55,7 +55,7 @@ class Model:
     def __attrs_post_init__(self):
         self.cache = Cache(
             Path(platformdirs.user_cache_dir("blendsql"))
-            / f"{self.__class__}_{self.model_name_or_path}.diskcache"
+            / f"{self.model_name_or_path}.diskcache"
         )
         self.prompts: List[str] = []
         if self.requires_config:
