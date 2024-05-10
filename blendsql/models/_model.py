@@ -57,10 +57,11 @@ class Model:
     num_prompt_tokens: int = 0
 
     def __attrs_post_init__(self):
-        self.cache = Cache(
-            Path(platformdirs.user_cache_dir("blendsql"))
-            / f"{self.model_name_or_path}.diskcache"
-        )
+        if self.caching:
+            self.cache = Cache(
+                Path(platformdirs.user_cache_dir("blendsql"))
+                / f"{self.model_name_or_path}.diskcache"
+            )
         self.prompts: List[str] = []
         if self.requires_config:
             if self.env is None:
