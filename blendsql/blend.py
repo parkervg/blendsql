@@ -792,13 +792,14 @@ def blend(
                     # We create a new temp table to avoid a potentially self-destructive operation
                     base_tablename = tablename
                     _base_table: pd.DataFrame = db.execute_query(
-                        f"SELECT * FROM '{single_quote_escape(base_tablename)}'"
+                        f"SELECT * FROM :t", {"t": base_tablename}
                     )
                     base_table = _base_table
                     if db.has_table(_get_temp_session_table(tablename)):
                         base_tablename = _get_temp_session_table(tablename)
                         base_table: pd.DataFrame = db.execute_query(
-                            f"SELECT * FROM '{single_quote_escape(base_tablename)}'"
+                            f"SELECT * FROM '{single_quote_escape(base_tablename)}'",
+                            {"t": base_tablename},
                         )
                     previously_added_columns = base_table.columns.difference(
                         _base_table.columns

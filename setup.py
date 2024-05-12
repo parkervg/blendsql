@@ -36,7 +36,7 @@ setup(
     install_requires=[
         "guidance>=0.1.0",
         "pyparsing==3.1.1",
-        "pandas>=2.0.0",
+        "pandas==1.5.3",
         "bottleneck>=1.3.6",
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",

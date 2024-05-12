@@ -6,7 +6,6 @@ from pathlib import Path
 import logging
 
 from .ingredients import Ingredient, IngredientException
-from .db.sqlite import SQLite
 from .models import Model
 from ._program import Program
 from .grammars.minEarley.parser import EarleyParser
