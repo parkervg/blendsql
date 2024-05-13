@@ -29,86 +29,8 @@ If we need to do a `join` operation where there is imperfect alignment between t
 
 ONLY use these BlendSQL ingredients if necessary.
 Answer parts of the question in vanilla SQL, if possible.
-Don't forget to use the `options` argument when necessary! 
+Don't forget to use the `options` argument when necessary!
 
-Examples:
-
-CREATE TABLE "w" (
-  "index" INTEGER,
-  "no" INTEGER,
-  "rider" TEXT,
-  "team" TEXT,
-  "motorcycle" TEXT
-)
-/*
-3 example rows:
-SELECT * FROM w LIMIT 3
- index  no          rider                 team      motorcycle
-     0   1   carl fogarty   ducati performance      ducati 996
-     1   4 akira yanagawa kawasaki racing team kawasaki zx-7rr
-     2   5  colin edwards        castrol honda      honda rc45
-*/
-
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
-
-Q: After what season did the number 7 competitor retire ?
-BlendSQL:
-{{
-    LLMQA(
-        'When did the competitor retire?',
-        (
-            SELECT documents.title AS 'Competitor', documents.content FROM documents
-            JOIN {{
-                LLMJoin(
-                    left_on='w::rider',
-                    right_on='documents::title'
-                )
-            }}
-            WHERE w.no = 7
-        )
-    )
-}}
-
----
-
-CREATE TABLE "w" (
-  "index" INTEGER,
-  "year" TEXT,
-  "winner" TEXT,
-  "position" TEXT,
-  "school" TEXT
-)
-/*
-3 example rows:
-SELECT * FROM w LIMIT 3
- index    year         winner   position     school
-     0 1961-62       ron ryan right wing      colby
-     1 1962-63 bob brinkworth     center rensselaer
-     2 1963-64 bob brinkworth     center rensselaer
-*/
-
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
-
-Here are some values that may be useful: w.year ( 1971-72 )
-Q: What year was the 1971-72 ECAC Hockey Player of the Year born ?
-BlendSQL:
-{{
-    LLMQA(
-        'What year was the player born?',
-        (
-            SELECT documents.title AS 'Player', documents.content FROM documents
-            JOIN {{
-                LLMJoin(
-                    left_on = 'w::winner',
-                    right_on = 'documents::title'
-                )
-            }}
-            WHERE w.year = '1971-72'
-        )
-    )
-}}
-
----
 """
 )
 load_dotenv(".env")
@@ -292,17 +214,20 @@ if __name__ == "__main__":
     print(candidates)
 
     from blendsql.models import TransformersLLM
+    from blendsql.utils import fetch_from_hub
 
     # model = LlamaCppLLM(
     #     model_name_or_path="./lark-constrained-parsing/tinyllama-1.1b-chat-v1.0.Q2_K.gguf",
     #     caching=False
     # )
     model = TransformersLLM("Qwen/Qwen1.5-0.5B", caching=False)
-    db = SQLite("./research/db/hybridqa/2004_United_States_Grand_Prix_0.db")
+    db = SQLite(
+        fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
+    )
     print(
         Fore.GREEN
         + predict_program_with_earley_correction(
-            question="Of the top 3 drivers, who is the youngest?",
+            question="Which venues had games in Sydney with more than 30 total points?",
             model=model,
             db=db,
             parser_program=ParserProgram,

@@ -33,7 +33,7 @@ from .utils import (
     recover_blendsql,
     get_tablename_colname,
 )
-from .db.sqlite import SQLite
+from .db import Database
 from .db.utils import double_quote_escape, single_quote_escape
 from ._sqlglot import (
     MODIFIERS,
@@ -64,7 +64,7 @@ from .models._model import Model
 class Kitchen(list):
     """Superset of list. A collection of ingredients."""
 
-    db: SQLite = attrib()
+    db: Database = attrib()
     session_uuid: str = attrib()
 
     added_ingredient_names: set = attrib(init=False)
@@ -288,7 +288,7 @@ def set_subquery_to_alias(
     subquery: exp.Expression,
     aliasname: str,
     query: exp.Expression,
-    db: SQLite,
+    db: Database,
     blender: Model,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
@@ -386,7 +386,7 @@ def disambiguate_and_submit_blend(
 
 def blend(
     query: str,
-    db: SQLite,
+    db: Database,
     blender: Optional[Model] = None,
     ingredients: Optional[Collection[Ingredient]] = None,
     verbose: bool = False,
@@ -792,14 +792,13 @@ def blend(
                     # We create a new temp table to avoid a potentially self-destructive operation
                     base_tablename = tablename
                     _base_table: pd.DataFrame = db.execute_query(
-                        f"SELECT * FROM :t", {"t": base_tablename}
+                        f'SELECT * FROM "{double_quote_escape(base_tablename)}";'
                     )
                     base_table = _base_table
                     if db.has_table(_get_temp_session_table(tablename)):
                         base_tablename = _get_temp_session_table(tablename)
                         base_table: pd.DataFrame = db.execute_query(
-                            f"SELECT * FROM '{single_quote_escape(base_tablename)}'",
-                            {"t": base_tablename},
+                            f"SELECT * FROM '{single_quote_escape(base_tablename)}';",
                         )
                     previously_added_columns = base_table.columns.difference(
                         _base_table.columns

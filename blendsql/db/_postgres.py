@@ -1,4 +1,3 @@
-from pathlib import Path
 import importlib.util
 
 from ._database import Database
@@ -12,4 +11,4 @@ class PostreSQL(Database):
             raise ImportError(
                 "Please install psycopg2 with `pip install psycopg2`!"
             ) from None
-        super().__init__(db_path=Path(db_path).resolve(), db_prefix="postgresql:///")
+        super().__init__(db_path=db_path, db_prefix="postgresql+psycopg2://")

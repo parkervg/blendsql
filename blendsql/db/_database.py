@@ -1,6 +1,8 @@
 from typing import Generator, List, Dict, Collection
 from typing import Iterable
 import pandas as pd
+from colorama import Fore
+import logging
 from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_engine, inspect, MetaData
@@ -32,11 +34,18 @@ class Database:
         return self.inspector.has_table(tablename)
 
     def tables(self):
-        return self.inspector.get_table_names()
+        return inspect(self.engine).get_table_names()
 
     def iter_columns(self, tablename: str) -> Generator[str, None, None]:
         for column_data in self.inspector.get_columns(tablename):
             yield column_data["name"]
+
+    def drop_table(self, tablename):
+        table = self.metadata.tables.get(tablename, None)
+        if table is None:
+            logging.debug(Fore.RED + f"No table found {tablename}" + Fore.RESET)
+            return
+        table.drop()
 
     def schema_string(self, use_tables: Collection[str] = None) -> str:
         create_table_stmts = []

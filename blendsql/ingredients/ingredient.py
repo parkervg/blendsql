@@ -18,7 +18,8 @@ from typeguard import check_type
 
 from .. import utils
 from .._constants import IngredientKwarg, IngredientType
-from ..db.sqlite import SQLite
+from ..db import Database
+from ..db.utils import double_quote_escape
 
 
 class IngredientException(ValueError):
@@ -32,7 +33,7 @@ def unpack_default_kwargs(**kwargs):
     )
 
 
-def align_to_real_columns(db: SQLite, colname: str, tablename: str) -> str:
+def align_to_real_columns(db: Database, colname: str, tablename: str) -> str:
     table_columns = db.execute_query(f'SELECT * FROM "{tablename}" LIMIT 1').columns
     if colname not in table_columns:
         # Try to align with column, according to some normalization rules
@@ -49,7 +50,7 @@ class Ingredient(ABC):
     ingredient_type: str = attrib(init=False)
     allowed_output_types: Tuple[Type] = attrib(init=False)
     # Below gets passed via `Kitchen.extend()`
-    db: SQLite = attrib(init=False)
+    db: Database = attrib(init=False)
     session_uuid: str = attrib(init=False)
 
     def __repr__(self):
@@ -117,13 +118,13 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
-        original_table = self.db.execute_query(f"SELECT * FROM '{tablename}'")
+        original_table = self.db.execute_query(f'SELECT * FROM "{tablename}"')
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
             temp_session_table = self.db.execute_query(
-                f"SELECT * FROM '{temp_session_tablename}'"
+                f'SELECT * FROM "{double_quote_escape(temp_session_tablename)}"'
             )
             colname = align_to_real_columns(
                 db=self.db, colname=colname, tablename=temp_session_tablename
@@ -163,7 +164,10 @@ class MapIngredient(Ingredient):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
         subtable = pd.DataFrame(df_as_dict)
-        if all(isinstance(x, (int, type(None))) for x in mapped_values):
+        if all(
+            isinstance(x, (int, type(None))) and not isinstance(x, bool)
+            for x in mapped_values
+        ):
             subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
         # Add new_table to original table
         new_table = original_table.merge(subtable, how="left", on=colname)

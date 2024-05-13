@@ -17,7 +17,7 @@ class SQLite(Database):
             {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
         """
         schema = {}
-        for tablename in self._iter_tables():
+        for tablename in self.tables():
             schema[f'"{double_quote_escape(tablename)}"'] = {}
             for _, row in self.execute_query(
                 f"""
