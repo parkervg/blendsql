@@ -28,7 +28,7 @@ setup(
     url="https://github.com/parkervg/blendsql",
     author="Parker Glenn",
     author_email="parkervg5@gmail.com",
-    description="Orchestrate SQLite logic and LLM reasoning within a unified dialect.",
+    description="Query language to blend SQL logic and LLM reasoning across multi-modal data.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
