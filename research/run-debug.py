@@ -1,45 +1,28 @@
-from blendsql import blend
+from blendsql import blend, LLMJoin
 from blendsql.db import SQLite
-from blendsql.utils import tabulate, fetch_from_hub
-from dotenv import load_dotenv
-from tests.utils import (
-    starts_with,
-    get_length,
-    select_first_sorted,
-    do_join,
-    return_aapl,
-    get_table_size,
-)
+from blendsql.models import OpenaiLLM
+from blendsql.utils import fetch_from_hub, tabulate
 
-load_dotenv()
 if __name__ == "__main__":
     blendsql = """
-    SELECT Symbol FROM (
-        SELECT DISTINCT Symbol FROM portfolio WHERE Symbol IN (
-            SELECT Symbol FROM portfolio WHERE Quantity > 200
+    SELECT date, rival, score, documents.content AS "Team Description" FROM w
+    JOIN {{
+        LLMJoin(
+            left_on='documents::title',
+            right_on='w::rival'
         )
-    ) AS w WHERE {{starts_with('F', 'w::Symbol')}} = TRUE AND LENGTH(w.Symbol) > 3
+    }} WHERE rival = 'nsw waratahs'
     """
-    # db = PostgreSQL("localhost:5432/mydb")
-    db = SQLite(fetch_from_hub("multi_table.db"))
+    # Make our smoothie - the executed BlendSQL script
     smoothie = blend(
         query=blendsql,
-        db=db,
-        ingredients={
-            starts_with,
-            get_length,
-            select_first_sorted,
-            do_join,
-            return_aapl,
-            get_table_size,
-        },
-        verbose=True,
-        # blender=TransformersLLM("Qwen/Qwen1.5-0.5B"),
-        schema_qualify=False,
+        db=SQLite(
+            fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
+        ),
+        blender=OpenaiLLM("gpt-3.5-turbo"),
+        ingredients={LLMJoin},
     )
-    print("--------------------------------------------------")
-    print("ANSWER:")
     print(tabulate(smoothie.df))
-    print("--------------------------------------------------")
-    print(smoothie.meta.num_values_passed)
-    print(smoothie.meta.prompts)
+    import json
+
+    print(json.dumps(smoothie.meta.prompts, indent=4))

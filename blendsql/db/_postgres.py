@@ -20,7 +20,7 @@ class PostgreSQL(Database):
     def __init__(self, db_path: str):
         if not _has_psycopg2:
             raise ImportError(
-                "Please install psycopg2 with `pip install psycopg2`!"
+                "Please install psycopg2 with `pip install psycopg2-binary`!"
             ) from None
         super().__init__(db_path=db_path, db_prefix="postgresql+psycopg2://")
 
