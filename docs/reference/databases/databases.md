@@ -6,3 +6,7 @@ Currently, the following are supported.
 
 - [SQLite](./sqlite.md)
 - [PostgreSQL](./postgresql.md)
+
+::: blendsql.db._database.Database
+    handler: python
+    show_source: true

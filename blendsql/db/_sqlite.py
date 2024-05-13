@@ -5,6 +5,16 @@ from ._database import Database
 
 
 class SQLite(Database):
+    """A SQLite database connection.
+    Can be initialized via a path to the database file.
+
+    Examples:
+        ```python
+        from blendsql.db import SQLite
+        db = SQLite("./path/to/database.db")
+        ```
+    """
+
     def __init__(self, db_path: str):
         super().__init__(db_path=Path(db_path).resolve(), db_prefix="sqlite:///")
 

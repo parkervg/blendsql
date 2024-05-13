@@ -6,7 +6,16 @@ _has_psycopg2 = importlib.util.find_spec("psycopg2") is not None
 
 
 class PostgreSQL(Database):
-    """A Post"""
+    """A PostgreSQL database connection.
+    Can be initialized via the SQLAlchemy input string.
+    https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
+
+    Examples:
+        ```python
+        from blendsql.db import PostgreSQL
+        db = PostgreSQL("scott:tiger@localhost/mydatabase")
+        ```
+    """
 
     def __init__(self, db_path: str):
         if not _has_psycopg2:

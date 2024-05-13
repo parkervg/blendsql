@@ -335,6 +335,10 @@ smoothie = blend(
 
 ### FAQ
 
+#### How does BlendSQL execute a query?
+> BlendSQL handles traversal of the SQL AST and creation of temporary tables to execute a given query. 
+> This allows BlendSQL to be DBMS-agnostic, and extendable into both SQLite, PostgreSQL, and other DBMS.
+
 #### Why not just implement BlendSQL as a [user-defined function in SQLite](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic)?
 
 > LLMs are expensive, both in terms of $ cost and compute time. When applying them to SQLite databases, we want to take special care in ensuring we're not applying them to contexts where they're not required.

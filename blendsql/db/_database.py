@@ -39,7 +39,7 @@ class Database:
     @abstractmethod
     def has_temp_table(self, tablename: str) -> bool:
         """Temp tables are stored in different locations, depending on
-        the dialect. For example, sqlite puts them in `sqlite_temp_master`,
+        the DBMS. For example, sqlite puts them in `sqlite_temp_master`,
         and postgres goes in the main `information_schema.tables` with a
         'pg_temp' prefix.
         """
@@ -51,8 +51,10 @@ class Database:
         sqlglot.optimizer expects.
 
         Examples:
-            >>> db.get_sqlglot_schema()
-            {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
+            ```python
+            db.get_sqlglot_schema()
+            > {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
+            ```
         """
         ...
 
@@ -60,9 +62,8 @@ class Database:
         return inspect(self.engine).get_table_names()
 
     def iter_columns(self, tablename: str) -> Generator[str, None, None]:
-        if tablename in self.tables():
-            for column_data in inspect(self.engine).get_columns(tablename):
-                yield column_data["name"]
+        for column_data in inspect(self.engine).get_columns(tablename):
+            yield column_data["name"]
 
     def schema_string(self, use_tables: Collection[str] = None) -> str:
         create_table_stmts = []
@@ -97,7 +98,11 @@ class Database:
         Returns:
             pd.DataFrame
 
-        Example:
-            >>> execute_query("SELECT * FROM t WHERE c = :v", {"v": "value"})
+        Examples:
+            ```python
+            from blendsql.db import SQLite
+            db = SQLite("./path/to/database.db")
+            db.execute_query("SELECT * FROM t WHERE c = :v", {"v": "value"})
+            ```
         """
         return pd.read_sql(text(query), self.con, params=params)
