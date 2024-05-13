@@ -25,11 +25,11 @@ SELECT merchant FROM transactions
 The temporary table shown above is then combined with the original "transactions" table with an `INNER JOIN` on the "merchant" column.
 
 ### `MapProgram`
-::: blendsql.ingredients.builtin.llm.map.main.MapProgram
+::: blendsql.ingredients.builtin.map.main.MapProgram
     handler: python
     show_source: true
 
 ### `LLMMap`
-::: blendsql.ingredients.builtin.llm.map.main.LLMMap
+::: blendsql.ingredients.builtin.map.main.LLMMap
     handler: python
     show_source: true

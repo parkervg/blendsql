@@ -25,11 +25,11 @@ BlendSQL was built to interact with tables "in-the-wild", and many (such as thos
 For this reason, we can leverage the internal knowledge of a pre-trained LLM to do the `JOIN` operation for us.
 
 ### `JoinProgram`
-::: blendsql.ingredients.builtin.llm.join.main.JoinProgram
+::: blendsql.ingredients.builtin.join.main.JoinProgram
     handler: python
     show_source: true
 
 ### `LLMJoin`
-::: blendsql.ingredients.builtin.llm.join.main.LLMJoin
+::: blendsql.ingredients.builtin.join.main.LLMJoin
     handler: python
     show_source: true

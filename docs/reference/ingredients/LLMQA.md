@@ -125,11 +125,11 @@ Or, from our running example:
 The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol` column from `account_history`.
 
 ### `QAProgram`
-::: blendsql.ingredients.builtin.llm.qa.main.QAProgram
+::: blendsql.ingredients.builtin.qa.main.QAProgram
     handler: python
     show_source: true
 
 ### `LLMQA`
-::: blendsql.ingredients.builtin.llm.qa.main.LLMQA
+::: blendsql.ingredients.builtin.qa.main.LLMQA
     handler: python
     show_source: true
