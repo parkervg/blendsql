@@ -75,14 +75,14 @@ class Database:
 
     def to_temp_table(self, df: pd.DataFrame, tablename: str):
         if self.has_temp_table(tablename):
-            self.con.execute(f'DROP TABLE "{tablename}"')
+            self.con.execute(text(f'DROP TABLE "{tablename}"'))
         create_table_stmt = get_schema(df, name=tablename, con=self.con).strip()
         # Insert 'TEMP' keyword
         create_table_stmt = re.sub(
             r"^CREATE TABLE", "CREATE TEMP TABLE", create_table_stmt
         )
         logging.debug(Fore.CYAN + create_table_stmt + Fore.RESET)
-        self.con.execute(create_table_stmt)
+        self.con.execute(text(create_table_stmt))
         df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
     def execute_query(self, query: str, params: dict = None) -> pd.DataFrame:
