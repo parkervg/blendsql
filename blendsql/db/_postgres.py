@@ -5,7 +5,9 @@ from ._database import Database
 _has_psycopg2 = importlib.util.find_spec("psycopg2") is not None
 
 
-class PostreSQL(Database):
+class PostgreSQL(Database):
+    """A Post"""
+
     def __init__(self, db_path: str):
         if not _has_psycopg2:
             raise ImportError(
@@ -20,3 +22,7 @@ class PostreSQL(Database):
                 "SELECT * FROM information_schema.tables WHERE table_schema LIKE 'pg_temp_%'"
             )["table_name"].unique()
         )
+
+    def get_sqlglot_schema(self) -> dict:
+        # TODO
+        return None

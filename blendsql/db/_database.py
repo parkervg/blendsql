@@ -46,6 +46,17 @@ class Database:
         """
         ...
 
+    @abstractmethod
+    def get_sqlglot_schema(self) -> dict:
+        """Returns database schema as a dictionary, in the format that
+        sqlglot.optimizer expects.
+
+        Examples:
+            >>> db.get_sqlglot_schema()
+            {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
+        """
+        ...
+
     def tables(self):
         return inspect(self.engine).get_table_names()
 
