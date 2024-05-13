@@ -25,6 +25,15 @@ pip install blendsql
 </div>
 </center>
 
+### Features
+- Supports many DBMS 💾
+  - Currently, SQLite and PostgreSQL are functional - more to come! 
+- Easily extendable to [multi-modal usecases](reference/examples/vqa-ingredient) 🖼️
+- Smart parsing optimizes what is passed to external functions 🧠
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
 
 As a result, we can *Blend* together...
@@ -98,13 +107,6 @@ SELECT date, rival, score, documents.content AS "Team Description" FROM w
       )
   }} WHERE rival = 'nsw waratahs'
 ```
-
-### Features 
-- Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑 
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](reference/technical_walkthrough.md).
 
