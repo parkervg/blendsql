@@ -71,7 +71,7 @@ class Ingredient(ABC):
     ) -> Tuple[str, bool]:
         temp_tablename = temp_table_func(tablename)
         _tablename = tablename
-        if self.db.has_table(temp_tablename):
+        if self.db.has_temp_table(temp_tablename):
             # We've already applied some operation to this table
             # We want to use this as our base
             _tablename = temp_tablename
@@ -164,11 +164,14 @@ class MapIngredient(Ingredient):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
         subtable = pd.DataFrame(df_as_dict)
-        if all(
-            isinstance(x, (int, type(None))) and not isinstance(x, bool)
-            for x in mapped_values
-        ):
-            subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
+        if kwargs.get("output_type") == "boolean":
+            subtable[new_arg_column] = subtable[new_arg_column].astype(bool)
+        else:
+            if all(
+                isinstance(x, (int, type(None))) and not isinstance(x, bool)
+                for x in mapped_values
+            ):
+                subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
         # Add new_table to original table
         new_table = original_table.merge(subtable, how="left", on=colname)
         if new_table.shape[0] != original_table.shape[0]:
@@ -270,14 +273,11 @@ class JoinIngredient(Ingredient):
             mapping = mapping | _mapping
 
         # Using mapped left/right values, create intermediary mapping table
-        # This needs a new unique id. We add to the session's `cleanup_tables` after returning.
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         joined_values_df = pd.DataFrame(
             data={"left": mapping.keys(), "right": mapping.values()}
         )
-        joined_values_df.to_sql(
-            name=temp_join_tablename, con=self.db.con, if_exists="fail", index=False
-        )
+        self.db.to_temp_table(df=joined_values_df, tablename=temp_join_tablename)
         return (
             left_tablename,
             right_tablename,

@@ -3,12 +3,14 @@ from typing import Iterable
 import pandas as pd
 from colorama import Fore
 import logging
+import re
 from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_engine, inspect, MetaData
 from sqlalchemy.sql import text
 from sqlalchemy.engine import Engine, Connection
-
+from pandas.io.sql import get_schema
+from abc import abstractmethod
 
 DOCS_TABLE_NAME = "documents"
 
@@ -30,8 +32,19 @@ class Database:
         self.metadata = MetaData()
         self.metadata.reflect(bind=self.engine)
 
-    def has_table(self, tablename: str) -> bool:
-        return self.inspector.has_table(tablename)
+    def _reset_connection(self):
+        """Reset connection, so that temp tables are cleared."""
+        self.con.close()
+        self.con = self.engine.connect()
+
+    @abstractmethod
+    def has_temp_table(self, tablename: str) -> bool:
+        """Temp tables are stored in different locations, depending on
+        the dialect. For example, sqlite puts them in `sqlite_temp_master`,
+        and postgres goes in the main `information_schema.tables` with a
+        'pg_temp' prefix.
+        """
+        ...
 
     def tables(self):
         return inspect(self.engine).get_table_names()
@@ -39,13 +52,6 @@ class Database:
     def iter_columns(self, tablename: str) -> Generator[str, None, None]:
         for column_data in self.inspector.get_columns(tablename):
             yield column_data["name"]
-
-    def drop_table(self, tablename):
-        table = self.metadata.tables.get(tablename, None)
-        if table is None:
-            logging.debug(Fore.RED + f"No table found {tablename}" + Fore.RESET)
-            return
-        table.drop()
 
     def schema_string(self, use_tables: Collection[str] = None) -> str:
         create_table_stmts = []
@@ -56,9 +62,21 @@ class Database:
             create_table_stmts.append(str(CreateTable(table)).strip())
         return "\n\n".join(create_table_stmts)
 
+    def to_temp_table(self, df: pd.DataFrame, tablename: str):
+        if self.has_temp_table(tablename):
+            self.con.execute(f'DROP TABLE "{tablename}"')
+        create_table_stmt = get_schema(df, name=tablename, con=self.con).strip()
+        # Insert 'TEMP' keyword
+        create_table_stmt = re.sub(
+            r"^CREATE TABLE", "CREATE TEMP TABLE", create_table_stmt
+        )
+        logging.debug(Fore.CYAN + create_table_stmt + Fore.RESET)
+        self.con.execute(create_table_stmt)
+        df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
+
     def execute_query(self, query: str, params: dict = None) -> pd.DataFrame:
         """
-        Execute the given query.
+        Execute the given query and return results as dataframe.
 
         Args:
             query: The SQL query to execute. Can use `named` paramstyle from PEP 249

@@ -8,6 +8,14 @@ class SQLite(Database):
     def __init__(self, db_path: str):
         super().__init__(db_path=Path(db_path).resolve(), db_prefix="sqlite:///")
 
+    def has_temp_table(self, tablename: str) -> bool:
+        return (
+            tablename
+            in self.execute_query(
+                "SELECT name FROM sqlite_temp_master WHERE type='table';"
+            )["name"].unique()
+        )
+
     def get_sqlglot_schema(self) -> dict:
         """Returns database schema as a dictionary, in the format that
         sqlglot.optimizer expects.

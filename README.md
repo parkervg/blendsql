@@ -19,6 +19,15 @@
 </div>
 <br/>
 
+### Features
+
+- Supports many DBMS 💾
+  - Currently, SQLite and PostgreSQL are functional - more to come! 
+- Smart parsing optimizes what is passed to external functions 🧠
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+
 ## Intro
 
 BlendSQL is a _superset of SQLite_ for problem decomposition and hybrid question-answering with LLMs. It builds off of the syntax of SQL to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.
@@ -292,13 +301,6 @@ SELECT EXISTS(
   - [Databases](#databases)
 - [Appendix](#appendix)
 
-### Features
-
-- Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
 
 ## Install
@@ -370,14 +372,22 @@ smoothie = blend(
 
 # Documentation
 
-> [!WARNING]
-> WIP, will be updated
+
+## Databases
+
+Since BlendSQL relies on the package [sqlglot](https://github.com/tobymao/sqlglot) for query optimization (which supports a [wide variety of SQL dialects](https://github.com/tobymao/sqlglot/blob/main/sqlglot/dialects/__init__.py)) and the notion of [temporary tables](https://en.wikibooks.org/wiki/Structured_Query_Language/Temporary_Table), it can easily integrate with many different SQL dialects. 
+
+Currently, the following are supported.
+
+- SQLite
+- PostgreSQL
+
 
 ## Execute a BlendSQL Query
 
 The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
 
-::: blendsql.blendsql.blend
+::: blendsql.blend.blend
 handler: python
 
 ```python

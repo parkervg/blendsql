@@ -86,5 +86,7 @@ nav:
           - OpenAI: reference/blenders/openai.md
           - Transformers: reference/blenders/transformers.md
       - Databases:
+          - reference/databases/databases.md
           - SQLite: reference/databases/sqlite.md
+          - PostgreSQL: reference/databases/postgresql.md
       - Technical Walkthrough: reference/technical_walkthrough.md

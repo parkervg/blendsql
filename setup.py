@@ -40,6 +40,7 @@ setup(
         "bottleneck>=1.3.6",
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",
+        "sqlalchemy",
         "platformdirs",
         "pre-commit",
         "attrs",

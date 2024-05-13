@@ -28,6 +28,7 @@ def model() -> TransformersLLM:
     return TransformersLLM(TEST_TRANSFORMERS_LLM, caching=False)
 
 
+@pytest.mark.long
 def test_no_ingredients(db, model, ingredients):
     res = blend(
         query="""
@@ -40,6 +41,7 @@ def test_no_ingredients(db, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
+@pytest.mark.long
 def test_llmmap(db, model, ingredients):
     res = blend(
         query="""
@@ -58,6 +60,7 @@ def test_llmmap(db, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
+@pytest.mark.long
 def test_llmjoin(db, model, ingredients):
     res = blend(
         query="""
@@ -76,6 +79,7 @@ def test_llmjoin(db, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
+@pytest.mark.long
 def test_llmqa(db, model, ingredients):
     res = blend(
         query="""

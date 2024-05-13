@@ -12,3 +12,11 @@ class PostreSQL(Database):
                 "Please install psycopg2 with `pip install psycopg2`!"
             ) from None
         super().__init__(db_path=db_path, db_prefix="postgresql+psycopg2://")
+
+    def has_temp_table(self, tablename: str) -> bool:
+        return (
+            tablename
+            in self.execute_query(
+                "SELECT * FROM information_schema.tables WHERE table_schema LIKE 'pg_temp_%'"
+            )["table_name"].unique()
+        )
