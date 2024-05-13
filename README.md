@@ -413,7 +413,7 @@ https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
 Example:
 ```python
 from blendsql.db import PostgreSQL
-db = PostgreSQL("scott:tiger@localhost/mydatabase")
+db = PostgreSQL("user:password@localhost/mydatabase")
 ```
 
 ## Execute a BlendSQL Query

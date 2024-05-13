@@ -13,7 +13,7 @@ class PostgreSQL(Database):
     Examples:
         ```python
         from blendsql.db import PostgreSQL
-        db = PostgreSQL("scott:tiger@localhost/mydatabase")
+        db = PostgreSQL("user:password@localhost/mydatabase")
         ```
     """
 
