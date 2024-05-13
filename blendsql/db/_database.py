@@ -28,7 +28,6 @@ class Database:
     def __attrs_post_init__(self):
         self.engine = create_engine(f"{self.db_prefix}{self.db_path}")
         self.con = self.engine.connect()
-        self.inspector = inspect(self.engine)
         self.metadata = MetaData()
         self.metadata.reflect(bind=self.engine)
 
@@ -61,8 +60,9 @@ class Database:
         return inspect(self.engine).get_table_names()
 
     def iter_columns(self, tablename: str) -> Generator[str, None, None]:
-        for column_data in self.inspector.get_columns(tablename):
-            yield column_data["name"]
+        if tablename in self.tables():
+            for column_data in inspect(self.engine).get_columns(tablename):
+                yield column_data["name"]
 
     def schema_string(self, use_tables: Collection[str] = None) -> str:
         create_table_stmts = []
