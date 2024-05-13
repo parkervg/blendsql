@@ -395,21 +395,36 @@ Since BlendSQL relies on the package [sqlglot](https://github.com/tobymao/sqlglo
 
 Currently, the following are supported.
 
-- SQLite
-- PostgreSQL
+### SQLite
+A SQLite database connection.
+Can be initialized via a path to the database file.
 
+Example:
+```python
+from blendsql.db import SQLite
+db = SQLite("./path/to/database.db")
+```
+
+### PostgreSQL
+A PostgreSQL database connection.
+Can be initialized via the SQLAlchemy input string.
+https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
+
+Example:
+```python
+from blendsql.db import PostgreSQL
+db = PostgreSQL("scott:tiger@localhost/mydatabase")
+```
 
 ## Execute a BlendSQL Query
 
 The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
 
-::: blendsql.blend.blend
-handler: python
-
 ```python
-from blendsql import blend, LLMMap, LLMQA, LLMJoin
+from blendsql import blend, LLMQA
 from blendsql.db import SQLite
 from blendsql.models import OpenaiLLM
+from blendsql.utils import fetch_from_hub
 
 blendsql = """
 SELECT * FROM w
@@ -421,21 +436,15 @@ WHERE city = {{
     )
 }}
 """
-db = SQLite(db_path)
+# Make our smoothie - the executed BlendSQL script
 smoothie = blend(
     query=blendsql,
-    db=db,
-    ingredients={LLMMap, LLMQA, LLMJoin},
-    blender=AzureOpenaiLLM("gpt-4"),
-    # Optional args below
-    infer_gen_constraints=True,
-    silence_db_exec_errors=False,
-    verbose=True,
-    blender_args={
-        "few_shot": True,
-        "temperature": 0.01
-    }
+    db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+    blender=OpenaiLLM("gpt-3.5-turbo"),
+    ingredients={LLMQA},
 )
+print(smoothie.df)
+print(smoothie.meta.prompts)
 ```
 
 ### Smoothie
