@@ -37,19 +37,18 @@ from transformers.hf_argparser import HfArgumentParser
 from blendsql.db import SQLite
 from blendsql.db.utils import double_quote_escape
 from blendsql import LLMMap, LLMQA, LLMJoin, LLMValidate, blend
-from blendsql._smoothie import Smoothie
-from blendsql.ingredients.builtin.llm.utils import initialize_llm
-from blendsql.ingredients.builtin.llm.llm import LLM
-from blendsql._constants import OPENAI_CHAT_LLM
 from blendsql._dialect import FTS5SQLite
 from blendsql._smoothie import Smoothie
-from blendsql._grammar import grammar
+from blendsql.grammars._peg_grammar import grammar
+from blendsql.models import AzureOpenaiLLM
+from blendsql.utils import sub_tablename
 
 from research.utils.dataset import DataArguments, DataTrainingArguments
 from research.utils.dataset_loader import load_dataset
 from research.utils.args import ModelArguments
 from research.constants import SINGLE_TABLE_NAME, EvalField
-from research.prompts import programs
+from research.prompts.parser_program import ParserProgram
+from research.prompts.sagemaker_program import SageMakerLLM, get_sagemaker_prompt
 
 
 class NpEncoder(json.JSONEncoder):
@@ -63,36 +62,22 @@ class NpEncoder(json.JSONEncoder):
         return super(NpEncoder, self).default(obj)
 
 
-def choose_parser_program(model_args: ModelArguments):
-    """Depending on ModelArguments, choose the appropriate parser program template."""
-    using_blendsql = bool(model_args.blender_model_name_or_path is not None)
-    if model_args.parser_model_name_or_path in OPENAI_CHAT_LLM:
-        if using_blendsql:
-            program_template = programs.fewshot_blendsql_program_chat
-        else:
-            program_template = programs.fewshot_sql_program_chat
-    else:
-        if using_blendsql:
-            program_template = programs.fewshot_blendsql_program_completion
-        else:
-            program_template = programs.fewshot_sql_program_completion
-    return textwrap.dedent(program_template)
-
-
-def fewshot_parse_to_blendsql(
-    endpoint: "LLM", program: str, **input_program_args
-) -> str:
+def fewshot_parse_to_blendsql(model: "Model", **input_program_args) -> str:
     """Calls an endpoint_name and generates a BlendSQL query."""
-    # Dedent str args
-    for k, v in input_program_args.items():
-        if isinstance(v, str):
-            input_program_args[k] = textwrap.dedent(v)
-    res = endpoint.predict(program=program, **input_program_args)
-    return textwrap.dedent(res["result"])
+    if isinstance(model, SageMakerLLM):
+        prompt = get_sagemaker_prompt(**input_program_args)
+        return model.predict(prompt)
+    else:
+        # Dedent str args
+        for k, v in input_program_args.items():
+            if isinstance(v, str):
+                input_program_args[k] = textwrap.dedent(v)
+        res = model.predict(program=ParserProgram, **input_program_args)
+        return textwrap.dedent(res["result"])
 
 
 def post_process_blendsql(blendsql: str, db: SQLite, use_tables=None) -> str:
-    """Clean up some common mistakes made by LLM parser.
+    """Clean up some common mistakes made by Model parser.
     This includes:
         - Aligning hallucinated columns to their closest match in the database
         - Wrapping all column references in double quotes
@@ -102,6 +87,7 @@ def post_process_blendsql(blendsql: str, db: SQLite, use_tables=None) -> str:
     def parse_str_and_add_columns(
         s: str, valid_columns: set, real_colname_to_hallucinated: dict
     ):
+        """Splits on underscores, and adds this as a possible fix for hallucinated columns."""
         try:
             node = parse_one(s, dialect=FTS5SQLite)
             for n in node.find_all(exp.Column):
@@ -117,7 +103,6 @@ def post_process_blendsql(blendsql: str, db: SQLite, use_tables=None) -> str:
         use_tables = set(
             filter(lambda x: not x.startswith("documents"), list(db.iter_tables()))
         )
-
     blendsql = blendsql.replace("`", "'")
     blendsql = blendsql.replace("{{LLM(", "{{LLMMap(")
     # Below fixes case where we miss a ')'
@@ -126,6 +111,28 @@ def post_process_blendsql(blendsql: str, db: SQLite, use_tables=None) -> str:
     blendsql = re.sub("'}}", "')}}", blendsql)
     # Handle mistakes like {{LLMMap('field goal percentage?'; 'w::field goal\xa0%')}}
     blendsql = re.sub(r"(\'|\"); ", r"\1,", blendsql)
+
+    # Fix escaped quotes
+    # for match in [i for i in re.finditer(r'(?<=\=) ?((\'|\").*?(\'|\"))(\s|$)', blendsql)][::-1]:
+    #     text = match.group(1)
+    #     if text[0] == '"':
+    #         blendsql = blendsql[:match.start()] + text[0] + re.sub('"', ' ', text[1:-1]) + text[-1] + blendsql[match.end():]
+    #     elif text[0] == "'":
+    #         blendsql = blendsql[:match.start()] + text[0] + re.sub("'", ' ', text[1:-1]) + text[-1] + blendsql[match.end():]
+    #     # blendsql = blendsql[:match.start()] + " " + re.sub(r'\\.', ' ', text) + " " + blendsql[match.end():]
+    #
+    # # Fix escaped strings in single quotes
+    # for match in [i for i in re.finditer(r'(\'[^\']*?\')(,)', blendsql)][::-1]:
+    #     text = match.group(1)
+    #     if "'" in text[1:-1]:
+    #         blendsql = re.sub(text[1:-1], text[1:-1].replace("'", " "), blendsql)
+
+    # Fix common non-alphanumeric FTS5 mistakes
+    # for match in re.finditer(r'(?<=MATCH )(\'|\").*(\'|\")', blendsql):
+    #     fts5_q = match.group()
+    #     blendsql = re.sub(r'MATCH {}'.format(fts5_q), f'MATCH \'{re.sub(r"-", " ", fts5_q[1:-1])}\'', blendsql)
+    #     blendsql = re.sub(r'MATCH {}'.format(fts5_q), f'MATCH \'{re.sub(r"[^0-9a-zA-Z ]", "", fts5_q[1:-1])}\'', blendsql)
+
     quotes_start_end = [i.start() for i in re.finditer(r"(\'|\")", blendsql)]
     quotes_start_end_spans = list(zip(*(iter(quotes_start_end),) * 2))
 
@@ -134,30 +141,47 @@ def post_process_blendsql(blendsql: str, db: SQLite, use_tables=None) -> str:
     valid_columns = flatten(
         [list(i) for i in list(db.iter_columns(table) for table in use_tables)]
     )
-    real_colname_to_hallucinated = {}
-    real_colname_to_hallucinated = parse_str_and_add_columns(
-        blendsql, valid_columns, real_colname_to_hallucinated
-    )
-    for parse_results, _, _ in grammar.scanString(blendsql):
-        parsed_results_dict = parse_results.as_dict()
-        for arg_type in {"args", "kwargs"}:
-            for idx in range(len(parsed_results_dict[arg_type])):
-                curr_arg = parsed_results_dict[arg_type][idx]
-                if not isinstance(curr_arg, str):
-                    continue
-                parsed_results_dict[arg_type][idx] = re.sub(
-                    r"(^\()(.*)(\)$)", r"\2", curr_arg
-                ).strip()
-        potential_subquery = re.sub(
-            r"JOIN(\s+){{.+}}", "", parsed_results_dict["args"][1], flags=re.DOTALL
-        )
+    try:
+        real_colname_to_hallucinated = {}
         real_colname_to_hallucinated = parse_str_and_add_columns(
-            potential_subquery, valid_columns, real_colname_to_hallucinated
+            blendsql, valid_columns, real_colname_to_hallucinated
         )
 
-    for k, v in real_colname_to_hallucinated.items():
-        blendsql = sub_tablename(v, k, blendsql)
+        for parse_results, _, _ in grammar.scanString(blendsql):
+            parsed_results_dict = parse_results.as_dict()
+            for arg_type in {"args", "kwargs"}:
+                for idx in range(len(parsed_results_dict[arg_type])):
+                    curr_arg = parsed_results_dict[arg_type][idx]
+                    if not isinstance(curr_arg, str):
+                        continue
+                    parsed_results_dict[arg_type][idx] = re.sub(
+                        r"(^\()(.*)(\)$)", r"\2", curr_arg
+                    ).strip()
+            if len(parsed_results_dict["args"]) > 0:
+                blendsql = re.sub(
+                    re.escape(parsed_results_dict["args"][0]),
+                    re.sub(r"(\'|\")", "", parsed_results_dict["args"][0]),
+                    blendsql,
+                )
+            if len(parsed_results_dict["args"]) > 1:
+                potential_subquery = re.sub(
+                    r"JOIN(\s+){{.+}}",
+                    "",
+                    parsed_results_dict["args"][1],
+                    flags=re.DOTALL,
+                )
+                try:
+                    real_colname_to_hallucinated = parse_str_and_add_columns(
+                        potential_subquery, valid_columns, real_colname_to_hallucinated
+                    )
+                except:
+                    pass
 
+        for k, v in real_colname_to_hallucinated.items():
+            blendsql = sub_tablename(v, k, blendsql)
+    except:
+        pass
+    # Put all tablenames in quotes
     for tablename in db.iter_tables(use_tables=use_tables):
         for columnname in sorted(
             list(db.iter_columns(tablename)), key=lambda x: len(x), reverse=True
@@ -198,10 +222,9 @@ class BlendSQLEvaluation:
     output_dir: Union[str, Path] = attrib()
     split: datasets.Split = attrib()
     split_name: str = attrib()
-    parser_endpoint: Union[LLM, None] = attrib()
-    blender_endpoint: Union[LLM, None] = attrib()
-    prompt_and_pray_endpoint: Union[LLM, None] = attrib()
-    parser_program: guidance.Program = attrib()
+    parser_endpoint: Union[AzureOpenaiLLM, None] = attrib()
+    blender_endpoint: Union[AzureOpenaiLLM, None] = attrib()
+    prompt_and_pray_endpoint: Union[AzureOpenaiLLM, None] = attrib()
     model_args: ModelArguments = attrib()
     data_args: DataArguments = attrib()
     data_training_args: DataTrainingArguments = attrib()
@@ -231,6 +254,7 @@ class BlendSQLEvaluation:
             EvalField.GOLD_ANSWER: None,
             "solver": None,
             "error": None,
+            "num_prompt_tokens": 0,
         }
 
     def iter_eval(self):
@@ -270,11 +294,15 @@ class BlendSQLEvaluation:
             self.results_dict["input_program_args"] = {
                 k: v
                 for k, v in item["input_program_args"].items()
-                if k not in {"examples", "program", "endpoint_name"}
+                if k
+                not in {
+                    "examples",
+                    "program",
+                    "endpoint_name",
+                    "few_shot_prompt",
+                    "ingredient_prompt",
+                }
             }
-            self.results_dict["num_few_shot_examples"] = len(
-                item["input_program_args"]["examples"]
-            )
             self.results_dict[EvalField.DB_PATH] = item[EvalField.DB_PATH]
             if self.db is None:
                 db = SQLite(item[EvalField.DB_PATH])
@@ -340,15 +368,18 @@ class BlendSQLEvaluation:
         to_add = {"solver": "blendsql"}
         try:
             blendsql = fewshot_parse_to_blendsql(
-                endpoint=self.parser_endpoint,
-                program=self.parser_program,
+                model=self.parser_endpoint,
                 **item["input_program_args"],
             )
-            blendsql = post_process_blendsql(
-                blendsql=blendsql,
-                db=db,
-                use_tables=item["input_program_args"].get("use_tables", None),
-            )
+            to_add[EvalField.PRED_BLENDSQL] = blendsql
+            try:
+                blendsql = post_process_blendsql(
+                    blendsql=blendsql,
+                    db=db,
+                    use_tables=item["input_program_args"].get("use_tables", None),
+                )
+            except:
+                pass
             to_add[EvalField.PRED_BLENDSQL] = blendsql
             res: Smoothie = blend(
                 query=blendsql,
@@ -356,18 +387,15 @@ class BlendSQLEvaluation:
                 ingredients={LLMMap, LLMQA, LLMJoin, LLMValidate}
                 if self.model_args.blender_model_name_or_path is not None
                 else set(),
-                llm=self.blender_endpoint,
-                # Force usage of the endpoint_name we specify
-                overwrite_args={
-                    "long_answer": self.data_args.long_answer,
-                },
+                blender=self.blender_endpoint,
                 table_to_title={
                     SINGLE_TABLE_NAME: item["table"].get("page_title", None)
                 },
                 infer_gen_constraints=True,
-                silence_db_exec_errors=False,
                 verbose=True,
+                schema_qualify=self.data_training_args.schema_qualify,
             )
+            to_add["num_prompt_tokens"] = res.meta.num_prompt_tokens
             pred_has_ingredient = res.meta.contains_ingredient
             self.num_with_ingredients += pred_has_ingredient
             to_add["pred_has_ingredient"] = pred_has_ingredient
@@ -475,43 +503,30 @@ def main() -> None:
         )
         return
     output_dir = Path(training_args.output_dir)
-    # cached_idx = 0
-    # prev_predictions = None
-    # predictions_json_filename = output_dir / "predictions.json"
-    # if predictions_json_filename.is_file() and training_args.overwrite_output_dir:
-    #     # Load from cache
-    #     print(Fore.YELLOW + f"Attempting to load checkpoint from predictions.json cache at {str(predictions_json_filename)}..." + Fore.RESET)
-    #     with open(predictions_json_filename, "r") as f:
-    #         prev_predictions = json.load(f)
-    #     cached_idx = max([item["idx"] for item in prev_predictions]) if prev_predictions != [] else 0
-    #     print(Fore.GREEN + f"Starting inference with checkpoint idx {cached_idx}." + Fore.RESET)
+
     if not output_dir.is_dir():
         output_dir.mkdir(parents=True)
     elif not training_args.overwrite_output_dir:
         raise ValueError("output_dir is not empty, and overwrite_output_dir is False!")
 
-    parser_endpoint = initialize_llm(
-        model_args.parser_model_type, model_args.parser_model_name_or_path
-    )
-    parser_program = choose_parser_program(model_args)
+    parser_endpoint = AzureOpenaiLLM(model_args.parser_model_name_or_path, caching=True)
     parser_endpoint.gen_kwargs["temperature"] = model_args.parser_temperature
+    # parser_endpoint = SageMakerLLM(model_args.parser_model_name_or_path)
+
     if data_training_args.bypass_models:
         parser_endpoint.predict = lambda *args, **kwargs: {"result": "SELECT TRUE;"}
     blender_endpoint = None
 
     if model_args.blender_model_name_or_path is not None:
-        blender_endpoint = initialize_llm(
-            model_args.blender_model_type, model_args.blender_model_name_or_path
-        )
+        blender_endpoint = AzureOpenaiLLM(model_args.blender_model_name_or_path)
         blender_endpoint.gen_kwargs["temperature"] = model_args.blender_temperature
         if data_training_args.bypass_models:
             blender_endpoint.predict = lambda *args, **kwargs: {"result": ""}
 
     prompt_and_pray_endpoint = None
     if model_args.prompt_and_pray_model_name_or_path is not None:
-        prompt_and_pray_endpoint = initialize_llm(
-            model_args.prompt_and_pray_model_type,
-            model_args.prompt_and_pray_model_name_or_path,
+        prompt_and_pray_endpoint = AzureOpenaiLLM(
+            model_args.prompt_and_pray_model_name_or_path
         )
 
     splits = {}
@@ -536,7 +551,6 @@ def main() -> None:
             parser_endpoint=parser_endpoint,
             blender_endpoint=blender_endpoint,
             prompt_and_pray_endpoint=prompt_and_pray_endpoint,
-            parser_program=parser_program,
             model_args=model_args,
             data_args=data_args,
             data_training_args=data_training_args,
@@ -551,4 +565,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    import os
+
+    os.environ["HTTP_PROXY"] = "http://http.proxy.fmr.com:8000"
+    os.environ["HTTPS_PROXY"] = "http://http.proxy.fmr.com:8000"
+    os.environ["https_proxy"] = "http://http.proxy.fmr.com:8000"
+    from dotenv import load_dotenv
+
+    load_dotenv(".env")
     main()

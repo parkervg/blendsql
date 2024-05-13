@@ -15,7 +15,6 @@ from ..database import to_serialized
 from ..dataset import DataTrainingArguments
 from ...utils.args import ModelArguments
 from ...constants import DOCS_TABLE_NAME, EvalField
-from ...prompts.few_shot.ottqa import blendsql_examples
 from ...utils.bridge_content_encoder import (
     get_database_matches,
 )
@@ -73,7 +72,7 @@ def ottqa_get_input(
         cache["docs_tablesize"] = db.execute_query(
             f"SELECT COUNT(*) FROM {DOCS_TABLE_NAME}"
         ).values[0][0]
-    docs_tablesize = cache["docs_tablesize"]
+    cache["docs_tablesize"]
     chosen_tables = ottqa_question_id_to_retriever_results[question_id]
     chosen_tables = [
         table_id_to_tablename["_".join(item["title"].split("_")[:-1])]
@@ -89,7 +88,7 @@ def ottqa_get_input(
             continue
         final_chosen_tables.append(t)
         seen_tables.add(t)
-    chosen_tables = final_chosen_tables[:4] + [DOCS_TABLE_NAME]
+    chosen_tables = final_chosen_tables[:3] + [DOCS_TABLE_NAME]
 
     serialized_db = to_serialized(
         db=db,
@@ -124,18 +123,15 @@ def ottqa_get_input(
     return (
         db_path,
         {
-            "examples": blendsql_examples
-            if model_args.blender_model_name_or_path is not None
-            else None,
+            "few_shot_prompt": open("./research/prompts/ottqa/few_shot.txt").read(),
+            "ingredients_prompt": open(
+                "./research/prompts/ottqa/ingredients.txt"
+            ).read(),
             "question": question,
             "serialized_db": serialized_db,
             "entire_serialized_db": None,
             "bridge_hints": bridge_hints,
             "use_tables": chosen_tables,
-            "extra_task_description": f"""
-            Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains {docs_tablesize} Wikipedia articles providing more details about the values in our table.
-            When possible, use the alias `t` to refer to relevant table context, and `d` to refer to relevant document context.
-            """,
         },
     )
 

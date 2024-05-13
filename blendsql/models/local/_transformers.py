@@ -1,10 +1,12 @@
 import logging
-
+import importlib.util
 from guidance.models import Transformers, Model
 
 from .._model import Model
 
 logging.getLogger("guidance").setLevel(logging.CRITICAL)
+
+_has_transformers = importlib.util.find_spec("transformers") is not None
 
 
 class TransformersLLM(Model):
@@ -15,12 +17,12 @@ class TransformersLLM(Model):
     """
 
     def __init__(self, model_name_or_path: str, **kwargs):
-        try:
-            import transformers
-        except ImportError:
-            raise Exception(
+        if not _has_transformers:
+            raise ImportError(
                 "Please install transformers with `pip install transformers`!"
             ) from None
+        import transformers
+
         super().__init__(
             model_name_or_path=model_name_or_path,
             requires_config=False,

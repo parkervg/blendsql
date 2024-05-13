@@ -85,7 +85,7 @@ if __name__ == "__main__":
         target_column = "Name"
         df = pd.read_sql(sql, con)
 
-        # Make our calls to the LLM
+        # Make our calls to the Model
         values = df[target_column].unique().tolist()
         # values_dict = [{"value": value, "idx": idx} for idx, value in enumerate(values)]
         split_results = []

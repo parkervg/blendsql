@@ -1,6 +1,6 @@
 import logging
 import os
-from guidance.models import OpenAI, AzureOpenAI, Model
+from guidance.models import OpenAI, AzureOpenAI
 import tiktoken
 
 from .._model import Model
@@ -70,7 +70,7 @@ class AzureOpenaiLLM(Model):
             self.model_name_or_path,
             api_key=os.getenv("OPENAI_API_KEY"),
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
-            azure_deployment=os.getenv("API_VERSION"),
+            azure_deployment=os.getenv("OPENAI_API_VERSION"),
             echo=False,
         )
 

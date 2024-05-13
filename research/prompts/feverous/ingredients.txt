@@ -1,0 +1,6 @@
+If question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column using the scalar function:
+    >>> `{{LLMMap('question', 'table::column')}}`
+
+If mapping to a new column still cannot answer the question with valid SQL, turn to an end-to-end solution using the aggregate function:
+    >>> `{{LLMValidate('question', (blendsql))}}`
+This function will take a question and BlendSQL context, and return either `0` or `1` depending on the truth value of the question.

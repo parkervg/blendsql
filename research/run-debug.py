@@ -1,41 +1,45 @@
-from blendsql import LLMMap, LLMQA, LLMJoin, blend
+from blendsql import blend
 from blendsql.db import SQLite
-from blendsql.llms import AzureOpenaiLLM
+from blendsql.utils import tabulate, fetch_from_hub
 from dotenv import load_dotenv
+from tests.utils import (
+    starts_with,
+    get_length,
+    select_first_sorted,
+    do_join,
+    return_aapl,
+    get_table_size,
+)
 
 load_dotenv()
 if __name__ == "__main__":
     blendsql = """
-       {{
-            LLMQA(
-                'What is the middle name of this player?',
-                (
-                    SELECT documents.title AS 'Player', documents.content FROM documents
-                    JOIN {{
-                        LLMJoin(
-                            left_on='w::player',
-                            right_on='documents::title'
-                        )
-                    }} WHERE w."rank" = 2
-                )
-            )
-        }}
-       """
-    db_path = "research/db/hybridqa/List_of_National_Football_League_rushing_yards_leaders_0.db"
-
-    db = SQLite(db_path)
+    SELECT Symbol FROM (
+        SELECT DISTINCT Symbol FROM portfolio WHERE Symbol IN (
+            SELECT Symbol FROM portfolio WHERE Quantity > 200
+        )
+    ) AS w WHERE {{starts_with('F', 'w::Symbol')}} = TRUE AND LENGTH(w.Symbol) > 3
+    """
+    # db = PostgreSQL("localhost:5432/mydb")
+    db = SQLite(fetch_from_hub("multi_table.db"))
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients={LLMMap, LLMQA, LLMJoin},
-        blender=AzureOpenaiLLM("gpt-4"),
-        infer_gen_constraints=True,
-        silence_db_exec_errors=False,
+        ingredients={
+            starts_with,
+            get_length,
+            select_first_sorted,
+            do_join,
+            return_aapl,
+            get_table_size,
+        },
         verbose=True,
+        # blender=TransformersLLM("Qwen/Qwen1.5-0.5B"),
+        schema_qualify=False,
     )
     print("--------------------------------------------------")
     print("ANSWER:")
-    print([i for i in smoothie.df.values.flat])
+    print(tabulate(smoothie.df))
     print("--------------------------------------------------")
-    print(smoothie.meta.example_map_outputs)
     print(smoothie.meta.num_values_passed)
+    print(smoothie.meta.prompts)

@@ -5,7 +5,7 @@ import sqlite3
 import logging
 from colorama import Fore
 
-from blendsql.llms import AzureOpenaiLLM
+from blendsql.models import AzureOpenaiLLM
 from blendsql._constants import VALUE_BATCH_SIZE
 from blendsql._programs import MapProgram
 from blendsql.utils import fetch_from_hub
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         target_column = "Name"
         df = pd.read_sql(sql, con)
 
-        # Make our calls to the LLM
+        # Make our calls to the Model
         blender = AzureOpenaiLLM("gpt-4")
         values = df[target_column].unique().tolist()
         split_results = []

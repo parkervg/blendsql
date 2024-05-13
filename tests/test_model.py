@@ -66,11 +66,11 @@ def test_simple_cache():
         "uuid"
     ]
 
-    b = DummyModel(MODEL_A).predict(program=DummyProgram, question=TEST_QUESTION)[
-        "uuid"
-    ]
+    model_b = DummyModel(MODEL_A)
+    b = model_b.predict(program=DummyProgram, question=TEST_QUESTION)["uuid"]
 
     assert a == b
+    assert model_b.num_llm_calls == 0
 
 
 def test_different_models():
@@ -117,11 +117,11 @@ def test_same_global_vars():
     )["uuid"]
 
     TEST_GLOBAL = "This is the same value"
-    b = DummyModel(MODEL_A).predict(
-        program=DummyProgramWithGlobal, question=TEST_QUESTION
-    )["uuid"]
+    model_b = DummyModel(MODEL_A)
+    b = model_b.predict(program=DummyProgramWithGlobal, question=TEST_QUESTION)["uuid"]
 
     assert a == b
+    assert model_b.num_llm_calls == 0
 
 
 def test_different_global_vars():
@@ -137,3 +137,15 @@ def test_different_global_vars():
     )["uuid"]
 
     assert a != b
+
+
+def test_with_set_vars():
+    a = DummyModel(MODEL_A).predict(
+        program=DummyProgram, question=TEST_QUESTION, random_set={"a", "b", "c"}
+    )["uuid"]
+
+    b = DummyModel(MODEL_A).predict(
+        program=DummyProgram, question=TEST_QUESTION, random_set={"b", "c", "a"}
+    )["uuid"]
+
+    assert a == b

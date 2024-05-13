@@ -1,19 +1,23 @@
 import functools
 from typing import Any, List
 import guidance
+import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
 from dotenv import load_dotenv
 from colorama import Fore
 import time
 import threading
-import re
 from diskcache import Cache
 import platformdirs
 import hashlib
 from abc import abstractmethod
 
-from blendsql._program import Program, program_to_str
+from .._program import Program, program_to_str
+from .._constants import IngredientKwarg
+from ..db.utils import truncate_df_content
+
+CONTEXT_TRUNCATION_LIMIT = 100
 
 
 class TokenTimer(threading.Thread):
@@ -26,7 +30,6 @@ class TokenTimer(threading.Thread):
         self.init_fn = init_fn
 
     def run(self):
-        self.init_fn()
         while True:
             time.sleep(self.refresh_interval_min * 60)
             print(Fore.YELLOW + "Refreshing the access tokens..." + Fore.RESET)
@@ -47,16 +50,18 @@ class Model:
     model: guidance.models.Model = attrib(init=False)
     prompts: list = attrib(init=False)
     cache: Cache = attrib(init=False)
+    run_setup_on_load: bool = attrib(default=True)
 
     gen_kwargs: dict = {}
     num_llm_calls: int = 0
     num_prompt_tokens: int = 0
 
     def __attrs_post_init__(self):
-        self.cache = Cache(
-            Path(platformdirs.user_cache_dir("blendsql"))
-            / f"{self.model_name_or_path}.diskcache"
-        )
+        if self.caching:
+            self.cache = Cache(
+                Path(platformdirs.user_cache_dir("blendsql"))
+                / f"{self.model_name_or_path}.diskcache"
+            )
         self.prompts: List[str] = []
         if self.requires_config:
             if self.env is None:
@@ -64,7 +69,7 @@ class Model:
             _env = Path(self.env)
             env_filepath = _env / ".env" if _env.is_dir() else _env
             if env_filepath.is_file():
-                load_dotenv()
+                load_dotenv(str(env_filepath))
             else:
                 raise FileNotFoundError(
                     f"{self.__class__} requires a .env file to be present at '{env_filepath}' with necessary environment variables\nPut it somewhere else? Use the `env` argument to point me to the right directory."
@@ -78,7 +83,8 @@ class Model:
             assert hasattr(self.tokenizer, "encode") and callable(
                 self.tokenizer.encode
             ), f"`tokenizer` passed to {self.__class__} should have `encode` method!"
-        self._setup()
+        if self.run_setup_on_load:
+            self._setup()
         self.model = self._load_model()
 
     def predict(self, program: Program, **kwargs) -> dict:
@@ -100,17 +106,17 @@ class Model:
             # First, check our cache
             key = self._create_key(program, **kwargs)
             if key in self.cache:
+                self.prompts.insert(
+                    -1, self.format_prompt(self.cache.get(key), **kwargs)
+                )
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
         self.num_llm_calls += 1
         model = program(model=self.model, **kwargs)
         if self.tokenizer is not None:
-            prompt = re.sub(
-                r"(?<=\>)(assistant|user|system)", "", model._current_prompt()
-            )
-            prompt = re.sub(r"\<.*?\>", "", prompt)
+            prompt = model._current_prompt()
             self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
-            self.prompts.append(prompt)
+        self.prompts.insert(-1, self.format_prompt(model._variables, **kwargs))
         if self.caching:
             self.cache[key] = model._variables
         return model._variables
@@ -128,7 +134,7 @@ class Model:
         options_str = str(
             sorted(
                 [
-                    (k, v)
+                    (k, sorted(v) if isinstance(v, set) else v)
                     for k, v in kwargs.items()
                     if not isinstance(v, functools.partial)
                 ]
@@ -141,6 +147,20 @@ class Model:
         ).encode()
         hasher.update(combined)
         return hasher.hexdigest()
+
+    @staticmethod
+    def format_prompt(res, **kwargs) -> dict:
+        d = {"answer": res}
+        if IngredientKwarg.QUESTION in kwargs:
+            d[IngredientKwarg.QUESTION] = kwargs.get(IngredientKwarg.QUESTION)
+        if IngredientKwarg.CONTEXT in kwargs:
+            context = kwargs.get(IngredientKwarg.CONTEXT)
+            if isinstance(context, pd.DataFrame):
+                context = truncate_df_content(context, CONTEXT_TRUNCATION_LIMIT)
+                d[IngredientKwarg.CONTEXT] = context.to_dict(orient="records")
+        if IngredientKwarg.VALUES in kwargs:
+            d[IngredientKwarg.VALUES] = kwargs.get(IngredientKwarg.VALUES)
+        return d
 
     @abstractmethod
     def _setup(self, **kwargs) -> None:

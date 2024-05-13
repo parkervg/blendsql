@@ -28,7 +28,7 @@ setup(
     url="https://github.com/parkervg/blendsql",
     author="Parker Glenn",
     author_email="parkervg5@gmail.com",
-    description="Orchestrate SQLite logic and LLM reasoning within a unified dialect.",
+    description="Query language to blend SQL logic and LLM reasoning across multi-modal data.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
@@ -36,10 +36,11 @@ setup(
     install_requires=[
         "guidance>=0.1.0",
         "pyparsing==3.1.1",
-        "pandas>=2.0.0",
+        "pandas==1.5.3",
         "bottleneck>=1.3.6",
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",
+        "sqlalchemy>=2.0.0",
         "platformdirs",
         "pre-commit",
         "attrs",
@@ -71,5 +72,6 @@ setup(
             "mkdocstrings-python",
             "mkdocs-jupyter",
         ],
+        "demo": ["chainlit"],
     },
 )

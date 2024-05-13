@@ -28,11 +28,12 @@ class MapProgram(Program):
         colname: str = None,
         **kwargs,
     ):
+        _model = self.model
         with self.systemcontext:
-            self.model += """Given a set of values from a database, answer the question row-by-row, in order."""
+            _model += """Given a set of values from a database, answer the question row-by-row, in order."""
             if include_tf_disclaimer:
-                self.model += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-            self.model += dedent(
+                _model += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
+            _model += dedent(
                 f"""
             The answer should be a list separated by '{sep}', and have {len(values)} items in total.
             When you have given all {len(values)} answers, stop responding.
@@ -41,9 +42,9 @@ class MapProgram(Program):
             )
         with self.usercontext:
             if self.few_shot:
-                self.model += dedent(
+                _model += dedent(
                     """
-                --- 
+                ---
 
                 The following values come from the column 'Home Town', in a table titled '2010\u201311 North Carolina Tar Heels men's basketball team'.
                 Q: What state is this?
@@ -58,7 +59,7 @@ class MapProgram(Program):
 
                 A: IA;NC;NC;CA
 
-                --- 
+                ---
 
                 The following values come from the column 'Penalties (P+P+S+S)', in a table titled 'Biathlon World Championships 2013 \u2013 Men's pursuit'.
                 Q: Total penalty count?
@@ -102,23 +103,28 @@ class MapProgram(Program):
                 """
                 )
             if table_title:
-                self.model += dedent(
+                _model += dedent(
                     f"The following values come from the column '{colname}', in a table titled '{table_title}'."
                 )
-            self.model += dedent(f"""Q: {question}\nValues:\n""")
+            _model += dedent(f"""Q: {question}\nValues:\n""")
             for value in values:
-                self.model += f"`{value}`\n"
+                _model += f"`{value}`\n"
             if output_type:
-                self.model += f"\nOutput type: {output_type}"
+                _model += f"\nOutput type: {output_type}"
             if example_outputs:
-                self.model += f"\nHere are some example outputs: {example_outputs}\n"
-            self.model += "\nA:"
+                _model += f"\nHere are some example outputs: {example_outputs}\n"
+            _model += "\nA:"
         with self.assistantcontext:
-            self.model += gen(name="result", **self.gen_kwargs)
-        return self.model
+            _model += gen(name="result", **self.gen_kwargs)
+        return _model
 
 
 class LLMMap(MapIngredient):
+    DESCRIPTION = """
+    If question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column using the scalar function:
+        `{{LLMMap('question', 'table::column')}}`
+    """
+
     def run(
         self,
         question: str,

@@ -195,7 +195,16 @@ class DataTrainingArguments:
     )
     truncate_content: Optional[int] = field(
         default=None,
-        metadata={"help": "Optionally limit serialized database value to this lenght"},
+        metadata={
+            "help": "Optionally limit serialized database value to this character length"
+        },
+    )
+
+    schema_qualify: Optional[bool] = field(
+        default=True,
+        metadata={
+            "help": "Whether to use sqlglot to qualify schema columns when calling `blend()`"
+        },
     )
 
     def __post_init__(self):

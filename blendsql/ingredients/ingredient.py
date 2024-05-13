@@ -1,13 +1,25 @@
 from attr import attrs, attrib
 from abc import abstractmethod, ABC
 import pandas as pd
-from typing import Any, Iterable, Union, Dict, Tuple, Type, Callable, Set
+from typing import (
+    Any,
+    Iterable,
+    Union,
+    Dict,
+    Tuple,
+    Type,
+    Callable,
+    Set,
+    Collection,
+    Optional,
+)
 import uuid
 from typeguard import check_type
 
 from .. import utils
 from .._constants import IngredientKwarg, IngredientType
-from ..db.sqlite import SQLite
+from ..db import Database
+from ..db.utils import double_quote_escape
 
 
 class IngredientException(ValueError):
@@ -21,7 +33,7 @@ def unpack_default_kwargs(**kwargs):
     )
 
 
-def align_to_real_columns(db: SQLite, colname: str, tablename: str) -> str:
+def align_to_real_columns(db: Database, colname: str, tablename: str) -> str:
     table_columns = db.execute_query(f'SELECT * FROM "{tablename}" LIMIT 1').columns
     if colname not in table_columns:
         # Try to align with column, according to some normalization rules
@@ -38,7 +50,7 @@ class Ingredient(ABC):
     ingredient_type: str = attrib(init=False)
     allowed_output_types: Tuple[Type] = attrib(init=False)
     # Below gets passed via `Kitchen.extend()`
-    db: SQLite = attrib(init=False)
+    db: Database = attrib(init=False)
     session_uuid: str = attrib(init=False)
 
     def __repr__(self):
@@ -59,7 +71,7 @@ class Ingredient(ABC):
     ) -> Tuple[str, bool]:
         temp_tablename = temp_table_func(tablename)
         _tablename = tablename
-        if self.db.has_table(temp_tablename):
+        if self.db.has_temp_table(temp_tablename):
             # We've already applied some operation to this table
             # We want to use this as our base
             _tablename = temp_tablename
@@ -78,9 +90,7 @@ class MapIngredient(Ingredient):
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
 
-    def __call__(
-        self, question: str = None, context: str = None, *args, **kwargs
-    ) -> tuple:
+    def __call__(self, question: str, context: str, *args, **kwargs) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
@@ -108,15 +118,13 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
-        original_table = self.db.execute_query(
-            f"SELECT * FROM '{tablename}'", silence_errors=False
-        )
+        original_table = self.db.execute_query(f'SELECT * FROM "{tablename}"')
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
             temp_session_table = self.db.execute_query(
-                f"SELECT * FROM '{temp_session_tablename}'"
+                f'SELECT * FROM "{double_quote_escape(temp_session_tablename)}"'
             )
             colname = align_to_real_columns(
                 db=self.db, colname=colname, tablename=temp_session_tablename
@@ -126,22 +134,19 @@ class MapIngredient(Ingredient):
             if new_arg_column in temp_session_table.columns:
                 values = self.db.execute_query(
                     f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
-                    silence_errors=False,
                 )[colname].tolist()
             # Base case: this is the first time we've used this particular ingredient
             # BUT, temp_session_tablename still exists
             else:
                 values = self.db.execute_query(
-                    f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"',
-                    silence_errors=False,
+                    f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"'
                 )[colname].tolist()
         else:
             colname = align_to_real_columns(
                 db=self.db, colname=colname, tablename=value_source_tablename
             )
             values = self.db.execute_query(
-                f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"',
-                silence_errors=False,
+                f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"'
             )[colname].tolist()
 
         # No need to run ingredient if we have no values to map onto
@@ -149,18 +154,24 @@ class MapIngredient(Ingredient):
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
 
-        kwargs["values"] = values
+        kwargs[IngredientKwarg.VALUES] = values
         kwargs["original_table"] = original_table
         kwargs[IngredientKwarg.QUESTION] = question
-        mapped_values: Iterable[Any] = self._run(*args, **kwargs)
+        mapped_values: Collection[Any] = self._run(*args, **kwargs)
         self.num_values_passed += len(mapped_values)
         df_as_dict = {colname: [], new_arg_column: []}
         for value, mapped_value in zip(values, mapped_values):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
         subtable = pd.DataFrame(df_as_dict)
-        if all(isinstance(x, (int, type(None))) for x in mapped_values):
-            subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
+        if kwargs.get("output_type") == "boolean":
+            subtable[new_arg_column] = subtable[new_arg_column].astype(bool)
+        else:
+            if all(
+                isinstance(x, (int, type(None))) and not isinstance(x, bool)
+                for x in mapped_values
+            ):
+                subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
         # Add new_table to original table
         new_table = original_table.merge(subtable, how="left", on=colname)
         if new_table.shape[0] != original_table.shape[0]:
@@ -189,10 +200,9 @@ class JoinIngredient(Ingredient):
 
     def __call__(
         self,
-        question: str = None,
-        left_on: str = None,
-        right_on: str = None,
-        join_criteria: str = None,
+        question: Optional[str] = None,
+        left_on: Optional[str] = None,
+        right_on: Optional[str] = None,
         *args,
         **kwargs,
     ) -> tuple:
@@ -216,14 +226,17 @@ class JoinIngredient(Ingredient):
             )
             values.append(
                 set(
-                    self.db.execute_query(
-                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )[colname].tolist()
+                    [
+                        str(i)
+                        for i in self.db.execute_query(
+                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                        )[colname].tolist()
+                    ]
                 )
             )
             modified_lr_identifiers.append((tablename, colname))
 
-        if join_criteria is None:
+        if question is None:
             # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
             mapping = {}
@@ -260,14 +273,11 @@ class JoinIngredient(Ingredient):
             mapping = mapping | _mapping
 
         # Using mapped left/right values, create intermediary mapping table
-        # This needs a new unique id. We add to the session's `cleanup_tables` after returning.
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         joined_values_df = pd.DataFrame(
             data={"left": mapping.keys(), "right": mapping.values()}
         )
-        joined_values_df.to_sql(
-            name=temp_join_tablename, con=self.db.con, if_exists="fail", index=False
-        )
+        self.db.to_temp_table(df=joined_values_df, tablename=temp_join_tablename)
         return (
             left_tablename,
             right_tablename,
@@ -290,9 +300,9 @@ class QAIngredient(Ingredient):
 
     def __call__(
         self,
-        question: str = None,
-        context: Union[str, pd.DataFrame] = None,
-        options: str = None,
+        question: Optional[str] = None,
+        context: Optional[Union[str, pd.DataFrame]] = None,
+        options: Optional[Union[list, str]] = None,
         *args,
         **kwargs,
     ) -> Union[str, int, float]:

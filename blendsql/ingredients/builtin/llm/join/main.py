@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from guidance import gen
 from textwrap import dedent
 
@@ -17,49 +17,50 @@ class JoinProgram(Program):
         sep: str,
         **kwargs,
     ):
+        _model = self.model
         left_values = "\n".join(left_values)
         right_values = "\n".join(right_values)
         with self.systemcontext:
-            self.model += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
-            self.model += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
+            _model += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
+            _model += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
         with self.usercontext:
             if self.few_shot:
-                self.model += dedent(
+                _model += dedent(
                     """
                 Criteria: Join to same topics.
 
-                Left Values: 
+                Left Values:
                 joshua fields
                 bob brown
                 ron ryan
 
-                Right Values: 
+                Right Values:
                 ron ryan
                 colby mules
                 bob brown (ice hockey)
                 josh fields (pitcher)
 
-                Output: 
+                Output:
                 joshua fields;josh fields (pitcher)
                 bob brown;bob brown (ice hockey)
                 ron ryan;ron ryan
 
-                --- 
+                ---
 
                 Criteria: Align the fruit to their corresponding colors.
 
-                Left Values: 
+                Left Values:
                 apple
                 banana
                 blueberry
                 orange
 
-                Right Values: 
+                Right Values:
                 blue
                 yellow
                 red
 
-                Output: 
+                Output:
                 apple;red
                 banana;yellow
                 blueberry;blue
@@ -68,29 +69,36 @@ class JoinProgram(Program):
                 ---
                 """
                 )
-            self.model += dedent(
+            _model += dedent(
                 f"""
                 Criteria: {join_criteria}
 
-                Left Values: {left_values}
+                Left Values:
+                {left_values}
 
-                Right Values: {right_values}
+                Right Values:
+                {right_values}
 
                 Output:
                 """
             )
         with self.assistantcontext:
-            self.model += gen(name="result", **self.gen_kwargs)
-        return self.model
+            _model += gen(name="result", **self.gen_kwargs)
+        return _model
 
 
 class LLMJoin(JoinIngredient):
+    DESCRIPTION = """
+    If we need to do a `join` operation where there is imperfect alignment between table values, use the new function:
+        `{{LLMJoin(left_on='table::column', right_on='table::column')}}`
+    """
+
     def run(
         self,
         left_values: List[str],
         right_values: List[str],
         model: Model,
-        join_criteria: str = "Join to same topics.",
+        question: Optional[str] = "Join to same topics.",
         **kwargs,
     ) -> dict:
         res = model.predict(
@@ -98,7 +106,7 @@ class LLMJoin(JoinIngredient):
             sep=CONST.DEFAULT_ANS_SEP,
             left_values=left_values,
             right_values=right_values,
-            join_criteria=join_criteria,
+            join_criteria=question,
             **kwargs,
         )
 

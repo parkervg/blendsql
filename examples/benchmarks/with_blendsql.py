@@ -3,7 +3,7 @@ import statistics
 
 from blendsql import blend, LLMMap
 from blendsql.db import SQLite
-from blendsql.llms import AzureOpenaiLLM
+from blendsql.models import AzureOpenaiLLM
 from blendsql.utils import fetch_from_hub
 from constants import model
 

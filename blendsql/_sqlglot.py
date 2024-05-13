@@ -85,8 +85,9 @@ def prune_empty_where(node) -> Union[exp.Expression, None]:
     # Don't check *all* predicates here
     # Since 'WHERE a = TRUE' is valid and should be kept
     elif isinstance(node, exp.In):
-        if isinstance(node.args["query"], exp.Boolean):
-            return None
+        if "query" in node.args:
+            if isinstance(node.args["query"], exp.Boolean):
+                return None
     return node
 
 
@@ -323,7 +324,9 @@ def get_reversed_subqueries(node):
     """Iterates through all subqueries (either parentheses or select).
     Reverses all EXCEPT for CTEs, which should remain in order.
     """
+    # First, fetch all common table expressions
     r = [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if is_in_cte(i)]
+    # Then, add (reversed) other subqueries
     return (
         r
         + [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if not is_in_cte(i)][

@@ -29,6 +29,8 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      toc_depth: "1-1"
 
 
 
@@ -84,5 +86,7 @@ nav:
           - OpenAI: reference/blenders/openai.md
           - Transformers: reference/blenders/transformers.md
       - Databases:
+          - reference/databases/databases.md
           - SQLite: reference/databases/sqlite.md
+          - PostgreSQL: reference/databases/postgresql.md
       - Technical Walkthrough: reference/technical_walkthrough.md

@@ -15,8 +15,19 @@
 <b>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</b>
 
 <i>Results from the paper are available [here](https://github.com/parkervg/blendsql/tree/research-paper/research/paper-results)</i>
+
 </div>
 <br/>
+
+### Features
+
+- Supports many DBMS 💾
+  - Currently, SQLite and PostgreSQL are functional - more to come! 
+- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
+- Smart parsing optimizes what is passed to external functions 🧠
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
 ## Intro
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
@@ -35,8 +46,9 @@ It can be viewed as an inversion of the typical text-to-SQL paradigm, where a us
 For example, imagine we have the following tables.
 
 ### `w`
+
 | **date** | **rival**                 | **city**  | **venue**                   | **score** |
-|----------|---------------------------|-----------|-----------------------------|-----------|
+| -------- | ------------------------- | --------- | --------------------------- | --------- |
 | 31 may   | nsw waratahs              | sydney    | agricultural society ground | 11-0      |
 | 5 jun    | northern districts        | newcastle | sports ground               | 29-0      |
 | 7 jun    | nsw waratahs              | sydney    | agricultural society ground | 21-2      |
@@ -44,8 +56,9 @@ For example, imagine we have the following tables.
 | 12 jun   | wallaroo & university nsw | sydney    | cricket ground              | 23-10     |
 
 ### `documents`
+
 | **title**                      | **content**                                       |
-|--------------------------------|---------------------------------------------------|
+| ------------------------------ | ------------------------------------------------- |
 | sydney                         | sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the ... |
 | new south wales waratahs       | the new south wales waratahs ( /ˈwɒrətɑːz/ or ... |
 | sydney showground (moore park) | the former sydney showground ( moore park ) at... |
@@ -54,9 +67,10 @@ For example, imagine we have the following tables.
 | bathurst, new south wales      | bathurst /ˈbæθərst/ is a city in the central t... |
 
 BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
-The below examples work out of the box, but you are able to design your own ingredients as well! 
+The below examples work out of the box, but you are able to design your own ingredients as well!
 
-*What was the result of the game played 120 miles west of Sydney?*
+_What was the result of the game played 120 miles west of Sydney?_
+
 ```sql
 SELECT * FROM w
     WHERE city = {{
@@ -68,7 +82,8 @@ SELECT * FROM w
     }}
 ```
 
-*Which venues in Sydney saw more than 30 points scored?*
+_Which venues in Sydney saw more than 30 points scored?_
+
 ```sql
 SELECT DISTINCT venue FROM w
     WHERE city = 'sydney' AND {{
@@ -79,7 +94,8 @@ SELECT DISTINCT venue FROM w
     }} = TRUE
 ```
 
-*Show all NSW Waratahs games and a description of the team.*
+_Show all NSW Waratahs games and a description of the team._
+
 ```sql
 SELECT date, rival, score, documents.content AS "Team Description" FROM w
     JOIN {{
@@ -98,9 +114,10 @@ SELECT date, rival, score, documents.content AS "Team Description" FROM w
 
 For this setting, our database contains 2 tables: a table from Wikipedia `w`, and a collection of unstructured Wikipedia articles in the table `documents`.
 
-*What is the state flower of the smallest state by area ?*
+_What is the state flower of the smallest state by area ?_
+
 ```sql
-SELECT "common name" AS 'State Flower' FROM w 
+SELECT "common name" AS 'State Flower' FROM w
 WHERE state = {{
     LLMQA(
         'Which is the smallest state by area?',
@@ -110,26 +127,28 @@ WHERE state = {{
 }}
 ```
 
-*Who were the builders of the mosque in Herat with fire temples ?*
+_Who were the builders of the mosque in Herat with fire temples ?_
+
 ```sql
 {{
     LLMQA(
-        'Name of the builders?',
+        'Who were the builders of the mosque?',
         (
-            SELECT title AS 'Building', content FROM documents
-                WHERE title = {{
-                    LLMQA(
-                        'Align the name to the correct title.',
-                        (SELECT name FROM w WHERE city = 'herat' AND remarks LIKE '%fire temple%'),
-                        options='documents::title'
-                    )
-                }}
-        ) 
+            SELECT documents.title AS 'Building', documents.content FROM documents
+            JOIN {{
+                LLMJoin(
+                    left_on='w::name',
+                    right_on='documents::title'
+                )
+            }}
+            WHERE w.city = 'herat' AND w.remarks LIKE '%fire temple%'
+        )
     )
 }}
 ```
 
-*What is the capacity of the venue that was named in honor of Juan Antonio Samaranch in 2010 after his death ?*
+_What is the capacity of the venue that was named in honor of Juan Antonio Samaranch in 2010 after his death ?_
+
 ```sql
 SELECT capacity FROM w WHERE venue = {{
     LLMQA(
@@ -138,7 +157,7 @@ SELECT capacity FROM w WHERE venue = {{
         options='w::venue'
     )
 }}
-```    
+```
 
 </details>
 </p>
@@ -153,9 +172,10 @@ As a result, we need to play the role of both the retriever (to select relevant 
 
 As the underlying database consists of 400K tables and 5M documents, it's important to set `LIMIT` clauses appropriately to ensure reasonable execution times.
 
-The examples below also demonstrate how BlendSQL unpacks [CTE statements](https://www.sqlite.org/lang_with.html) to ensure we only pass necessary data into the BlendSQL ingredient calls. 
+The examples below also demonstrate how BlendSQL unpacks [CTE statements](https://www.sqlite.org/lang_with.html) to ensure we only pass necessary data into the BlendSQL ingredient calls.
 
-*When was the third highest paid Rangers F.C . player born ?*
+_When was the third highest paid Rangers F.C . player born ?_
+
 ```sql
 {{
     LLMQA(
@@ -174,7 +194,8 @@ The examples below also demonstrate how BlendSQL unpacks [CTE statements](https:
 }}
 ```
 
-*In which Track Cycling World Championships event was the person born in Matanzas , Cuba ranked highest ?*
+_In which Track Cycling World Championships event was the person born in Matanzas , Cuba ranked highest ?_
+
 ```sql
 {{
     LLMQA(
@@ -186,8 +207,8 @@ The examples below also demonstrate how BlendSQL unpacks [CTE statements](https:
                 LLMQA(
                     "Which cyclist was born in Matanzas, Cuba?",
                     (
-                        SELECT * FROM documents 
-                            WHERE documents MATCH 'matanzas AND (cycling OR track OR born)' 
+                        SELECT * FROM documents
+                            WHERE documents MATCH 'matanzas AND (cycling OR track OR born)'
                             ORDER BY rank LIMIT 3
                     ),
                     options="w::name"
@@ -199,7 +220,8 @@ The examples below also demonstrate how BlendSQL unpacks [CTE statements](https:
 }}
 ```
 
-*Who is the director the Togolese film that was a 30 minute film that was shot in 16mm ?*
+_Who is the director the Togolese film that was a 30 minute film that was shot in 16mm ?_
+
 ```sql
 SELECT director FROM "./List of African films (4)" as w
 WHERE title = {{
@@ -220,21 +242,23 @@ WHERE title = {{
 
 Here, we deal not with questions, but truth claims given a context of unstructured and structured data.
 
-These claims should be judged as "SUPPORTS" or "REFUTES". Using BlendSQL, we can formulate this determination of truth as a function over facts. 
+These claims should be judged as "SUPPORTS" or "REFUTES". Using BlendSQL, we can formulate this determination of truth as a function over facts.
 
-*Oyedaea is part of the family Asteraceae in the order Asterales.*
+_Oyedaea is part of the family Asteraceae in the order Asterales._
+
 ```sql
 SELECT EXISTS (
     SELECT * FROM w0 WHERE "family:" = 'asteraceae' AND "order:" = 'asterales'
-) 
+)
 ```
 
-*The 2006-07 San Jose Sharks season, the 14th season of operation (13th season of play) for the National Hockey League (NHL) franchise, scored the most points in the Pacific Division.*
+_The 2006-07 San Jose Sharks season, the 14th season of operation (13th season of play) for the National Hockey League (NHL) franchise, scored the most points in the Pacific Division._
+
 ```sql
 SELECT (
     {{
         LLMValidate(
-            'Is the Sharks 2006-07 season the 14th season (13th season of play)?', 
+            'Is the Sharks 2006-07 season the 14th season (13th season of play)?',
             (SELECT * FROM documents)
         )
     }}
@@ -243,10 +267,11 @@ SELECT (
 )
 ```
 
-*Saunders College of Business, which is accredited by the Association to Advance Collegiate Schools of Business International, is one of the colleges of Rochester Institute of Technology established in 1910 and is currently under the supervision of Dean Jacqueline R. Mozrall.*
+_Saunders College of Business, which is accredited by the Association to Advance Collegiate Schools of Business International, is one of the colleges of Rochester Institute of Technology established in 1910 and is currently under the supervision of Dean Jacqueline R. Mozrall._
+
 ```sql
 SELECT EXISTS(
-    SELECT * FROM w0 
+    SELECT * FROM w0
     WHERE "parent institution" = 'rochester institute of technology'
     AND "established" = '1910'
     AND "dean" = 'jacqueline r. mozrall'
@@ -264,32 +289,28 @@ SELECT EXISTS(
 </p>
 
 ## Table of Contents
-* [Install](#install)
-* [Quickstart](#quickstart)
-* [FAQ](#faq)
-* [Documentation](#documentation)
-  * [Execute a BlendSQL Query](#execute-a-blendsql-query)
-    * [Smoothie](#smoothie)
-  * [Ingredients](#ingredients)
-    * [MapIngredient](#mapingredient)
-    * [QAIngredient](#qaingredient)
-      * [Constrained Decoding with 'options'](#constrained-decoding-with-options)
-    * [JoinIngredient](#joiningredient)
-    * [StringIngredient](#stringingredient)
-  * [LLMs](#llms)
-  * [Databases](#databases)
-* [Appendix](#appendix)
 
-### Features 
-- Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑 
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-
+- [Install](#install)
+- [Quickstart](#quickstart)
+- [FAQ](#faq)
+- [Documentation](#documentation)
+  - [Execute a BlendSQL Query](#execute-a-blendsql-query)
+    - [Smoothie](#smoothie)
+  - [Ingredients](#ingredients)
+    - [MapIngredient](#mapingredient)
+    - [QAIngredient](#qaingredient)
+      - [Constrained Decoding with 'options'](#constrained-decoding-with-options)
+    - [JoinIngredient](#joiningredient)
+    - [StringIngredient](#stringingredient)
+  - [Parsing Natural Language to BlendSQL](#parsing-natural-language-to-blendsql)
+  - [LLMs](#llms)
+  - [Databases](#databases)
+- [Appendix](#appendix)
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
 
 ## Install
+
 ```
 pip install blendsql
 ```
@@ -297,52 +318,66 @@ pip install blendsql
 ## Quickstart
 
 ```python
-from blendsql import blend, LLMQA, LLMMap
+from blendsql import blend, LLMQA
 from blendsql.db import SQLite
 from blendsql.models import OpenaiLLM
+from blendsql.utils import fetch_from_hub
 
 blendsql = """
-SELECT merchant FROM transactions WHERE 
-     {{LLMMap('is this a pizza shop?', 'transactions::merchant')}} = TRUE
-     AND parent_category = 'Food'
+SELECT * FROM w
+WHERE city = {{
+    LLMQA(
+        'Which city is located 120 miles west of Sydney?',
+        (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+        options='w::city'
+    )
+}}
 """
 # Make our smoothie - the executed BlendSQL script
 smoothie = blend(
     query=blendsql,
-    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
-    ingredients={LLMMap, LLMQA},
-    db=SQLite(db_path="transactions.db"),
-    verbose=True
+    db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+    blender=OpenaiLLM("gpt-3.5-turbo"),
+    ingredients={LLMQA},
 )
-
+print(smoothie.df)
+print(smoothie.meta.prompts)
 ```
 
 ### FAQ
 
+#### How does BlendSQL execute a query?
+> BlendSQL handles traversal of the SQL AST and creation of temporary tables to execute a given query. 
+> This allows BlendSQL to be DBMS-agnostic, and extendable into both SQLite, PostgreSQL, and other DBMS.
+
 #### Why not just implement BlendSQL as a [user-defined function in SQLite](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic)?
-> LLMs are expensive, both in terms of $ cost and compute time. When applying them to SQLite databases, we want to take special care in ensuring we're not applying them to contexts where they're not required. 
+
+> LLMs are expensive, both in terms of $ cost and compute time. When applying them to SQLite databases, we want to take special care in ensuring we're not applying them to contexts where they're not required.
 > This is [not easily achievable with UDFs](https://sqlite.org/forum/info/649ad4c62fd4b4e8cb5d6407107b8c8a9a0afaaf95a87805e5a8403a79e6616c), even when marked as a [deterministic function](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic).
-> 
+>
 > BlendSQL is specifically designed to enforce an order-of-operations that 1) prioritizes vanilla SQL operations first, and 2) caches results from LLM ingredients so they don't need to be recomputed.
 > For example:
-> ```sql 
-> SELECT {{LLMMap('What state is this NBA team from?', 'w::team')} FROM w 
->    WHERE num_championships > 3 
+>
+> ```sql
+> SELECT {{LLMMap('What state is this NBA team from?', 'w::team')} FROM w
+>    WHERE num_championships > 3
 >    ORDER BY {{LLMMap('What state is this NBA team from?', 'w::team')}
-> 
+>
 > ```
+>
 > BlendSQL makes sure to only pass those `team` values from rows which satisfy the condition `num_championship > 3` to the LLM. Additionally, since we assume the function is deterministic, we make a single LLM call and cache the results, despite the ingredient function being used twice.
 
+#### So I get how to write BlendSQL queries. But why would I use this over vanilla SQLite?
 
- #### So I get how to write BlendSQL queries. But why would I use this over vanilla SQLite? 
-> Certain ingredients, like [LLMJoin](#joiningredient), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an *intermediate representation for reasoning over structured + unstructured with LLMs*. Some examples of this can be found above [here](#more-examples-from-popular-qa-datasets).
+> Certain ingredients, like [LLMJoin](#joiningredient), will likely give seasoned SQL experts a headache at first. However, BlendSQL's real strength comes from it's use as an _intermediate representation for reasoning over structured + unstructured with LLMs_. Some examples of this can be found above [here](#more-examples-from-popular-qa-datasets).
 
 <hr>
 
 ### Citation
+
 ```bibtex
 @article{glenn2024blendsql,
-      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra}, 
+      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
       author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
       year={2024},
       eprint={2402.17882},
@@ -353,19 +388,43 @@ smoothie = blend(
 
 # Documentation
 
-> [!WARNING]
-> WIP, will be updated
+
+## Databases
+
+Since BlendSQL relies on the package [sqlglot](https://github.com/tobymao/sqlglot) for query optimization (which supports a [wide variety of SQL dialects](https://github.com/tobymao/sqlglot/blob/main/sqlglot/dialects/__init__.py)) and the notion of [temporary tables](https://en.wikibooks.org/wiki/Structured_Query_Language/Temporary_Table), it can easily integrate with many different SQL dialects. 
+
+Currently, the following are supported.
+
+### SQLite
+A SQLite database connection.
+Can be initialized via a path to the database file.
+
+Example:
+```python
+from blendsql.db import SQLite
+db = SQLite("./path/to/database.db")
+```
+
+### PostgreSQL
+A PostgreSQL database connection.
+Can be initialized via the SQLAlchemy input string.
+https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
+
+Example:
+```python
+from blendsql.db import PostgreSQL
+db = PostgreSQL("user:password@localhost/mydatabase")
+```
 
 ## Execute a BlendSQL Query
+
 The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
 
-::: blendsql.blendsql.blend
-  handler: python
-
 ```python
-from blendsql import blend, LLMMap, LLMQA, LLMJoin
+from blendsql import blend, LLMQA
 from blendsql.db import SQLite
 from blendsql.models import OpenaiLLM
+from blendsql.utils import fetch_from_hub
 
 blendsql = """
 SELECT * FROM w
@@ -375,27 +434,21 @@ WHERE city = {{
         (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
         options='w::city'
     )
-}} 
+}}
 """
-db = SQLite(db_path)
+# Make our smoothie - the executed BlendSQL script
 smoothie = blend(
     query=blendsql,
-    db=db,
-    ingredients={LLMMap, LLMQA, LLMJoin},
-    blender=AzureOpenaiLLM("gpt-4"),
-    # Optional args below
-    infer_gen_constraints=True,
-    silence_db_exec_errors=False,
-    verbose=True,
-    blender_args={
-        "few_shot": True,
-        "temperature": 0.01
-    }
+    db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+    blender=OpenaiLLM("gpt-3.5-turbo"),
+    ingredients={LLMQA},
 )
+print(smoothie.df)
+print(smoothie.meta.prompts)
 ```
 
+### Smoothie
 
-### Smoothie 
 The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an executed BlendSQL script.
 
 ```python
@@ -403,7 +456,7 @@ The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an execu
 class Smoothie:
     df: pd.DataFrame
     meta: SmoothieMeta
-    
+
 @dataclass
 class SmoothieMeta:
     process_time_seconds: float
@@ -417,19 +470,20 @@ class SmoothieMeta:
     contains_ingredient: bool = True
 
 def blend(*args, **kwargs) -> Smoothie:
-  ... 
+  ...
 ```
+
 <hr>
 
-## Ingredients 
+## Ingredients
 
 ![ingredients](docs/img/ingredients.jpg)
 
-Ingredients are at the core of a BlendSQL script. 
+Ingredients are at the core of a BlendSQL script.
 
 They are callable functions that perform one the task paradigms defined in [ingredient.py](./blendsql/ingredients/ingredient.py).
 
-At their core, these are not a new concept. [User-defined functions (UDFs)](https://docs.databricks.com/en/udf/index.html), or [Application-Defined Functions in SQLite](https://www.sqlite.org/appfunc.html) have existed for quite some time. 
+At their core, these are not a new concept. [User-defined functions (UDFs)](https://docs.databricks.com/en/udf/index.html), or [Application-Defined Functions in SQLite](https://www.sqlite.org/appfunc.html) have existed for quite some time.
 
 However, ingredients in BlendSQL are intended to be optimized towards LLM-based functions, defining an order of operations for traversing the AST such that the minimal amount of data is passed into your expensive GPT-4/Llama 2/Mistral 7b/etc. prompt.
 
@@ -438,11 +492,12 @@ Ingredient calls are denoted by wrapping them in double curly brackets, `{{ingre
 The following ingredient types are valid.
 
 ### MapIngredient
+
 This type of ingredient applies a function on a given table/column pair to create a new column containing the function output.
 
 For example, take the following query.
 
-```sql 
+```sql
 SELECT merchant FROM transactions
     WHERE {{LLMMap('Is this a pizza shop?', 'transactions::merchant')}} = TRUE
 ```
@@ -450,7 +505,7 @@ SELECT merchant FROM transactions
 `LLMMap` is one of our builtin MapIngredients. For each of the distinct values in the "merchant" column of the "transactions" table, it will create a column containing the function output.
 
 | merchant | Is this a pizza shop? |
-|----------|-----------------------|
+| -------- | --------------------- |
 | Domino's | 1                     |
 | Safeway  | 0                     |
 | Target   | 0                     |
@@ -458,19 +513,22 @@ SELECT merchant FROM transactions
 The temporary table shown above is then combined with the original "transactions" table with an `INNER JOIN` on the "merchant" column.
 
 ### JoinIngredient
+
 Handles the logic of semantic `JOIN` clauses between tables.
 
 For example:
+
 ```sql
 SELECT Capitals.name, State.name FROM Capitals
     JOIN {{
         LLMJoin(
-            'Align state to capital', 
-            left_on='States::name', 
+            'Align state to capital',
+            left_on='States::name',
             right_on='Capitals::name'
         )
     }}
 ```
+
 The above example hints at a database schema that would make [E.F Codd](https://en.wikipedia.org/wiki/Edgar_F._Codd) very angry: why do we have two separate tables `States` and `Capitals` with no foreign key to join the two?
 
 BlendSQL was built to interact with tables "in-the-wild", and many (such as those on Wikipedia) do not have these convenient properties of well-designed relational models.
@@ -478,18 +536,20 @@ BlendSQL was built to interact with tables "in-the-wild", and many (such as thos
 For this reason, we can leverage the internal knowledge of a pre-trained LLM to do the `JOIN` operation for us.
 
 ### QAIngredient
+
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
 
 The `QAIngredient` is designed to return data of variable types, and is best used in cases when we either need:
-1) Unstructured, free-text responses ("Give me a summary of all my spending in coffe")
-2) Complex, unintuitive relationships extracted from table subsets ("How many consecutive days did I spend in coffee?")
+
+1. Unstructured, free-text responses ("Give me a summary of all my spending in coffe")
+2. Complex, unintuitive relationships extracted from table subsets ("How many consecutive days did I spend in coffee?")
 
 The following query demonstrates usage of the builtin `LLMQA` ingredient.
 
 ```sql
 {{
     LLMQA(
-        'How many consecutive days did I buy stocks in Financials?', 
+        'How many consecutive days did I buy stocks in Financials?',
         (
             SELECT account_history."Run Date", account_history.Symbol, constituents."Sector"
               FROM account_history
@@ -498,39 +558,42 @@ The following query demonstrates usage of the builtin `LLMQA` ingredient.
               ORDER BY "Run Date" LIMIT 5
         )
     )
-}} 
+}}
 ```
-This is slightly more complicated than the rest of the ingredients. 
+
+This is slightly more complicated than the rest of the ingredients.
 
 Behind the scenes, we wrap the call to `LLMQA` in a trivial `CASE` clause, ensuring that the ingredient's output gets returned.
-```sql 
-SELECT CASE WHEN FALSE THEN FALSE 
+
+```sql
+SELECT CASE WHEN FALSE THEN FALSE
   WHEN TRUE then {{QAIngredient}}
   END
 ```
+
 The LLM gets both the question asked, alongside the subset of the SQL database fetched by our subquery.
 
 | **"Run Date"** | **Symbol** | **Sector** |
-|----------------|------------|------------|
+| -------------- | ---------- | ---------- |
 | 2022-01-14     | HBAN       | Financials |
 | 2022-01-20     | AIG        | Financials |
 | 2022-01-24     | AIG        | Financials |
 | 2022-01-24     | NTRS       | Financials |
 | 2022-01-25     | HBAN       | Financials |
 
-
 From examining this table, we see that we bought stocks in the Financials sector 2 consecutive days (2022-01-24, and 2022-01-25).
 The LLM answers the question in an end-to-end manner, returning the result `2`.
 
 The `QAIngredient` can be used as a standalone end-to-end QA tool, or as a component within a larger BlendSQL query.
 
-For example, the BlendSQL query below translates to the valid (but rather confusing) question: 
+For example, the BlendSQL query below translates to the valid (but rather confusing) question:
 
 "Show me stocks in my portfolio, whose price is greater than the number of consecutive days I bought Financial stocks multiplied by 10. Only display those companies which offer a media streaming service."
+
 ```sql
  SELECT Symbol, "Last Price" FROM portfolio WHERE "Last Price" > {{
   LLMQA(
-        'How many consecutive days did I buy stocks in Financials?', 
+        'How many consecutive days did I buy stocks in Financials?',
         (
             SELECT account_history."Run Date", account_history.Symbol, constituents."Sector"
               FROM account_history
@@ -542,13 +605,15 @@ For example, the BlendSQL query below translates to the valid (but rather confus
   }} * 10
   AND {{LLMMap('Offers a media streaming service?', 'portfolio::Description')}} = 1
 ```
+
 #### Constrained Decoding with `options`
+
 Perhaps we want the answer to the above question in a different format. We call our LLM ingredient in a constrained setting by passing a `options` argument, where we provide either semicolon-separated options, or a reference to a column.
 
 ```sql
 {{
     LLMQA(
-        'How many consecutive days did I buy stocks in Financials?', 
+        'How many consecutive days did I buy stocks in Financials?',
         (
             SELECT account_history."Run Date", account_history.Symbol, constituents."Sector"
               FROM account_history
@@ -565,9 +630,9 @@ Running the above BlendSQL query, we get the output `two consecutive days!`.
 
 This `options` argument can also be a reference to a given column.
 
-For example (from the [HybridQA dataset](https://hybridqa.github.io/)): 
+For example (from the [HybridQA dataset](https://hybridqa.github.io/)):
 
-```sql 
+```sql
  SELECT capacity FROM w WHERE venue = {{
         LLMQA(
             'Which venue is named in honor of Juan Antonio Samaranch?',
@@ -578,6 +643,7 @@ For example (from the [HybridQA dataset](https://hybridqa.github.io/)):
 ```
 
 Or, from our running example:
+
 ```sql
 {{
   LLMQA(
@@ -597,11 +663,12 @@ Or, from our running example:
 The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol` column from `account_history`.
 
 ### StringIngredient
+
 This is the simplest type of ingredient. This will output a string to be placed directly into the SQL query.
 
 We have the `DT` function as a builtin StringIngredient.
 
-```sql 
+```sql
 SELECT merchant FROM transactions
     WHERE {{DT('transactions::date', start='q2')}}
 ```
@@ -613,36 +680,63 @@ We do not create any new tables or perform any joins with a StringIngredient; in
 > [!NOTE]
 > The below SQL interpretation of the `DT` function assumes we're calling it in December, 2022. The phrase 'q2' will be interpreted differently in, say, March 1998.
 
-```sql 
+```sql
 SELECT merchant FROM transactions
     WHERE date > '2022-09-30' AND date < '2022-12-01'
 ```
 
-<hr> 
- 
+<hr>
 
-## LLMs
+## Parsing Natural Language to BlendSQL
 
+```python
+from blendsql import nl_to_blendsql, LLMMap
+from blendsql.models import TransformersLLM
+from blendsql.db import SQLite
+from blendsql.utils import fetch_from_hub
 
-<hr> 
+model = TransformersLLM("Qwen/Qwen1.5-0.5B")
+db = SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db"))
 
-## Databases
+query = nl_to_blendsql(
+    question="Which venues in Sydney saw more than 30 points scored?",
+    model=model,
+    ingredients={LLMMap},
+    serialized_db=db.to_serialized(num_rows=3, use_tables=["w", "documents"]),
+    verbose=True,
+    max_grammar_corrections=5,
+)
+```
 
+### Grammar-Based Correction
 
-<hr> 
+If you use the grammar prompting feature of BlendSQL, please cite the original grammar prompting paper below.
+
+```bibtex
+@article{wang2024grammar,
+  title={Grammar prompting for domain-specific language generation with large language models},
+  author={Wang, Bailin and Wang, Zi and Wang, Xuezhi and Cao, Yuan and A Saurous, Rif and Kim, Yoon},
+  journal={Advances in Neural Information Processing Systems},
+  volume={36},
+  year={2024}
+}
+```
+
+<hr>
 ### Appendix
-#### Run Line Profiling 
+#### Run Line Profiling
 First uncomment `@profile` above `blend()` in `blendsql.py`.
 Make sure you've run `pip install line_profiler` first. This installs the tool here: https://github.com/pyutils/line_profiler
 
 `PYTHONPATH=$PWD:$PYTHONPATH kernprof -lv examples/benchmarks/with_blendsql.py`
 
 #### Benchmarks
-The below benchmarks were done on my local M1 Macbook Pro. by running the scripts found in `examples/benchmarks`. 
+
+The below benchmarks were done on my local M1 Macbook Pro. by running the scripts found in `examples/benchmarks`.
 'Lines of Code' is a rough estimate of the user-written code for each usecase.
 
-| **Name**                     | **Description**                                                 | **Runtime/s (Across 10 runs)** | **Lines of Code** |
-|------------------------------|-----------------------------------------------------------------|-------------------------------------------------|-------------------|
-| BlendSQL                     |                                                     |5.685 +/- 0.930                                 | 9                 |
-| SQL + LLM Calls       | Filtering what we can with SQL, then running LLM calls.         | 9.083 +/- 2.061                                 | 106               |
-| Naive SQL + LLM Calls | Runing LLM calls on entire table, regardless of SQL conditions. | 64.809 +/- 6.225                                | 106               |
+| **Name**              | **Description**                                                 | **Runtime/s (Across 10 runs)** | **Lines of Code** |
+| --------------------- | --------------------------------------------------------------- | ------------------------------ | ----------------- |
+| BlendSQL              |                                                                 | 5.685 +/- 0.930                | 9                 |
+| SQL + LLM Calls       | Filtering what we can with SQL, then running LLM calls.         | 9.083 +/- 2.061                | 106               |
+| Naive SQL + LLM Calls | Runing LLM calls on entire table, regardless of SQL conditions. | 64.809 +/- 6.225               | 106               |
