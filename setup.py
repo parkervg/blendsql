@@ -33,6 +33,7 @@ setup(
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
     packages=find_packages(exclude=["examples", "research", "img"]),
+    data_files=["blendsql/grammars/_cfg_grammar.lark"],
     install_requires=[
         "guidance>=0.1.0",
         "pyparsing==3.1.1",
@@ -42,16 +43,14 @@ setup(
         "sqlglot==18.13.0",
         "sqlalchemy>=2.0.0",
         "platformdirs",
-        "pre-commit",
         "attrs",
         "tqdm",
-        "dateparser",
         "colorama",
-        "fiscalyear",
         "tabulate",
         "typeguard",
     ],
     extras_require={
+        "nl_to_blendsql": ["exrex", "lark"],
         "research": [
             "datasets==2.16.1",
             "nltk",
@@ -64,7 +63,7 @@ setup(
             "recognizers-text-suite",
             "emoji==1.7.0",
         ],
-        "test": ["pytest", "huggingface_hub"],
+        "test": ["pytest", "huggingface_hub", "pre-commit"],
         "docs": [
             "mkdocs-material",
             "mkdocstrings",
