@@ -16,7 +16,9 @@ def fetch_from_hub(filename: str):
         raise ImportError(
             f"You need huggingface_hub to run this!\n`pip install huggingface_hub`"
         ) from None
-    return hf_hub_download(repo_id=HF_REPO_ID, filename=filename, repo_type="dataset")
+    return hf_hub_download(
+        repo_id=HF_REPO_ID, filename=filename, repo_type="dataset", force_download=True
+    )
 
 
 def get_tablename_colname(s: str) -> Tuple[str, str]:
