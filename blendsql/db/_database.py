@@ -62,8 +62,9 @@ class Database:
         return inspect(self.engine).get_table_names()
 
     def iter_columns(self, tablename: str) -> Generator[str, None, None]:
-        for column_data in inspect(self.engine).get_columns(tablename):
-            yield column_data["name"]
+        if tablename in self.tables():
+            for column_data in inspect(self.engine).get_columns(tablename):
+                yield column_data["name"]
 
     def schema_string(self, use_tables: Collection[str] = None) -> str:
         create_table_stmts = []
