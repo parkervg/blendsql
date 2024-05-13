@@ -85,6 +85,7 @@ nav:
           - reference/blenders/blenders.md
           - OpenAI: reference/blenders/openai.md
           - Transformers: reference/blenders/transformers.md
+          - llama.cpp: reference/blenders/llamacpp.md
       - Databases:
           - reference/databases/databases.md
           - SQLite: reference/databases/sqlite.md
