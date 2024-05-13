@@ -1,4 +1,4 @@
-__version__ = "0.0.141"
+__version__ = "0.0.15"
 
 
 from .ingredients.builtin import LLMMap, LLMQA, LLMJoin, LLMValidate
