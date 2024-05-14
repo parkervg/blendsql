@@ -482,7 +482,7 @@ def main() -> None:
     if data_training_args.overwrite_cache:
         # Remove the appropriate directory containing our save db files
         if data_args.dataset == "wikitq":
-            dataset_db_path = Path(data_training_args.db_path) / "wikitq"
+            dataset_db_path = Path(data_training_args.db_url) / "wikitq"
             if dataset_db_path.is_dir():
                 shutil.rmtree(str(dataset_db_path))
 

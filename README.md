@@ -410,6 +410,27 @@ A PostgreSQL database connection.
 Can be initialized via the SQLAlchemy input string.
 https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
 
+#### Creating a `blendsql` User
+
+When executing a BlendSQL query, there are internal checks to ensure prior to execution that a given query does not contain any 'modify' actions.
+
+However, it is still best practice when using PostgreSQL to create a dedicated 'blendsql' user with only the permissions needed. 
+
+You can create a user with the required permissions with the script below (after invoking postgres via `psql`)
+
+```bash
+CREATE USER blendsql;
+GRANT pg_read_all_data TO blendsql;
+GRANT TEMP ON DATABASE mydb TO blendsql;
+```
+
+Now, we can initialize a PostgreSQL database with our new user.
+
+```python
+from blendsql.db import PostgreSQL
+db = PostgreSQL("blendsql@localhost:5432/mydb")
+```
+
 Example:
 ```python
 from blendsql.db import PostgreSQL
@@ -459,15 +480,14 @@ class Smoothie:
 
 @dataclass
 class SmoothieMeta:
-    process_time_seconds: float
     num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
     num_prompt_tokens: int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
-    prompts: List[str] # Log of prompts submitted to model
-    example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
-    ingredients: List[Ingredient]
+    prompts: List[str]  # Log of prompts submitted to model
+    ingredients: Collection[Ingredient]
     query: str
-    db_path: str
+    db_url: str
     contains_ingredient: bool = True
+    process_time_seconds: float = None
 
 def blend(*args, **kwargs) -> Smoothie:
   ...

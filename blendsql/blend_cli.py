@@ -37,12 +37,12 @@ def main():
 
         _ = readline
     parser = argparse.ArgumentParser()
-    parser.add_argument("db_path", nargs="?")
+    parser.add_argument("db_url", nargs="?")
     parser.add_argument("secrets_path", nargs="?", default="./secrets.json")
     args = parser.parse_args()
 
-    db = SQLite(db_path=args.db_path)
-    print_msg_box(f"Beginning BlendSQL session with '{args.db_path}'...")
+    db = SQLite(db_url=args.db_url)
+    print_msg_box(f"Beginning BlendSQL session with '{args.db_url}'...")
     print()
     while True:
         lines = []

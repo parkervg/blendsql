@@ -16,7 +16,7 @@ class SmoothieMeta:
     prompts: List[str]  # Log of prompts submitted to model
     ingredients: Collection[Ingredient]
     query: str
-    db_path: str
+    db_url: str
     contains_ingredient: bool = True
     process_time_seconds: float = None
 

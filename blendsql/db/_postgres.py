@@ -1,4 +1,7 @@
 import importlib.util
+from sqlalchemy.engine import make_url, URL
+from colorama import Fore
+import logging
 
 from ._database import Database
 
@@ -22,7 +25,13 @@ class PostgreSQL(Database):
             raise ImportError(
                 "Please install psycopg2 with `pip install psycopg2-binary`!"
             ) from None
-        super().__init__(db_path=db_path, db_prefix="postgresql+psycopg2://")
+        db_url: URL = make_url(f"postgresql+psycopg2://{db_path}")
+        if db_url.username is None:
+            logging.warning(
+                Fore.RED
+                + "Connecting to postgreSQL database without specifying user!\nIt is strongly encouraged to create a `blendsql` user with read-only permissions and temp table creation privileges."
+            )
+        super().__init__(db_url=db_url)
 
     def has_temp_table(self, tablename: str) -> bool:
         return (

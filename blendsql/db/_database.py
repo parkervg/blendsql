@@ -8,7 +8,7 @@ from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_engine, inspect, MetaData
 from sqlalchemy.sql import text
-from sqlalchemy.engine import Engine, Connection
+from sqlalchemy.engine import Engine, Connection, URL
 from pandas.io.sql import get_schema
 from abc import abstractmethod
 
@@ -17,8 +17,7 @@ DOCS_TABLE_NAME = "documents"
 
 @attrs(auto_detect=True)
 class Database:
-    db_path: str = attrib()
-    db_prefix: str = attrib()
+    db_url: URL = attrib()
 
     engine: Engine = attrib(init=False)
     con: Connection = attrib(init=False)
@@ -26,7 +25,7 @@ class Database:
     tablename_to_columns: Dict[str, Iterable] = attrib(init=False)
 
     def __attrs_post_init__(self):
-        self.engine = create_engine(f"{self.db_prefix}{self.db_path}")
+        self.engine = create_engine(self.db_url)
         self.con = self.engine.connect()
         self.metadata = MetaData()
         self.metadata.reflect(bind=self.engine)

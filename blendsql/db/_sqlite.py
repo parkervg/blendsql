@@ -1,4 +1,5 @@
 from pathlib import Path
+from sqlalchemy.engine import make_url, URL
 
 from .utils import double_quote_escape
 from ._database import Database
@@ -15,8 +16,9 @@ class SQLite(Database):
         ```
     """
 
-    def __init__(self, db_path: str):
-        super().__init__(db_path=Path(db_path).resolve(), db_prefix="sqlite:///")
+    def __init__(self, db_url: str):
+        db_url: URL = make_url(f"sqlite:///{Path(db_url).resolve()}")
+        super().__init__(db_url=db_url)
 
     def has_temp_table(self, tablename: str) -> bool:
         return (

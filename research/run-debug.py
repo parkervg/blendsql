@@ -1,5 +1,5 @@
 from blendsql import blend, LLMJoin
-from blendsql.db import SQLite
+from blendsql.db import SQLite, PostgreSQL
 from blendsql.models import OpenaiLLM
 from blendsql.utils import fetch_from_hub, tabulate
 
@@ -23,6 +23,13 @@ if __name__ == "__main__":
         ingredients={LLMJoin},
     )
     print(tabulate(smoothie.df))
-    import json
 
-    print(json.dumps(smoothie.meta.prompts, indent=4))
+    smoothie = blend(
+        query=blendsql,
+        db=PostgreSQL(
+            "blendsql@localhost:5432/1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1"
+        ),
+        blender=OpenaiLLM("gpt-3.5-turbo"),
+        ingredients={LLMJoin},
+    )
+    print(tabulate(smoothie.df))

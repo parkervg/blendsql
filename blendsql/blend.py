@@ -449,7 +449,7 @@ def _blend(
                 prompts=blender.prompts if blender is not None else [],
                 ingredients=[],
                 query=original_query,
-                db_path=db.db_path,
+                db_url=str(db.db_url),
                 contains_ingredient=False,
             ),
         )
@@ -459,7 +459,7 @@ def _blend(
     session_modified_tables = set()
     # TODO: Currently, as we traverse upwards from deepest subquery,
     #   if any lower subqueries have an ingredient, we deem the current
-    #   as inelligible for optimization. Maybe this can be improved in the future.
+    #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
     for subquery_idx, subquery in enumerate(get_reversed_subqueries(_query)):
         # At this point, we should have already handled cte statements and created associated tables
@@ -822,7 +822,7 @@ def _blend(
             prompts=blender.prompts if blender is not None else [],
             ingredients=ingredients,
             query=original_query,
-            db_path=db.db_path,
+            db_url=str(db.db_url),
         ),
     )
 
