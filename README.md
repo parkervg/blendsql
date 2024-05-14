@@ -19,12 +19,27 @@
 </div>
 <br/>
 
-## Intro
+### Features
 
-BlendSQL is a _superset of SQLite_ for problem decomposition and hybrid question-answering with LLMs. It builds off of the syntax of SQL to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.
+- Supports many DBMS 💾
+  - Currently, SQLite and PostgreSQL are functional - more to come! 
+- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
+- Smart parsing optimizes what is passed to external functions 🧠
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+
+## Intro
+BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
+
+As a result, we can *Blend* together...
+
+- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
+- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
 
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
-Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
+
+**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
 
 ![comparison](docs/img/comparison.jpg)
 
@@ -279,6 +294,9 @@ SELECT EXISTS(
 - [Quickstart](#quickstart)
 - [FAQ](#faq)
 - [Documentation](#documentation)
+  - [Databases](#databases)
+    - [SQLite](#sqlite)
+    - [PostgreSQL](#postgresql)
   - [Execute a BlendSQL Query](#execute-a-blendsql-query)
     - [Smoothie](#smoothie)
   - [Ingredients](#ingredients)
@@ -289,15 +307,7 @@ SELECT EXISTS(
     - [StringIngredient](#stringingredient)
   - [Parsing Natural Language to BlendSQL](#parsing-natural-language-to-blendsql)
   - [LLMs](#llms)
-  - [Databases](#databases)
 - [Appendix](#appendix)
-
-### Features
-
-- Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
 
@@ -310,27 +320,37 @@ pip install blendsql
 ## Quickstart
 
 ```python
-from blendsql import blend, LLMQA, LLMMap
+from blendsql import blend, LLMQA
 from blendsql.db import SQLite
 from blendsql.models import OpenaiLLM
+from blendsql.utils import fetch_from_hub
 
 blendsql = """
-SELECT merchant FROM transactions WHERE
-     {{LLMMap('is this a pizza shop?', 'transactions::merchant')}} = TRUE
-     AND parent_category = 'Food'
+SELECT * FROM w
+WHERE city = {{
+    LLMQA(
+        'Which city is located 120 miles west of Sydney?',
+        (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+        options='w::city'
+    )
+}}
 """
 # Make our smoothie - the executed BlendSQL script
 smoothie = blend(
     query=blendsql,
-    blender=OpenaiLLM("gpt-3.5-turbo-0613"),
-    ingredients={LLMMap, LLMQA},
-    db=SQLite(db_path="transactions.db"),
-    verbose=True
+    db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+    blender=OpenaiLLM("gpt-3.5-turbo"),
+    ingredients={LLMQA},
 )
-
+print(smoothie.df)
+print(smoothie.meta.prompts)
 ```
 
 ### FAQ
+
+#### How does BlendSQL execute a query?
+> BlendSQL handles traversal of the SQL AST and creation of temporary tables to execute a given query. 
+> This allows BlendSQL to be DBMS-agnostic, and extendable into both SQLite, PostgreSQL, and other DBMS.
 
 #### Why not just implement BlendSQL as a [user-defined function in SQLite](https://www.sqlite.org/c3ref/c_deterministic.html#sqlitedeterministic)?
 
@@ -370,20 +390,64 @@ smoothie = blend(
 
 # Documentation
 
-> [!WARNING]
-> WIP, will be updated
+
+## Databases
+
+Since BlendSQL relies on the package [sqlglot](https://github.com/tobymao/sqlglot) for query optimization (which supports a [wide variety of SQL dialects](https://github.com/tobymao/sqlglot/blob/main/sqlglot/dialects/__init__.py)) and the notion of [temporary tables](https://en.wikibooks.org/wiki/Structured_Query_Language/Temporary_Table), it can easily integrate with many different SQL dialects. 
+
+Currently, the following are supported.
+
+### SQLite
+A SQLite database connection.
+Can be initialized via a path to the database file.
+
+Example:
+```python
+from blendsql.db import SQLite
+db = SQLite("./path/to/database.db")
+```
+
+### PostgreSQL
+A PostgreSQL database connection.
+Can be initialized via the SQLAlchemy input string.
+https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
+
+Example:
+```python
+from blendsql.db import PostgreSQL
+db = PostgreSQL("user:password@localhost/mydatabase")
+```
+
+#### Creating a `blendsql` User
+
+When executing a BlendSQL query, there are internal checks to ensure prior to execution that a given query does not contain any 'modify' actions.
+
+However, it is still best practice when using PostgreSQL to create a dedicated 'blendsql' user with only the permissions needed. 
+
+You can create a user with the required permissions with the script below (after invoking postgres via `psql`)
+
+```bash
+CREATE USER blendsql;
+GRANT pg_read_all_data TO blendsql;
+GRANT TEMP ON DATABASE mydb TO blendsql;
+```
+
+Now, we can initialize a PostgreSQL database with our new user.
+
+```python
+from blendsql.db import PostgreSQL
+db = PostgreSQL("blendsql@localhost:5432/mydb")
+```
 
 ## Execute a BlendSQL Query
 
 The `blend()` function is used to execute a BlendSQL query against a database and return the final result, in addition to the intermediate reasoning steps taken.
 
-::: blendsql.blendsql.blend
-handler: python
-
 ```python
-from blendsql import blend, LLMMap, LLMQA, LLMJoin
+from blendsql import blend, LLMQA
 from blendsql.db import SQLite
 from blendsql.models import OpenaiLLM
+from blendsql.utils import fetch_from_hub
 
 blendsql = """
 SELECT * FROM w
@@ -395,21 +459,15 @@ WHERE city = {{
     )
 }}
 """
-db = SQLite(db_path)
+# Make our smoothie - the executed BlendSQL script
 smoothie = blend(
     query=blendsql,
-    db=db,
-    ingredients={LLMMap, LLMQA, LLMJoin},
-    blender=AzureOpenaiLLM("gpt-4"),
-    # Optional args below
-    infer_gen_constraints=True,
-    silence_db_exec_errors=False,
-    verbose=True,
-    blender_args={
-        "few_shot": True,
-        "temperature": 0.01
-    }
+    db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+    blender=OpenaiLLM("gpt-3.5-turbo"),
+    ingredients={LLMQA},
 )
+print(smoothie.df)
+print(smoothie.meta.prompts)
 ```
 
 ### Smoothie
@@ -424,15 +482,14 @@ class Smoothie:
 
 @dataclass
 class SmoothieMeta:
-    process_time_seconds: float
     num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
     num_prompt_tokens: int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
-    prompts: List[str] # Log of prompts submitted to model
-    example_map_outputs: List[Any]  # outputs from a Map ingredient, for debugging
-    ingredients: List[Ingredient]
+    prompts: List[str]  # Log of prompts submitted to model
+    ingredients: Collection[Ingredient]
     query: str
-    db_path: str
+    db_url: str
     contains_ingredient: bool = True
+    process_time_seconds: float = None
 
 def blend(*args, **kwargs) -> Smoothie:
   ...

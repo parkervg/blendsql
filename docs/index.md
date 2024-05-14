@@ -25,10 +25,25 @@ pip install blendsql
 </div>
 </center>
 
-BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. It builds off of the syntax of SQL to create an intermediate representation for tasks requiring complex reasoning over both structured and unstructured data.
+### Features
+- Supports many DBMS 💾
+  - Currently, SQLite and PostgreSQL are functional - more to come! 
+- Easily extendable to [multi-modal usecases](reference/examples/vqa-ingredient) 🖼️
+- Smart parsing optimizes what is passed to external functions 🧠
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+
+BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
+
+As a result, we can *Blend* together...
+
+- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
+- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
 
 It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
-Here, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.
+
+**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
 
 As shown in our paper, using BlendSQL as an intermediate representation for complex reasoning tasks can <b>boost performance by 8.63%</b> and <b>use 35% fewer tokens</b> compared to the naive end-to-end approach. For an example of this approach, see [this notebook](reference/examples/teaching-blendsql-via-in-context-learning).
 
@@ -92,13 +107,6 @@ SELECT date, rival, score, documents.content AS "Team Description" FROM w
       )
   }} WHERE rival = 'nsw waratahs'
 ```
-
-### Features 
-- Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑 
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](reference/technical_walkthrough.md).
 

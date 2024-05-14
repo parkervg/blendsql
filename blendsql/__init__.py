@@ -1,6 +1,5 @@
-__version__ = "0.0.13"
+__version__ = "0.0.15"
 
 
-from .ingredients.builtin import LLMMap, LLMQA, LLMJoin, DT, LLMValidate
+from .ingredients.builtin import LLMMap, LLMQA, LLMJoin, LLMValidate
 from .blend import blend
-from .nl_to_blendsql import nl_to_blendsql

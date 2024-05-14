@@ -1,12 +1,9 @@
-from typing import Tuple, Collection
+from typing import Tuple
 import re
-import logging
-from colorama import Fore
 from tabulate import tabulate
 from functools import partial
 
 
-from .db.sqlite import SQLite
 from ._constants import HF_REPO_ID
 
 tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
@@ -19,7 +16,9 @@ def fetch_from_hub(filename: str):
         raise ImportError(
             f"You need huggingface_hub to run this!\n`pip install huggingface_hub`"
         ) from None
-    return hf_hub_download(repo_id=HF_REPO_ID, filename=filename, repo_type="dataset")
+    return hf_hub_download(
+        repo_id=HF_REPO_ID, filename=filename, repo_type="dataset", force_download=True
+    )
 
 
 def get_tablename_colname(s: str) -> Tuple[str, str]:
@@ -54,22 +53,6 @@ def sub_tablename(original_tablename: str, new_tablename: str, query: str) -> st
         query,
         flags=re.IGNORECASE,
     )
-
-
-def delete_session_tables(db: SQLite, cleanup_tables: Collection[str]):
-    """Deletes the temporary tables made for the sake of a BlendSQL execution session.
-
-    Args:
-        db: Database connector
-        session_uuid: Unique string we used to identify temporary tables make during a BlendSQL session
-    """
-    if len(cleanup_tables) > 0:
-        logging.debug(
-            Fore.LIGHTMAGENTA_EX + f"Deleting temporary tables..." + Fore.RESET
-        )
-        for tablename in cleanup_tables:
-            logging.debug(Fore.MAGENTA + f"Deleting {tablename}..." + Fore.RESET)
-            db.con.execute(f"DROP TABLE '{tablename}'")
 
 
 def recover_blendsql(select_sql: str):

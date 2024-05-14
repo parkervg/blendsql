@@ -18,7 +18,8 @@ from typeguard import check_type
 
 from .. import utils
 from .._constants import IngredientKwarg, IngredientType
-from ..db.sqlite import SQLite
+from ..db import Database
+from ..db.utils import double_quote_escape
 
 
 class IngredientException(ValueError):
@@ -32,7 +33,7 @@ def unpack_default_kwargs(**kwargs):
     )
 
 
-def align_to_real_columns(db: SQLite, colname: str, tablename: str) -> str:
+def align_to_real_columns(db: Database, colname: str, tablename: str) -> str:
     table_columns = db.execute_query(f'SELECT * FROM "{tablename}" LIMIT 1').columns
     if colname not in table_columns:
         # Try to align with column, according to some normalization rules
@@ -49,7 +50,7 @@ class Ingredient(ABC):
     ingredient_type: str = attrib(init=False)
     allowed_output_types: Tuple[Type] = attrib(init=False)
     # Below gets passed via `Kitchen.extend()`
-    db: SQLite = attrib(init=False)
+    db: Database = attrib(init=False)
     session_uuid: str = attrib(init=False)
 
     def __repr__(self):
@@ -70,7 +71,7 @@ class Ingredient(ABC):
     ) -> Tuple[str, bool]:
         temp_tablename = temp_table_func(tablename)
         _tablename = tablename
-        if self.db.has_table(temp_tablename):
+        if self.db.has_temp_table(temp_tablename):
             # We've already applied some operation to this table
             # We want to use this as our base
             _tablename = temp_tablename
@@ -117,13 +118,13 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
-        original_table = self.db.execute_query(f"SELECT * FROM '{tablename}'")
+        original_table = self.db.execute_query(f'SELECT * FROM "{tablename}"')
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
             temp_session_table = self.db.execute_query(
-                f"SELECT * FROM '{temp_session_tablename}'"
+                f'SELECT * FROM "{double_quote_escape(temp_session_tablename)}"'
             )
             colname = align_to_real_columns(
                 db=self.db, colname=colname, tablename=temp_session_tablename
@@ -163,8 +164,14 @@ class MapIngredient(Ingredient):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
         subtable = pd.DataFrame(df_as_dict)
-        if all(isinstance(x, (int, type(None))) for x in mapped_values):
-            subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
+        if kwargs.get("output_type") == "boolean":
+            subtable[new_arg_column] = subtable[new_arg_column].astype(bool)
+        else:
+            if all(
+                isinstance(x, (int, type(None))) and not isinstance(x, bool)
+                for x in mapped_values
+            ):
+                subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
         # Add new_table to original table
         new_table = original_table.merge(subtable, how="left", on=colname)
         if new_table.shape[0] != original_table.shape[0]:
@@ -266,14 +273,11 @@ class JoinIngredient(Ingredient):
             mapping = mapping | _mapping
 
         # Using mapped left/right values, create intermediary mapping table
-        # This needs a new unique id. We add to the session's `cleanup_tables` after returning.
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         joined_values_df = pd.DataFrame(
             data={"left": mapping.keys(), "right": mapping.values()}
         )
-        joined_values_df.to_sql(
-            name=temp_join_tablename, con=self.db.con, if_exists="fail", index=False
-        )
+        self.db.to_temp_table(df=joined_values_df, tablename=temp_join_tablename)
         return (
             left_tablename,
             right_tablename,

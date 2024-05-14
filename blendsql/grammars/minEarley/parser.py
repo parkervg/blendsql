@@ -84,7 +84,7 @@ class EarleyParser:
         return self.parser.parse(text, start)
 
     def handle_error(self, e):
-        CANDIDATE_LIMIT = 128
+        CANDIDATE_LIMIT = 64
 
         def regex_to_candidates(regex):
             candidates = set()

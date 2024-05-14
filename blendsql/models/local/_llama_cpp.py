@@ -19,7 +19,7 @@ class LlamaCppLLM(Model):
     def __init__(self, model_name_or_path: str, **kwargs):
         if not _has_llama_cpp:
             raise ImportError(
-                "Please install llama_cpp with `pip install _has_llama_cpp`!"
+                "Please install llama_cpp with `pip install llama_cpp`!"
             ) from None
 
         super().__init__(

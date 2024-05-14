@@ -1,10 +1,15 @@
 import os
 import argparse
+import importlib
+import json
 
-from blendsql import blend, init_secrets
+from blendsql import blend
 from blendsql.db import SQLite
 from blendsql.utils import tabulate
+from blendsql.models import LlamaCppLLM
 from blendsql.ingredients.builtin import LLMQA, LLMMap, LLMJoin, DT
+
+_has_readline = importlib.util.find_spec("readline") is not None
 
 
 def print_msg_box(msg, indent=1, width=None, title=None):
@@ -27,14 +32,17 @@ def cls():
 
 
 def main():
+    if _has_readline:
+        import readline
+
+        _ = readline
     parser = argparse.ArgumentParser()
-    parser.add_argument("db_path", nargs="?")
+    parser.add_argument("db_url", nargs="?")
     parser.add_argument("secrets_path", nargs="?", default="./secrets.json")
     args = parser.parse_args()
 
-    init_secrets(args.secrets_path)
-    db = SQLite(db_path=args.db_path)
-    print_msg_box(f"Beginning BlendSQL session with '{args.db_path}'...")
+    db = SQLite(db_url=args.db_url)
+    print_msg_box(f"Beginning BlendSQL session with '{args.db_url}'...")
     print()
     while True:
         lines = []
@@ -54,12 +62,29 @@ def main():
                 query=text,
                 db=db,
                 ingredients={LLMQA, LLMMap, LLMJoin, DT},
-                blender_args={"endpoint": "gpt-4", "long_answer": False},
+                blender=LlamaCppLLM(
+                    "./lark-constrained-parsing/tinyllama-1.1b-chat-v1.0.Q2_K.gguf"
+                ),
                 infer_gen_constraints=True,
                 verbose=True,
             )
             print()
             print(tabulate(smoothie.df.iloc[:10]))
             print()
+            print(json.dumps(smoothie.meta.prompts, indent=4))
         except Exception as error:
             print(error)
+
+
+"""
+SELECT "common name" AS 'State Flower' FROM w 
+WHERE state = {{
+    LLMQA(
+        'Which is the smallest state by area?',
+        (SELECT title, content FROM documents WHERE documents MATCH 'smallest OR state OR area' LIMIT 3),
+        options='w::state'
+    )
+}}
+
+SELECT Symbol, Description, Quantity FROM portfolio WHERE {{LLMMap('Do they manufacture cell phones?', 'portfolio::Description')}} = TRUE AND portfolio.Symbol in (SELECT Symbol FROM constituents WHERE Sector = 'Information Technology')
+"""
