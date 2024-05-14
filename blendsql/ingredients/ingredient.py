@@ -211,10 +211,12 @@ class JoinIngredient(Ingredient):
         get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
         get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
 
+        # Depending on the size of the underlying data, it may be optimal to swap
+        #   the order of 'left_on' and 'right_on' columns during processing
+        swapped = False
         values = []
         original_lr_identifiers = []
         modified_lr_identifiers = []
-        left_values, right_values = [], []
         mapping = {}
         for on_arg in [left_on, right_on]:
             tablename, colname = utils.get_tablename_colname(on_arg)
@@ -225,30 +227,41 @@ class JoinIngredient(Ingredient):
                 tablename=tablename,
             )
             values.append(
-                set(
-                    [
-                        str(i)
-                        for i in self.db.execute_query(
-                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                        )[colname].tolist()
-                    ]
-                )
+                [
+                    str(i)
+                    for i in self.db.execute_query(
+                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                    )[colname]
+                ]
             )
             modified_lr_identifiers.append((tablename, colname))
 
         if question is None:
             # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
+            # First, make sure outer loop is shorter of the two lists
+            outer, inner = sorted(values, key=len)
+            _outer = []
+            inner = set(inner)
             mapping = {}
-            left_values, right_values = values
-            for l in left_values:
-                if l in right_values:
+            for l in outer:
+                if l in inner:
                     # Define this mapping, and remove from Model inference call
                     mapping[l] = l
+                    inner -= {l}
+                else:
+                    _outer.append(l)
+                if len(inner) == 0:
+                    break
+            to_compare = [inner, _outer]
+        else:
+            to_compare = values
 
-            processed_values = set(list(mapping.keys()))
-            left_values = left_values.difference(processed_values)
-            right_values = right_values.difference(processed_values)
+        # Finally, order by new (remaining) length and check if we swapped places from original
+        sorted_values = sorted(to_compare, key=len)
+        if sorted_values != values:
+            swapped = True
+        left_values, right_values = sorted_values
 
         kwargs["left_values"] = left_values
         kwargs["right_values"] = right_values
@@ -274,16 +287,21 @@ class JoinIngredient(Ingredient):
 
         # Using mapped left/right values, create intermediary mapping table
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
+        # Below, we check to see if 'swapped' is True
+        # If so, we need to inverse what is 'left', and what is 'right'
         joined_values_df = pd.DataFrame(
-            data={"left": mapping.keys(), "right": mapping.values()}
+            data={
+                "left" if not swapped else "right": mapping.keys(),
+                "right" if not swapped else "left": mapping.values(),
+            }
         )
         self.db.to_temp_table(df=joined_values_df, tablename=temp_join_tablename)
         return (
             left_tablename,
             right_tablename,
             f"""JOIN "{temp_join_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right
-                           JOIN "{left_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left
-                           """,
+               JOIN "{left_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left
+               """,
             temp_join_tablename,
         )
 
