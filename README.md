@@ -294,6 +294,9 @@ SELECT EXISTS(
 - [Quickstart](#quickstart)
 - [FAQ](#faq)
 - [Documentation](#documentation)
+  - [Databases](#databases)
+    - [SQLite](#sqlite)
+    - [PostgreSQL](#postgresql)
   - [Execute a BlendSQL Query](#execute-a-blendsql-query)
     - [Smoothie](#smoothie)
   - [Ingredients](#ingredients)
@@ -304,7 +307,6 @@ SELECT EXISTS(
     - [StringIngredient](#stringingredient)
   - [Parsing Natural Language to BlendSQL](#parsing-natural-language-to-blendsql)
   - [LLMs](#llms)
-  - [Databases](#databases)
 - [Appendix](#appendix)
 
 For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](./docs/technical_walkthrough.md).
@@ -410,6 +412,12 @@ A PostgreSQL database connection.
 Can be initialized via the SQLAlchemy input string.
 https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
 
+Example:
+```python
+from blendsql.db import PostgreSQL
+db = PostgreSQL("user:password@localhost/mydatabase")
+```
+
 #### Creating a `blendsql` User
 
 When executing a BlendSQL query, there are internal checks to ensure prior to execution that a given query does not contain any 'modify' actions.
@@ -429,12 +437,6 @@ Now, we can initialize a PostgreSQL database with our new user.
 ```python
 from blendsql.db import PostgreSQL
 db = PostgreSQL("blendsql@localhost:5432/mydb")
-```
-
-Example:
-```python
-from blendsql.db import PostgreSQL
-db = PostgreSQL("user:password@localhost/mydatabase")
 ```
 
 ## Execute a BlendSQL Query
