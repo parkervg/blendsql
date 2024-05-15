@@ -248,7 +248,7 @@ class JoinIngredient(Ingredient):
                 if l in inner:
                     # Define this mapping, and remove from Model inference call
                     mapping[l] = l
-                    inner -= {l}
+                    inner.remove(l)
                 else:
                     _outer.append(l)
                 if len(inner) == 0:
