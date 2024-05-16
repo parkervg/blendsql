@@ -33,17 +33,6 @@ def unpack_default_kwargs(**kwargs):
     )
 
 
-def align_to_real_columns(db: Database, colname: str, tablename: str) -> str:
-    table_columns = db.execute_query(f'SELECT * FROM "{tablename}" LIMIT 1').columns
-    if colname not in table_columns:
-        # Try to align with column, according to some normalization rules
-        cleaned_to_original = {
-            col.replace("\\n", " ").replace("\xa0", " "): col for col in table_columns
-        }
-        colname = cleaned_to_original[colname]
-    return colname
-
-
 @attrs
 class Ingredient(ABC):
     name: str = attrib()
