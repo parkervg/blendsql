@@ -62,10 +62,10 @@ def test_simple_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_query(
+    passed_to_ingredient = db.execute_to_df(
         """
     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE Symbol in
     (
@@ -99,10 +99,10 @@ def test_join_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_query(
+    passed_to_ingredient = db.execute_to_df(
         """
     SELECT COUNT(DISTINCT Name) FROM constituents WHERE Sector = 'Information Technology'
     """
@@ -136,10 +136,10 @@ def test_join_not_qualified_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_query(
+    passed_to_ingredient = db.execute_to_df(
         """
     SELECT COUNT(DISTINCT Name) FROM constituents WHERE Sector = 'Information Technology'
     """
@@ -170,7 +170,7 @@ def test_select_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
@@ -198,7 +198,7 @@ def test_complex_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
@@ -229,7 +229,7 @@ def test_complex_not_qualified_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
@@ -251,7 +251,7 @@ def test_join_ingredient_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
@@ -269,7 +269,7 @@ def test_qa_equals_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
@@ -289,10 +289,10 @@ def test_table_alias_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_query(
+    passed_to_ingredient = db.execute_to_df(
         """
     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3
     """
@@ -320,10 +320,10 @@ def test_subquery_alias_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_query(
+    passed_to_ingredient = db.execute_to_df(
         """
     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3 AND Quantity > 200
     """
@@ -355,7 +355,7 @@ def test_cte_qa_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
     # Make sure we only pass what's necessary to our ingredient
     # passed_to_ingredient = db.execute_query(
@@ -390,7 +390,7 @@ def test_cte_qa_named_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
     # Make sure we only pass what's necessary to our ingredient
     # passed_to_ingredient = db.execute_query(
@@ -422,10 +422,10 @@ def test_ingredient_in_select_with_join_multi_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_query(
+    passed_to_ingredient = db.execute_to_df(
         """
     SELECT COUNT(DISTINCT constituents.Name)
     FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
@@ -455,10 +455,10 @@ def test_ingredient_in_select_with_join_multi_select_multi_exec(db, ingredients)
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_query(sql)
+    sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_query(
+    passed_to_ingredient = db.execute_to_df(
         """
     SELECT COUNT(DISTINCT constituents.Name)
     FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol

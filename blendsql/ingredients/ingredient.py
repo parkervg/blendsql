@@ -19,7 +19,7 @@ from typeguard import check_type
 from .. import utils
 from .._constants import IngredientKwarg, IngredientType
 from ..db import Database
-from ..db.utils import double_quote_escape
+from ..db.utils import select_all_from_table_query
 
 
 class IngredientException(ValueError):
@@ -107,36 +107,33 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
-        original_table = self.db.execute_query(f'SELECT * FROM "{tablename}"')
+        original_table = self.db.execute_to_df(select_all_from_table_query(tablename))
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
-            temp_session_table = self.db.execute_query(
-                f'SELECT * FROM "{double_quote_escape(temp_session_tablename)}"'
-            )
-            colname = align_to_real_columns(
-                db=self.db, colname=colname, tablename=temp_session_tablename
+            temp_session_table = self.db.execute_to_df(
+                select_all_from_table_query(temp_session_tablename)
             )
             # We don't need to run this function on everything,
             #   if a previous subquery already got to certain values
             if new_arg_column in temp_session_table.columns:
-                values = self.db.execute_query(
+                values = self.db.execute_to_list(
                     f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
-                )[colname].tolist()
+                    to_type=str,
+                )
             # Base case: this is the first time we've used this particular ingredient
             # BUT, temp_session_tablename still exists
             else:
-                values = self.db.execute_query(
-                    f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"'
-                )[colname].tolist()
+                values = self.db.execute_to_list(
+                    f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"',
+                    to_type=str,
+                )
         else:
-            colname = align_to_real_columns(
-                db=self.db, colname=colname, tablename=value_source_tablename
+            values = self.db.execute_to_list(
+                f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"',
+                to_type=str,
             )
-            values = self.db.execute_query(
-                f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"'
-            )[colname].tolist()
 
         # No need to run ingredient if we have no values to map onto
         if len(values) == 0:
@@ -216,12 +213,9 @@ class JoinIngredient(Ingredient):
                 tablename=tablename,
             )
             values.append(
-                [
-                    str(i)
-                    for i in self.db.execute_query(
-                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )[colname]
-                ]
+                self.db.execute_to_list(
+                    f'SELECT DISTINCT "{colname}" FROM "{tablename}"', to_type=str
+                )
             )
             modified_lr_identifiers.append((tablename, colname))
 
@@ -320,7 +314,7 @@ class QAIngredient(Ingredient):
         if context is not None:
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
-                subtable = self.db.execute_query(
+                subtable = self.db.execute_to_df(
                     f'SELECT "{colname}" FROM "{tablename}"'
                 )
             elif not isinstance(context, pd.DataFrame):
@@ -335,9 +329,9 @@ class QAIngredient(Ingredient):
                 try:
                     tablename, colname = utils.get_tablename_colname(options)
                     tablename = aliases_to_tablenames.get(tablename, tablename)
-                    unpacked_options = self.db.execute_query(
+                    unpacked_options = self.db.execute_to_list(
                         f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )[colname].tolist()
+                    )
                 except ValueError:
                     unpacked_options = options.split(";")
             unpacked_options = set(unpacked_options)
