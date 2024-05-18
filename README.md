@@ -388,6 +388,16 @@ print(smoothie.meta.prompts)
 }
 ```
 
+### Acknowledgements
+Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
+
+- The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
+  - This paper was the primary inspiration for BlendSQL.
+- The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
+  - As far as I can tell, the first publication to propose unifying model calls within SQL 
+  - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
+- The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
+
 # Documentation
 
 
