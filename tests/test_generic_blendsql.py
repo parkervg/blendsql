@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 from blendsql import blend
 from blendsql.db import SQLite
-from blendsql.ingredients.ingredient import IngredientException
+from blendsql._exceptions import IngredientException, InvalidBlendSQL
 
 
 @pytest.fixture(scope="session")
@@ -23,7 +23,7 @@ def test_error_on_delete1(db):
     blendsql = """
     DELETE FROM w WHERE TRUE;
     """
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidBlendSQL):
         _ = blend(
             query=blendsql,
             db=db,
@@ -35,7 +35,7 @@ def test_error_on_delete2(db):
     blendsql = """
     DROP TABLE w;
     """
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidBlendSQL):
         _ = blend(
             query=blendsql,
             db=db,
