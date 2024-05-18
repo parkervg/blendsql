@@ -33,7 +33,7 @@ setup(
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
     packages=find_packages(exclude=["examples", "research", "img"]),
-    data_files=["blendsql/grammars/_cfg_grammar.lark"],
+    include_package_data=True,
     install_requires=[
         "guidance>=0.1.0",
         "pyparsing==3.1.1",
