@@ -33,9 +33,7 @@ def load_cfg_parser(ingredients: Optional[Collection[Ingredient]]) -> EarleyPars
     }
     for ingredient in ingredients:
         if ingredient.ingredient_type not in ingredient_type_to_function_type:
-            print(
-                f"Not sure what to do with ingredient type '{ingredient.ingredient_type}'"
-            )
+            # TODO: handle these cases
             continue
         ingredient_type_to_function_type[ingredient.ingredient_type].append(
             ingredient.__name__
