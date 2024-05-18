@@ -140,6 +140,13 @@ def test_nested_ingredient_exec(db, ingredients):
 
 
 def test_nonexistent_column_exec(db, ingredients):
+    """
+    NOTE: Converting to CNF would break this one
+    since we would get:
+        SELECT DISTINCT merchant, child_category FROM transactions WHERE
+        (child_category = 'Gifts' OR STRUCT(STRUCT(A())) = 1) AND
+        (child_category = 'Gifts' OR child_category = 'this does not exist')
+    """
     blendsql = """
     SELECT DISTINCT merchant, child_category FROM transactions WHERE
        (
