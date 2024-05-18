@@ -880,6 +880,15 @@ def blend(
             schema_qualify=schema_qualify,
         )
     except Exception as error:
+        from .grammars.minEarley.parser import EarleyParser
+        from .grammars.utils import load_cfg_parser
+
+        # Parse with CFG and try to get helpful recommendations
+        parser: EarleyParser = load_cfg_parser(ingredients)
+        try:
+            parser.parse(query)
+        except Exception as parser_error:
+            raise parser_error
         raise error
     finally:
         # In the case of a recursive `_blend()` call,
