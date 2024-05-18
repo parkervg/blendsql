@@ -42,6 +42,8 @@ setup(
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",
         "sqlalchemy>=2.0.0",
+        "lark",
+        "exrex",
         "platformdirs",
         "attrs",
         "tqdm",
@@ -50,7 +52,6 @@ setup(
         "typeguard",
     ],
     extras_require={
-        "nl_to_blendsql": ["exrex", "lark"],
         "research": [
             "datasets==2.16.1",
             "nltk",
