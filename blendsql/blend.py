@@ -15,6 +15,7 @@ from typing import (
     Optional,
     Callable,
     Collection,
+    Union,
 )
 from sqlite3 import OperationalError
 import sqlglot.expressions
@@ -31,6 +32,7 @@ from .utils import (
     recover_blendsql,
     get_tablename_colname,
 )
+from ._exceptions import InvalidBlendSQL
 from .db import Database
 from .db.utils import double_quote_escape, select_all_from_table_query
 from ._sqlglot import (
@@ -428,7 +430,7 @@ def _blend(
 
     # Preliminary check - we can't have anything that modifies database state
     if _query.find(MODIFIERS):
-        raise ValueError("BlendSQL query cannot have `DELETE` clause!")
+        raise InvalidBlendSQL("BlendSQL query cannot have `DELETE` clause!")
 
     # If there's no `SELECT` and just a QAIngredient, wrap it in a `SELECT CASE` query
     if _query.find(exp.Select) is None:
@@ -572,6 +574,7 @@ def _blend(
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
 
+        lazy_limit: Union[int, None] = scm.get_lazy_limit()
         # After above processing of AST, sync back to string repr
         subquery_str = scm.sql()
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
@@ -880,15 +883,16 @@ def blend(
             schema_qualify=schema_qualify,
         )
     except Exception as error:
-        from .grammars.minEarley.parser import EarleyParser
-        from .grammars.utils import load_cfg_parser
+        if not isinstance(error, (InvalidBlendSQL, IngredientException)):
+            from .grammars.minEarley.parser import EarleyParser
+            from .grammars.utils import load_cfg_parser
 
-        # Parse with CFG and try to get helpful recommendations
-        parser: EarleyParser = load_cfg_parser(ingredients)
-        try:
-            parser.parse(query)
-        except Exception as parser_error:
-            raise parser_error
+            # Parse with CFG and try to get helpful recommendations
+            parser: EarleyParser = load_cfg_parser(ingredients)
+            try:
+                parser.parse(query)
+            except Exception as parser_error:
+                raise parser_error
         raise error
     finally:
         # In the case of a recursive `_blend()` call,

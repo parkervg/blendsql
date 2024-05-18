@@ -16,14 +16,11 @@ from typing import (
 import uuid
 from typeguard import check_type
 
+from .._exceptions import IngredientException
 from .. import utils
 from .._constants import IngredientKwarg, IngredientType
 from ..db import Database
 from ..db.utils import select_all_from_table_query
-
-
-class IngredientException(ValueError):
-    pass
 
 
 def unpack_default_kwargs(**kwargs):
