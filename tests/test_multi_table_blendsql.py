@@ -65,7 +65,7 @@ def test_simple_multi_exec(db, ingredients):
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_df(
+    passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE Symbol in
     (
@@ -73,8 +73,8 @@ def test_simple_multi_exec(db, ingredients):
                 WHERE sector = 'Information Technology'
     )
     """
-    )
-    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 def test_join_multi_exec(db, ingredients):
@@ -102,12 +102,12 @@ def test_join_multi_exec(db, ingredients):
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_df(
+    passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Name) FROM constituents WHERE Sector = 'Information Technology'
     """
-    )
-    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 def test_join_not_qualified_multi_exec(db, ingredients):
@@ -139,12 +139,12 @@ def test_join_not_qualified_multi_exec(db, ingredients):
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_df(
+    passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Name) FROM constituents WHERE Sector = 'Information Technology'
     """
-    )
-    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 def test_select_multi_exec(db, ingredients):
@@ -292,12 +292,12 @@ def test_table_alias_multi_exec(db, ingredients):
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_df(
+    passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3
     """
-    )
-    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 def test_subquery_alias_multi_exec(db, ingredients):
@@ -323,12 +323,12 @@ def test_subquery_alias_multi_exec(db, ingredients):
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_df(
+    passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3 AND Quantity > 200
     """
-    )
-    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 def test_cte_qa_multi_exec(db, ingredients):
@@ -447,14 +447,14 @@ def test_ingredient_in_select_with_join_multi_exec(db, ingredients):
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_df(
+    passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT constituents.Name)
     FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
     WHERE account_history.Action like "%dividend%"
     """
-    )
-    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 def test_ingredient_in_select_with_join_multi_select_multi_exec(db, ingredients):
@@ -480,14 +480,14 @@ def test_ingredient_in_select_with_join_multi_select_multi_exec(db, ingredients)
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_df(
+    passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT constituents.Name)
     FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
     WHERE account_history.Action like "%dividend%"
     """
-    )
-    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 def test_subquery_alias_with_join_multi_exec(db, ingredients):
@@ -516,9 +516,9 @@ def test_subquery_alias_with_join_multi_exec(db, ingredients):
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_df(
+    passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today''s Gain/Loss Percent" > 0.05) AND "Percent of Account" < 0.2 
     """
-    )
-    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
