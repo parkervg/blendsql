@@ -16,6 +16,7 @@ from typing import (
     Callable,
     Collection,
     Union,
+    Type,
 )
 from sqlite3 import OperationalError
 import sqlglot.expressions
@@ -391,7 +392,7 @@ def _blend(
     query: str,
     db: Database,
     blender: Optional[Model] = None,
-    ingredients: Optional[Collection[Ingredient]] = None,
+    ingredients: Optional[Collection[Type[Ingredient]]] = None,
     verbose: bool = False,
     blender_args: Optional[Dict[str, str]] = None,
     infer_gen_constraints: bool = True,
@@ -834,7 +835,7 @@ def blend(
     query: str,
     db: Database,
     blender: Optional[Model] = None,
-    ingredients: Optional[Collection[Ingredient]] = None,
+    ingredients: Optional[Collection[Type[Ingredient]]] = None,
     verbose: bool = False,
     blender_args: Optional[Dict[str, str]] = None,
     infer_gen_constraints: bool = True,
