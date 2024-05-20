@@ -1,4 +1,4 @@
-from typing import Collection, List, Tuple, Set, Optional
+from typing import Collection, List, Tuple, Set, Optional, Union
 from textwrap import dedent
 from guidance import gen, select
 from colorama import Fore
@@ -11,6 +11,7 @@ from .db import Database, double_quote_escape
 from ._program import Program
 from .grammars.minEarley.parser import EarleyParser
 from .grammars.utils import load_cfg_parser
+from .prompts import FewShot
 
 PARSER_STOP_TOKENS = ["---", ";", "\n\n"]
 PARSER_SYSTEM_PROMPT = dedent(
@@ -95,7 +96,8 @@ def obtain_correction_pairs(
 
 
 def create_system_prompt(
-    ingredients: Collection[Ingredient], few_shot_examples: Optional[str] = ""
+    ingredients: Collection[Ingredient],
+    few_shot_examples: Optional[Union[str, FewShot]] = "",
 ) -> str:
     ingredient_descriptions = []
     for ingredient in ingredients:
@@ -109,7 +111,7 @@ def create_system_prompt(
             ingredient_descriptions="\n".join(ingredient_descriptions)
         )
         + "\n"
-        + few_shot_examples
+        + str(few_shot_examples)
     )
 
 
