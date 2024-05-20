@@ -69,7 +69,7 @@ def ottqa_get_input(
     model_args: ModelArguments,
 ) -> Tuple[str, dict]:
     if "docs_tablesize" not in cache:
-        cache["docs_tablesize"] = db.execute_to_df(
+        cache["docs_tablesize"] = db.execute_query(
             f"SELECT COUNT(*) FROM {DOCS_TABLE_NAME}"
         ).values[0][0]
     cache["docs_tablesize"]

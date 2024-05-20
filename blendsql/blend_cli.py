@@ -1,22 +1,15 @@
 import os
 import argparse
 import importlib
+import json
 
 from blendsql import blend
 from blendsql.db import SQLite
-from blendsql.db.utils import truncate_df_content
 from blendsql.utils import tabulate
-from blendsql.models import OpenaiLLM, TransformersLLM, AzureOpenaiLLM, LlamaCppLLM
-from blendsql.ingredients.builtin import LLMQA, LLMMap, LLMJoin
+from blendsql.models import LlamaCppLLM
+from blendsql.ingredients.builtin import LLMQA, LLMMap, LLMJoin, DT
 
 _has_readline = importlib.util.find_spec("readline") is not None
-
-MODEL_TYPE_TO_CLASS = {
-    "openai": OpenaiLLM,
-    "azure_openai": AzureOpenaiLLM,
-    "llama_cpp": LlamaCppLLM,
-    "transformers": TransformersLLM,
-}
 
 
 def print_msg_box(msg, indent=1, width=None, title=None):
@@ -44,21 +37,8 @@ def main():
 
         _ = readline
     parser = argparse.ArgumentParser()
-    parser.add_argument("db_url", nargs="?", help="Database URL,")
-    parser.add_argument(
-        "model_type",
-        nargs="?",
-        default="openai",
-        choices=list(MODEL_TYPE_TO_CLASS.keys()),
-        help="Model type, for the Blender to use in executing the BlendSQL query.",
-    )
-    parser.add_argument(
-        "model_name_or_path",
-        nargs="?",
-        default="gpt-3.5-turbo",
-        help="Model identifier to pass to the selected model_type class.",
-    )
-    parser.add_argument("-v", action="store_true", help="Flag to run in verbose mode.")
+    parser.add_argument("db_url", nargs="?")
+    parser.add_argument("secrets_path", nargs="?", default="./secrets.json")
     args = parser.parse_args()
 
     db = SQLite(db_url=args.db_url)
@@ -81,14 +61,30 @@ def main():
             smoothie = blend(
                 query=text,
                 db=db,
-                ingredients={LLMQA, LLMMap, LLMJoin},
-                blender=MODEL_TYPE_TO_CLASS.get(args.model_type)(
-                    args.model_name_or_path
+                ingredients={LLMQA, LLMMap, LLMJoin, DT},
+                blender=LlamaCppLLM(
+                    "./lark-constrained-parsing/tinyllama-1.1b-chat-v1.0.Q2_K.gguf"
                 ),
                 infer_gen_constraints=True,
-                verbose=args.v,
+                verbose=True,
             )
             print()
-            print(tabulate(truncate_df_content(smoothie.df, 50)))
+            print(tabulate(smoothie.df.iloc[:10]))
+            print()
+            print(json.dumps(smoothie.meta.prompts, indent=4))
         except Exception as error:
             print(error)
+
+
+"""
+SELECT "common name" AS 'State Flower' FROM w 
+WHERE state = {{
+    LLMQA(
+        'Which is the smallest state by area?',
+        (SELECT title, content FROM documents WHERE documents MATCH 'smallest OR state OR area' LIMIT 3),
+        options='w::state'
+    )
+}}
+
+SELECT Symbol, Description, Quantity FROM portfolio WHERE {{LLMMap('Do they manufacture cell phones?', 'portfolio::Description')}} = TRUE AND portfolio.Symbol in (SELECT Symbol FROM constituents WHERE Sector = 'Information Technology')
+"""

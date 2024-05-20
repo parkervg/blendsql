@@ -50,7 +50,7 @@ def to_serialized(
             else:
                 serialized_db.append(f"{num_rows} example rows:")
             serialized_db.append(f"{get_rows_query}")
-            rows = db.execute_to_df(get_rows_query)
+            rows = db.execute_query(get_rows_query)
             if truncate_content is not None:
                 # Truncate long strings
                 rows = rows.map(

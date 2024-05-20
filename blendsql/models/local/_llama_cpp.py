@@ -10,7 +10,7 @@ _has_llama_cpp = importlib.util.find_spec("llama_cpp") is not None
 
 
 class LlamaCppLLM(Model):
-    """Class for llama-cpp local Model.
+    """Class for Transformers local Model.
 
     Args:
         model_name_or_path: Name of the model on HuggingFace, or the path to a local model
@@ -19,7 +19,7 @@ class LlamaCppLLM(Model):
     def __init__(self, model_name_or_path: str, **kwargs):
         if not _has_llama_cpp:
             raise ImportError(
-                "Please install llama_cpp with `pip install llama-cpp-python`!"
+                "Please install llama_cpp with `pip install llama_cpp`!"
             ) from None
 
         super().__init__(

@@ -74,7 +74,6 @@ nav:
           - Teaching BlendSQL via In-Context Learning: reference/examples/teaching-blendsql-via-in-context-learning.ipynb
   - Documentation:
       - Execute a BlendSQL Query: reference/execute-blendsql.md
-      - Blend CLI: reference/blend-cli.md
       - Ingredients:
           - reference/ingredients/ingredients.md
           - Creating Custom Ingredients: reference/ingredients/creating-custom-ingredients.md

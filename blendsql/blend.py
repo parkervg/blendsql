@@ -15,7 +15,6 @@ from typing import (
     Optional,
     Callable,
     Collection,
-    Union,
 )
 from sqlite3 import OperationalError
 import sqlglot.expressions
@@ -32,9 +31,8 @@ from .utils import (
     recover_blendsql,
     get_tablename_colname,
 )
-from ._exceptions import InvalidBlendSQL
 from .db import Database
-from .db.utils import double_quote_escape, select_all_from_table_query
+from .db.utils import double_quote_escape, single_quote_escape
 from ._sqlglot import (
     MODIFIERS,
     get_first_child,
@@ -430,7 +428,7 @@ def _blend(
 
     # Preliminary check - we can't have anything that modifies database state
     if _query.find(MODIFIERS):
-        raise InvalidBlendSQL("BlendSQL query cannot have `DELETE` clause!")
+        raise ValueError("BlendSQL query cannot have `DELETE` clause!")
 
     # If there's no `SELECT` and just a QAIngredient, wrap it in a `SELECT CASE` query
     if _query.find(exp.Select) is None:
@@ -444,7 +442,7 @@ def _blend(
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
         return Smoothie(
-            df=db.execute_to_df(query),
+            df=db.execute_query(query),
             meta=SmoothieMeta(
                 num_values_passed=0,
                 num_prompt_tokens=0,
@@ -543,7 +541,7 @@ def _blend(
                 )
                 try:
                     db.to_temp_table(
-                        df=db.execute_to_df(abstracted_query),
+                        df=db.execute_query(abstracted_query),
                         tablename=_get_temp_subquery_table(tablename),
                     )
                 except OperationalError as e:
@@ -574,7 +572,6 @@ def _blend(
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
 
-        lazy_limit: Union[int, None] = scm.get_lazy_limit()
         # After above processing of AST, sync back to string repr
         subquery_str = scm.sql()
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
@@ -744,14 +741,14 @@ def _blend(
                 # On their left join merge command: https://github.com/HKUNLP/Binder/blob/9eede69186ef3f621d2a50572e1696bc418c0e77/nsql/database.py#L196
                 # We create a new temp table to avoid a potentially self-destructive operation
                 base_tablename = tablename
-                _base_table: pd.DataFrame = db.execute_to_df(
-                    select_all_from_table_query(base_tablename)
+                _base_table: pd.DataFrame = db.execute_query(
+                    f'SELECT * FROM "{double_quote_escape(base_tablename)}";'
                 )
                 base_table = _base_table
                 if db.has_temp_table(_get_temp_session_table(tablename)):
                     base_tablename = _get_temp_session_table(tablename)
-                    base_table: pd.DataFrame = db.execute_to_df(
-                        select_all_from_table_query(base_tablename)
+                    base_table: pd.DataFrame = db.execute_query(
+                        f"SELECT * FROM '{single_quote_escape(base_tablename)}';",
                     )
                 previously_added_columns = base_table.columns.difference(
                     _base_table.columns
@@ -807,7 +804,7 @@ def _blend(
     )
     logging.debug("")
 
-    df = db.execute_to_df(query)
+    df = db.execute_query(query)
 
     return Smoothie(
         df=df,
@@ -883,16 +880,6 @@ def blend(
             schema_qualify=schema_qualify,
         )
     except Exception as error:
-        if not isinstance(error, (InvalidBlendSQL, IngredientException)):
-            from .grammars.minEarley.parser import EarleyParser
-            from .grammars.utils import load_cfg_parser
-
-            # Parse with CFG and try to get helpful recommendations
-            parser: EarleyParser = load_cfg_parser(ingredients)
-            try:
-                parser.parse(query)
-            except Exception as parser_error:
-                raise parser_error
         raise error
     finally:
         # In the case of a recursive `_blend()` call,

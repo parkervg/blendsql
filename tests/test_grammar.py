@@ -1,12 +1,11 @@
 import pytest
-from blendsql import LLMQA, LLMJoin, LLMMap
-from blendsql.grammars.utils import load_cfg_parser, EarleyParser
+from blendsql.grammars.minEarley.parser import EarleyParser
 from blendsql.grammars.minEarley.earley_exceptions import UnexpectedInput
 
 
 @pytest.fixture(scope="session")
 def parser() -> EarleyParser:
-    return load_cfg_parser({LLMQA, LLMJoin, LLMMap})
+    return EarleyParser.open("./blendsql/grammars/_cfg_grammar.lark", start="start")
 
 
 accept_queries = [

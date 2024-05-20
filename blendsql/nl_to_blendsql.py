@@ -2,14 +2,19 @@ from typing import Collection, List, Tuple, Set, Optional
 from textwrap import dedent
 from guidance import gen, select
 from colorama import Fore
+from pathlib import Path
 import logging
 
 from .ingredients import Ingredient, IngredientException
 from .models import Model
 from ._program import Program
 from .grammars.minEarley.parser import EarleyParser
-from .grammars.utils import load_cfg_parser
 
+CFG_PARSER = EarleyParser.open(
+    Path(__file__).parent / "./grammars/_cfg_grammar.lark",
+    start="start",
+    keep_all_tokens=True,
+)
 PARSER_STOP_TOKENS = ["---", ";", "\n\n"]
 PARSER_SYSTEM_PROMPT = dedent(
     """
@@ -140,7 +145,6 @@ def nl_to_blendsql(
         logging.getLogger().setLevel(logging.DEBUG)
     else:
         logging.getLogger().setLevel(logging.ERROR)
-    parser: EarleyParser = load_cfg_parser(ingredients)
     system_prompt: str = create_system_prompt(
         ingredients=ingredients, few_shot_examples=few_shot_examples
     )
@@ -170,13 +174,13 @@ def nl_to_blendsql(
             partial_program_prediction + " " + residual_program_prediction
         )
 
-        if validate_program(program_prediction, parser):
+        if validate_program(program_prediction, CFG_PARSER):
             ret_prediction = program_prediction
             continue
 
         # find the max score from a list of score
         prefix, candidates, pos_in_stream = obtain_correction_pairs(
-            program_prediction, parser
+            program_prediction, CFG_PARSER
         )
         candidates = [i for i in candidates if i.strip() != ""]
         if len(candidates) == 0:
@@ -200,13 +204,13 @@ def nl_to_blendsql(
         inserted_candidate = (
             prefix + selected_candidate + program_prediction[pos_in_stream:]
         )
-        if validate_program(inserted_candidate, parser):
+        if validate_program(inserted_candidate, CFG_PARSER):
             ret_prediction = inserted_candidate
             continue
         # 2) If rest of our query is also broken, we just keep up to the prefix + candidate
         partial_program_prediction = prefix + selected_candidate
         for p in {inserted_candidate, partial_program_prediction}:
-            if validate_program(p, parser):
+            if validate_program(p, CFG_PARSER):
                 ret_prediction = p
 
         num_correction_left -= 1
@@ -220,3 +224,24 @@ def nl_to_blendsql(
         ret_prediction = initial_prediction
     logging.debug(Fore.GREEN + ret_prediction + Fore.RESET)
     return ret_prediction
+
+
+if __name__ == "__main__":
+    from blendsql import nl_to_blendsql, LLMMap
+    from blendsql.models import TransformersLLM
+    from blendsql.db import SQLite
+    from blendsql.utils import fetch_from_hub
+
+    model = TransformersLLM("Qwen/Qwen1.5-0.5B")
+    db = SQLite(
+        fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
+    )
+
+    query = nl_to_blendsql(
+        question="Which venues in Sydney saw more than 30 points scored?",
+        model=model,
+        ingredients={LLMMap},
+        serialized_db=db.to_serialized(num_rows=3, use_tables=["w", "documents"]),
+        verbose=True,
+        max_grammar_corrections=5,
+    )

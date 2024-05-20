@@ -68,7 +68,7 @@ def test_simple_ingredient_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
 
 
@@ -84,7 +84,7 @@ def test_simple_ingredient_exec_at_end(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
 
 
@@ -98,12 +98,12 @@ def test_simple_ingredient_exec_in_select(db, ingredients):
         ingredients=ingredients,
     )
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions WHERE parent_category = 'Auto & Transport'
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_nested_ingredient_exec(db, ingredients):
@@ -128,25 +128,18 @@ def test_nested_ingredient_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions WHERE amount > 100
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_nonexistent_column_exec(db, ingredients):
-    """
-    NOTE: Converting to CNF would break this one
-    since we would get:
-        SELECT DISTINCT merchant, child_category FROM transactions WHERE
-        (child_category = 'Gifts' OR STRUCT(STRUCT(A())) = 1) AND
-        (child_category = 'Gifts' OR child_category = 'this does not exist')
-    """
     blendsql = """
     SELECT DISTINCT merchant, child_category FROM transactions WHERE
        (
@@ -168,15 +161,15 @@ def test_nonexistent_column_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category = 'this does not exist'
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_nested_and_exec(db, ingredients):
@@ -201,15 +194,15 @@ def test_nested_and_exec(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["O"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category = 'Restaurants & Dining'
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_multiple_nested_ingredients(db, ingredients):
@@ -236,15 +229,15 @@ def test_multiple_nested_ingredients(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A", "T"])
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) + COUNT(DISTINCT child_category) FROM transactions WHERE parent_category = 'Food'
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_length_ingredient(db, ingredients):
@@ -263,15 +256,15 @@ def test_length_ingredient(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_max_length(db, ingredients):
@@ -290,15 +283,15 @@ def test_max_length(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_limit(db, ingredients):
@@ -319,15 +312,15 @@ def test_limit(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category = 'Restaurants & Dining'
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_select(db, ingredients):
@@ -344,7 +337,7 @@ def test_select(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
@@ -360,15 +353,15 @@ def test_ingredient_in_select_stmt(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions 
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_ingredient_in_select_stmt_with_filter(db, ingredients):
@@ -384,15 +377,15 @@ def test_ingredient_in_select_stmt_with_filter(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category = 'Restaurants & Dining'
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_nested_duplicate_map_calls(db, ingredients):
@@ -407,15 +400,15 @@ def test_nested_duplicate_map_calls(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT COUNT(DISTINCT merchant) FROM transactions
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_many_duplicate_map_calls(db, ingredients):
@@ -440,10 +433,10 @@ def test_many_duplicate_map_calls(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT
     (SELECT COUNT(DISTINCT merchant) FROM transactions WHERE amount > 1300)
@@ -451,8 +444,8 @@ def test_many_duplicate_map_calls(db, ingredients):
     + (SELECT COUNT(DISTINCT child_category) FROM transactions WHERE amount > 1300)
     + (SELECT COUNT(DISTINCT date) FROM transactions WHERE amount > 1300)
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_exists_isolated_qa_call(db, ingredients):
@@ -479,15 +472,15 @@ def test_exists_isolated_qa_call(db, ingredients):
         db=db,
         ingredients=ingredients,
     )
-    sql_df = db.execute_to_df(sql)
+    sql_df = db.execute_query(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
     # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = db.execute_to_list(
+    passed_to_ingredient = db.execute_query(
         """
     SELECT (SELECT COUNT(DISTINCT merchant) FROM transactions WHERE amount > 500) + (SELECT COUNT(*) FROM transactions WHERE amount < 500)
     """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+    )
+    assert smoothie.meta.num_values_passed == passed_to_ingredient.values[0].item()
 
 
 def test_query_options_arg(db, ingredients):

@@ -1,4 +1,4 @@
-from enum import Enum, EnumMeta
+from enum import Enum, EnumMeta, auto
 from dataclasses import dataclass
 
 HF_REPO_ID = "parkervg/blendsql-test-dbs"
@@ -15,10 +15,10 @@ VALUE_BATCH_SIZE = 5
 
 
 class IngredientType(str, Enum, metaclass=StrInMeta):
-    MAP = "MAP"
-    STRING = "STRING"
-    QA = "QA"
-    JOIN = "JOIN"
+    MAP = auto()
+    STRING = auto()
+    QA = auto()
+    JOIN = auto()
 
 
 @dataclass

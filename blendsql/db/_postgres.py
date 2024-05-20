@@ -36,7 +36,7 @@ class PostgreSQL(Database):
     def has_temp_table(self, tablename: str) -> bool:
         return (
             tablename
-            in self.execute_to_df(
+            in self.execute_query(
                 "SELECT * FROM information_schema.tables WHERE table_schema LIKE 'pg_temp_%'"
             )["table_name"].unique()
         )
