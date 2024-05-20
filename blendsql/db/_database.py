@@ -1,4 +1,4 @@
-from typing import Generator, List, Dict, Collection, Type, Optional
+from typing import Generator, List, Dict, Collection, Type, Optional, Union
 from typing import Iterable
 import pandas as pd
 from colorama import Fore
@@ -12,6 +12,9 @@ from sqlalchemy.engine import Engine, Connection, URL
 from pandas.io.sql import get_schema
 from abc import abstractmethod
 
+from .utils import double_quote_escape, truncate_df_content
+from .bridge_content_encoder import get_database_matches
+
 DOCS_TABLE_NAME = "documents"
 
 
@@ -19,6 +22,7 @@ DOCS_TABLE_NAME = "documents"
 class Database:
     db_url: URL = attrib()
 
+    _raw_db_path: str = attrib(init=False)
     engine: Engine = attrib(init=False)
     con: Connection = attrib(init=False)
     all_tables: List[str] = attrib(init=False)
@@ -73,6 +77,71 @@ class Database:
                     continue
             create_table_stmts.append(str(CreateTable(table)).strip())
         return "\n\n".join(create_table_stmts)
+
+    def to_serialized(
+        self,
+        num_rows: int = 3,
+        truncate_content: int = 300,
+        use_tables: Collection[str] = None,
+        include_content: Union[str, Collection[str]] = "all",
+        use_bridge_encoder: bool = False,
+        question: Optional[str] = None,
+    ) -> str:
+        """Returns a string representation of the database, with example rows."""
+        serialized_db = []
+        for tablename in self.tables():
+            if use_tables is not None:
+                if tablename not in use_tables:
+                    continue
+            serialized_db.append(self.schema_string(use_tables=[tablename]))
+            if include_content != "all":
+                if tablename not in include_content:
+                    serialized_db.append("\n")
+                    continue
+            get_rows_query = (
+                f'SELECT * FROM "{double_quote_escape(tablename)}" LIMIT {num_rows}'
+            )
+            total_num_rows = self.execute_to_list(
+                f'SELECT COUNT(*) FROM "{double_quote_escape(tablename)}"'
+            )[0]
+            serialized_db.append("/*")
+            serialized_db.append(
+                f"{num_rows} example rows:"
+                if num_rows < total_num_rows
+                else "Entire table:"
+            )
+            rows = self.execute_to_df(get_rows_query)
+            if truncate_content is not None:
+                # Truncate long strings
+                rows = truncate_df_content(rows, truncate_content)
+                serialized_db.append(get_rows_query)
+            serialized_db.append(f"{rows.to_string(index=False)}")
+            serialized_db.append("*/\n")
+            if use_bridge_encoder:
+                bridge_hints = []
+                column_str_with_values = "{table}.{column} ( {values} )"
+                value_sep = " , "
+                for columnname in self.iter_columns(tablename):
+                    matches = get_database_matches(
+                        question=question,
+                        table_name=tablename,
+                        column_name=columnname,
+                        db=self,
+                    )
+                    if matches:
+                        bridge_hints.append(
+                            column_str_with_values.format(
+                                table=tablename,
+                                column=columnname,
+                                values=value_sep.join(matches),
+                            )
+                        )
+                if len(bridge_hints) > 0:
+                    serialized_db.append(
+                        "Here are some values that may be useful: "
+                        + " , ".join(bridge_hints)
+                    )
+        return "\n".join(serialized_db).strip()
 
     def to_temp_table(self, df: pd.DataFrame, tablename: str):
         if self.has_temp_table(tablename):
