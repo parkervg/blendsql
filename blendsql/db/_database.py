@@ -1,4 +1,4 @@
-from typing import Generator, List, Dict, Collection
+from typing import Generator, List, Dict, Collection, Type, Optional
 from typing import Iterable
 import pandas as pd
 from colorama import Fore
@@ -86,7 +86,7 @@ class Database:
         self.con.execute(text(create_table_stmt))
         df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
-    def execute_query(self, query: str, params: dict = None) -> pd.DataFrame:
+    def execute_to_df(self, query: str, params: dict = None) -> pd.DataFrame:
         """
         Execute the given query and return results as dataframe.
 
@@ -106,3 +106,14 @@ class Database:
             ```
         """
         return pd.read_sql(text(query), self.con, params=params)
+
+    def execute_to_list(
+        self, query: str, to_type: Optional[Type] = lambda x: x
+    ) -> list:
+        """A lower-level execute method that doesn't use the pandas processing logic.
+        Returns results as a tuple.
+        """
+        res = []
+        for row in self.con.execute(text(query)).fetchall():
+            res.append(to_type(row[0]))
+        return res

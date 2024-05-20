@@ -23,7 +23,7 @@ class SQLite(Database):
     def has_temp_table(self, tablename: str) -> bool:
         return (
             tablename
-            in self.execute_query(
+            in self.execute_to_df(
                 "SELECT name FROM sqlite_temp_master WHERE type='table';"
             )["name"].unique()
         )
@@ -39,7 +39,7 @@ class SQLite(Database):
         schema = {}
         for tablename in self.tables():
             schema[f'"{double_quote_escape(tablename)}"'] = {}
-            for _, row in self.execute_query(
+            for _, row in self.execute_to_df(
                 f"""
             SELECT name, type FROM pragma_table_info(:t)
             """,
