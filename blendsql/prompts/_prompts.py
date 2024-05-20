@@ -27,10 +27,10 @@ class Examples:
         return "Examples:" + newline + "---".join(self.split_data[subscript])
 
     def __repr__(self):
-        return "Examples:\n" + self.data
+        return "Examples:\n\n" + self.data
 
     def __str__(self):
-        return "Examples:\n" + self.data
+        return "Examples:\n\n" + self.data
 
     def __len__(self):
         return len(self.split_data)
