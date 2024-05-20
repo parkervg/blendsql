@@ -16,8 +16,9 @@ class SQLite(Database):
         ```
     """
 
-    def __init__(self, db_url: str):
-        db_url: URL = make_url(f"sqlite:///{Path(db_url).resolve()}")
+    def __init__(self, db_path: str):
+        self._raw_db_path = Path(db_path).resolve()
+        db_url: URL = make_url(f"sqlite:///{self._raw_db_path}")
         super().__init__(db_url=db_url)
 
     def has_temp_table(self, tablename: str) -> bool:
