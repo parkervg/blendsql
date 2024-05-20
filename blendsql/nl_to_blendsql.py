@@ -2,10 +2,12 @@ from typing import Collection, List, Tuple, Set, Optional
 from textwrap import dedent
 from guidance import gen, select
 from colorama import Fore
+import re
 import logging
 
 from .ingredients import Ingredient, IngredientException
 from .models import Model
+from .db import Database, double_quote_escape
 from ._program import Program
 from .grammars.minEarley.parser import EarleyParser
 from .grammars.utils import load_cfg_parser
@@ -106,25 +108,26 @@ def create_system_prompt(
         PARSER_SYSTEM_PROMPT.format(
             ingredient_descriptions="\n".join(ingredient_descriptions)
         )
+        + "\n"
         + few_shot_examples
     )
 
 
 def nl_to_blendsql(
     question: str,
-    serialized_db: str,
+    db: Database,
     model: Model,
     ingredients: Collection[Ingredient],
     few_shot_examples: str = "",
     max_grammar_corrections: int = 0,
     verbose: bool = False,
+    use_tables: Collection[str] = None,
 ) -> str:
     """Takes a natural language question, and attempts to parse BlendSQL representation for answering against a databse.
 
     Args:
         question: The natural language question to parse
-        serialized_db: Database in a serialized string format.
-            This can be achieved by using db.to_serialized()
+        db: Database to use in translating
         model: BlendSQL model to use in translating the question
         ingredients: Which ingredients to treat as valid in the output parse.
             Only these ingredient descriptions are included in the system prompt.
@@ -144,13 +147,14 @@ def nl_to_blendsql(
     system_prompt: str = create_system_prompt(
         ingredients=ingredients, few_shot_examples=few_shot_examples
     )
+    serialized_db_schema = db.schema_string(use_tables=use_tables)
     logging.debug(Fore.YELLOW + f"Using system prompt: '{system_prompt}'" + Fore.RESET)
     if max_grammar_corrections == 0:
         return model.predict(
             program=ParserProgram,
             system_prompt=system_prompt,
             question=question,
-            serialized_db=serialized_db,
+            serialized_db=serialized_db_schema,
         )["result"]
     num_correction_left = max_grammar_corrections
     partial_program_prediction = ""
@@ -160,7 +164,7 @@ def nl_to_blendsql(
             program=ParserProgram,
             system_prompt=system_prompt,
             question=question,
-            serialized_db=serialized_db,
+            serialized_db=serialized_db_schema,
         )["result"]
 
         # if the prediction is empty, return the initial prediction
@@ -189,7 +193,7 @@ def nl_to_blendsql(
             program=CorrectionProgram,
             system_prompt=system_prompt,
             question=question,
-            serialized_db=serialized_db,
+            serialized_db=serialized_db_schema,
             partial_completion=prefix,
             candidates=candidates,
         )["result"]
@@ -218,5 +222,56 @@ def nl_to_blendsql(
             + Fore.RESET
         )
         ret_prediction = initial_prediction
+    ret_prediction = post_process_blendsql(ret_prediction, db, use_tables=use_tables)
     logging.debug(Fore.GREEN + ret_prediction + Fore.RESET)
     return ret_prediction
+
+
+def post_process_blendsql(
+    blendsql: str, db: Database, use_tables: Collection[str] = None
+) -> str:
+    """Applies any relevant post-processing on the generated BlendSQL query.
+    Currently, only adds double-quotes around column references.
+    This helps to ensure the query will successfully execute on the given DBMS.
+    For example:
+        `SELECT * FROM w WHERE index = 0;` is invalid in SQLite, because 'index' is a keyword
+        So, it becomes `SELECT * FROM w WHERE "index" = 0;` after this function
+    """
+    quotes_start_end = [i.start() for i in re.finditer(r"(\'|\")", blendsql)]
+    quotes_start_end_spans = list(zip(*(iter(quotes_start_end),) * 2))
+    for tablename in db.tables():
+        if use_tables is not None:
+            if tablename not in use_tables:
+                continue
+        for columnname in sorted(
+            list(db.iter_columns(tablename)), key=lambda x: len(x), reverse=True
+        ):
+            # Reverse finditer so we don't mess up indices when replacing
+            # Only sub if surrounded by: whitespace, comma, or parentheses
+            # Or, prefaced by period (e.g. 'p.Current_Value')
+            # AND it's not already in quotes
+            for m in list(
+                re.finditer(
+                    r"(?<=(\s|,|\(|\.)){}(?=(\s|,|\)|;|$))".format(
+                        re.escape(columnname)
+                    ),
+                    blendsql,
+                )
+            )[::-1]:
+                # Check if m.start already occurs within quotes (' or ")
+                # If it does, don't add quotes
+                if any(
+                    start + 1 < m.start() < end
+                    for (start, end) in quotes_start_end_spans
+                ):
+                    continue
+                blendsql = (
+                    blendsql[: m.start()]
+                    + '"'
+                    + double_quote_escape(
+                        blendsql[m.start() : m.start() + (m.end() - m.start())]
+                    )
+                    + '"'
+                    + blendsql[m.end() :]
+                )
+    return blendsql
