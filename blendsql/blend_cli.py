@@ -44,7 +44,7 @@ def main():
 
         _ = readline
     parser = argparse.ArgumentParser()
-    parser.add_argument("db_url", nargs="?", help="Database URL,")
+    parser.add_argument("db_path", nargs="?", help="Database URL,")
     parser.add_argument(
         "model_type",
         nargs="?",
@@ -61,8 +61,8 @@ def main():
     parser.add_argument("-v", action="store_true", help="Flag to run in verbose mode.")
     args = parser.parse_args()
 
-    db = SQLite(db_url=args.db_url)
-    print_msg_box(f"Beginning BlendSQL session with '{args.db_url}'...")
+    db = SQLite(db_path=args.db_path)
+    print_msg_box(f"Beginning BlendSQL session with '{args.db_path}'...")
     print()
     while True:
         lines = []

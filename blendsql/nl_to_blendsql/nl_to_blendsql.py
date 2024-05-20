@@ -5,13 +5,14 @@ from colorama import Fore
 import re
 import logging
 
-from .ingredients import Ingredient, IngredientException
-from .models import Model
-from .db import Database, double_quote_escape
-from ._program import Program
-from .grammars.minEarley.parser import EarleyParser
-from .grammars.utils import load_cfg_parser
-from .prompts import FewShot
+from ..ingredients import Ingredient, IngredientException
+from ..models import Model
+from ..db import Database, double_quote_escape
+from .._program import Program
+from ..grammars.minEarley.parser import EarleyParser
+from ..grammars.utils import load_cfg_parser
+from ..prompts import FewShot
+from .args import NLtoBlendSQLArgs
 
 PARSER_STOP_TOKENS = ["---", ";", "\n\n"]
 PARSER_SYSTEM_PROMPT = dedent(
@@ -20,9 +21,15 @@ Generate BlendSQL given the question, table, and passages to answer the question
 BlendSQL is a superset of SQLite, which adds external function calls for information not found within native SQLite.
 These external functions should be wrapped in double curly brackets.
 {ingredient_descriptions}
-ONLY use these BlendSQL ingredients if necessary.
-Answer parts of the question in vanilla SQL, if possible.
-Don't forget to use the `options` argument when necessary!
+ONLY use these BlendSQL ingredients if necessary. Answer parts of the question in vanilla SQL, if possible.
+
+Additionally, we have the table `documents` at our disposal, which contains Wikipedia articles providing more details about the values in our table.
+The `documents` table for each database has the same schema:
+
+CREATE TABLE documents (
+  "title" TEXT,
+  "content" TEXT
+)
 """
 )
 
@@ -36,10 +43,17 @@ class ParserProgram(Program):
             _model += f"{serialized_db}\n\n"
             _model += f"Question: {question}\n"
             _model += f"BlendSQL: "
+        logging.debug(
+            Fore.LIGHTYELLOW_EX
+            + f"Using parsing prompt:"
+            + Fore.YELLOW
+            + _model._current_prompt()
+            + Fore.RESET
+        )
         with self.assistantcontext:
-            _model = _model + gen(
+            _model += gen(
                 name="result",
-                max_tokens=128,
+                max_tokens=256,
                 stop=PARSER_STOP_TOKENS,
                 **self.gen_kwargs,
             )
@@ -65,7 +79,7 @@ class CorrectionProgram(Program):
         with self.usercontext:
             _model += f"{serialized_db}\n\n"
             _model += f"Question: {question}\n"
-            _model += f"BlendSQL: "
+            _model += f"BlendSQL:\n"
             _model += partial_completion
         with self.assistantcontext:
             _model += select(candidates, name="result")
@@ -112,6 +126,7 @@ def create_system_prompt(
         )
         + "\n"
         + str(few_shot_examples)
+        + "---\n"
     )
 
 
@@ -120,10 +135,9 @@ def nl_to_blendsql(
     db: Database,
     model: Model,
     ingredients: Collection[Ingredient],
-    few_shot_examples: str = "",
-    max_grammar_corrections: int = 0,
+    few_shot_examples: Union[str, FewShot] = "",
+    args: NLtoBlendSQLArgs = None,
     verbose: bool = False,
-    use_tables: Collection[str] = None,
 ) -> str:
     """Takes a natural language question, and attempts to parse BlendSQL representation for answering against a databse.
 
@@ -145,20 +159,27 @@ def nl_to_blendsql(
         logging.getLogger().setLevel(logging.DEBUG)
     else:
         logging.getLogger().setLevel(logging.ERROR)
+    if args is None:
+        args = NLtoBlendSQLArgs()
     parser: EarleyParser = load_cfg_parser(ingredients)
     system_prompt: str = create_system_prompt(
         ingredients=ingredients, few_shot_examples=few_shot_examples
     )
-    serialized_db_schema = db.schema_string(use_tables=use_tables)
-    logging.debug(Fore.YELLOW + f"Using system prompt: '{system_prompt}'" + Fore.RESET)
-    if max_grammar_corrections == 0:
+    serialized_db = db.to_serialized(
+        use_tables=args.use_tables,
+        num_rows=args.num_serialized_rows,
+        include_content=args.include_db_content_tables,
+        use_bridge_encoder=args.use_bridge_encoder,
+        question=question,
+    )
+    if args.max_grammar_corrections == 0:
         return model.predict(
             program=ParserProgram,
             system_prompt=system_prompt,
             question=question,
-            serialized_db=serialized_db_schema,
+            serialized_db=serialized_db,
         )["result"]
-    num_correction_left = max_grammar_corrections
+    num_correction_left = args.max_grammar_corrections
     partial_program_prediction = ""
     ret_prediction, initial_prediction = None, None
     while num_correction_left > 0 and ret_prediction is None:
@@ -166,7 +187,7 @@ def nl_to_blendsql(
             program=ParserProgram,
             system_prompt=system_prompt,
             question=question,
-            serialized_db=serialized_db_schema,
+            serialized_db=serialized_db,
         )["result"]
 
         # if the prediction is empty, return the initial prediction
@@ -190,18 +211,22 @@ def nl_to_blendsql(
                 Fore.LIGHTMAGENTA_EX + "No correction pairs found" + Fore.RESET
             )
             return prefix
-        # Generate the continuation candidate with the highest probability
-        selected_candidate = model.predict(
-            program=CorrectionProgram,
-            system_prompt=system_prompt,
-            question=question,
-            serialized_db=serialized_db_schema,
-            partial_completion=prefix,
-            candidates=candidates,
-        )["result"]
+        elif len(candidates) == 1:
+            # If we only have 1 candidate, no need to call LLM
+            selected_candidate = candidates[0]
+        else:
+            # Generate the continuation candidate with the highest probability
+            selected_candidate = model.predict(
+                program=CorrectionProgram,
+                system_prompt=system_prompt,
+                question=question,
+                serialized_db=serialized_db,
+                partial_completion=prefix,
+                candidates=candidates,
+            )["result"]
 
         # Try to use our selected candidate in a few ways
-        # 1) Insert our selection into the index where the error occured, and add left/right context
+        # 1) Insert our selection into the index where the error occurred, and add left/right context
         #   Example: SELECT a b FROM table -> SELECT a, b FROM table
         inserted_candidate = (
             prefix + selected_candidate + program_prediction[pos_in_stream:]
@@ -220,11 +245,13 @@ def nl_to_blendsql(
     if ret_prediction is None:
         logging.debug(
             Fore.RED
-            + f"cannot find a valid prediction after {max_grammar_corrections} retries"
+            + f"cannot find a valid prediction after {args.max_grammar_corrections} retries"
             + Fore.RESET
         )
         ret_prediction = initial_prediction
-    ret_prediction = post_process_blendsql(ret_prediction, db, use_tables=use_tables)
+    ret_prediction = post_process_blendsql(
+        ret_prediction, db, use_tables=args.use_tables
+    )
     logging.debug(Fore.GREEN + ret_prediction + Fore.RESET)
     return ret_prediction
 
