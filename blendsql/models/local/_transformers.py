@@ -16,7 +16,7 @@ class TransformersLLM(Model):
         model_name_or_path: Name of the model on HuggingFace, or the path to a local model
     """
 
-    def __init__(self, model_name_or_path: str, **kwargs):
+    def __init__(self, model_name_or_path: str, caching: bool = True, **kwargs):
         if not _has_transformers:
             raise ImportError(
                 "Please install transformers with `pip install transformers`!"
@@ -27,6 +27,7 @@ class TransformersLLM(Model):
             model_name_or_path=model_name_or_path,
             requires_config=False,
             tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
+            caching=caching,
             **kwargs
         )
 

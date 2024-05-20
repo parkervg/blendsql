@@ -16,7 +16,7 @@ class LlamaCppLLM(Model):
         model_name_or_path: Name of the model on HuggingFace, or the path to a local model
     """
 
-    def __init__(self, model_name_or_path: str, **kwargs):
+    def __init__(self, model_name_or_path: str, caching: bool = True, **kwargs):
         if not _has_llama_cpp:
             raise ImportError(
                 "Please install llama_cpp with `pip install llama-cpp-python`!"
@@ -27,6 +27,7 @@ class LlamaCppLLM(Model):
             requires_config=False,
             # TODO: how to get llama_cpp tokenizer?
             tokenizer=None,
+            caching=caching,
             **kwargs
         )
 
