@@ -15,7 +15,6 @@ from typing import (
     Optional,
     Callable,
     Collection,
-    Union,
     Type,
 )
 from sqlite3 import OperationalError
@@ -575,7 +574,7 @@ def _blend(
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
 
-        lazy_limit: Union[int, None] = scm.get_lazy_limit()
+        # lazy_limit: Union[int, None] = scm.get_lazy_limit()
         # After above processing of AST, sync back to string repr
         subquery_str = scm.sql()
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
