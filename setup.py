@@ -33,15 +33,17 @@ setup(
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
     packages=find_packages(exclude=["examples", "research", "img"]),
-    data_files=["blendsql/grammars/_cfg_grammar.lark"],
+    include_package_data=True,
     install_requires=[
         "guidance>=0.1.0",
         "pyparsing==3.1.1",
-        "pandas==1.5.3",
+        "pandas>=2.0.0",
         "bottleneck>=1.3.6",
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",
         "sqlalchemy>=2.0.0",
+        "lark",
+        "exrex",
         "platformdirs",
         "attrs",
         "tqdm",
@@ -50,7 +52,6 @@ setup(
         "typeguard",
     ],
     extras_require={
-        "nl_to_blendsql": ["exrex", "lark"],
         "research": [
             "datasets==2.16.1",
             "nltk",
