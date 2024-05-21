@@ -50,6 +50,7 @@ setup(
         "colorama",
         "tabulate",
         "typeguard",
+        "rapidfuzz",
     ],
     extras_require={
         "research": [
