@@ -4,11 +4,9 @@ from guidance import select
 from colorama import Fore
 import re
 import logging
-from ollama import Options
 
 from ..ingredients import Ingredient, IngredientException
 from ..models import Model
-from ..models.local._ollama import OllamaGuidanceModel
 from ..db import Database, double_quote_escape
 from .._program import Program
 from ..grammars.minEarley.parser import EarleyParser
@@ -59,22 +57,14 @@ class ParserProgram(Program):
             + _model._current_prompt()
             + Fore.RESET
         )
-        if isinstance(_model, OllamaGuidanceModel):
-            _model = self.ollama_gen(
+        with self.assistantcontext:
+            _model = self.gen(
                 model=_model,
                 name="result",
-                options=Options(stop=PARSER_STOP_TOKENS, temperature=0.0),
+                max_tokens=256,
+                stop=PARSER_STOP_TOKENS,
                 stream=stream,
             )
-        else:
-            with self.assistantcontext:
-                _model = self.gen(
-                    model=_model,
-                    name="result",
-                    max_tokens=256,
-                    stop=PARSER_STOP_TOKENS,
-                    stream=stream,
-                )
         return _model
 
 

@@ -15,6 +15,10 @@ import ast
 import textwrap
 from colorama import Fore
 
+GUIDANCE_TO_OLLAMA_ARGS = {
+    "max_tokens": "num_predict",
+}
+
 
 def get_contexts(model: GuidanceModel):
     usercontext = nullcontext()
@@ -53,49 +57,50 @@ class Program:
 
     @staticmethod
     def gen(
-        model: "GuidanceModel", name=None, stream: bool = False, **kwargs
-    ) -> "GuidanceModel":
-        if stream:
-            for part in model.stream() + gen(name=name, **kwargs):
-                result = str(part).rsplit("\nBlendSQL:", 1)[-1].strip()
-                result = re.split(re.escape("<|im_start|>assistant\n"), result)[
-                    -1
-                ].rstrip("<|im_end|>")
-                print("\n" * 50 + Fore.CYAN + result + Fore.RESET)
-            model = model.set("result", result)
-        else:
-            model += gen(name=name, **kwargs)
-        return model
-
-    @staticmethod
-    def ollama_gen(
-        model: "OllamaGuidanceModel",
-        name: str,
-        options: Union["Options", None],
+        model: Union[GuidanceModel, "OllamaGuidanceModel"],
+        name=None,
         stream: bool = False,
-    ) -> "OllamaGuidanceModel":
-        import ollama
-        from ollama import Options
-
-        response = ollama.chat(
-            model=model.model_name_or_path,
-            messages=[{"role": "user", "content": model._current_prompt()}],
-            options=options if options is not None else Options(temperature=0.0),
-            stream=stream,
-        )
-        if stream:
-            res = []
-            for chunk in response:
-                res.append(chunk["message"]["content"])
-                print(
-                    Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
-                    end="",
-                    flush=True,
-                )
-            print("\n")
-            model._variables[name] = "".join(res)
+        **kwargs,
+    ) -> "GuidanceModel":
+        if isinstance(model, GuidanceModel):
+            if stream:
+                for part in model.stream() + gen(name=name, **kwargs):
+                    result = str(part).rsplit("\nBlendSQL:", 1)[-1].strip()
+                    result = re.split(re.escape("<|im_start|>assistant\n"), result)[
+                        -1
+                    ].rstrip("<|im_end|>")
+                    print("\n" * 50 + Fore.CYAN + result + Fore.RESET)
+                model = model.set("result", result)
+            else:
+                model += gen(name=name, **kwargs)
         else:
-            model._variables[name] = response["message"]["content"]
+            import ollama
+            from ollama import Options
+
+            options = Options(
+                {GUIDANCE_TO_OLLAMA_ARGS.get(k, k): v for k, v in kwargs.items()}
+            )
+            if "temperature" not in options:
+                options.temperature = 0.0
+            response = ollama.chat(
+                model=model.model_name_or_path,
+                messages=[{"role": "user", "content": model._current_prompt()}],
+                options=options,
+                stream=stream,
+            )
+            if stream:
+                res = []
+                for chunk in response:
+                    res.append(chunk["message"]["content"])
+                    print(
+                        Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
+                        end="",
+                        flush=True,
+                    )
+                print("\n")
+                model._variables[name] = "".join(res)
+            else:
+                model._variables[name] = response["message"]["content"]
         return model
 
 
