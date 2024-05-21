@@ -422,5 +422,3 @@ WHERE language = {{
         options='w::language'
     )
 }}
-
----

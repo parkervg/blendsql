@@ -32,4 +32,4 @@ class LlamaCppLLM(Model):
         )
 
     def _load_model(self) -> Model:
-        return LlamaCpp(self.model_name_or_path, n_ctx=2048, echo=False)
+        return LlamaCpp(self.model_name_or_path, n_ctx=4000, echo=False)

@@ -1,12 +1,14 @@
 from typing import Collection, List, Tuple, Set, Optional, Union, Type
 from textwrap import dedent
-from guidance import gen, select
+from guidance import select
 from colorama import Fore
 import re
 import logging
+from ollama import Options
 
 from ..ingredients import Ingredient, IngredientException
 from ..models import Model
+from ..models.local._ollama import OllamaGuidanceModel
 from ..db import Database, double_quote_escape
 from .._program import Program
 from ..grammars.minEarley.parser import EarleyParser
@@ -57,26 +59,21 @@ class ParserProgram(Program):
             + _model._current_prompt()
             + Fore.RESET
         )
-        with self.assistantcontext:
-            if stream:
-                for part in _model.stream() + gen(
+        if isinstance(_model, OllamaGuidanceModel):
+            _model = self.ollama_gen(
+                model=_model,
+                name="result",
+                options=Options(stop=PARSER_STOP_TOKENS, temperature=0.0),
+                stream=stream,
+            )
+        else:
+            with self.assistantcontext:
+                _model = self.gen(
+                    model=_model,
                     name="result",
                     max_tokens=256,
                     stop=PARSER_STOP_TOKENS,
-                    **self.gen_kwargs,
-                ):
-                    result = str(part).rsplit("\nBlendSQL:", 1)[-1].strip()
-                    result = re.split(re.escape("<|im_start|>assistant\n"), result)[
-                        -1
-                    ].rstrip("<|im_end|>")
-                    print("\n" * 50 + Fore.CYAN + result + Fore.RESET)
-                _model = _model.set("result", result)
-            else:
-                _model += gen(
-                    name="result",
-                    max_tokens=256,
-                    stop=PARSER_STOP_TOKENS,
-                    **self.gen_kwargs,
+                    stream=stream,
                 )
         return _model
 
@@ -194,6 +191,12 @@ def nl_to_blendsql(
         question=question,
     )
     if args.max_grammar_corrections == 0:
+        # return ollama_parse(
+        #     system_prompt=system_prompt,
+        #     question=question,
+        #     serialized_db=serialized_db,
+        #     stream=verbose,
+        # )
         return model.predict(
             program=ParserProgram,
             system_prompt=system_prompt,
@@ -205,6 +208,12 @@ def nl_to_blendsql(
     partial_program_prediction = ""
     ret_prediction, initial_prediction = None, None
     while num_correction_left > 0 and ret_prediction is None:
+        # residual_program_prediction = ollama_parse(
+        #     system_prompt=system_prompt,
+        #     question=question,
+        #     serialized_db=serialized_db,
+        #     stream=verbose,
+        # )
         residual_program_prediction = model.predict(
             program=ParserProgram,
             system_prompt=system_prompt,

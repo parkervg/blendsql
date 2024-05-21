@@ -1,5 +1,5 @@
 from blendsql.nl_to_blendsql import nl_to_blendsql, NLtoBlendSQLArgs
-from blendsql.models import OpenaiLLM
+from blendsql.models import TransformersLLM
 from blendsql import LLMMap, LLMQA
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
@@ -12,8 +12,9 @@ if __name__ == "__main__":
     db = SQLite(
         fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
     )
-    # model = TransformersLLM("Qwen/Qwen1.5-0.5B")
-    model = OpenaiLLM("davinci-002")
+    # model = OllamaLLM("phi3")
+    model = TransformersLLM("Qwen/Qwen1.5-0.5B")
+    # model = OpenaiLLM("davinci-002")
     ingredients = {LLMMap, LLMQA}
     filtered_few_shot = FewShot.hybridqa.filter(ingredients)
     blendsql = nl_to_blendsql(

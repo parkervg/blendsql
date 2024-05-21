@@ -3,14 +3,17 @@ Contains base class for guidance programs for LLMs.
 https://github.com/guidance-ai/guidance
 """
 
-from typing import Optional
+from typing import Optional, Union
+import re
 from guidance.models import Model as GuidanceModel
 from guidance.models import Chat as GuidanceChatModel
 from guidance import user, system, assistant
+from guidance import gen
 from contextlib import nullcontext
 import inspect
 import ast
 import textwrap
+from colorama import Fore
 
 
 def get_contexts(model: GuidanceModel):
@@ -25,15 +28,7 @@ def get_contexts(model: GuidanceModel):
 
 
 class Program:
-    """
-    TODO: how to add streaming?
-        if isinstance(res, ModelStream):
-        # Fetch actual model by iterating
-        # https://github.com/guidance-ai/guidance/blob/main/tests/models/test_model.py#L85
-        for idx, event in enumerate(res):
-            print(Fore.LIGHTCYAN_EX + str(event) + Fore.RESET)
-            res = event
-    """
+    """ """
 
     def __new__(
         self,
@@ -54,7 +49,54 @@ class Program:
         return self.__call__(self, **kwargs)
 
     def __call__(self, *args, **kwargs):
-        pass
+        ...
+
+    @staticmethod
+    def gen(
+        model: "GuidanceModel", name=None, stream: bool = False, **kwargs
+    ) -> "GuidanceModel":
+        if stream:
+            for part in model.stream() + gen(name=name, **kwargs):
+                result = str(part).rsplit("\nBlendSQL:", 1)[-1].strip()
+                result = re.split(re.escape("<|im_start|>assistant\n"), result)[
+                    -1
+                ].rstrip("<|im_end|>")
+                print("\n" * 50 + Fore.CYAN + result + Fore.RESET)
+            model = model.set("result", result)
+        else:
+            model += gen(name=name, **kwargs)
+        return model
+
+    @staticmethod
+    def ollama_gen(
+        model: "OllamaGuidanceModel",
+        name: str,
+        options: Union["Options", None],
+        stream: bool = False,
+    ) -> "OllamaGuidanceModel":
+        import ollama
+        from ollama import Options
+
+        response = ollama.chat(
+            model=model.model_name_or_path,
+            messages=[{"role": "user", "content": model._current_prompt()}],
+            options=options if options is not None else Options(temperature=0.0),
+            stream=stream,
+        )
+        if stream:
+            res = []
+            for chunk in response:
+                res.append(chunk["message"]["content"])
+                print(
+                    Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
+                    end="",
+                    flush=True,
+                )
+            print("\n")
+            model._variables[name] = "".join(res)
+        else:
+            model._variables[name] = response["message"]["content"]
+        return model
 
 
 def program_to_str(program: Program):
