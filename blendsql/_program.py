@@ -2,6 +2,7 @@
 Contains base class for guidance programs for LLMs.
 https://github.com/guidance-ai/guidance
 """
+
 from typing import Optional
 from guidance.models import Model as GuidanceModel
 from guidance.models import Chat as GuidanceChatModel
@@ -88,6 +89,7 @@ def program_to_str(program: Program):
             if name in globals_as_dict:
                 val = globals_as_dict[name]
                 # Ignore functions - we really only want scalars here
-                if not callable(val):
-                    resolved_names += f"{val}\n"
+                if any(x for x in [callable(val), hasattr(val, "__init__")]):
+                    continue
+                resolved_names += f"{val}\n"
     return f"{call_content}{resolved_names}"
