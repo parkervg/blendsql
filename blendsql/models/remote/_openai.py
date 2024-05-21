@@ -1,6 +1,6 @@
 import logging
 import os
-from guidance.models import OpenAI, AzureOpenAI
+from guidance.models import OpenAI, AzureOpenAI, OpenAICompletion
 import tiktoken
 
 from .._model import Model
@@ -8,6 +8,9 @@ from .._model import Model
 logging.getLogger("openai").setLevel(logging.CRITICAL)
 logging.getLogger("guidance").setLevel(logging.CRITICAL)
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+
+# guidance interprets these as chat models, for some reason
+OVERRIDE_COMPLETION_MODELS = {"davinci-002", "babbage-002"}
 
 
 def openai_setup() -> None:
@@ -105,8 +108,14 @@ class OpenaiLLM(Model):
         )
 
     def _load_model(self) -> Model:
-        return OpenAI(
-            self.model_name_or_path, api_key=os.getenv("OPENAI_API_KEY"), echo=False
+        return (
+            OpenAICompletion(
+                self.model_name_or_path, api_key=os.getenv("OPENAI_API_KEY"), echo=False
+            )
+            if self.model_name_or_path in OVERRIDE_COMPLETION_MODELS
+            else OpenAI(
+                self.model_name_or_path, api_key=os.getenv("OPENAI_API_KEY"), echo=False
+            )
         )
 
     def _setup(self, **kwargs) -> None:
