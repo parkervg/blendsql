@@ -1,4 +1,4 @@
-from typing import Collection, List, Tuple, Set, Optional, Union
+from typing import Collection, List, Tuple, Set, Optional, Union, Type
 from textwrap import dedent
 from guidance import gen, select
 from colorama import Fore
@@ -14,7 +14,7 @@ from ..grammars.utils import load_cfg_parser
 from ..prompts import FewShot
 from .args import NLtoBlendSQLArgs
 
-PARSER_STOP_TOKENS = ["---", ";", "\n\n"]
+PARSER_STOP_TOKENS = ["---", ";", "\n\n", "Q:"]
 PARSER_SYSTEM_PROMPT = dedent(
     """
 Generate BlendSQL given the question, table, and passages to answer the question correctly.
@@ -35,12 +35,19 @@ CREATE TABLE documents (
 
 
 class ParserProgram(Program):
-    def __call__(self, system_prompt: str, serialized_db: str, question: str, **kwargs):
+    def __call__(
+        self,
+        system_prompt: str,
+        serialized_db: str,
+        question: str,
+        stream: bool = False,
+        **kwargs,
+    ):
         _model = self.model
         with self.systemcontext:
             _model += system_prompt + "\n"
         with self.usercontext:
-            _model += f"{serialized_db}\n\n"
+            _model += f"{serialized_db}\n"
             _model += f"Question: {question}\n"
             _model += f"BlendSQL: "
         logging.debug(
@@ -51,12 +58,26 @@ class ParserProgram(Program):
             + Fore.RESET
         )
         with self.assistantcontext:
-            _model += gen(
-                name="result",
-                max_tokens=256,
-                stop=PARSER_STOP_TOKENS,
-                **self.gen_kwargs,
-            )
+            if stream:
+                for part in _model.stream() + gen(
+                    name="result",
+                    max_tokens=256,
+                    stop=PARSER_STOP_TOKENS,
+                    **self.gen_kwargs,
+                ):
+                    result = str(part).rsplit("\nBlendSQL:", 1)[-1].strip()
+                    result = re.split(re.escape("<|im_start|>assistant\n"), result)[
+                        -1
+                    ].rstrip("<|im_end|>")
+                    print("\n" * 50 + Fore.CYAN + result + Fore.RESET)
+                _model = _model.set("result", result)
+            else:
+                _model += gen(
+                    name="result",
+                    max_tokens=256,
+                    stop=PARSER_STOP_TOKENS,
+                    **self.gen_kwargs,
+                )
         return _model
 
 
@@ -91,7 +112,7 @@ def validate_program(prediction: str, parser: EarleyParser) -> bool:
         parser.parse(prediction)
         return True
     except Exception as runtime_e:
-        logging.debug(Fore.CYAN + prediction + Fore.RESET)
+        logging.debug(Fore.LIGHTCYAN_EX + prediction + Fore.RESET)
         logging.debug(f"Error: {str(runtime_e)}")
         return False
 
@@ -134,7 +155,7 @@ def nl_to_blendsql(
     question: str,
     db: Database,
     model: Model,
-    ingredients: Collection[Ingredient],
+    ingredients: Optional[Collection[Type[Ingredient]]],
     few_shot_examples: Union[str, FewShot] = "",
     args: NLtoBlendSQLArgs = None,
     verbose: bool = False,
@@ -178,6 +199,7 @@ def nl_to_blendsql(
             system_prompt=system_prompt,
             question=question,
             serialized_db=serialized_db,
+            stream=verbose,
         )["result"]
     num_correction_left = args.max_grammar_corrections
     partial_program_prediction = ""
@@ -188,6 +210,7 @@ def nl_to_blendsql(
             system_prompt=system_prompt,
             question=question,
             serialized_db=serialized_db,
+            stream=verbose,
         )["result"]
 
         # if the prediction is empty, return the initial prediction
