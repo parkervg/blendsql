@@ -1,4 +1,5 @@
 import functools
+import logging
 from typing import Any, List
 import guidance
 import pandas as pd
@@ -106,6 +107,7 @@ class Model:
             # First, check our cache
             key = self._create_key(program, **kwargs)
             if key in self.cache:
+                logging.debug(Fore.MAGENTA + "Using cache..." + Fore.RESET)
                 self.prompts.insert(
                     -1, self.format_prompt(self.cache.get(key), **kwargs)
                 )
