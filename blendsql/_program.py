@@ -81,7 +81,7 @@ class Program:
                 {GUIDANCE_TO_OLLAMA_ARGS.get(k, k): v for k, v in kwargs.items()}
             )
             if "temperature" not in options:
-                options.temperature = 0.0
+                options["temperature"] = 0.0
             response = ollama.chat(
                 model=model.model_name_or_path,
                 messages=[{"role": "user", "content": model._current_prompt()}],
