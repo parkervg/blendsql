@@ -134,9 +134,11 @@ def program_to_str(program: Program):
         globals_as_dict = dict(inspect.getmembers(source_func))["__globals__"]
         for name in names_to_resolve:
             if name in globals_as_dict:
+                if name.startswith("__"):
+                    continue
                 val = globals_as_dict[name]
                 # Ignore functions - we really only want scalars here
-                if any(x for x in [callable(val), hasattr(val, "__init__")]):
+                if any(x for x in [callable(val), hasattr(val, "__module__")]):
                     continue
                 resolved_names += f"{val}\n"
     return f"{call_content}{resolved_names}"
