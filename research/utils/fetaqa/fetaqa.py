@@ -102,9 +102,11 @@ def fetaqa_get_input(
     return (
         db_path,
         {
-            "examples": blendsql_examples
-            if model_args.blender_model_name_or_path is not None
-            else sql_examples,
+            "examples": (
+                blendsql_examples
+                if model_args.blender_model_name_or_path is not None
+                else sql_examples
+            ),
             "question": question,
             "serialized_db": serialized_db,
             "bridge_hints": bridge_hints,

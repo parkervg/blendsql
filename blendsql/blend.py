@@ -253,11 +253,15 @@ def preprocess_blendsql(
             kwargs_dict[IngredientKwarg.MODEL] = blender
             context_arg = kwargs_dict.get(
                 IngredientKwarg.CONTEXT,
-                parsed_results_dict["args"][1]
-                if len(parsed_results_dict["args"]) > 1
-                else parsed_results_dict["args"][1]
-                if len(parsed_results_dict["args"]) > 1
-                else None,
+                (
+                    parsed_results_dict["args"][1]
+                    if len(parsed_results_dict["args"]) > 1
+                    else (
+                        parsed_results_dict["args"][1]
+                        if len(parsed_results_dict["args"]) > 1
+                        else None
+                    )
+                ),
             )
             for arg in {
                 context_arg,
@@ -622,11 +626,15 @@ def _blend(
             ):
                 unpack_value = kwargs_dict.get(
                     unpack_kwarg,
-                    parsed_results_dict["args"][i + 1]
-                    if len(parsed_results_dict["args"]) > i + 1
-                    else parsed_results_dict["args"][i]
-                    if len(parsed_results_dict["args"]) > i
-                    else "",
+                    (
+                        parsed_results_dict["args"][i + 1]
+                        if len(parsed_results_dict["args"]) > i + 1
+                        else (
+                            parsed_results_dict["args"][i]
+                            if len(parsed_results_dict["args"]) > i
+                            else ""
+                        )
+                    ),
                 )
                 if isinstance(unpack_value, str) and unpack_value.upper().startswith(
                     ("SELECT", "WITH")
