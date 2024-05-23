@@ -1,5 +1,5 @@
 import functools
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Type
 import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
@@ -51,12 +51,10 @@ class Model:
 
     logits_generator: LogitsGenerator = attrib(init=False)
     prompts: list = attrib(init=False)
+    prompt_tokens: int = attrib(init=False)
+    completion_tokens: int = attrib(init=False)
     cache: Cache = attrib(init=False)
     run_setup_on_load: bool = attrib(default=True)
-
-    gen_kwargs: dict = {}
-    num_llm_calls: int = 0
-    num_prompt_tokens: int = 0
 
     def __attrs_post_init__(self):
         if self.caching:
@@ -65,6 +63,8 @@ class Model:
                 / f"{self.model_name_or_path}.diskcache"
             )
         self.prompts: List[str] = []
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
         if self.requires_config:
             if self.env is None:
                 self.env = "."
@@ -91,7 +91,7 @@ class Model:
             **self.load_model_kwargs
         )
 
-    def predict(self, program: Program, **kwargs) -> dict:
+    def predict(self, program: Type[Program], **kwargs) -> dict:
         """Takes a `Program` and some kwargs, and evaluates it with context of
         current Model.
 
@@ -104,7 +104,7 @@ class Model:
 
         Examples:
             >>> llm.predict(program, **kwargs)
-            {"result": '"This is Model generated output"'}
+            "This is model generated output"
         """
         if self.caching:
             # First, check our cache
@@ -116,8 +116,10 @@ class Model:
                 )
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
-        self.num_llm_calls += 1
-        response: str = program(model=self, **kwargs)
+        response, prompt = program(model=self, **kwargs)
+        if self.tokenizer is not None:
+            self.prompt_tokens += len(self.tokenizer.encode(prompt))
+            self.completion_tokens += len(self.tokenizer.encode(response))
         if self.caching:
             self.cache[key] = response
         return response
