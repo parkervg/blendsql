@@ -9,6 +9,7 @@ from ._constants import HF_REPO_ID
 logging.basicConfig()
 logger = logging.getLogger("blendsql")
 tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
+newline_dedent = lambda x: "\n".join([m.lstrip() for m in x.split("\n")])
 
 
 def fetch_from_hub(filename: str):
