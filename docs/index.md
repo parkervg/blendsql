@@ -31,7 +31,7 @@ pip install blendsql
 - Easily extendable to [multi-modal usecases](reference/examples/vqa-ingredient) 🖼️
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+- Constrained decoding with [outlines](https://github.com/outlines-dev/outlines) 🚀
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 

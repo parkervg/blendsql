@@ -1,8 +1,3 @@
-"""
-Contains base class for guidance programs for LLMs.
-https://github.com/guidance-ai/guidance
-"""
-
 from typing import Tuple
 import inspect
 import ast
@@ -41,7 +36,7 @@ def program_to_str(program: Program):
         >>> PROMPT = "Here is my question: {question}"
         >>> class CorrectionProgram(Program):
         >>>     def __call__(self, question: str, **kwargs):
-        >>>         return self.guidance_model + PROMPT.format(question)
+        >>>         return PROMPT.format(question)
 
     Some helpful refs:
         - https://github.com/universe-proton/universe-topology/issues/15

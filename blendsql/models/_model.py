@@ -98,14 +98,14 @@ class Model:
         current Model.
 
         Args:
-            program: guidance program used to generate Model output
+            program: The `Program` object used to generate Model output
             **kwargs: any additional kwargs will get passed to the program
 
         Returns:
             dict containing all Model variable names and their values.
 
         Examples:
-            >>> llm.predict(program, **kwargs)
+            >>> model.predict(program, **kwargs)
             "This is model generated output"
         """
         if self.caching:
@@ -178,7 +178,10 @@ class Model:
 
     @abstractmethod
     def _load_model(self, *args, **kwargs) -> Any:
-        """Logic for instantiating the guidance model class goes here."""
+        """Logic for instantiating the model class goes here.
+        Will most likely be an outlines.LogitsGenerator object,
+        but in some cases (like OllamaLLM) we make an exception.
+        """
         ...
 
 

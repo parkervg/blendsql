@@ -26,7 +26,7 @@
 - Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+- Constrained decoding with [outlines](https://github.com/outlines-dev/outlines) 🚀
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
 ## Intro
