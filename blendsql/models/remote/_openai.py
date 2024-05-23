@@ -66,19 +66,20 @@ class AzureOpenaiLLM(RemoteModel):
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
-            load_model_kwargs={"config": config or DEFAULT_CONFIG},
+            load_model_kwargs=kwargs | {"config": config or DEFAULT_CONFIG},
             env=env,
             caching=caching,
             **kwargs
         )
 
-    def _load_model(self, config: OpenAIConfig) -> LogitsGenerator:
+    def _load_model(self, config: OpenAIConfig, **kwargs) -> LogitsGenerator:
         return azure_openai(
             self.model_name_or_path,
             config=config,
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
             api_version=os.getenv("OPENAI_API_VERSION"),
             api_key=os.getenv("OPENAI_API_KEY"),
+            **kwargs
         )
 
     def _setup(self, **kwargs) -> None:
@@ -113,9 +114,12 @@ class OpenaiLLM(RemoteModel):
             **kwargs
         )
 
-    def _load_model(self, config: OpenAIConfig) -> LogitsGenerator:
+    def _load_model(self, config: OpenAIConfig, **kwargs) -> LogitsGenerator:
         return openai(
-            self.model_name_or_path, config=config, api_key=os.getenv("OPENAI_API_KEY")
+            self.model_name_or_path,
+            config=config,
+            api_key=os.getenv("OPENAI_API_KEY"),
+            **kwargs
         )
 
     def _setup(self, **kwargs) -> None:
