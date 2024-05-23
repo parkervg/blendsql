@@ -1,6 +1,7 @@
 from attr import attrs, attrib
 from abc import abstractmethod, ABC
 import pandas as pd
+from skrub import Joiner
 from typing import (
     Any,
     Iterable,
@@ -64,6 +65,7 @@ class Ingredient(ABC):
         ...
 
     def _run(self, *args, **kwargs):
+        #print('kwargs = ', kwargs)
         return check_type(self.run(*args, **kwargs), self.allowed_output_types)
 
     def maybe_get_temp_table(
@@ -203,6 +205,7 @@ class JoinIngredient(Ingredient):
         question: Optional[str] = None,
         left_on: Optional[str] = None,
         right_on: Optional[str] = None,
+        use_fuzzy_join: bool = False,
         *args,
         **kwargs,
     ) -> tuple:
@@ -210,7 +213,6 @@ class JoinIngredient(Ingredient):
         aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
         get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
         get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
-
         # Depending on the size of the underlying data, it may be optimal to swap
         #   the order of 'left_on' and 'right_on' columns during processing
         swapped = False
@@ -235,34 +237,51 @@ class JoinIngredient(Ingredient):
                 ]
             )
             modified_lr_identifiers.append((tablename, colname))
-
         if question is None:
             # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
             # First, make sure outer loop is shorter of the two lists
-            outer, inner = sorted(values, key=len)
-            _outer = []
-            inner = set(inner)
-            mapping = {}
-            for l in outer:
-                if l in inner:
-                    # Define this mapping, and remove from Model inference call
-                    mapping[l] = l
-                    inner -= {l}
-                else:
-                    _outer.append(l)
-                if len(inner) == 0:
-                    break
+            if not use_fuzzy_join:
+                outer, inner = sorted(values, key=len)
+                _outer = []
+                inner = set(inner)
+                mapping = {}
+                for l in outer:
+                    if l in inner:
+                        # Define this mapping, and remove from Model inference call
+                        mapping[l] = l
+                        inner -= {l}
+                    else:
+                        _outer.append(l)
+                    if len(inner) == 0:
+                        break
+            else:
+                (_left_tablename, _left_colname), (_right_tablename,_right_colname) = modified_lr_identifiers
+                # Create the main_table DataFrame
+                main_table = pd.DataFrame(values[0], columns=[_left_colname])
+                # Create the aux_table DataFrame
+                aux_table = pd.DataFrame(values[1], columns=[_right_colname])
+                joiner = Joiner(
+                    aux_table,
+                    main_key=_left_colname,
+                    aux_key=_right_colname,
+                    max_dist=0.9,
+                    add_match_info=False,
+                )
+                res = joiner.fit_transform(main_table)
+                inner = res[_left_colname][res[_right_colname].isnull()].to_list()
+                _outer = aux_table.loc[~aux_table[_right_colname].isin(res[_right_colname]), _right_colname].tolist()
+                res_filtered = res.dropna(subset=[_right_colname])
+                mapping = res_filtered.set_index(_right_colname)[_left_colname].to_dict()
             to_compare = [inner, _outer]
         else:
             to_compare = values
 
         # Finally, order by new (remaining) length and check if we swapped places from original
         sorted_values = sorted(to_compare, key=len)
-        if sorted_values != values:
+        if sorted_values != to_compare:
             swapped = True
         left_values, right_values = sorted_values
-
         kwargs["left_values"] = left_values
         kwargs["right_values"] = right_values
 
@@ -284,7 +303,6 @@ class JoinIngredient(Ingredient):
             kwargs[IngredientKwarg.QUESTION] = question
             _mapping: Dict[str, str] = self._run(*args, **kwargs)
             mapping = mapping | _mapping
-
         # Using mapped left/right values, create intermediary mapping table
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         # Below, we check to see if 'swapped' is True
