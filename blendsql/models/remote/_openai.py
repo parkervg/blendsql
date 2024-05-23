@@ -1,12 +1,11 @@
 import os
-from guidance.models import OpenAI, AzureOpenAI, OpenAICompletion
-from guidance.models import Model as GuidanceModel
+from outlines.models import openai, azure_openai, LogitsGenerator
+from outlines.models.openai import OpenAIConfig
 import tiktoken
 
-from .._model import Model
+from .._model import RemoteModel
 
-# guidance interprets these as chat models, for some reason
-OVERRIDE_COMPLETION_MODELS = {"davinci-002", "babbage-002"}
+DEFAULT_CONFIG = OpenAIConfig(temperature=0.0)
 
 
 def openai_setup() -> None:
@@ -44,7 +43,7 @@ def openai_setup() -> None:
         ) from None
 
 
-class AzureOpenaiLLM(Model):
+class AzureOpenaiLLM(RemoteModel):
     """Class for Azure OpenAI Model API.
 
     Args:
@@ -55,33 +54,38 @@ class AzureOpenaiLLM(Model):
     """
 
     def __init__(
-        self, model_name_or_path: str, env: str = None, caching: bool = True, **kwargs
+        self,
+        model_name_or_path: str,
+        env: str = None,
+        caching: bool = True,
+        config: OpenAIConfig = None,
+        **kwargs
     ):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
+            load_model_kwargs={"config": config or DEFAULT_CONFIG},
             env=env,
             caching=caching,
             **kwargs
         )
 
-    def _load_model(self) -> GuidanceModel:
-        return AzureOpenAI(
+    def _load_model(self, config: OpenAIConfig) -> LogitsGenerator:
+        return azure_openai(
             self.model_name_or_path,
-            api_key=os.getenv("OPENAI_API_KEY"),
+            config=config,
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
-            azure_deployment=os.getenv("OPENAI_API_VERSION"),
-            echo=False,
+            api_version=os.getenv("OPENAI_API_VERSION"),
+            api_key=os.getenv("OPENAI_API_KEY"),
         )
 
     def _setup(self, **kwargs) -> None:
         openai_setup()
-        self.model = self._load_model()
 
 
-class OpenaiLLM(Model):
+class OpenaiLLM(RemoteModel):
     """Class for OpenAI Model API.
 
     Args:
@@ -91,29 +95,28 @@ class OpenaiLLM(Model):
     """
 
     def __init__(
-        self, model_name_or_path: str, env: str = None, caching: bool = True, **kwargs
+        self,
+        model_name_or_path: str,
+        env: str = None,
+        caching: bool = True,
+        config: OpenAIConfig = None,
+        **kwargs
     ):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
+            load_model_kwargs={"config": config or DEFAULT_CONFIG},
             env=env,
             caching=caching,
             **kwargs
         )
 
-    def _load_model(self) -> GuidanceModel:
-        return (
-            OpenAICompletion(
-                self.model_name_or_path, api_key=os.getenv("OPENAI_API_KEY"), echo=False
-            )
-            if self.model_name_or_path in OVERRIDE_COMPLETION_MODELS
-            else OpenAI(
-                self.model_name_or_path, api_key=os.getenv("OPENAI_API_KEY"), echo=False
-            )
+    def _load_model(self, config: OpenAIConfig) -> LogitsGenerator:
+        return openai(
+            self.model_name_or_path, config=config, api_key=os.getenv("OPENAI_API_KEY")
         )
 
     def _setup(self, **kwargs) -> None:
         openai_setup()
-        self.model = self._load_model()

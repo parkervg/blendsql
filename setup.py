@@ -35,7 +35,7 @@ setup(
     packages=find_packages(exclude=["examples", "research", "img"]),
     include_package_data=True,
     install_requires=[
-        "guidance>=0.1.0",
+        "outlines",
         "pyparsing==3.1.1",
         "pandas>=2.0.0",
         "bottleneck>=1.3.6",
@@ -53,6 +53,10 @@ setup(
         "rapidfuzz",
     ],
     extras_require={
+        "llama-cpp": ["llama-cpp-python"],
+        "ollama": ["ollama"],
+        "openai": ["openai>1.0.0"],
+        "transformers": ["transformers>=4.0.0", "datasets"],
         "research": [
             "datasets==2.16.1",
             "nltk",
@@ -60,7 +64,6 @@ setup(
             "rouge_score",
             "rapidfuzz",
             "records",
-            "SQLAlchemy",
             "recognizers-text",
             "recognizers-text-suite",
             "emoji==1.7.0",

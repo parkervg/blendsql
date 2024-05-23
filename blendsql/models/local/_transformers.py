@@ -1,13 +1,12 @@
 import importlib.util
-from guidance.models import Transformers
-from guidance.models import Model as GuidanceModel
+from outlines.models import transformers, LogitsGenerator
 
-from .._model import Model
+from .._model import LocalModel
 
 _has_transformers = importlib.util.find_spec("transformers") is not None
 
 
-class TransformersLLM(Model):
+class TransformersLLM(LocalModel):
     """Class for Transformers local Model.
 
     Args:
@@ -19,15 +18,17 @@ class TransformersLLM(Model):
             raise ImportError(
                 "Please install transformers with `pip install transformers`!"
             ) from None
-        import transformers
 
         super().__init__(
             model_name_or_path=model_name_or_path,
             requires_config=False,
-            tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
             caching=caching,
             **kwargs
         )
 
-    def _load_model(self) -> GuidanceModel:
-        return Transformers(self.model_name_or_path, echo=False)
+    def _load_model(self) -> LogitsGenerator:
+        # https://huggingface.co/blog/how-to-generate
+        return transformers(
+            self.model_name_or_path,
+            model_kwargs={"do_sample": True, "temperature": 0.0, "top_p": 1.0},
+        )

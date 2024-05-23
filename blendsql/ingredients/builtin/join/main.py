@@ -1,9 +1,13 @@
 from typing import List, Optional
+import outlines
+import re
+from colorama import Fore
 
-from blendsql.models._model import Model
+from blendsql.models._model import Model, LocalModel, RemoteModel
 from blendsql._program import Program, newline_dedent
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
+from blendsql.utils import logger
 
 
 class JoinProgram(Program):
@@ -15,86 +19,104 @@ class JoinProgram(Program):
         sep: str,
         **kwargs,
     ):
-        _model = self.model.guidance_model
-        left_values = "\n".join(left_values)
-        right_values = "\n".join(right_values)
-        with self.systemcontext:
-            _model += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
-            _model += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
-        with self.usercontext:
-            if self.few_shot:
-                _model += newline_dedent(
-                    """
-                Criteria: Join to same topics.
+        prompt = ""
+        prompt += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
+        prompt += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
+        prompt += newline_dedent(
+            """
+        Criteria: Join to same topics.
 
-                Left Values:
-                joshua fields
-                bob brown
-                ron ryan
+        Left Values:
+        joshua fields
+        bob brown
+        ron ryan
 
-                Right Values:
-                ron ryan
-                colby mules
-                bob brown (ice hockey)
-                josh fields (pitcher)
+        Right Values:
+        ron ryan
+        colby mules
+        bob brown (ice hockey)
+        josh fields (pitcher)
 
-                Output:
-                joshua fields;josh fields (pitcher)
-                bob brown;bob brown (ice hockey)
-                ron ryan;ron ryan
+        Output:
+        joshua fields;josh fields (pitcher)
+        bob brown;bob brown (ice hockey)
+        ron ryan;ron ryan
 
-                ---
+        ---
 
-                Criteria: Align the fruit to their corresponding colors.
+        Criteria: Align the fruit to their corresponding colors.
 
-                Left Values:
-                apple
-                banana
-                blueberry
-                orange
+        Left Values:
+        apple
+        banana
+        blueberry
+        orange
 
-                Right Values:
-                blue
-                yellow
-                red
+        Right Values:
+        blue
+        yellow
+        red
 
-                Output:
-                apple;red
-                banana;yellow
-                blueberry;blue
-                orange;-
+        Output:
+        apple;red
+        banana;yellow
+        blueberry;blue
+        orange;-
 
-                ---
-                """
-                )
-            _model += newline_dedent(
-                f"""
-                Criteria: {join_criteria}
+        ---
+        """
+        )
+        prompt += newline_dedent(
+            """
+            Criteria: {}
 
-                Left Values:
-                {left_values}
+            Left Values:
+            {}
 
-                Right Values:
-                {right_values}
+            Right Values:
+            {}
 
-                Output:
-                """
+            Output:
+            """.format(
+                join_criteria, "\n".join(left_values), "\n".join(right_values)
             )
-        with self.assistantcontext:
-            _model = self.gen(
-                model=_model,
-                name="result",
-                max_tokens=len(
-                    self.model.tokenizer.encode(
-                        left_values
-                        + right_values
-                        + (CONST.DEFAULT_ANS_SEP * len(left_values))
-                    )
+        )
+        # Create this pattern on the fly, and not in infer_gen_constraints
+        # since it depends on what our left/right values are
+        regex = (
+            lambda num_repeats: "(({}){}({})\n)".format(
+                "|".join([re.escape(i) for i in left_values]),
+                CONST.DEFAULT_ANS_SEP,
+                "|".join(
+                    [re.escape(i) for i in right_values] + [CONST.DEFAULT_NAN_ANS]
                 ),
-                stop=["---"],
-                **self.gen_kwargs,
             )
-        return _model
+            + "{"
+            + str(num_repeats)
+            + "}"
+        )
+        if isinstance(self.model, LocalModel):
+            generator = outlines.generate.regex(
+                self.model.logits_generator, regex(len(left_values))
+            )
+        elif isinstance(self.model, RemoteModel):
+            generator = outlines.generate.text(self.model.logits_generator)
+        else:
+            raise ValueError(f"Unknown model type {type(self.model.logits_generator)}")
+        result = generator(
+            prompt,
+            max_tokens=len(
+                self.model.logits_generator.tokenizer.encode(
+                    "".join(left_values)
+                    + "".join(right_values)
+                    + (CONST.DEFAULT_ANS_SEP * len(left_values)),
+                )[0][0]
+            ),
+            stop_at=["---"],
+        )
+        logger.debug(Fore.CYAN + prompt + Fore.RESET)
+        logger.debug(Fore.LIGHTCYAN_EX + result + Fore.RESET)
+        return result
 
 
 class LLMJoin(JoinIngredient):
@@ -113,7 +135,7 @@ class LLMJoin(JoinIngredient):
     ) -> dict:
         if question is None:
             question = "Join to same topics."
-        res = model.predict(
+        result = model.predict(
             program=JoinProgram,
             sep=CONST.DEFAULT_ANS_SEP,
             left_values=left_values,
@@ -122,12 +144,12 @@ class LLMJoin(JoinIngredient):
             **kwargs,
         )
 
-        _result = res["result"].split("\n")
-        result: dict = {}
+        _result = result.split("\n")
+        mapping: dict = {}
         for item in _result:
             if CONST.DEFAULT_ANS_SEP in item:
                 k, v = item.rsplit(CONST.DEFAULT_ANS_SEP, 1)
                 if any(pred == CONST.DEFAULT_NAN_ANS for pred in {k, v}):
                     continue
-                result[k] = v
-        return result
+                mapping[k] = v
+        return mapping
