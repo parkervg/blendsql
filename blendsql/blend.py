@@ -450,9 +450,9 @@ def _blend(
             meta=SmoothieMeta(
                 num_values_passed=0,
                 prompt_tokens=blender.prompt_tokens if blender is not None else 0,
-                completion_tokens=blender.completion_tokens
-                if blender is not None
-                else 0,
+                completion_tokens=(
+                    blender.completion_tokens if blender is not None else 0
+                ),
                 prompts=blender.prompts if blender is not None else [],
                 ingredients=[],
                 query=original_query,

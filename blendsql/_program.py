@@ -2,6 +2,7 @@
 Contains base class for guidance programs for LLMs.
 https://github.com/guidance-ai/guidance
 """
+
 from typing import Tuple
 import inspect
 import ast
