@@ -1,5 +1,5 @@
 import copy
-from typing import Dict, Union, Optional, Set, List
+from typing import Dict, Union, Optional, Set, List, Tuple
 import pandas as pd
 import outlines
 import re
@@ -20,7 +20,7 @@ class QAProgram(Program):
         table_title: Optional[str] = None,
         max_tokens: int = None,
         **kwargs,
-    ) -> str:
+    ) -> Tuple[str, str]:
         prompt = ""
         serialized_db = context.to_string() if context is not None else ""
         prompt += "Answer the question for the table. "
@@ -62,7 +62,7 @@ class QAProgram(Program):
         result = generator(prompt, max_tokens=max_tokens)
         if options:
             result = modified_option_to_original.get(result, result)
-        return result
+        return (result, prompt)
 
 
 class LLMQA(QAIngredient):

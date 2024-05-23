@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import outlines
 import re
 from colorama import Fore
@@ -18,7 +18,7 @@ class JoinProgram(Program):
         right_values: List[str],
         sep: str,
         **kwargs,
-    ):
+    ) -> Tuple[str, str]:
         prompt = ""
         prompt += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
         prompt += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
@@ -115,7 +115,7 @@ class JoinProgram(Program):
         )
         logger.debug(Fore.CYAN + prompt + Fore.RESET)
         logger.debug(Fore.LIGHTCYAN_EX + result + Fore.RESET)
-        return result
+        return (result, prompt)
 
 
 class LLMJoin(JoinIngredient):

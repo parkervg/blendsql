@@ -70,7 +70,7 @@ def test_simple_cache():
     b = model_b.predict(program=DummyProgram, question=TEST_QUESTION)["uuid"]
 
     assert a == b
-    assert model_b.num_llm_calls == 0
+    assert model_b.num_calls == 0
 
 
 def test_different_models():
@@ -121,7 +121,7 @@ def test_same_global_vars():
     b = model_b.predict(program=DummyProgramWithGlobal, question=TEST_QUESTION)["uuid"]
 
     assert a == b
-    assert model_b.num_llm_calls == 0
+    assert model_b.num_calls == 0
 
 
 def test_different_global_vars():

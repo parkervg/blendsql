@@ -53,6 +53,7 @@ class Model:
     prompts: list = attrib(init=False)
     prompt_tokens: int = attrib(init=False)
     completion_tokens: int = attrib(init=False)
+    num_calls: int = attrib(init=False)
     cache: Cache = attrib(init=False)
     run_setup_on_load: bool = attrib(default=True)
 
@@ -65,6 +66,7 @@ class Model:
         self.prompts: List[str] = []
         self.prompt_tokens = 0
         self.completion_tokens = 0
+        self.num_calls = 0
         if self.requires_config:
             if self.env is None:
                 self.env = "."
@@ -117,6 +119,7 @@ class Model:
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
         response, prompt = program(model=self, **kwargs)
+        self.num_calls += 1
         if self.tokenizer is not None:
             self.prompt_tokens += len(self.tokenizer.encode(prompt))
             self.completion_tokens += len(self.tokenizer.encode(response))
