@@ -449,7 +449,10 @@ def _blend(
             df=db.execute_to_df(query),
             meta=SmoothieMeta(
                 num_values_passed=0,
-                num_prompt_tokens=0,
+                prompt_tokens=blender.prompt_tokens if blender is not None else 0,
+                completion_tokens=blender.completion_tokens
+                if blender is not None
+                else 0,
                 prompts=blender.prompts if blender is not None else [],
                 ingredients=[],
                 query=original_query,
@@ -827,7 +830,8 @@ def _blend(
                 ]
             )
             + _prev_passed_values,
-            num_prompt_tokens=blender.num_prompt_tokens if blender is not None else 0,
+            prompt_tokens=blender.prompt_tokens if blender is not None else 0,
+            completion_tokens=blender.completion_tokens if blender is not None else 0,
             prompts=blender.prompts if blender is not None else [],
             ingredients=ingredients,
             query=original_query,

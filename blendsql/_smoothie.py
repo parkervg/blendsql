@@ -12,9 +12,8 @@ Defines output of an executed BlendSQL script
 @dataclass
 class SmoothieMeta:
     num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
-    num_prompt_tokens: (
-        int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
-    )
+    prompt_tokens: int
+    completion_tokens: int
     prompts: List[str]  # Log of prompts submitted to model
     ingredients: Collection[Ingredient]
     query: str
