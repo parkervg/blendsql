@@ -3,11 +3,11 @@ import outlines
 import re
 from colorama import Fore
 
-from blendsql.models._model import Model, LocalModel, RemoteModel
-from blendsql._program import Program, newline_dedent
+from blendsql.models import Model, LocalModel
+from blendsql._program import Program
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
-from blendsql.utils import logger
+from blendsql.utils import logger, newline_dedent
 
 
 class JoinProgram(Program):
@@ -99,10 +99,9 @@ class JoinProgram(Program):
             generator = outlines.generate.regex(
                 self.model.logits_generator, regex(len(left_values))
             )
-        elif isinstance(self.model, RemoteModel):
-            generator = outlines.generate.text(self.model.logits_generator)
         else:
-            raise ValueError(f"Unknown model type {type(self.model.logits_generator)}")
+            generator = outlines.generate.text(self.model.logits_generator)
+
         result = generator(
             prompt,
             max_tokens=len(

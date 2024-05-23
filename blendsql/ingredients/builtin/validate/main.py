@@ -1,8 +1,8 @@
-from typing import Dict, Union, Optional
+from typing import Dict, Union, Optional, Tuple
 import pandas as pd
-from guidance import select
+import outlines
 
-from blendsql.models._model import Model
+from blendsql.models import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 
@@ -14,19 +14,18 @@ class ValidateProgram(Program):
         context: pd.DataFrame = None,
         table_title: str = None,
         **kwargs,
-    ):
+    ) -> Tuple[str, str]:
         serialized_db = context.to_string() if context is not None else ""
-        _model = self.model.guidance_model
-        with self.systemcontext:
-            _model += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
-        with self.usercontext:
-            _model += f"Claim: {question}"
-            if table_title:
-                _model += f"\nTable Description: {table_title}"
-            _model += f"\n{serialized_db}\n\nAnswer:"
-        with self.assistantcontext:
-            _model += select(options=["true", "false"], name="result")
-        return _model
+        prompt = ""
+        prompt += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
+        prompt += f"Claim: {question}"
+        if table_title:
+            prompt += f"\nTable Description: {table_title}"
+        prompt += f"\n{serialized_db}\n\nAnswer:"
+        generator = outlines.generate.choice(
+            self.model.logits_generator, ["true", "false"]
+        )
+        return (generator(prompt), prompt)
 
 
 class LLMValidate(QAIngredient):
@@ -43,11 +42,11 @@ class LLMValidate(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
-        res = model.predict(
+        response = model.predict(
             program=ValidateProgram,
             question=question,
             context=context,
             table_title=None,
             **kwargs,
         )
-        return int(res["result"] == "true")
+        return int(response == "true")

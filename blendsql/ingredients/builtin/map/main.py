@@ -1,18 +1,18 @@
 import logging
-from typing import Union, Iterable, Any, Dict, Optional, List, Callable
+from typing import Union, Iterable, Any, Dict, Optional, List, Callable, Tuple
 
+import json
 import pandas as pd
 from colorama import Fore
 from tqdm import tqdm
 import outlines
 
-from blendsql.utils import logger
-from blendsql.models._model import Model, LocalModel
-from blendsql.models import OpenaiLLM
+from blendsql.utils import logger, newline_dedent
+from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._program import Program, newline_dedent
+from blendsql._program import Program
 
 
 class MapProgram(Program):
@@ -29,7 +29,7 @@ class MapProgram(Program):
         table_title: str = None,
         colname: str = None,
         **kwargs,
-    ) -> str:
+    ) -> Tuple[str, str]:
         prompt = ""
         prompt += """Given a set of values from a database, answer the question row-by-row, in order."""
         if include_tf_disclaimer:
@@ -119,7 +119,7 @@ class MapProgram(Program):
             )
         else:
             generator = outlines.generate.text(self.model.logits_generator)
-        return generator(prompt, max_tokens=max_tokens)
+        return (generator(prompt, max_tokens=max_tokens), prompt)
 
 
 class LLMMap(MapIngredient):
@@ -156,8 +156,8 @@ class LLMMap(MapIngredient):
         """
         # Unpack default kwargs
         tablename, colname = self.unpack_default_kwargs(**kwargs)
-        # OpenAI endpoints can't use patterns
-        pattern = None if isinstance(model, OpenaiLLM) else pattern
+        # Remote endpoints can't use patterns
+        pattern = None if isinstance(model, RemoteModel) else pattern
         if value_limit is not None:
             values = values[:value_limit]
         values = [value if not pd.isna(value) else "-" for value in values]
@@ -245,7 +245,7 @@ class LLMMap(MapIngredient):
                 continue
         logger.debug(
             Fore.YELLOW
-            + f"Finished with values {dict(zip(values[:10], split_results[:10]))}"
+            + f"Finished with values:\n{json.dumps(dict(zip(values[:10], split_results[:10])), indent=4)}"
             + Fore.RESET
         )
         return split_results

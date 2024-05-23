@@ -2,8 +2,9 @@ import copy
 from typing import Dict, Union, Optional, Set, List
 import pandas as pd
 import outlines
+import re
 
-from blendsql.models._model import Model
+from blendsql.models import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
@@ -28,12 +29,6 @@ class QAProgram(Program):
         else:
             prompt += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
         if options is not None:
-            # prompt += "Your answer should be a selection from one of the following options:\n"
-            # int_prefix_options = []
-            # for _idx, option in enumerate(options):
-            #     int_prefix_option = f"{option}"
-            #     int_prefix_options.append(int_prefix_option)
-            #     prompt += f"{int_prefix_option}\n"
             # Add in title case, since this helps with selection
             modified_option_to_original = {}
             _options = copy.deepcopy(options)
@@ -60,7 +55,7 @@ class QAProgram(Program):
             prompt += f"\n\nContext: \n {serialized_db}"
         if options is not None:
             generator = outlines.generate.choice(
-                self.model.logits_generator, [str(i) for i in options]
+                self.model.logits_generator, [re.escape(str(i)) for i in options]
             )
         else:
             generator = outlines.generate.text(self.model.logits_generator)
