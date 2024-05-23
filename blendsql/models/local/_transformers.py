@@ -18,10 +18,12 @@ class TransformersLLM(LocalModel):
             raise ImportError(
                 "Please install transformers with `pip install transformers`!"
             ) from None
+        import transformers
 
         super().__init__(
             model_name_or_path=model_name_or_path,
             requires_config=False,
+            tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
             caching=caching,
             **kwargs
         )
