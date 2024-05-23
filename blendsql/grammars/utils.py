@@ -1,9 +1,9 @@
-import logging
 from pathlib import Path
 from typing import Optional, Collection, List, Dict, Type
 from string import Template
 from colorama import Fore
 
+from ..utils import logger
 from ..ingredients import Ingredient
 from .._constants import IngredientType
 from .minEarley.parser import EarleyParser
@@ -28,7 +28,7 @@ def load_cfg_parser(
     Dynamically modifies grammar string to include only valid ingredients.
     """
     if ingredients is None:
-        logging.debug(
+        logger.debug(
             Fore.YELLOW
             + "No ingredients passed to `load_cfg_parser()`!\nWas this on purpose?"
         )

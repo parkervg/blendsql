@@ -1,9 +1,7 @@
 from typing import List, Optional
-from guidance import gen
-from textwrap import dedent
 
 from blendsql.models._model import Model
-from blendsql._program import Program
+from blendsql._program import Program, newline_dedent
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
 
@@ -17,7 +15,7 @@ class JoinProgram(Program):
         sep: str,
         **kwargs,
     ):
-        _model = self.model
+        _model = self.model.guidance_model
         left_values = "\n".join(left_values)
         right_values = "\n".join(right_values)
         with self.systemcontext:
@@ -25,7 +23,7 @@ class JoinProgram(Program):
             _model += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
         with self.usercontext:
             if self.few_shot:
-                _model += dedent(
+                _model += newline_dedent(
                     """
                 Criteria: Join to same topics.
 
@@ -69,7 +67,7 @@ class JoinProgram(Program):
                 ---
                 """
                 )
-            _model += dedent(
+            _model += newline_dedent(
                 f"""
                 Criteria: {join_criteria}
 
@@ -83,7 +81,19 @@ class JoinProgram(Program):
                 """
             )
         with self.assistantcontext:
-            _model += gen(name="result", **self.gen_kwargs)
+            _model = self.gen(
+                model=_model,
+                name="result",
+                max_tokens=len(
+                    self.model.tokenizer.encode(
+                        left_values
+                        + right_values
+                        + (CONST.DEFAULT_ANS_SEP * len(left_values))
+                    )
+                ),
+                stop=["---"],
+                **self.gen_kwargs,
+            )
         return _model
 
 
@@ -98,9 +108,11 @@ class LLMJoin(JoinIngredient):
         left_values: List[str],
         right_values: List[str],
         model: Model,
-        question: Optional[str] = "Join to same topics.",
+        question: Optional[str] = None,
         **kwargs,
     ) -> dict:
+        if question is None:
+            question = "Join to same topics."
         res = model.predict(
             program=JoinProgram,
             sep=CONST.DEFAULT_ANS_SEP,

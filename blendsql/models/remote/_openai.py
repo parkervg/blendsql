@@ -1,13 +1,9 @@
-import logging
 import os
 from guidance.models import OpenAI, AzureOpenAI, OpenAICompletion
+from guidance.models import Model as GuidanceModel
 import tiktoken
 
 from .._model import Model
-
-logging.getLogger("openai").setLevel(logging.CRITICAL)
-logging.getLogger("guidance").setLevel(logging.CRITICAL)
-logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
 # guidance interprets these as chat models, for some reason
 OVERRIDE_COMPLETION_MODELS = {"davinci-002", "babbage-002"}
@@ -71,7 +67,7 @@ class AzureOpenaiLLM(Model):
             **kwargs
         )
 
-    def _load_model(self) -> Model:
+    def _load_model(self) -> GuidanceModel:
         return AzureOpenAI(
             self.model_name_or_path,
             api_key=os.getenv("OPENAI_API_KEY"),
@@ -107,7 +103,7 @@ class OpenaiLLM(Model):
             **kwargs
         )
 
-    def _load_model(self) -> Model:
+    def _load_model(self) -> GuidanceModel:
         return (
             OpenAICompletion(
                 self.model_name_or_path, api_key=os.getenv("OPENAI_API_KEY"), echo=False

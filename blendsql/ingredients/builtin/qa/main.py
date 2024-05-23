@@ -1,6 +1,6 @@
 import copy
 from typing import Dict, Union, Optional, Set, List
-from guidance import gen, select
+from guidance import select
 import pandas as pd
 import re
 from blendsql.models._model import Model
@@ -19,7 +19,7 @@ class QAProgram(Program):
         table_title: Optional[str] = None,
         **kwargs,
     ):
-        _model = self.model
+        _model = self.model.guidance_model
         serialized_db = context.to_string() if context is not None else ""
         with self.systemcontext:
             _model += "Answer the question for the table. "
@@ -61,7 +61,7 @@ class QAProgram(Program):
             if options is not None:
                 _model += select(options=[str(i) for i in options], name="result")
             else:
-                _model += gen(name="result", **self.gen_kwargs)
+                _model += self.gen(model=_model, name="result", **self.gen_kwargs)
         if options:
             _model._variables["result"] = modified_option_to_original.get(
                 _model._variables["result"], _model._variables["result"]

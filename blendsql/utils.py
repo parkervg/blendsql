@@ -2,10 +2,12 @@ from typing import Tuple
 import re
 from tabulate import tabulate
 from functools import partial
-
+import logging
 
 from ._constants import HF_REPO_ID
 
+logging.basicConfig()
+logger = logging.getLogger("blendsql")
 tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
 
 

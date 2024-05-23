@@ -4,15 +4,14 @@ from typing import Union, Iterable, Any, Dict, Optional, List
 import pandas as pd
 from colorama import Fore
 from tqdm import tqdm
-from textwrap import dedent
-from guidance import gen
 
+from blendsql.utils import logger
 from blendsql.models._model import Model
 from blendsql.models import OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._program import Program
+from blendsql._program import Program, newline_dedent
 
 
 class MapProgram(Program):
@@ -28,12 +27,12 @@ class MapProgram(Program):
         colname: str = None,
         **kwargs,
     ):
-        _model = self.model
+        _model = self.model.guidance_model
         with self.systemcontext:
             _model += """Given a set of values from a database, answer the question row-by-row, in order."""
             if include_tf_disclaimer:
                 _model += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-            _model += dedent(
+            _model += newline_dedent(
                 f"""
             The answer should be a list separated by '{sep}', and have {len(values)} items in total.
             When you have given all {len(values)} answers, stop responding.
@@ -42,7 +41,7 @@ class MapProgram(Program):
             )
         with self.usercontext:
             if self.few_shot:
-                _model += dedent(
+                _model += newline_dedent(
                     """
                 ---
 
@@ -103,10 +102,10 @@ class MapProgram(Program):
                 """
                 )
             if table_title:
-                _model += dedent(
+                _model += newline_dedent(
                     f"The following values come from the column '{colname}', in a table titled '{table_title}'."
                 )
-            _model += dedent(f"""Q: {question}\nValues:\n""")
+            _model += newline_dedent(f"""Q: {question}\nValues:\n""")
             for value in values:
                 _model += f"`{value}`\n"
             if output_type:
@@ -115,7 +114,7 @@ class MapProgram(Program):
                 _model += f"\nHere are some example outputs: {example_outputs}\n"
             _model += "\nA:"
         with self.assistantcontext:
-            _model += gen(name="result", **self.gen_kwargs)
+            _model = self.gen(model=_model, name="result", **self.gen_kwargs)
         return _model
 
 
@@ -161,7 +160,7 @@ class LLMMap(MapIngredient):
         table_title = None
         if table_to_title is not None:
             if tablename not in table_to_title:
-                logging.debug(f"Tablename {tablename} not in given table_to_title!")
+                logger.debug(f"Tablename {tablename} not in given table_to_title!")
             else:
                 table_title = table_to_title[tablename]
         split_results = []
@@ -173,7 +172,7 @@ class LLMMap(MapIngredient):
                 desc=f"Making calls to Model with batch_size {CONST.VALUE_BATCH_SIZE}",
                 bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
             )
-            if logging.DEBUG >= logging.root.level
+            if logger.level >= logging.DEBUG
             else range(0, len(values), CONST.VALUE_BATCH_SIZE)
         )
 
@@ -224,12 +223,12 @@ class LLMMap(MapIngredient):
             ]
             expected_len = len(values[i : i + CONST.VALUE_BATCH_SIZE])
             if len(_r) != expected_len:
-                logging.debug(
+                logger.debug(
                     Fore.YELLOW
                     + f"Mismatch between length of values and answers!\nvalues:{expected_len}, answers:{len(_r)}"
                     + Fore.RESET
                 )
-                logging.debug(_r)
+                logger.debug(_r)
             # Cut off, in case we over-predicted
             _r = _r[:expected_len]
             # Add, in case we under-predicted
@@ -241,7 +240,7 @@ class LLMMap(MapIngredient):
                 split_results[idx] = literal_eval(i)
             except (ValueError, SyntaxError):
                 continue
-        logging.debug(
+        logger.debug(
             Fore.YELLOW + f"Finished with values {split_results[:10]}" + Fore.RESET
         )
         return split_results

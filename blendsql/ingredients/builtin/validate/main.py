@@ -16,7 +16,7 @@ class ValidateProgram(Program):
         **kwargs,
     ):
         serialized_db = context.to_string() if context is not None else ""
-        _model = self.model
+        _model = self.model.guidance_model
         with self.systemcontext:
             _model += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
         with self.usercontext:

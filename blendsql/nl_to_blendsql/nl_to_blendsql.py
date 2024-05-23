@@ -5,6 +5,7 @@ from colorama import Fore
 import re
 import logging
 
+from ..utils import logger
 from ..ingredients import Ingredient, IngredientException
 from ..models import Model
 from ..db import Database, double_quote_escape
@@ -40,7 +41,6 @@ class ParserProgram(Program):
         system_prompt: str,
         serialized_db: str,
         question: str,
-        stream: bool = False,
         **kwargs,
     ):
         _model = self.model
@@ -50,7 +50,7 @@ class ParserProgram(Program):
             _model += f"{serialized_db}\n"
             _model += f"Question: {question}\n"
             _model += f"BlendSQL: "
-        logging.debug(
+        logger.debug(
             Fore.LIGHTYELLOW_EX
             + f"Using parsing prompt:"
             + Fore.YELLOW
@@ -63,7 +63,6 @@ class ParserProgram(Program):
                 name="result",
                 max_tokens=256,
                 stop=PARSER_STOP_TOKENS,
-                stream=stream,
             )
         return _model
 
@@ -99,8 +98,8 @@ def validate_program(prediction: str, parser: EarleyParser) -> bool:
         parser.parse(prediction)
         return True
     except Exception as runtime_e:
-        logging.debug(Fore.LIGHTCYAN_EX + prediction + Fore.RESET)
-        logging.debug(f"Error: {str(runtime_e)}")
+        logger.debug(Fore.LIGHTCYAN_EX + prediction + Fore.RESET)
+        logger.debug(f"Error: {str(runtime_e)}")
         return False
 
 
@@ -142,6 +141,7 @@ def nl_to_blendsql(
     question: str,
     db: Database,
     model: Model,
+    correction_model: Model,
     ingredients: Optional[Collection[Type[Ingredient]]],
     few_shot_examples: Union[str, FewShot] = "",
     args: NLtoBlendSQLArgs = None,
@@ -158,15 +158,15 @@ def nl_to_blendsql(
         few_shot_examples: String prompt introducing few shot nl-to-blendsql examples.
         max_grammar_corrections: Optional int defining maximum CFG-guided correction steps to be taken.
             This is based on the method in https://arxiv.org/pdf/2305.19234.
-        verbose: Boolean defining whether to run in logging.debug mode
+        verbose: Boolean defining whether to run in logger mode
 
     Returns:
         ret_prediction: Final BlendSQL query prediction
     """
     if verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
     else:
-        logging.getLogger().setLevel(logging.ERROR)
+        logger.setLevel(logging.ERROR)
     if args is None:
         args = NLtoBlendSQLArgs()
     parser: EarleyParser = load_cfg_parser(ingredients)
@@ -229,7 +229,7 @@ def nl_to_blendsql(
         )
         candidates = [i for i in candidates if i.strip() != ""]
         if len(candidates) == 0:
-            logging.debug(
+            logger.debug(
                 Fore.LIGHTMAGENTA_EX + "No correction pairs found" + Fore.RESET
             )
             return prefix
@@ -238,7 +238,7 @@ def nl_to_blendsql(
             selected_candidate = candidates[0]
         else:
             # Generate the continuation candidate with the highest probability
-            selected_candidate = model.predict(
+            selected_candidate = correction_model.predict(
                 program=CorrectionProgram,
                 system_prompt=system_prompt,
                 question=question,
@@ -265,7 +265,7 @@ def nl_to_blendsql(
         num_correction_left -= 1
 
     if ret_prediction is None:
-        logging.debug(
+        logger.debug(
             Fore.RED
             + f"cannot find a valid prediction after {args.max_grammar_corrections} retries"
             + Fore.RESET
@@ -274,7 +274,7 @@ def nl_to_blendsql(
     ret_prediction = post_process_blendsql(
         ret_prediction, db, use_tables=args.use_tables
     )
-    logging.debug(Fore.GREEN + ret_prediction + Fore.RESET)
+    logger.debug(Fore.GREEN + ret_prediction + Fore.RESET)
     return ret_prediction
 
 

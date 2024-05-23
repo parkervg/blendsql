@@ -2,7 +2,6 @@ from typing import Generator, List, Dict, Collection, Type, Optional, Union
 from typing import Iterable
 import pandas as pd
 from colorama import Fore
-import logging
 import re
 from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
@@ -12,6 +11,7 @@ from sqlalchemy.engine import Engine, Connection, URL
 from pandas.io.sql import get_schema
 from abc import abstractmethod
 
+from ..utils import logger
 from .utils import double_quote_escape, truncate_df_content
 from .bridge_content_encoder import get_database_matches
 
@@ -151,7 +151,7 @@ class Database:
         create_table_stmt = re.sub(
             r"^CREATE TABLE", "CREATE TEMP TABLE", create_table_stmt
         )
-        logging.debug(Fore.CYAN + create_table_stmt + Fore.RESET)
+        logger.debug(Fore.CYAN + create_table_stmt + Fore.RESET)
         self.con.execute(text(create_table_stmt))
         df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 

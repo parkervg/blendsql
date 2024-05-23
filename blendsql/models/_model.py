@@ -1,7 +1,6 @@
 import functools
-import logging
 from typing import Any, List
-import guidance
+from guidance.models import Model as GuidanceModel
 import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
@@ -14,6 +13,7 @@ import platformdirs
 import hashlib
 from abc import abstractmethod
 
+from ..utils import logger
 from .._program import Program, program_to_str
 from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
@@ -48,7 +48,7 @@ class Model:
     env: str = attrib(default=".")
     caching: bool = attrib(default=True)
 
-    model: guidance.models.Model = attrib(init=False)
+    guidance_model: GuidanceModel = attrib(init=False)
     prompts: list = attrib(init=False)
     cache: Cache = attrib(init=False)
     run_setup_on_load: bool = attrib(default=True)
@@ -86,7 +86,7 @@ class Model:
             ), f"`tokenizer` passed to {self.__class__} should have `encode` method!"
         if self.run_setup_on_load:
             self._setup()
-        self.model = self._load_model()
+        self.guidance_model: GuidanceModel = self._load_model()
 
     def predict(self, program: Program, **kwargs) -> dict:
         """Takes a `Program` and some kwargs, and evaluates it with context of
@@ -107,21 +107,23 @@ class Model:
             # First, check our cache
             key = self._create_key(program, **kwargs)
             if key in self.cache:
-                logging.debug(Fore.MAGENTA + "Using cache..." + Fore.RESET)
+                logger.debug(Fore.MAGENTA + "Using cache..." + Fore.RESET)
                 self.prompts.insert(
                     -1, self.format_prompt(self.cache.get(key), **kwargs)
                 )
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
         self.num_llm_calls += 1
-        model = program(model=self.model, **kwargs)
+        _guidance_model = program(model=self, **kwargs)
         if self.tokenizer is not None:
-            prompt = model._current_prompt()
+            prompt = _guidance_model._current_prompt()
             self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
-        self.prompts.insert(-1, self.format_prompt(model._variables, **kwargs))
+        self.prompts.insert(
+            -1, self.format_prompt(_guidance_model._variables, **kwargs)
+        )
         if self.caching:
-            self.cache[key] = model._variables
-        return model._variables
+            self.cache[key] = _guidance_model._variables
+        return _guidance_model._variables
 
     def _create_key(self, program: Program, **kwargs) -> str:
         """Generates a hash to use in diskcache Cache.

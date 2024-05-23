@@ -26,6 +26,7 @@ from colorama import Fore
 import string
 
 from .utils import (
+    logger,
     sub_tablename,
     get_temp_session_table,
     get_temp_subquery_table,
@@ -53,10 +54,7 @@ from ._dialect import _parse_one, FTS5SQLite
 from .grammars._peg_grammar import grammar
 from .ingredients.ingredient import Ingredient, IngredientException
 from ._smoothie import Smoothie, SmoothieMeta
-from ._constants import (
-    IngredientType,
-    IngredientKwarg,
-)
+from ._constants import IngredientType, IngredientKwarg
 from .models._model import Model
 
 
@@ -244,7 +242,7 @@ def preprocess_blendsql(
             if blender_args is not None:
                 for k, v in blender_args.items():
                     if k in kwargs_dict:
-                        logging.debug(
+                        logger.debug(
                             Fore.YELLOW
                             + f"Overriding passed arg for '{k}'!"
                             + Fore.RESET
@@ -385,7 +383,7 @@ def disambiguate_and_submit_blend(
     """
     for alias, d in ingredient_alias_to_parsed_dict.items():
         query = re.sub(re.escape(alias), d["raw"], query)
-    logging.debug(
+    logger.debug(
         Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`..." + Fore.RESET
     )
     return _blend(query=query, **kwargs)
@@ -490,7 +488,7 @@ def _blend(
                     + get_first_child(subquery).sql(dialect=FTS5SQLite)
                 )
             else:
-                logging.debug(
+                logger.debug(
                     Fore.YELLOW
                     + "Encountered subquery without `SELECT`, and more than 1 table!\nCannot optimize yet, skipping this step."
                 )
@@ -540,7 +538,7 @@ def _blend(
                 )
                 query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
             if abstracted_query is not None:
-                logging.debug(
+                logger.debug(
                     Fore.CYAN
                     + f"Executing `{abstracted_query}` and setting to `{_get_temp_subquery_table(tablename)}`..."
                     + Fore.RESET
@@ -552,8 +550,8 @@ def _blend(
                     )
                 except OperationalError as e:
                     # Fallback to naive execution
-                    logging.debug(Fore.RED + e + Fore.RESET)
-                    logging.debug(
+                    logger.debug(Fore.RED + e + Fore.RESET)
+                    logger.debug(
                         Fore.RED + "Falling back to naive execution..." + Fore.RESET
                     )
                     naive_execution = True
@@ -805,15 +803,15 @@ def _blend(
                 a, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
             )
 
-    logging.debug("")
-    logging.debug(
+    logger.debug("")
+    logger.debug(
         "**********************************************************************************"
     )
-    logging.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
-    logging.debug(
+    logger.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
+    logger.debug(
         "**********************************************************************************"
     )
-    logging.debug("")
+    logger.debug("")
 
     df = db.execute_to_df(query)
 
@@ -857,7 +855,7 @@ def blend(
         query: The BlendSQL query to execute
         db: Database connector object
         ingredients: List of ingredient objects, to use in interpreting BlendSQL query
-        verbose: Boolean defining whether to run in logging.debug mode
+        verbose: Boolean defining whether to run in logger mode
         blender: Optionally override whatever llm argument we pass to Model ingredient.
             Useful for research applications, where we don't (necessarily) want the parser to choose endpoints.
         infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
@@ -875,9 +873,9 @@ def blend(
         smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata
     """
     if verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
     else:
-        logging.getLogger().setLevel(logging.ERROR)
+        logger.setLevel(logging.ERROR)
     start = time.time()
     try:
         smoothie = _blend(

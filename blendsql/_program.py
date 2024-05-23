@@ -2,8 +2,8 @@
 Contains base class for guidance programs for LLMs.
 https://github.com/guidance-ai/guidance
 """
-
-from typing import Optional, Union
+import logging
+from typing import Optional
 import re
 from guidance.models import Model as GuidanceModel
 from guidance.models import Chat as GuidanceChatModel
@@ -15,9 +15,14 @@ import ast
 import textwrap
 from colorama import Fore
 
+# from .models._model import Model
+from .utils import logger
+
 GUIDANCE_TO_OLLAMA_ARGS = {
     "max_tokens": "num_predict",
 }
+
+newline_dedent = lambda x: "\n".join([m.lstrip() for m in x.split("\n")])
 
 
 def get_contexts(model: GuidanceModel):
@@ -36,7 +41,7 @@ class Program:
 
     def __new__(
         self,
-        model: GuidanceModel,
+        model: "Model",
         gen_kwargs: Optional[dict] = None,
         few_shot: bool = True,
         **kwargs,
@@ -49,7 +54,7 @@ class Program:
             self.usercontext,
             self.systemcontext,
             self.assistantcontext,
-        ) = get_contexts(self.model)
+        ) = get_contexts(self.model.guidance_model)
         return self.__call__(self, **kwargs)
 
     def __call__(self, *args, **kwargs):
@@ -57,50 +62,25 @@ class Program:
 
     @staticmethod
     def gen(
-        model: Union[GuidanceModel, "OllamaGuidanceModel"],
-        name=None,
-        stream: bool = False,
+        model: GuidanceModel,
+        name: str,
+        temperature: float = 0.0,
         **kwargs,
     ) -> "GuidanceModel":
-        if isinstance(model, GuidanceModel):
-            if stream:
-                for part in model.stream() + gen(name=name, **kwargs):
-                    result = str(part).rsplit("\nBlendSQL:", 1)[-1].strip()
-                    result = re.split(re.escape("<|im_start|>assistant\n"), result)[
-                        -1
-                    ].rstrip("<|im_end|>")
-                    print("\n" * 50 + Fore.CYAN + result + Fore.RESET)
-                model = model.set("result", result)
-            else:
-                model += gen(name=name, **kwargs)
+        stream = logger.level <= logging.DEBUG
+        if stream:
+            rsplit_anchor = model._current_prompt().split("\n")[-1]
+            for part in model.stream() + gen(
+                name=name, temperature=temperature, **kwargs
+            ):
+                result = str(part).rsplit(rsplit_anchor, 1)[-1].strip()
+                result = re.split(re.escape("<|im_start|>assistant\n"), result)[
+                    -1
+                ].rstrip("<|im_end|>")
+                print("\n" * 50 + Fore.CYAN + result + Fore.RESET)
+            model = model.set(name, result)
         else:
-            import ollama
-            from ollama import Options
-
-            options = Options(
-                {GUIDANCE_TO_OLLAMA_ARGS.get(k, k): v for k, v in kwargs.items()}
-            )
-            if "temperature" not in options:
-                options["temperature"] = 0.0
-            response = ollama.chat(
-                model=model.model_name_or_path,
-                messages=[{"role": "user", "content": model._current_prompt()}],
-                options=options,
-                stream=stream,
-            )
-            if stream:
-                res = []
-                for chunk in response:
-                    res.append(chunk["message"]["content"])
-                    print(
-                        Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
-                        end="",
-                        flush=True,
-                    )
-                print("\n")
-                model._variables[name] = "".join(res)
-            else:
-                model._variables[name] = response["message"]["content"]
+            model += gen(name=name, temperature=temperature, **kwargs)
         return model
 
 
@@ -118,7 +98,7 @@ def program_to_str(program: Program):
         >>> PROMPT = "Here is my question: {question}"
         >>> class CorrectionProgram(Program):
         >>>     def __call__(self, question: str, **kwargs):
-        >>>         return self.model + PROMPT.format(question)
+        >>>         return self.guidance_model + PROMPT.format(question)
 
     Some helpful refs:
         - https://github.com/universe-proton/universe-topology/issues/15

@@ -1,10 +1,9 @@
-import logging
 import importlib.util
 from guidance.models import LlamaCpp
+from guidance.models import Model as GuidanceModel
+
 
 from .._model import Model
-
-logging.getLogger("guidance").setLevel(logging.CRITICAL)
 
 _has_llama_cpp = importlib.util.find_spec("llama_cpp") is not None
 
@@ -31,5 +30,5 @@ class LlamaCppLLM(Model):
             **kwargs
         )
 
-    def _load_model(self) -> Model:
+    def _load_model(self) -> GuidanceModel:
         return LlamaCpp(self.model_name_or_path, n_ctx=4000, echo=False)

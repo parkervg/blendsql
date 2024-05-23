@@ -1,10 +1,8 @@
-import logging
 import importlib.util
-from guidance.models import Transformers, Model
+from guidance.models import Transformers
+from guidance.models import Model as GuidanceModel
 
 from .._model import Model
-
-logging.getLogger("guidance").setLevel(logging.CRITICAL)
 
 _has_transformers = importlib.util.find_spec("transformers") is not None
 
@@ -31,5 +29,5 @@ class TransformersLLM(Model):
             **kwargs
         )
 
-    def _load_model(self) -> Model:
+    def _load_model(self) -> GuidanceModel:
         return Transformers(self.model_name_or_path, echo=False)
