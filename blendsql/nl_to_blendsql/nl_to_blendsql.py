@@ -1,13 +1,13 @@
 from typing import Collection, List, Tuple, Set, Optional, Union, Type
 from textwrap import dedent
-from guidance import select
+import outlines
 from colorama import Fore
 import re
 import logging
 
 from ..utils import logger
 from ..ingredients import Ingredient, IngredientException
-from ..models import Model
+from ..models import Model, OllamaLLM
 from ..db import Database, double_quote_escape
 from .._program import Program
 from ..grammars.minEarley.parser import EarleyParser
@@ -42,29 +42,48 @@ class ParserProgram(Program):
         serialized_db: str,
         question: str,
         **kwargs,
-    ):
-        _model = self.model
-        with self.systemcontext:
-            _model += system_prompt + "\n"
-        with self.usercontext:
-            _model += f"{serialized_db}\n"
-            _model += f"Question: {question}\n"
-            _model += f"BlendSQL: "
+    ) -> Tuple[str, str]:
+        prompt = ""
+        prompt += system_prompt
+        prompt += f"{serialized_db}\n"
+        prompt += f"Question: {question}\n"
+        prompt += f"BlendSQL: "
         logger.debug(
             Fore.LIGHTYELLOW_EX
             + f"Using parsing prompt:"
             + Fore.YELLOW
-            + _model._current_prompt()
+            + prompt
             + Fore.RESET
         )
-        with self.assistantcontext:
-            _model = self.gen(
-                model=_model,
-                name="result",
-                max_tokens=256,
-                stop=PARSER_STOP_TOKENS,
+        if isinstance(self.model, OllamaLLM):
+            # Handle call to ollama
+            from ollama import Options
+
+            options = Options(**kwargs)
+            if options.get("temperature") is None:
+                options["temperature"] = 0.0
+            options["stop"] = PARSER_STOP_TOKENS
+            stream = logger.level <= logging.DEBUG
+            response = self.model.logits_generator(
+                messages=[{"role": "user", "content": prompt}],
+                options=options,
+                stream=stream,
             )
-        return _model
+            if stream:
+                chunked_res = []
+                for chunk in response:
+                    chunked_res.append(chunk["message"]["content"])
+                    print(
+                        Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
+                        end="",
+                        flush=True,
+                    )
+                print("\n")
+                return ("".join(chunked_res), prompt)
+            else:
+                return (response["message"]["content"], prompt)
+        generator = outlines.generate.text(self.model.logits_generator)
+        return (generator(prompt, stop_at=PARSER_STOP_TOKENS), prompt)
 
 
 class CorrectionProgram(Program):
@@ -76,21 +95,22 @@ class CorrectionProgram(Program):
         partial_completion: str,
         candidates: List[str],
         **kwargs,
-    ):
-        _model = self.model
-        with self.systemcontext:
-            _model += (
-                system_prompt
-                + "\n For this setting, you will ONLY generate the completion to the partially-generate query below.\n"
-            )
-        with self.usercontext:
-            _model += f"{serialized_db}\n\n"
-            _model += f"Question: {question}\n"
-            _model += f"BlendSQL:\n"
-            _model += partial_completion
-        with self.assistantcontext:
-            _model += select(candidates, name="result")
-        return _model
+    ) -> Tuple[str, str]:
+        if isinstance(self.model, OllamaLLM):
+            raise ValueError("CorrectionProgram can't use OllamaLLM!")
+        prompt = ""
+        prompt += (
+            system_prompt
+            + "\n For this setting, you will ONLY generate the completion to the partially-generate query below.\n"
+        )
+        prompt += f"{serialized_db}\n\n"
+        prompt += f"Question: {question}\n"
+        prompt += f"BlendSQL:\n"
+        prompt += partial_completion
+        generator = outlines.generate.choice(
+            self.model.logits_generator, [re.escape(str(i)) for i in candidates]
+        )
+        return (generator(prompt), prompt)
 
 
 def validate_program(prediction: str, parser: EarleyParser) -> bool:
@@ -133,7 +153,7 @@ def create_system_prompt(
         )
         + "\n"
         + str(few_shot_examples)
-        + "---\n"
+        + "\n\n---\n\n"
     )
 
 
@@ -141,8 +161,8 @@ def nl_to_blendsql(
     question: str,
     db: Database,
     model: Model,
-    correction_model: Model,
     ingredients: Optional[Collection[Type[Ingredient]]],
+    correction_model: Model = None,
     few_shot_examples: Union[str, FewShot] = "",
     args: NLtoBlendSQLArgs = None,
     verbose: bool = False,
@@ -169,6 +189,8 @@ def nl_to_blendsql(
         logger.setLevel(logging.ERROR)
     if args is None:
         args = NLtoBlendSQLArgs()
+    if correction_model is None:
+        correction_model = model
     parser: EarleyParser = load_cfg_parser(ingredients)
     system_prompt: str = create_system_prompt(
         ingredients=ingredients, few_shot_examples=few_shot_examples
@@ -181,36 +203,24 @@ def nl_to_blendsql(
         question=question,
     )
     if args.max_grammar_corrections == 0:
-        # return ollama_parse(
-        #     system_prompt=system_prompt,
-        #     question=question,
-        #     serialized_db=serialized_db,
-        #     stream=verbose,
-        # )
         return model.predict(
             program=ParserProgram,
             system_prompt=system_prompt,
             question=question,
             serialized_db=serialized_db,
             stream=verbose,
-        )["result"]
+        )
     num_correction_left = args.max_grammar_corrections
     partial_program_prediction = ""
     ret_prediction, initial_prediction = None, None
     while num_correction_left > 0 and ret_prediction is None:
-        # residual_program_prediction = ollama_parse(
-        #     system_prompt=system_prompt,
-        #     question=question,
-        #     serialized_db=serialized_db,
-        #     stream=verbose,
-        # )
         residual_program_prediction = model.predict(
             program=ParserProgram,
             system_prompt=system_prompt,
             question=question,
             serialized_db=serialized_db,
             stream=verbose,
-        )["result"]
+        )
 
         # if the prediction is empty, return the initial prediction
         if initial_prediction is None:
@@ -245,7 +255,7 @@ def nl_to_blendsql(
                 serialized_db=serialized_db,
                 partial_completion=prefix,
                 candidates=candidates,
-            )["result"]
+            )
 
         # Try to use our selected candidate in a few ways
         # 1) Insert our selection into the index where the error occurred, and add left/right context
