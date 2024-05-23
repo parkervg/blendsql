@@ -2,32 +2,10 @@
 Contains base class for guidance programs for LLMs.
 https://github.com/guidance-ai/guidance
 """
-from guidance.models import Model as GuidanceModel
-from guidance.models import Chat as GuidanceChatModel
-from guidance import user, system, assistant
-from contextlib import nullcontext
+from typing import Tuple
 import inspect
 import ast
 import textwrap
-
-# from .models._model import Model
-
-GUIDANCE_TO_OLLAMA_ARGS = {
-    "max_tokens": "num_predict",
-}
-
-newline_dedent = lambda x: "\n".join([m.lstrip() for m in x.split("\n")])
-
-
-def get_contexts(model: GuidanceModel):
-    usercontext = nullcontext()
-    systemcontext = nullcontext()
-    assistantcontext = nullcontext()
-    if isinstance(model, GuidanceChatModel):
-        usercontext = user()
-        systemcontext = system()
-        assistantcontext = assistant()
-    return (usercontext, systemcontext, assistantcontext)
 
 
 class Program:
@@ -41,31 +19,11 @@ class Program:
         self.model = model
         return self.__call__(self, **kwargs)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> Tuple[str, str]:
+        """Logic for formatting prompt and calling the underlying model.
+        Should return tuple of (response, prompt).
+        """
         ...
-
-    # @staticmethod
-    # def gen(
-    #     model: GuidanceModel,
-    #     name: str,
-    #     temperature: float = 0.0,
-    #     **kwargs,
-    # ) -> "GuidanceModel":
-    #     stream = logger.level <= logging.DEBUG
-    #     if stream:
-    #         rsplit_anchor = model._current_prompt().split("\n")[-1]
-    #         for part in model.stream() + gen(
-    #             name=name, temperature=temperature, **kwargs
-    #         ):
-    #             result = str(part).rsplit(rsplit_anchor, 1)[-1].strip()
-    #             result = re.split(re.escape("<|im_start|>assistant\n"), result)[
-    #                 -1
-    #             ].rstrip("<|im_end|>")
-    #             print("\n" * 50 + Fore.CYAN + result + Fore.RESET)
-    #         model = model.set(name, result)
-    #     else:
-    #         model += gen(name=name, temperature=temperature, **kwargs)
-    #     return model
 
 
 def program_to_str(program: Program):
