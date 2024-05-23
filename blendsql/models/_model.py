@@ -1,6 +1,5 @@
 import functools
-from typing import Any, List
-from guidance.models import Model as GuidanceModel
+from typing import Any, List, Optional
 import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
@@ -12,6 +11,7 @@ from diskcache import Cache
 import platformdirs
 import hashlib
 from abc import abstractmethod
+from outlines.models import LogitsGenerator
 
 from ..utils import logger
 from .._program import Program, program_to_str
@@ -44,11 +44,12 @@ class Model:
     model_name_or_path: str = attrib()
     tokenizer: Any = attrib(default=None)
     requires_config: bool = attrib(default=False)
-    refresh_interval_min: int = attrib(default=None)
+    refresh_interval_min: Optional[int] = attrib(default=None)
+    load_model_kwargs: Optional[dict] = attrib(default={})
     env: str = attrib(default=".")
     caching: bool = attrib(default=True)
 
-    guidance_model: GuidanceModel = attrib(init=False)
+    logits_generator: LogitsGenerator = attrib(init=False)
     prompts: list = attrib(init=False)
     cache: Cache = attrib(init=False)
     run_setup_on_load: bool = attrib(default=True)
@@ -86,7 +87,9 @@ class Model:
             ), f"`tokenizer` passed to {self.__class__} should have `encode` method!"
         if self.run_setup_on_load:
             self._setup()
-        self.guidance_model: GuidanceModel = self._load_model()
+        self.logits_generator: LogitsGenerator = self._load_model(
+            **self.load_model_kwargs
+        )
 
     def predict(self, program: Program, **kwargs) -> dict:
         """Takes a `Program` and some kwargs, and evaluates it with context of
@@ -114,16 +117,10 @@ class Model:
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
         self.num_llm_calls += 1
-        _guidance_model = program(model=self, **kwargs)
-        if self.tokenizer is not None:
-            prompt = _guidance_model._current_prompt()
-            self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
-        self.prompts.insert(
-            -1, self.format_prompt(_guidance_model._variables, **kwargs)
-        )
+        response: str = program(model=self, **kwargs)
         if self.caching:
-            self.cache[key] = _guidance_model._variables
-        return _guidance_model._variables
+            self.cache[key] = response
+        return response
 
     def _create_key(self, program: Program, **kwargs) -> str:
         """Generates a hash to use in diskcache Cache.
@@ -167,7 +164,7 @@ class Model:
         return d
 
     @abstractmethod
-    def _setup(self, **kwargs) -> None:
+    def _setup(self, *args, **kwargs) -> None:
         """Any additional setup required to get this Model up and functioning
         should go here. For example, in the AzureOpenaiLLM, we have some logic
         to refresh our client secrets every 30 min.
@@ -175,6 +172,14 @@ class Model:
         ...
 
     @abstractmethod
-    def _load_model(self) -> Any:
+    def _load_model(self, *args, **kwargs) -> Any:
         """Logic for instantiating the guidance model class goes here."""
         ...
+
+
+class LocalModel(Model):
+    pass
+
+
+class RemoteModel(Model):
+    pass
