@@ -1,12 +1,12 @@
 import importlib.util
 from functools import partial
-from .._model import Model
 
+from .._model import RemoteModel
 
 _has_ollama = importlib.util.find_spec("ollama") is not None
 
 
-class OllamaLLM(Model):
+class OllamaLLM(RemoteModel):
     def __init__(self, model_name_or_path: str, caching: bool = True, **kwargs):
         if not _has_ollama:
             raise ImportError(
