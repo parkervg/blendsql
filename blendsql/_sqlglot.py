@@ -655,6 +655,7 @@ class SubqueryContextManager:
         # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
         while isinstance(start_node, exp.Func) and start_node is not None:
             start_node = start_node.parent
+        output_type = None
         predicate_literals: List[str] = []
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
@@ -679,8 +680,9 @@ class SubqueryContextManager:
             ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
         ):
             output_type = "numeric"
-        added_kwargs["output_type"] = output_type
-        added_kwargs["pattern"] = create_pattern(output_type)
+        if output_type is not None:
+            added_kwargs["output_type"] = output_type
+            added_kwargs["pattern"] = create_pattern(output_type)
         return added_kwargs
 
     def sql(self, dialect: sqlglot.dialects.Dialect = FTS5SQLite):
