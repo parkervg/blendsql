@@ -56,7 +56,7 @@ setup(
         "llama-cpp": ["llama-cpp-python"],
         "ollama": ["ollama"],
         "openai": ["openai>1.0.0"],
-        "transformers": ["transformers>=4.0.0", "datasets"],
+        "transformers": ["transformers>=4.0.0", "datasets", "torch>=2.3.0"],
         "research": [
             "datasets==2.16.1",
             "nltk",
