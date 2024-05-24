@@ -3,7 +3,6 @@ import logging
 import time
 import uuid
 import pandas as pd
-import pyparsing
 import re
 from typing import (
     Dict,
@@ -77,7 +76,7 @@ class Kitchen(list):
         for f in self:
             if f.name == name.upper():
                 return f
-        raise pyparsing.ParseException(
+        raise InvalidBlendSQL(
             f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
         )
 
