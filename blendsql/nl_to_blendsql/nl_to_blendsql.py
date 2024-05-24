@@ -184,7 +184,7 @@ def nl_to_blendsql(
         blendsql = nl_to_blendsql(
             "What was the result of the game played 120 miles west of Sydney?",
             db=db,
-            model=model,
+            model=parser_model,
             correction_model=correction_model,
             ingredients=ingredients,
             few_shot_examples=filtered_few_shot,
