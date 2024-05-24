@@ -83,6 +83,15 @@ accept_queries = [
         )
     }}
     """,
+    # Named arguments should work
+    """
+    {{
+        LLMQA(
+            question='Tell me why the sky is blue',
+            context=(SELECT * FROM w LIMIT 10)
+        )
+    }}
+    """,
     """
     SELECT * FROM w WHERE 1+1 = 2 AND {{LLMMap('more than 30 points?', 'w::score')}} = TRUE
     """,

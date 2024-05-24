@@ -9,6 +9,25 @@ from ..grammars._peg_grammar import grammar as peg_grammar
 
 @attrs
 class Examples:
+    """Class for holding few-shot examples.
+
+    Examples:
+        ```python
+        from blendsql.prompts import FewShot, Examples
+        fewshot_prompts: Examples = FewShot.hybridqa
+        print(fewshot_prompts[:2])
+        ```
+        ```text
+        Examples:
+
+        This is the first example
+
+        ---
+
+        This is the second example
+        ```
+    """
+
     data: str = attrib()
 
     split_data: List[str] = attrib(init=False)
@@ -62,4 +81,20 @@ class Examples:
 
 @dataclass
 class FewShot:
+    """A collection of few-shot examples, with some utility functions for easy manipulation.
+
+    Examples:
+        ```python
+        from blendsql import LLMMap, LLMQA
+        from blendsql.prompts import FewShot, Examples
+        # Fetch the examples for HybridQA
+        fewshot_prompts: Examples = FewShot.hybridqa
+        print(f"We have {len(fewshot_prompts)} examples")
+        # We can select a subset by indexing
+        first_three_examples = fewshot_prompts[:3]
+        # Additionally, we can filter to keep only those examples using specified ingredients
+        filtered_fewshot = fewshot_prompts.filter({LLMQA, LLMMap})
+        ```
+    """
+
     hybridqa = Examples(open(Path(__file__).parent / "./few_shot/hybridqa.txt").read())

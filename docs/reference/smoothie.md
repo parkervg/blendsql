@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 ### Smoothie 
 The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an executed BlendSQL script.
 

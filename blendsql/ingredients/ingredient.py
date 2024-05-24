@@ -117,19 +117,16 @@ class MapIngredient(Ingredient):
             if new_arg_column in temp_session_table.columns:
                 values = self.db.execute_to_list(
                     f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
-                    to_type=str,
                 )
             # Base case: this is the first time we've used this particular ingredient
             # BUT, temp_session_tablename still exists
             else:
                 values = self.db.execute_to_list(
                     f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"',
-                    to_type=str,
                 )
         else:
             values = self.db.execute_to_list(
                 f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"',
-                to_type=str,
             )
 
         # No need to run ingredient if we have no values to map onto
@@ -338,6 +335,9 @@ class QAIngredient(Ingredient):
         kwargs[IngredientKwarg.QUESTION] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
         return response
+        # response = response.replace("\x00", "").replace(":", "\:")
+        # return response
+        # return f"'{response}'"
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Union[str, int, float]:

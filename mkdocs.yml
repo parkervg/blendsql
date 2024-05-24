@@ -29,8 +29,6 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - toc:
-      toc_depth: "1-1"
 
 
 
@@ -87,8 +85,11 @@ nav:
           - OpenAI: reference/blenders/openai.md
           - Transformers: reference/blenders/transformers.md
           - llama.cpp: reference/blenders/llamacpp.md
+          - Ollama: reference/blenders/ollama.md
       - Databases:
           - reference/databases/databases.md
           - SQLite: reference/databases/sqlite.md
           - PostgreSQL: reference/databases/postgresql.md
+      - Natural Language to BlendSQL:
+          - reference/nl_to_blendsql/nl-to-blendsql.md
       - Technical Walkthrough: reference/technical_walkthrough.md

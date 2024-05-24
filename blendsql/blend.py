@@ -145,15 +145,12 @@ def autowrap_query(
     return (_query, original_query)
 
 
-def preprocess_blendsql(
-    query: str, blender_args: dict, blender: Model
-) -> Tuple[str, dict, set]:
+def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
 
     Args:
         query: The BlendSQL query to preprocess
-        blender_args: Arguments used as default in ingredient calls with LLMs
         blender: Model object, which we attach to each parsed_dict
 
     Returns:
@@ -166,12 +163,14 @@ def preprocess_blendsql(
             - tables_in_ingredients
 
     Examples:
-          >>> preprocess_blendsql(
-          >>>  query=" SELECT * FROM documents JOIN {{LLMJoin(left_on='w::player', right_on='documents::title')}} WHERE rank = 2",
-          >>>  blender_args={},
-          >>>  blender=blender
-          >>> )
-          (
+        ```python
+        preprocess_blendsql(
+            query="SELECT * FROM documents JOIN {{LLMJoin(left_on='w::player', right_on='documents::title')}} WHERE rank = 2",
+            blender=blender
+        )
+        ```
+        ```text
+        (
             'SELECT documents.title AS \'Player\' , documents.content FROM documents JOIN {{A()}} WHERE w. "rank" = 2',
             {
                 '{{A()}}': {
@@ -187,7 +186,8 @@ def preprocess_blendsql(
                 }
             },
             {'documents', 'w'}
-          )
+        )
+        ```
     """
     ingredient_alias_to_parsed_dict: Dict[str, dict] = {}
     ingredient_str_to_alias: Dict[str, str] = {}
@@ -238,16 +238,6 @@ def preprocess_blendsql(
             # So we need to parse by indices in dict expression
             # maybe if I was better at pp.Suppress we wouldn't need this
             kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
-            # Optionally modify kwargs dict, depending on blend() blender_args
-            if blender_args is not None:
-                for k, v in blender_args.items():
-                    if k in kwargs_dict:
-                        logger.debug(
-                            Fore.YELLOW
-                            + f"Overriding passed arg for '{k}'!"
-                            + Fore.RESET
-                        )
-                    kwargs_dict[k] = v
             kwargs_dict[IngredientKwarg.MODEL] = blender
             context_arg = kwargs_dict.get(
                 IngredientKwarg.CONTEXT,
@@ -395,7 +385,6 @@ def _blend(
     blender: Optional[Model] = None,
     ingredients: Optional[Collection[Type[Ingredient]]] = None,
     verbose: bool = False,
-    blender_args: Optional[Dict[str, str]] = None,
     infer_gen_constraints: bool = True,
     table_to_title: Optional[Dict[str, str]] = None,
     schema_qualify: bool = True,
@@ -415,7 +404,7 @@ def _blend(
         query,
         ingredient_alias_to_parsed_dict,
         tables_in_ingredients,
-    ) = preprocess_blendsql(query, blender_args=blender_args, blender=blender)
+    ) = preprocess_blendsql(query=query, blender=blender)
     try:
         # Try to parse as a normal SQLite query
         _query: exp.Expression = _parse_one(query)
@@ -533,7 +522,6 @@ def _blend(
                     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                     # Below are in case we need to call blend() again
                     ingredients=ingredients,
-                    blender_args=blender_args,
                     infer_gen_constraints=infer_gen_constraints,
                     table_to_title=table_to_title,
                     verbose=verbose,
@@ -569,7 +557,6 @@ def _blend(
                 ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                 # Below are in case we need to call blend() again
                 ingredients=ingredients,
-                blender_args=blender_args,
                 infer_gen_constraints=infer_gen_constraints,
                 table_to_title=table_to_title,
                 verbose=verbose,
@@ -645,7 +632,6 @@ def _blend(
                         db=db,
                         blender=blender,
                         ingredients=ingredients,
-                        blender_args=blender_args,
                         infer_gen_constraints=infer_gen_constraints,
                         table_to_title=table_to_title,
                         verbose=verbose,
@@ -846,26 +832,25 @@ def blend(
     blender: Optional[Model] = None,
     ingredients: Optional[Collection[Type[Ingredient]]] = None,
     verbose: bool = False,
-    blender_args: Optional[Dict[str, str]] = None,
     infer_gen_constraints: bool = True,
     table_to_title: Optional[Dict[str, str]] = None,
     schema_qualify: bool = True,
 ) -> Smoothie:
-    """The `blend()` function is used to execute a BlendSQL query against a database and
+    '''The `blend()` function is used to execute a BlendSQL query against a database and
     return the final result, in addition to the intermediate reasoning steps taken.
     Execution is done on a database given an ingredient context.
 
     Args:
         query: The BlendSQL query to execute
         db: Database connector object
-        ingredients: List of ingredient objects, to use in interpreting BlendSQL query
-        verbose: Boolean defining whether to run in logger mode
-        blender: Optionally override whatever llm argument we pass to Model ingredient.
-            Useful for research applications, where we don't (necessarily) want the parser to choose endpoints.
+        ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query
+        verbose: Boolean defining whether to run with logger in debug mode
+        blender: Which BlendSQL model to use in performing ingredient tasks in the current query
         infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
-            We can infer the output format should look like '1960-12-31'
-                and put this in the `example_outputs` kwarg
+            We can infer the output format should look like '1960-12-31' and both:
+                1) Put this string in the `example_outputs` kwarg
+                2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to outlines.generate.regex
         table_to_title: Optional mapping from table name to title of table.
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
         schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
@@ -875,7 +860,36 @@ def blend(
 
     Returns:
         smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata
-    """
+
+    Examples:
+        ```python
+        from blendsql import blend, LLMMap, LLMQA, LLMJoin
+        from blendsql.db import SQLite
+        from blendsql.models import OpenaiLLM
+        from blendsql.utils import fetch_from_hub
+
+        blendsql = """
+        SELECT * FROM w
+        WHERE city = {{
+            LLMQA(
+                'Which city is located 120 miles west of Sydney?',
+                (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+                options='w::city'
+            )
+        }}
+        """
+        smoothie = blend(
+            query=blendsql,
+            db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+            ingredients={LLMMap, LLMQA, LLMJoin},
+            blender=OpenaiLLM("gpt-3.5-turbo"),
+            # Optional args below
+            infer_gen_constraints=True,
+            silence_db_exec_errors=False,
+            verbose=True
+        )
+        ```
+    '''
     if verbose:
         logger.setLevel(logging.DEBUG)
     else:
@@ -887,7 +901,6 @@ def blend(
             db=db,
             blender=blender,
             ingredients=ingredients,
-            blender_args=blender_args,
             infer_gen_constraints=infer_gen_constraints,
             table_to_title=table_to_title,
             schema_qualify=schema_qualify,

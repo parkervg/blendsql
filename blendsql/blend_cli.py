@@ -6,7 +6,13 @@ from blendsql import blend
 from blendsql.db import SQLite
 from blendsql.db.utils import truncate_df_content
 from blendsql.utils import tabulate
-from blendsql.models import OpenaiLLM, TransformersLLM, AzureOpenaiLLM, LlamaCppLLM
+from blendsql.models import (
+    OpenaiLLM,
+    TransformersLLM,
+    AzureOpenaiLLM,
+    LlamaCppLLM,
+    OllamaLLM,
+)
 from blendsql.ingredients.builtin import LLMQA, LLMMap, LLMJoin
 
 _has_readline = importlib.util.find_spec("readline") is not None
@@ -16,6 +22,7 @@ MODEL_TYPE_TO_CLASS = {
     "azure_openai": AzureOpenaiLLM,
     "llama_cpp": LlamaCppLLM,
     "transformers": TransformersLLM,
+    "ollama": OllamaLLM,
 }
 
 
@@ -44,7 +51,7 @@ def main():
 
         _ = readline
     parser = argparse.ArgumentParser()
-    parser.add_argument("db_path", nargs="?", help="Database URL,")
+    parser.add_argument("db_path", nargs="?", help="Database path")
     parser.add_argument(
         "model_type",
         nargs="?",

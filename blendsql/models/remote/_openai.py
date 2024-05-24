@@ -50,15 +50,37 @@ class AzureOpenaiLLM(RemoteModel):
         model_name_or_path: Name of the Azure deployment to use
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
             Should either contain the variable `OPENAI_API_KEY`,
-                or all of `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`
+            or all of `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`
+        config: Optional outlines.models.openai.OpenAIConfig to use in loading model
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        Given the following `.env` file in the directory above current:
+        ```text
+        TENANT_ID=my_tenant_id
+        CLIENT_ID=my_client_id
+        CLIENT_SECRET=my_client_secret
+        ```
+        ```python
+        from blendsql.models import AzureOpenaiLLM
+        from outlines.models.openai import OpenAIConfig
+
+        model = AzureOpenaiLLM(
+            "gpt-3.5-turbo",
+            env="..",
+            config=OpenAIConig(
+                temperature=0.7
+            )
+        )
+        ```
     """
 
     def __init__(
         self,
         model_name_or_path: str,
         env: str = None,
-        caching: bool = True,
         config: OpenAIConfig = None,
+        caching: bool = True,
         **kwargs
     ):
         super().__init__(
@@ -93,14 +115,34 @@ class OpenaiLLM(RemoteModel):
         model_name_or_path: Name of the OpenAI model to use
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
             Should contain the variable `OPENAI_API_KEY`
+        config: Optional outlines.models.openai.OpenAIConfig to use in loading model
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        Given the following `.env` file in the directory above current:
+        ```text
+        OPENAI_API_KEY=my_api_key
+        ```
+        ```python
+        from blendsql.models import OpenaiLLM
+        from outlines.models.openai import OpenAIConfig
+
+        model = AzureOpenaiLLM(
+            "gpt-3.5-turbo",
+            env="..",
+            config=OpenAIConig(
+                temperature=0.7
+            )
+        )
+        ```
     """
 
     def __init__(
         self,
         model_name_or_path: str,
         env: str = None,
-        caching: bool = True,
         config: OpenAIConfig = None,
+        caching: bool = True,
         **kwargs
     ):
         super().__init__(

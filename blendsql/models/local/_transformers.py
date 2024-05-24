@@ -11,6 +11,13 @@ class TransformersLLM(LocalModel):
 
     Args:
         model_name_or_path: Name of the model on HuggingFace, or the path to a local model
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        ```python
+        from blendsql.models import TransformersLLM
+        model = TransformersLLM("Qwen/Qwen1.5-0.5B")
+        ```
     """
 
     def __init__(self, model_name_or_path: str, caching: bool = True, **kwargs):

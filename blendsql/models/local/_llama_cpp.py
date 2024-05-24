@@ -10,7 +10,18 @@ class LlamaCppLLM(LocalModel):
     """Class for llama-cpp local Model.
 
     Args:
-        model_name_or_path: Name of the model on HuggingFace, or the path to a local model
+        model_name_or_path: Name of the model on HuggingFace
+        filename: The specific .gguf file in the HuggingFace repo to load
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        ```python
+        from blendsql.models import LlamaCppLLM
+        model = LlamaCppLLM(
+            "TheBloke/TinyLlama-1.1B-1T-OpenOrca-GGUF",
+            filename="tinyllama-1.1b-1t-openorca.Q2_K.gguf"
+        )
+        ```
     """
 
     def __init__(

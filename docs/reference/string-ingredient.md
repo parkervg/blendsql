@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 # StringIngredient
 This is the simplest type of ingredient. This will output a string to be placed directly into the SQL query.
 

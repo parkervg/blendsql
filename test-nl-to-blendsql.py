@@ -13,6 +13,7 @@ if __name__ == "__main__":
         fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
     )
     model = OllamaLLM("phi3", caching=False)
+    # model = TransformersLLM("Qwen/Qwen1.5-0.5B")
     correction_model = TransformersLLM("Qwen/Qwen1.5-0.5B")
     ingredients = {LLMMap, LLMQA}
     filtered_few_shot = FewShot.hybridqa.filter(ingredients)
