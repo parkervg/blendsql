@@ -13,6 +13,7 @@ from blendsql.utils import logger, newline_dedent
 class JoinProgram(Program):
     def __call__(
         self,
+        model: Model,
         join_criteria: str,
         left_values: List[str],
         right_values: List[str],
@@ -97,30 +98,30 @@ class JoinProgram(Program):
         )
         max_tokens = (
             len(
-                self.model.tokenizer.encode(
+                model.tokenizer.encode(
                     "".join(left_values)
                     + "".join(right_values)
                     + (CONST.DEFAULT_ANS_SEP * len(left_values)),
                 )
             )
-            if self.model.tokenizer is not None
+            if model.tokenizer is not None
             else None
         )
 
-        if isinstance(self.model, LocalModel):
+        if isinstance(model, LocalModel):
             generator = outlines.generate.regex(
-                self.model.logits_generator, regex(len(left_values))
+                model.logits_generator, regex(len(left_values))
             )
         else:
-            if isinstance(self.model, OllamaLLM):
+            if isinstance(model, OllamaLLM):
                 # Handle call to ollama
                 return return_ollama_response(
-                    logits_generator=self.model.logits_generator,
+                    logits_generator=model.logits_generator,
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=0.0,
                 )
-            generator = outlines.generate.text(self.model.logits_generator)
+            generator = outlines.generate.text(model.logits_generator)
 
         result = generator(
             prompt,

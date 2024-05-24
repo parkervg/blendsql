@@ -22,6 +22,7 @@ The processing logic for a custom ingredient should go in a `run()` class functi
 import pandas as pd
 import outlines
 
+from blendsql.models import Model
 from blendsql.ingredients import QAIngredient
 from blendsql._program import Program
 
@@ -30,18 +31,18 @@ class SummaryProgram(Program):
     """Program to call Model and return summary of the passed table.
     """
 
-    def __call__(self, serialized_db: str):  
+    def __call__(self, model: Model, serialized_db: str):  
         prompt = f"Summarize the table below.\n\n{serialized_db}\n"
         # Below we follow the outlines pattern for unconstrained text generation
         # https://github.com/outlines-dev/outlines
-        generator = outlines.generate.text(self.model.logits_generator)
+        generator = outlines.generate.text(model.logits_generator)
         # Finally, return (response, prompt) tuple
         # Returning the prompt here allows the underlying BlendSQL classes to track token usage
         return (generator(prompt), prompt)
 
 
 class TableSummary(QAIngredient):
-    def run(self, model: 'Model', context: pd.DataFrame, **kwargs) -> str:
+    def run(self, model: Model, context: pd.DataFrame, **kwargs) -> str:
         result = model.predict(program=SummaryProgram, serialized_db=context.to_string())
         return f"'{result}'"
 

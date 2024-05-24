@@ -1,25 +1,59 @@
+from __future__ import annotations
 from typing import Tuple, Callable
 import inspect
 import ast
 import textwrap
 import logging
 from colorama import Fore
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from .models import Model
 from .utils import logger
 
 
 class Program:
-    """ """
+    """A Program is the base class used for dynamically formatting prompts
+    and returning unconstrained/constrained generation results.
+    At it's core, a Program should be a callable that takes a BlendSQL model as a named arg,
+    along with any number of other positional or keyword arguments.
+    It should then return a Tuple[str, str], containing the (response, prompt) pair from the
+    internal program logic.
+
+    Examples:
+        ```python
+        import pandas as pd
+        import outlines
+        from typing import Tuple
+
+        from blendsql.models import Model
+        from blendsql._program import Program
+
+        class SummaryProgram(Program):
+            def __call__(self, model: Model, serialized_db: pd.DataFrame) -> Tuple[str, str]:
+                prompt = f"Summarize the table below. {serialized_db}"
+                # Below we follow the outlines pattern for unconstrained text generation
+                # https://github.com/outlines-dev/outlines
+                # Finally, return (response, prompt) tuple
+                # Returning the prompt here allows the underlying BlendSQL classes to track token usage
+                generator = outlines.generate.text(model.logits_generator)
+                return (generator(prompt), prompt)
+        ```
+        We could also write the same `Program` as a function:
+        ```python
+        def summary_program(model: Model, serialized_db: pd.DataFrame) -> Tuple[str, str]:
+            ...
+        ```
+    """
 
     def __new__(
         self,
-        model: "Model",
+        model: Model,
         **kwargs,
     ):
-        self.model = model
-        return self.__call__(self, **kwargs)
+        return self.__call__(self, model, **kwargs)
 
-    def __call__(self, *args, **kwargs) -> Tuple[str, str]:
+    def __call__(self, model: Model, *args, **kwargs) -> Tuple[str, str]:
         """Logic for formatting prompt and calling the underlying model.
         Should return tuple of (response, prompt).
         """

@@ -14,6 +14,7 @@ from blendsql.db.utils import single_quote_escape
 class QAProgram(Program):
     def __call__(
         self,
+        model: Model,
         question: str,
         context: Optional[pd.DataFrame] = None,
         options: Optional[List[str]] = None,
@@ -55,26 +56,26 @@ class QAProgram(Program):
         else:
             prompt += f"\n\nContext: \n {serialized_db}"
         if options is not None:
-            if isinstance(self.model, OllamaLLM):
+            if isinstance(model, OllamaLLM):
                 raise InvalidBlendSQL(
                     "Can't use `options` argument in LLMQA with an Ollama model!"
                 )
             generator = outlines.generate.choice(
-                self.model.logits_generator, [re.escape(str(i)) for i in options]
+                model.logits_generator, [re.escape(str(i)) for i in options]
             )
             result = generator(prompt, max_tokens=max_tokens)
             # Map from modified options to original, as they appear in DB
             result = modified_option_to_original.get(result, result)
         else:
-            if isinstance(self.model, OllamaLLM):
+            if isinstance(model, OllamaLLM):
                 # Handle call to ollama
                 return return_ollama_response(
-                    logits_generator=self.model.logits_generator,
+                    logits_generator=model.logits_generator,
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=0.0,
                 )
-            generator = outlines.generate.text(self.model.logits_generator)
+            generator = outlines.generate.text(model.logits_generator)
             result = generator(prompt, max_tokens=max_tokens)
         return (result, prompt)
 

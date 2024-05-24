@@ -43,7 +43,9 @@ It can be viewed as an inversion of the typical text-to-SQL paradigm, where a us
 
 ![comparison](docs/img/comparison.jpg)
 
-For example, imagine we have the following tables.
+For example, imagine we have the following table.
+
+https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States
 
 ### `w`
 

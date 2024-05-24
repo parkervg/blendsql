@@ -90,6 +90,8 @@ nav:
           - reference/databases/databases.md
           - SQLite: reference/databases/sqlite.md
           - PostgreSQL: reference/databases/postgresql.md
+      - Programs:
+          - reference/programs.md
       - Natural Language to BlendSQL:
           - reference/nl_to_blendsql/nl-to-blendsql.md
       - Technical Walkthrough: reference/technical_walkthrough.md

@@ -10,6 +10,7 @@ from blendsql.ingredients.ingredient import QAIngredient
 class ValidateProgram(Program):
     def __call__(
         self,
+        model: Model,
         question: str,
         context: pd.DataFrame = None,
         table_title: str = None,
@@ -22,9 +23,7 @@ class ValidateProgram(Program):
         if table_title:
             prompt += f"\nTable Description: {table_title}"
         prompt += f"\n{serialized_db}\n\nAnswer:"
-        generator = outlines.generate.choice(
-            self.model.logits_generator, ["true", "false"]
-        )
+        generator = outlines.generate.choice(model.logits_generator, ["true", "false"])
         return (generator(prompt), prompt)
 
 

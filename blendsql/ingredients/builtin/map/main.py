@@ -18,6 +18,7 @@ from blendsql._program import Program, return_ollama_response
 class MapProgram(Program):
     def __call__(
         self,
+        model: Model,
         question: str,
         values: List[str],
         sep: str,
@@ -113,20 +114,20 @@ class MapProgram(Program):
         if example_outputs:
             prompt += f"\nHere are some example outputs: {example_outputs}\n"
         prompt += "\nA:"
-        if isinstance(self.model, LocalModel) and regex is not None:
+        if isinstance(model, LocalModel) and regex is not None:
             generator = outlines.generate.regex(
-                self.model.logits_generator, regex(len(values))
+                model.logits_generator, regex(len(values))
             )
         else:
-            if isinstance(self.model, OllamaLLM):
+            if isinstance(model, OllamaLLM):
                 # Handle call to ollama
                 return return_ollama_response(
-                    logits_generator=self.model.logits_generator,
+                    logits_generator=model.logits_generator,
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=0.0,
                 )
-            generator = outlines.generate.text(self.model.logits_generator)
+            generator = outlines.generate.text(model.logits_generator)
         return (generator(prompt, max_tokens=max_tokens), prompt)
 
 
