@@ -1,14 +1,12 @@
 import pytest
-from typing import Set
 
 from blendsql import blend, LLMQA, LLMMap, LLMJoin
-from blendsql.ingredients import Ingredient
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
 from blendsql.models import TransformersLLM
 
-TEST_TRANSFORMERS_LLM = "Qwen/Qwen1.5-0.5B"
+TEST_TRANSFORMERS_LLM = "hf-internal-testing/tiny-random-PhiForCausalLM"
 
 
 @pytest.fixture(scope="session")
@@ -19,7 +17,7 @@ def db() -> SQLite:
 
 
 @pytest.fixture(scope="session")
-def ingredients() -> Set[Ingredient]:
+def ingredients() -> set:
     return {LLMQA, LLMMap, LLMJoin}
 
 
