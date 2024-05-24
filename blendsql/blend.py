@@ -15,6 +15,7 @@ from typing import (
     Optional,
     Callable,
     Collection,
+    Type,
 )
 from sqlite3 import OperationalError
 import sqlglot.expressions
@@ -25,14 +26,16 @@ from colorama import Fore
 import string
 
 from .utils import (
+    logger,
     sub_tablename,
     get_temp_session_table,
     get_temp_subquery_table,
     recover_blendsql,
     get_tablename_colname,
 )
+from ._exceptions import InvalidBlendSQL
 from .db import Database
-from .db.utils import double_quote_escape, single_quote_escape
+from .db.utils import double_quote_escape, select_all_from_table_query
 from ._sqlglot import (
     MODIFIERS,
     get_first_child,
@@ -51,10 +54,7 @@ from ._dialect import _parse_one, FTS5SQLite
 from .grammars._peg_grammar import grammar
 from .ingredients.ingredient import Ingredient, IngredientException
 from ._smoothie import Smoothie, SmoothieMeta
-from ._constants import (
-    IngredientType,
-    IngredientKwarg,
-)
+from ._constants import IngredientType, IngredientKwarg
 from .models._model import Model
 
 
@@ -145,15 +145,12 @@ def autowrap_query(
     return (_query, original_query)
 
 
-def preprocess_blendsql(
-    query: str, blender_args: dict, blender: Model
-) -> Tuple[str, dict, set]:
+def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
 
     Args:
         query: The BlendSQL query to preprocess
-        blender_args: Arguments used as default in ingredient calls with LLMs
         blender: Model object, which we attach to each parsed_dict
 
     Returns:
@@ -166,12 +163,14 @@ def preprocess_blendsql(
             - tables_in_ingredients
 
     Examples:
-          >>> preprocess_blendsql(
-          >>>  query=" SELECT * FROM documents JOIN {{LLMJoin(left_on='w::player', right_on='documents::title')}} WHERE rank = 2",
-          >>>  blender_args={},
-          >>>  blender=blender
-          >>> )
-          (
+        ```python
+        preprocess_blendsql(
+            query="SELECT * FROM documents JOIN {{LLMJoin(left_on='w::player', right_on='documents::title')}} WHERE rank = 2",
+            blender=blender
+        )
+        ```
+        ```text
+        (
             'SELECT documents.title AS \'Player\' , documents.content FROM documents JOIN {{A()}} WHERE w. "rank" = 2',
             {
                 '{{A()}}': {
@@ -187,7 +186,8 @@ def preprocess_blendsql(
                 }
             },
             {'documents', 'w'}
-          )
+        )
+        ```
     """
     ingredient_alias_to_parsed_dict: Dict[str, dict] = {}
     ingredient_str_to_alias: Dict[str, str] = {}
@@ -238,24 +238,18 @@ def preprocess_blendsql(
             # So we need to parse by indices in dict expression
             # maybe if I was better at pp.Suppress we wouldn't need this
             kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
-            # Optionally modify kwargs dict, depending on blend() blender_args
-            if blender_args is not None:
-                for k, v in blender_args.items():
-                    if k in kwargs_dict:
-                        logging.debug(
-                            Fore.YELLOW
-                            + f"Overriding passed arg for '{k}'!"
-                            + Fore.RESET
-                        )
-                    kwargs_dict[k] = v
             kwargs_dict[IngredientKwarg.MODEL] = blender
             context_arg = kwargs_dict.get(
                 IngredientKwarg.CONTEXT,
-                parsed_results_dict["args"][1]
-                if len(parsed_results_dict["args"]) > 1
-                else parsed_results_dict["args"][1]
-                if len(parsed_results_dict["args"]) > 1
-                else None,
+                (
+                    parsed_results_dict["args"][1]
+                    if len(parsed_results_dict["args"]) > 1
+                    else (
+                        parsed_results_dict["args"][1]
+                        if len(parsed_results_dict["args"]) > 1
+                        else None
+                    )
+                ),
             )
             for arg in {
                 context_arg,
@@ -379,7 +373,7 @@ def disambiguate_and_submit_blend(
     """
     for alias, d in ingredient_alias_to_parsed_dict.items():
         query = re.sub(re.escape(alias), d["raw"], query)
-    logging.debug(
+    logger.debug(
         Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`..." + Fore.RESET
     )
     return _blend(query=query, **kwargs)
@@ -389,9 +383,8 @@ def _blend(
     query: str,
     db: Database,
     blender: Optional[Model] = None,
-    ingredients: Optional[Collection[Ingredient]] = None,
+    ingredients: Optional[Collection[Type[Ingredient]]] = None,
     verbose: bool = False,
-    blender_args: Optional[Dict[str, str]] = None,
     infer_gen_constraints: bool = True,
     table_to_title: Optional[Dict[str, str]] = None,
     schema_qualify: bool = True,
@@ -411,7 +404,7 @@ def _blend(
         query,
         ingredient_alias_to_parsed_dict,
         tables_in_ingredients,
-    ) = preprocess_blendsql(query, blender_args=blender_args, blender=blender)
+    ) = preprocess_blendsql(query=query, blender=blender)
     try:
         # Try to parse as a normal SQLite query
         _query: exp.Expression = _parse_one(query)
@@ -428,7 +421,7 @@ def _blend(
 
     # Preliminary check - we can't have anything that modifies database state
     if _query.find(MODIFIERS):
-        raise ValueError("BlendSQL query cannot have `DELETE` clause!")
+        raise InvalidBlendSQL("BlendSQL query cannot have `DELETE` clause!")
 
     # If there's no `SELECT` and just a QAIngredient, wrap it in a `SELECT CASE` query
     if _query.find(exp.Select) is None:
@@ -442,10 +435,13 @@ def _blend(
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
         return Smoothie(
-            df=db.execute_query(query),
+            df=db.execute_to_df(query),
             meta=SmoothieMeta(
                 num_values_passed=0,
-                num_prompt_tokens=0,
+                prompt_tokens=blender.prompt_tokens if blender is not None else 0,
+                completion_tokens=(
+                    blender.completion_tokens if blender is not None else 0
+                ),
                 prompts=blender.prompts if blender is not None else [],
                 ingredients=[],
                 query=original_query,
@@ -484,7 +480,7 @@ def _blend(
                     + get_first_child(subquery).sql(dialect=FTS5SQLite)
                 )
             else:
-                logging.debug(
+                logger.debug(
                     Fore.YELLOW
                     + "Encountered subquery without `SELECT`, and more than 1 table!\nCannot optimize yet, skipping this step."
                 )
@@ -526,7 +522,6 @@ def _blend(
                     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                     # Below are in case we need to call blend() again
                     ingredients=ingredients,
-                    blender_args=blender_args,
                     infer_gen_constraints=infer_gen_constraints,
                     table_to_title=table_to_title,
                     verbose=verbose,
@@ -534,20 +529,20 @@ def _blend(
                 )
                 query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
             if abstracted_query is not None:
-                logging.debug(
+                logger.debug(
                     Fore.CYAN
                     + f"Executing `{abstracted_query}` and setting to `{_get_temp_subquery_table(tablename)}`..."
                     + Fore.RESET
                 )
                 try:
                     db.to_temp_table(
-                        df=db.execute_query(abstracted_query),
+                        df=db.execute_to_df(abstracted_query),
                         tablename=_get_temp_subquery_table(tablename),
                     )
                 except OperationalError as e:
                     # Fallback to naive execution
-                    logging.debug(Fore.RED + e + Fore.RESET)
-                    logging.debug(
+                    logger.debug(Fore.RED + e + Fore.RESET)
+                    logger.debug(
                         Fore.RED + "Falling back to naive execution..." + Fore.RESET
                     )
                     naive_execution = True
@@ -562,7 +557,6 @@ def _blend(
                 ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                 # Below are in case we need to call blend() again
                 ingredients=ingredients,
-                blender_args=blender_args,
                 infer_gen_constraints=infer_gen_constraints,
                 table_to_title=table_to_title,
                 verbose=verbose,
@@ -572,6 +566,7 @@ def _blend(
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
 
+        # lazy_limit: Union[int, None] = scm.get_lazy_limit()
         # After above processing of AST, sync back to string repr
         subquery_str = scm.sql()
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
@@ -619,11 +614,15 @@ def _blend(
             ):
                 unpack_value = kwargs_dict.get(
                     unpack_kwarg,
-                    parsed_results_dict["args"][i + 1]
-                    if len(parsed_results_dict["args"]) > i + 1
-                    else parsed_results_dict["args"][i]
-                    if len(parsed_results_dict["args"]) > i
-                    else "",
+                    (
+                        parsed_results_dict["args"][i + 1]
+                        if len(parsed_results_dict["args"]) > i + 1
+                        else (
+                            parsed_results_dict["args"][i]
+                            if len(parsed_results_dict["args"]) > i
+                            else ""
+                        )
+                    ),
                 )
                 if isinstance(unpack_value, str) and unpack_value.upper().startswith(
                     ("SELECT", "WITH")
@@ -633,7 +632,6 @@ def _blend(
                         db=db,
                         blender=blender,
                         ingredients=ingredients,
-                        blender_args=blender_args,
                         infer_gen_constraints=infer_gen_constraints,
                         table_to_title=table_to_title,
                         verbose=verbose,
@@ -741,14 +739,14 @@ def _blend(
                 # On their left join merge command: https://github.com/HKUNLP/Binder/blob/9eede69186ef3f621d2a50572e1696bc418c0e77/nsql/database.py#L196
                 # We create a new temp table to avoid a potentially self-destructive operation
                 base_tablename = tablename
-                _base_table: pd.DataFrame = db.execute_query(
-                    f'SELECT * FROM "{double_quote_escape(base_tablename)}";'
+                _base_table: pd.DataFrame = db.execute_to_df(
+                    select_all_from_table_query(base_tablename)
                 )
                 base_table = _base_table
                 if db.has_temp_table(_get_temp_session_table(tablename)):
                     base_tablename = _get_temp_session_table(tablename)
-                    base_table: pd.DataFrame = db.execute_query(
-                        f"SELECT * FROM '{single_quote_escape(base_tablename)}';",
+                    base_table: pd.DataFrame = db.execute_to_df(
+                        select_all_from_table_query(base_tablename)
                     )
                 previously_added_columns = base_table.columns.difference(
                     _base_table.columns
@@ -794,17 +792,17 @@ def _blend(
                 a, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
             )
 
-    logging.debug("")
-    logging.debug(
+    logger.debug("")
+    logger.debug(
         "**********************************************************************************"
     )
-    logging.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
-    logging.debug(
+    logger.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
+    logger.debug(
         "**********************************************************************************"
     )
-    logging.debug("")
+    logger.debug("")
 
-    df = db.execute_query(query)
+    df = db.execute_to_df(query)
 
     return Smoothie(
         df=df,
@@ -818,7 +816,8 @@ def _blend(
                 ]
             )
             + _prev_passed_values,
-            num_prompt_tokens=blender.num_prompt_tokens if blender is not None else 0,
+            prompt_tokens=blender.prompt_tokens if blender is not None else 0,
+            completion_tokens=blender.completion_tokens if blender is not None else 0,
             prompts=blender.prompts if blender is not None else [],
             ingredients=ingredients,
             query=original_query,
@@ -831,28 +830,27 @@ def blend(
     query: str,
     db: Database,
     blender: Optional[Model] = None,
-    ingredients: Optional[Collection[Ingredient]] = None,
+    ingredients: Optional[Collection[Type[Ingredient]]] = None,
     verbose: bool = False,
-    blender_args: Optional[Dict[str, str]] = None,
     infer_gen_constraints: bool = True,
     table_to_title: Optional[Dict[str, str]] = None,
     schema_qualify: bool = True,
 ) -> Smoothie:
-    """The `blend()` function is used to execute a BlendSQL query against a database and
+    '''The `blend()` function is used to execute a BlendSQL query against a database and
     return the final result, in addition to the intermediate reasoning steps taken.
     Execution is done on a database given an ingredient context.
 
     Args:
         query: The BlendSQL query to execute
         db: Database connector object
-        ingredients: List of ingredient objects, to use in interpreting BlendSQL query
-        verbose: Boolean defining whether to run in logging.debug mode
-        blender: Optionally override whatever llm argument we pass to Model ingredient.
-            Useful for research applications, where we don't (necessarily) want the parser to choose endpoints.
+        ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query
+        verbose: Boolean defining whether to run with logger in debug mode
+        blender: Which BlendSQL model to use in performing ingredient tasks in the current query
         infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
-            We can infer the output format should look like '1960-12-31'
-                and put this in the `example_outputs` kwarg
+            We can infer the output format should look like '1960-12-31' and both:
+                1) Put this string in the `example_outputs` kwarg
+                2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to outlines.generate.regex
         table_to_title: Optional mapping from table name to title of table.
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
         schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
@@ -862,11 +860,40 @@ def blend(
 
     Returns:
         smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata
-    """
+
+    Examples:
+        ```python
+        from blendsql import blend, LLMMap, LLMQA, LLMJoin
+        from blendsql.db import SQLite
+        from blendsql.models import OpenaiLLM
+        from blendsql.utils import fetch_from_hub
+
+        blendsql = """
+        SELECT * FROM w
+        WHERE city = {{
+            LLMQA(
+                'Which city is located 120 miles west of Sydney?',
+                (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+                options='w::city'
+            )
+        }}
+        """
+        smoothie = blend(
+            query=blendsql,
+            db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+            ingredients={LLMMap, LLMQA, LLMJoin},
+            blender=OpenaiLLM("gpt-3.5-turbo"),
+            # Optional args below
+            infer_gen_constraints=True,
+            silence_db_exec_errors=False,
+            verbose=True
+        )
+        ```
+    '''
     if verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
     else:
-        logging.getLogger().setLevel(logging.ERROR)
+        logger.setLevel(logging.ERROR)
     start = time.time()
     try:
         smoothie = _blend(
@@ -874,12 +901,21 @@ def blend(
             db=db,
             blender=blender,
             ingredients=ingredients,
-            blender_args=blender_args,
             infer_gen_constraints=infer_gen_constraints,
             table_to_title=table_to_title,
             schema_qualify=schema_qualify,
         )
     except Exception as error:
+        if not isinstance(error, (InvalidBlendSQL, IngredientException)):
+            from .grammars.minEarley.parser import EarleyParser
+            from .grammars.utils import load_cfg_parser
+
+            # Parse with CFG and try to get helpful recommendations
+            parser: EarleyParser = load_cfg_parser(ingredients)
+            try:
+                parser.parse(query)
+            except Exception as parser_error:
+                raise parser_error
         raise error
     finally:
         # In the case of a recursive `_blend()` call,

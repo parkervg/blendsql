@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 # PostreSQL 
 
 ::: blendsql.db._postgres.PostgreSQL

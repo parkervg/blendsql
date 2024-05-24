@@ -1,22 +1,26 @@
-import logging
 import importlib.util
-from guidance.models import Transformers, Model
+from outlines.models import transformers, LogitsGenerator
 
-from .._model import Model
-
-logging.getLogger("guidance").setLevel(logging.CRITICAL)
+from .._model import LocalModel
 
 _has_transformers = importlib.util.find_spec("transformers") is not None
 
 
-class TransformersLLM(Model):
+class TransformersLLM(LocalModel):
     """Class for Transformers local Model.
 
     Args:
         model_name_or_path: Name of the model on HuggingFace, or the path to a local model
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        ```python
+        from blendsql.models import TransformersLLM
+        model = TransformersLLM("Qwen/Qwen1.5-0.5B")
+        ```
     """
 
-    def __init__(self, model_name_or_path: str, **kwargs):
+    def __init__(self, model_name_or_path: str, caching: bool = True, **kwargs):
         if not _has_transformers:
             raise ImportError(
                 "Please install transformers with `pip install transformers`!"
@@ -27,8 +31,13 @@ class TransformersLLM(Model):
             model_name_or_path=model_name_or_path,
             requires_config=False,
             tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
+            caching=caching,
             **kwargs
         )
 
-    def _load_model(self) -> Model:
-        return Transformers(self.model_name_or_path, echo=False)
+    def _load_model(self) -> LogitsGenerator:
+        # https://huggingface.co/blog/how-to-generate
+        return transformers(
+            self.model_name_or_path,
+            model_kwargs={"do_sample": True, "temperature": 0.0, "top_p": 1.0},
+        )

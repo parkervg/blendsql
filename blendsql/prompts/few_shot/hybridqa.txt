@@ -1,5 +1,3 @@
-Examples:
-
 CREATE TABLE "w" (
   "index" INTEGER,
   "name" TEXT,
@@ -16,8 +14,6 @@ SELECT * FROM w LIMIT 3
      1 friday mosque of kandahar kandahar province kandahar 1750                houses the cloak of the islamic prophet muhammad
      2     omar al-farooq mosque kandahar province kandahar 2014 built on the site that was a popular cinema of kandahar . [ 1 ]
 */
-
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
 
 Here are some values that may be useful: w.city ( herat ) , documents.title ( herat , fire temple )
 Q: Who were the builders of the mosque in Herat with fire temples ?
@@ -42,6 +38,38 @@ BlendSQL:
 
 CREATE TABLE "w" (
   "index" INTEGER,
+  "camp name" TEXT,
+  "council" TEXT,
+  "location" TEXT,
+  "status" TEXT,
+  "notes" TEXT
+)
+/*
+3 example rows:
+SELECT * FROM w LIMIT 3
+ index                             camp name                    council                       location status                                                                                                                                                     notes
+     0 camp aquila ( formerly camp mauwehu ) connecticut yankee council candlewood lake , sherman , ct closed                                                  located on candlewood lake in sherman , ct. , the camp was sold in 1982 along with camp toquam in goshen
+     1                      camp cochipianee       bristol area council                    goshen , ct closed the camp was founded in 1928 by the bristol area council and was sold after the new britain area council and the bristol area council were merged in 1972
+     2                           camp irving         housatonic council                   shelton , ct closed             the camp was located in shelton in the birchbank area along the housatonic river . it was closed in 1945 and the buildings were razed in 1948
+*/
+
+Q: What is the status of the camp in the town that split from Stonington in 1724 ?
+BlendSQL:
+SELECT status FROM w WHERE location = {{
+    LLMQA(
+        'Which town split from Stonington in 1724?',
+        (
+            SELECT title, content FROM documents
+                WHERE documents MATCH 'stonington'
+        ),
+        options='w::location'
+    )
+}}
+
+---
+
+CREATE TABLE "w" (
+  "index" INTEGER,
   "no" INTEGER,
   "rider" TEXT,
   "team" TEXT,
@@ -55,8 +83,6 @@ SELECT * FROM w LIMIT 3
      1   4 akira yanagawa kawasaki racing team kawasaki zx-7rr
      2   5  colin edwards        castrol honda      honda rc45
 */
-
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
 
 Q: After what season did the number 7 competitor retire ?
 BlendSQL:
@@ -93,8 +119,6 @@ SELECT * FROM w LIMIT 3
      1 1962-63 bob brinkworth     center rensselaer
      2 1963-64 bob brinkworth     center rensselaer
 */
-
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
 
 Here are some values that may be useful: w.year ( 1971-72 )
 Q: What year was the 1971-72 ECAC Hockey Player of the Year born ?
@@ -133,8 +157,6 @@ SELECT * FROM w LIMIT 3
      2     anthony booth 80 80th regiment of foot 1879-3-12 12 march 1879                   battle of intombe , transvaal
 */
 
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
-
 Q: What battle did the man born on 7 December 1839 fight in ?
 BlendSQL:
 SELECT {{LLMMap('Name of the battle?', 'w::place of action')}} FROM w WHERE name = {{
@@ -168,8 +190,6 @@ SELECT * FROM w LIMIT 3
      1        kia oval      kennington                   cricket stadium
      2 banks s stadium         walsall                  football stadium
 */
-
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
 
 Here are some values that may be useful: w.name ( kia oval )
 Q: What is the borough in which Kia Oval is located ?
@@ -206,8 +226,6 @@ SELECT * FROM w LIMIT 3
      2 igman , veliko polje biathlon , cross-country skiing , nordic combined ( cross-country skiing ) not listed
 */
 
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
-
 Q: What is the capacity of the venue that was named in honor of Juan Antonio Samaranch in 2010 after his death ?
 BlendSQL:
 SELECT capacity FROM w WHERE venue = {{
@@ -235,8 +253,6 @@ SELECT * FROM w LIMIT 3
      1       2 ( 20 )   dennis raben           outfielder    university of miami
      2       3 ( 98 ) aaron pribanic right-handed pitcher university of nebraska
 */
-
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
 
 Here are some values that may be useful: w.school ( university of georgia ) , documents.title ( university of georgia )
 Q: Which teams has the player drafted by the Seattle Mariners in 2008 out of University of Georgia played for in the MLB ?
@@ -277,8 +293,6 @@ SELECT * FROM w LIMIT 3
      2     3 boss 2 : back to rule  2017           baba yadav jeetz fireworks walzen media works jaaz multimedia  \u20b9 10.5 crore ( us $ 1500000 )
 */
 
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
-
 Q: The story of a cab driver witnessing a murder by a criminal kingpin leads to extensive loss in an Indian film directed by one of the leading ad film makers in Kolkata who has made how many ad films in his career ?
 BlendSQL:
 {{
@@ -306,40 +320,6 @@ BlendSQL:
 
 CREATE TABLE "w" (
   "index" INTEGER,
-  "camp name" TEXT,
-  "council" TEXT,
-  "location" TEXT,
-  "status" TEXT,
-  "notes" TEXT
-)
-/*
-3 example rows:
-SELECT * FROM w LIMIT 3
- index                             camp name                    council                       location status                                                                                                                                                     notes
-     0 camp aquila ( formerly camp mauwehu ) connecticut yankee council candlewood lake , sherman , ct closed                                                  located on candlewood lake in sherman , ct. , the camp was sold in 1982 along with camp toquam in goshen
-     1                      camp cochipianee       bristol area council                    goshen , ct closed the camp was founded in 1928 by the bristol area council and was sold after the new britain area council and the bristol area council were merged in 1972
-     2                           camp irving         housatonic council                   shelton , ct closed             the camp was located in shelton in the birchbank area along the housatonic river . it was closed in 1945 and the buildings were razed in 1948
-*/
-
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
-
-Q: What is the status of the camp in the town that split from Stonington in 1724 ?
-BlendSQL:
-SELECT status FROM w WHERE location = {{
-    LLMQA(
-        'Which town split from Stonington in 1724?',
-        (
-            SELECT title, content FROM documents
-                WHERE documents MATCH 'stonington'
-        ),
-        options='w::location'
-    )
-}}
-
----
-
-CREATE TABLE "w" (
-  "index" INTEGER,
   "medal" TEXT,
   "name" TEXT,
   "sport" TEXT,
@@ -355,8 +335,6 @@ SELECT * FROM "w" LIMIT 3
      1  gold                             dana vollmer            swimming women s 100 m butterfly      56.87 july 25
      2  gold                              ryan lochte            swimming   men s 200 m freestyle    1:44.44 july 26
 */
-
-CREATE VIRTUAL TABLE documents USING fts5(title, content, tokenize = \'trigram\')
 
 Q: What is the name of the oldest person whose result , not including team race , was above 2 minutes ?
 BlendSQL:
@@ -398,8 +376,6 @@ SELECT * FROM w LIMIT 3
      2  2013 online film & television association award best supporting actor in a motion picture or miniseries political animals nominated
 */
 
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
-
 Q: How many social media sites are used to gather votes for the 2016 award ?
 BlendSQL:
 {{
@@ -435,8 +411,6 @@ SELECT * FROM w LIMIT 3
      2            ca . 1100 bce  hittite       anatolian    anatolia
 */
 
-CREATE VIRTUAL TABLE "documents" USING fts5(title, content, tokenize = \'trigram\')
-
 Here are some values that may be useful: w.region ( mesopotamia ) , documents.title ( mesopotamia )
 Q: What was the language family that was used in Hattusa , as well as parts of the northern Levant and Upper Mesopotamia ?
 BlendSQL:
@@ -448,5 +422,3 @@ WHERE language = {{
         options='w::language'
     )
 }}
-
----

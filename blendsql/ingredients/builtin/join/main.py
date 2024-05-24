@@ -1,90 +1,136 @@
-from typing import List, Optional
-from guidance import gen
-from textwrap import dedent
+from typing import List, Optional, Tuple
+import outlines
+import re
+from colorama import Fore
 
-from blendsql.models._model import Model
-from blendsql._program import Program
+from blendsql.models import Model, LocalModel, OllamaLLM
+from blendsql._program import Program, return_ollama_response
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
+from blendsql.utils import logger, newline_dedent
 
 
 class JoinProgram(Program):
     def __call__(
         self,
+        model: Model,
         join_criteria: str,
         left_values: List[str],
         right_values: List[str],
         sep: str,
         **kwargs,
-    ):
-        _model = self.model
-        left_values = "\n".join(left_values)
-        right_values = "\n".join(right_values)
-        with self.systemcontext:
-            _model += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
-            _model += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
-        with self.usercontext:
-            if self.few_shot:
-                _model += dedent(
-                    """
-                Criteria: Join to same topics.
+    ) -> Tuple[str, str]:
+        prompt = ""
+        prompt += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
+        prompt += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
+        prompt += newline_dedent(
+            """
+        Criteria: Join to same topics.
 
-                Left Values:
-                joshua fields
-                bob brown
-                ron ryan
+        Left Values:
+        joshua fields
+        bob brown
+        ron ryan
 
-                Right Values:
-                ron ryan
-                colby mules
-                bob brown (ice hockey)
-                josh fields (pitcher)
+        Right Values:
+        ron ryan
+        colby mules
+        bob brown (ice hockey)
+        josh fields (pitcher)
 
-                Output:
-                joshua fields;josh fields (pitcher)
-                bob brown;bob brown (ice hockey)
-                ron ryan;ron ryan
+        Output:
+        joshua fields;josh fields (pitcher)
+        bob brown;bob brown (ice hockey)
+        ron ryan;ron ryan
 
-                ---
+        ---
 
-                Criteria: Align the fruit to their corresponding colors.
+        Criteria: Align the fruit to their corresponding colors.
 
-                Left Values:
-                apple
-                banana
-                blueberry
-                orange
+        Left Values:
+        apple
+        banana
+        blueberry
+        orange
 
-                Right Values:
-                blue
-                yellow
-                red
+        Right Values:
+        blue
+        yellow
+        red
 
-                Output:
-                apple;red
-                banana;yellow
-                blueberry;blue
-                orange;-
+        Output:
+        apple;red
+        banana;yellow
+        blueberry;blue
+        orange;-
 
-                ---
-                """
-                )
-            _model += dedent(
-                f"""
-                Criteria: {join_criteria}
+        ---
+        """
+        )
+        prompt += newline_dedent(
+            """
+            Criteria: {}
 
-                Left Values:
-                {left_values}
+            Left Values:
+            {}
 
-                Right Values:
-                {right_values}
+            Right Values:
+            {}
 
-                Output:
-                """
+            Output:
+            """.format(
+                join_criteria, "\n".join(left_values), "\n".join(right_values)
             )
-        with self.assistantcontext:
-            _model += gen(name="result", **self.gen_kwargs)
-        return _model
+        )
+        # Create this pattern on the fly, and not in infer_gen_constraints
+        # since it depends on what our left/right values are
+        regex = (
+            lambda num_repeats: "(({}){}({})\n)".format(
+                "|".join([re.escape(i) for i in left_values]),
+                CONST.DEFAULT_ANS_SEP,
+                "|".join(
+                    [re.escape(i) for i in right_values] + [CONST.DEFAULT_NAN_ANS]
+                ),
+            )
+            + "{"
+            + str(num_repeats)
+            + "}"
+        )
+        max_tokens = (
+            len(
+                model.tokenizer.encode(
+                    "".join(left_values)
+                    + "".join(right_values)
+                    + (CONST.DEFAULT_ANS_SEP * len(left_values)),
+                )
+            )
+            if model.tokenizer is not None
+            else None
+        )
+
+        if isinstance(model, LocalModel):
+            generator = outlines.generate.regex(
+                model.logits_generator, regex(len(left_values))
+            )
+        else:
+            if isinstance(model, OllamaLLM):
+                # Handle call to ollama
+                return return_ollama_response(
+                    logits_generator=model.logits_generator,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=0.0,
+                )
+            generator = outlines.generate.text(model.logits_generator)
+
+        result = generator(
+            prompt,
+            max_tokens=max_tokens,
+            stop_at=["---"],
+        )
+        logger.debug(Fore.CYAN + prompt + Fore.RESET)
+        logger.debug(Fore.LIGHTCYAN_EX + result + Fore.RESET)
+        return (result, prompt)
 
 
 class LLMJoin(JoinIngredient):
@@ -98,10 +144,12 @@ class LLMJoin(JoinIngredient):
         left_values: List[str],
         right_values: List[str],
         model: Model,
-        question: Optional[str] = "Join to same topics.",
+        question: Optional[str] = None,
         **kwargs,
     ) -> dict:
-        res = model.predict(
+        if question is None:
+            question = "Join to same topics."
+        result = model.predict(
             program=JoinProgram,
             sep=CONST.DEFAULT_ANS_SEP,
             left_values=left_values,
@@ -110,12 +158,12 @@ class LLMJoin(JoinIngredient):
             **kwargs,
         )
 
-        _result = res["result"].split("\n")
-        result: dict = {}
+        _result = result.split("\n")
+        mapping: dict = {}
         for item in _result:
             if CONST.DEFAULT_ANS_SEP in item:
                 k, v = item.rsplit(CONST.DEFAULT_ANS_SEP, 1)
                 if any(pred == CONST.DEFAULT_NAN_ANS for pred in {k, v}):
                     continue
-                result[k] = v
-        return result
+                mapping[k] = v
+        return mapping

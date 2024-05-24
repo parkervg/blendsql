@@ -16,14 +16,11 @@ from typing import (
 import uuid
 from typeguard import check_type
 
+from .._exceptions import IngredientException
 from .. import utils
 from .._constants import IngredientKwarg, IngredientType
 from ..db import Database
-from ..db.utils import double_quote_escape
-
-
-class IngredientException(ValueError):
-    pass
+from ..db.utils import select_all_from_table_query
 
 
 def unpack_default_kwargs(**kwargs):
@@ -31,17 +28,6 @@ def unpack_default_kwargs(**kwargs):
         kwargs.get("tablename"),
         kwargs.get("colname"),
     )
-
-
-def align_to_real_columns(db: Database, colname: str, tablename: str) -> str:
-    table_columns = db.execute_query(f'SELECT * FROM "{tablename}" LIMIT 1').columns
-    if colname not in table_columns:
-        # Try to align with column, according to some normalization rules
-        cleaned_to_original = {
-            col.replace("\\n", " ").replace("\xa0", " "): col for col in table_columns
-        }
-        colname = cleaned_to_original[colname]
-    return colname
 
 
 @attrs
@@ -118,36 +104,30 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
-        original_table = self.db.execute_query(f'SELECT * FROM "{tablename}"')
+        original_table = self.db.execute_to_df(select_all_from_table_query(tablename))
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
-            temp_session_table = self.db.execute_query(
-                f'SELECT * FROM "{double_quote_escape(temp_session_tablename)}"'
-            )
-            colname = align_to_real_columns(
-                db=self.db, colname=colname, tablename=temp_session_tablename
+            temp_session_table = self.db.execute_to_df(
+                select_all_from_table_query(temp_session_tablename)
             )
             # We don't need to run this function on everything,
             #   if a previous subquery already got to certain values
             if new_arg_column in temp_session_table.columns:
-                values = self.db.execute_query(
+                values = self.db.execute_to_list(
                     f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
-                )[colname].tolist()
+                )
             # Base case: this is the first time we've used this particular ingredient
             # BUT, temp_session_tablename still exists
             else:
-                values = self.db.execute_query(
-                    f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"'
-                )[colname].tolist()
+                values = self.db.execute_to_list(
+                    f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"',
+                )
         else:
-            colname = align_to_real_columns(
-                db=self.db, colname=colname, tablename=value_source_tablename
+            values = self.db.execute_to_list(
+                f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"',
             )
-            values = self.db.execute_query(
-                f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"'
-            )[colname].tolist()
 
         # No need to run ingredient if we have no values to map onto
         if len(values) == 0:
@@ -211,10 +191,12 @@ class JoinIngredient(Ingredient):
         get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
         get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
 
+        # Depending on the size of the underlying data, it may be optimal to swap
+        #   the order of 'left_on' and 'right_on' columns during processing
+        swapped = False
         values = []
         original_lr_identifiers = []
         modified_lr_identifiers = []
-        left_values, right_values = [], []
         mapping = {}
         for on_arg in [left_on, right_on]:
             tablename, colname = utils.get_tablename_colname(on_arg)
@@ -225,13 +207,8 @@ class JoinIngredient(Ingredient):
                 tablename=tablename,
             )
             values.append(
-                set(
-                    [
-                        str(i)
-                        for i in self.db.execute_query(
-                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                        )[colname].tolist()
-                    ]
+                self.db.execute_to_list(
+                    f'SELECT DISTINCT "{colname}" FROM "{tablename}"', to_type=str
                 )
             )
             modified_lr_identifiers.append((tablename, colname))
@@ -239,16 +216,29 @@ class JoinIngredient(Ingredient):
         if question is None:
             # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
+            # First, make sure outer loop is shorter of the two lists
+            outer, inner = sorted(values, key=len)
+            _outer = []
+            inner = set(inner)
             mapping = {}
-            left_values, right_values = values
-            for l in left_values:
-                if l in right_values:
+            for l in outer:
+                if l in inner:
                     # Define this mapping, and remove from Model inference call
                     mapping[l] = l
+                    inner.remove(l)
+                else:
+                    _outer.append(l)
+                if len(inner) == 0:
+                    break
+            to_compare = [inner, _outer]
+        else:
+            to_compare = values
 
-            processed_values = set(list(mapping.keys()))
-            left_values = left_values.difference(processed_values)
-            right_values = right_values.difference(processed_values)
+        # Finally, order by new (remaining) length and check if we swapped places from original
+        sorted_values = sorted(to_compare, key=len)
+        if sorted_values != values:
+            swapped = True
+        left_values, right_values = sorted_values
 
         kwargs["left_values"] = left_values
         kwargs["right_values"] = right_values
@@ -274,16 +264,21 @@ class JoinIngredient(Ingredient):
 
         # Using mapped left/right values, create intermediary mapping table
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
+        # Below, we check to see if 'swapped' is True
+        # If so, we need to inverse what is 'left', and what is 'right'
         joined_values_df = pd.DataFrame(
-            data={"left": mapping.keys(), "right": mapping.values()}
+            data={
+                "left" if not swapped else "right": mapping.keys(),
+                "right" if not swapped else "left": mapping.values(),
+            }
         )
         self.db.to_temp_table(df=joined_values_df, tablename=temp_join_tablename)
         return (
             left_tablename,
             right_tablename,
             f"""JOIN "{temp_join_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right
-                           JOIN "{left_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left
-                           """,
+               JOIN "{left_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left
+               """,
             temp_join_tablename,
         )
 
@@ -313,7 +308,7 @@ class QAIngredient(Ingredient):
         if context is not None:
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
-                subtable = self.db.execute_query(
+                subtable = self.db.execute_to_df(
                     f'SELECT "{colname}" FROM "{tablename}"'
                 )
             elif not isinstance(context, pd.DataFrame):
@@ -328,9 +323,9 @@ class QAIngredient(Ingredient):
                 try:
                     tablename, colname = utils.get_tablename_colname(options)
                     tablename = aliases_to_tablenames.get(tablename, tablename)
-                    unpacked_options = self.db.execute_query(
+                    unpacked_options = self.db.execute_to_list(
                         f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )[colname].tolist()
+                    )
                 except ValueError:
                     unpacked_options = options.split(";")
             unpacked_options = set(unpacked_options)
@@ -340,6 +335,9 @@ class QAIngredient(Ingredient):
         kwargs[IngredientKwarg.QUESTION] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
         return response
+        # response = response.replace("\x00", "").replace(":", "\:")
+        # return response
+        # return f"'{response}'"
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Union[str, int, float]:

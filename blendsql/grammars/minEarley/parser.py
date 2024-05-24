@@ -89,7 +89,10 @@ class EarleyParser:
         def regex_to_candidates(regex):
             candidates = set()
             if exrex.count(regex) > CANDIDATE_LIMIT:
-                logger.warning(f"regex {regex} has too many candidates")
+                logger.warning(
+                    f"regex {regex} has too many candidates. ignoring this pattern"
+                )
+                return candidates
             for candidate in exrex.generate(regex, limit=CANDIDATE_LIMIT):
                 candidates.add(candidate)
             return candidates

@@ -1,11 +1,12 @@
 import pytest
-from blendsql.grammars.minEarley.parser import EarleyParser
+from blendsql import LLMQA, LLMJoin, LLMMap
+from blendsql.grammars.utils import load_cfg_parser, EarleyParser
 from blendsql.grammars.minEarley.earley_exceptions import UnexpectedInput
 
 
 @pytest.fixture(scope="session")
 def parser() -> EarleyParser:
-    return EarleyParser.open("./blendsql/grammars/_cfg_grammar.lark", start="start")
+    return load_cfg_parser({LLMQA, LLMJoin, LLMMap})
 
 
 accept_queries = [
@@ -82,6 +83,18 @@ accept_queries = [
         )
     }}
     """,
+    # Named arguments should work
+    """
+    {{
+        LLMQA(
+            question='Tell me why the sky is blue',
+            context=(SELECT * FROM w LIMIT 10)
+        )
+    }}
+    """,
+    """
+    SELECT * FROM w WHERE 1+1 = 2 AND {{LLMMap('more than 30 points?', 'w::score')}} = TRUE
+    """,
     "select count(`driver`) from w",
     "with t as (SELECT count(`driver`) from w), d as (SELECT * FROM w) SELECT * FROM t;",
     "select w.driver || w.constructor from w",
@@ -142,6 +155,8 @@ reject_queries = [
     "with t as (SELECT count(`driver`) from w), with d as (SELECT * FROM w) SELECT * FROM t;",
     # Invalid use of concat
     "select driver from w || t;",
+    # Can't use LLMMap here
+    "SELECT * FROM w JOIN {{LLMMap('more than 30 points?', 'table::column')}}",
 ]
 
 
@@ -154,3 +169,43 @@ def test_accept(parser, q):
 def test_reject(parser, q):
     with pytest.raises(UnexpectedInput):
         parser.parse(q)
+
+
+def test_unspecified_ingredient_reject():
+    """We pass in LLMQA to load_cfg_parser, but then use LLMap.
+    This should raise a grammar error.
+    """
+    parser = load_cfg_parser(ingredients={LLMQA})
+    with pytest.raises(UnexpectedInput):
+        parser.parse(
+            """
+            SELECT * FROM w WHERE {{LLMMap('more than 30 points?', 'w::score')}} = TRUE
+            """
+        )
+
+
+def test_no_ingredients_reject():
+    """If we don't pass any ingredients into load_cfg_parser,
+    we essentially just have a SQLite CFG grammar.
+    """
+    parser = load_cfg_parser()
+    with pytest.raises(UnexpectedInput):
+        parser.parse(
+            """
+            {{
+                LLMQA(
+                    'What year was the player born?',
+                    (
+                        SELECT documents.title AS 'Player', documents.content FROM documents
+                        JOIN {{
+                            LLMJoin(
+                                left_on = 'w::winner',
+                                right_on = 'documents::title'
+                            )
+                        }}
+                        WHERE w.year = '1971-72'
+                    )
+                )
+            }}
+            """
+        )

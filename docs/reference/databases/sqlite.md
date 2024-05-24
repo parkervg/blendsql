@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 # SQLite 
 
 ::: blendsql.db._sqlite.SQLite

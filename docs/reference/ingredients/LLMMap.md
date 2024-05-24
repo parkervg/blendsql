@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 # LLMMap
 ![ingredients](../../img/
 /LLMMap.jpg)

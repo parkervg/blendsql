@@ -1,7 +1,7 @@
 import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.scope import build_scope
-from typing import Generator, List, Set, Tuple, Union
+from typing import Generator, List, Set, Tuple, Union, Callable
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope, find_in_scope
 from attr import attrs, attrib
@@ -631,6 +631,16 @@ class SubqueryContextManager:
                 output_type: numeric | string | boolean
                 pattern: regular expression pattern to use in constrained decoding with Model
         """
+
+        def create_pattern(output_type: str) -> Callable[[int], str]:
+            if output_type == "boolean":
+                base_pattern = f"((t|f|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+            elif output_type == "numeric":
+                base_pattern = f"((([0-9]|\.)+|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+            else:
+                raise ValueError(f"Unknown output_type {output_type}")
+            return lambda num_repeats: base_pattern + "{" + str(num_repeats) + "}"
+
         added_kwargs = {}
         ingredient_node = _parse_one(self.sql()[start:end])
         child = None
@@ -645,20 +655,15 @@ class SubqueryContextManager:
         # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
         while isinstance(start_node, exp.Func) and start_node is not None:
             start_node = start_node.parent
+        output_type = None
         predicate_literals: List[str] = []
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
-                # Add our bool pattern
-                added_kwargs["pattern"] = f"(t|f|{DEFAULT_ANS_SEP}|{DEFAULT_NAN_ANS})+"
-                added_kwargs["output_type"] = "boolean"
+                output_type = "boolean"
             elif all(isinstance(x, (int, float)) for x in predicate_literals):
-                # Add our int/float pattern
-                added_kwargs[
-                    "pattern"
-                ] = f"(([0-9]|\.)+{DEFAULT_ANS_SEP}|{DEFAULT_NAN_ANS}{DEFAULT_ANS_SEP})+"
-                added_kwargs["output_type"] = "numeric"
+                output_type = "numeric"
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
                 added_kwargs["output_type"] = "string"
@@ -670,14 +675,14 @@ class SubqueryContextManager:
                     added_kwargs[
                         "example_outputs"
                     ] = f"{predicate_literals[0]}{DEFAULT_ANS_SEP}{DEFAULT_NAN_ANS}"
+                return added_kwargs
         elif isinstance(
             ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
         ):
-            # Add our int/float pattern
-            added_kwargs[
-                "pattern"
-            ] = f"(([0-9]|\.)+{DEFAULT_ANS_SEP}|{DEFAULT_NAN_ANS}{DEFAULT_ANS_SEP})+"
-            added_kwargs["output_type"] = "numeric"
+            output_type = "numeric"
+        if output_type is not None:
+            added_kwargs["output_type"] = output_type
+            added_kwargs["pattern"] = create_pattern(output_type)
         return added_kwargs
 
     def sql(self, dialect: sqlglot.dialects.Dialect = FTS5SQLite):

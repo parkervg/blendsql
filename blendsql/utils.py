@@ -2,11 +2,14 @@ from typing import Tuple
 import re
 from tabulate import tabulate
 from functools import partial
-
+import logging
 
 from ._constants import HF_REPO_ID
 
+logging.basicConfig()
+logger = logging.getLogger("blendsql")
 tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
+newline_dedent = lambda x: "\n".join([m.lstrip() for m in x.split("\n")])
 
 
 def fetch_from_hub(filename: str):
@@ -17,7 +20,7 @@ def fetch_from_hub(filename: str):
             f"You need huggingface_hub to run this!\n`pip install huggingface_hub`"
         ) from None
     return hf_hub_download(
-        repo_id=HF_REPO_ID, filename=filename, repo_type="dataset", force_download=True
+        repo_id=HF_REPO_ID, filename=filename, repo_type="dataset", force_download=False
     )
 
 

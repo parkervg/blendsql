@@ -1,6 +1,5 @@
 import functools
-from typing import Any, List
-import guidance
+from typing import Any, List, Optional, Type
 import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
@@ -12,7 +11,9 @@ from diskcache import Cache
 import platformdirs
 import hashlib
 from abc import abstractmethod
+from outlines.models import LogitsGenerator
 
+from ..utils import logger
 from .._program import Program, program_to_str
 from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
@@ -43,18 +44,18 @@ class Model:
     model_name_or_path: str = attrib()
     tokenizer: Any = attrib(default=None)
     requires_config: bool = attrib(default=False)
-    refresh_interval_min: int = attrib(default=None)
+    refresh_interval_min: Optional[int] = attrib(default=None)
+    load_model_kwargs: Optional[dict] = attrib(default={})
     env: str = attrib(default=".")
     caching: bool = attrib(default=True)
 
-    model: guidance.models.Model = attrib(init=False)
+    logits_generator: LogitsGenerator = attrib(init=False)
     prompts: list = attrib(init=False)
+    prompt_tokens: int = attrib(init=False)
+    completion_tokens: int = attrib(init=False)
+    num_calls: int = attrib(init=False)
     cache: Cache = attrib(init=False)
     run_setup_on_load: bool = attrib(default=True)
-
-    gen_kwargs: dict = {}
-    num_llm_calls: int = 0
-    num_prompt_tokens: int = 0
 
     def __attrs_post_init__(self):
         if self.caching:
@@ -63,6 +64,9 @@ class Model:
                 / f"{self.model_name_or_path}.diskcache"
             )
         self.prompts: List[str] = []
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.num_calls = 0
         if self.requires_config:
             if self.env is None:
                 self.env = "."
@@ -85,41 +89,43 @@ class Model:
             ), f"`tokenizer` passed to {self.__class__} should have `encode` method!"
         if self.run_setup_on_load:
             self._setup()
-        self.model = self._load_model()
+        self.logits_generator: LogitsGenerator = self._load_model(
+            **self.load_model_kwargs
+        )
 
-    def predict(self, program: Program, **kwargs) -> dict:
+    def predict(self, program: Type[Program], **kwargs) -> dict:
         """Takes a `Program` and some kwargs, and evaluates it with context of
         current Model.
 
         Args:
-            program: guidance program used to generate Model output
+            program: The `Program` object used to generate Model output
             **kwargs: any additional kwargs will get passed to the program
 
         Returns:
             dict containing all Model variable names and their values.
 
         Examples:
-            >>> llm.predict(program, **kwargs)
-            {"result": '"This is Model generated output"'}
+            >>> model.predict(program, **kwargs)
+            "This is model generated output"
         """
         if self.caching:
             # First, check our cache
             key = self._create_key(program, **kwargs)
             if key in self.cache:
+                logger.debug(Fore.MAGENTA + "Using cache..." + Fore.RESET)
                 self.prompts.insert(
                     -1, self.format_prompt(self.cache.get(key), **kwargs)
                 )
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
-        self.num_llm_calls += 1
-        model = program(model=self.model, **kwargs)
+        response, prompt = program(model=self, **kwargs)
+        self.num_calls += 1
         if self.tokenizer is not None:
-            prompt = model._current_prompt()
-            self.num_prompt_tokens += len(self.tokenizer.encode(prompt))
-        self.prompts.insert(-1, self.format_prompt(model._variables, **kwargs))
+            self.prompt_tokens += len(self.tokenizer.encode(prompt))
+            self.completion_tokens += len(self.tokenizer.encode(response))
         if self.caching:
-            self.cache[key] = model._variables
-        return model._variables
+            self.cache[key] = response
+        return response
 
     def _create_key(self, program: Program, **kwargs) -> str:
         """Generates a hash to use in diskcache Cache.
@@ -163,7 +169,7 @@ class Model:
         return d
 
     @abstractmethod
-    def _setup(self, **kwargs) -> None:
+    def _setup(self, *args, **kwargs) -> None:
         """Any additional setup required to get this Model up and functioning
         should go here. For example, in the AzureOpenaiLLM, we have some logic
         to refresh our client secrets every 30 min.
@@ -171,6 +177,17 @@ class Model:
         ...
 
     @abstractmethod
-    def _load_model(self) -> Any:
-        """Logic for instantiating the guidance model class goes here."""
+    def _load_model(self, *args, **kwargs) -> Any:
+        """Logic for instantiating the model class goes here.
+        Will most likely be an outlines.LogitsGenerator object,
+        but in some cases (like OllamaLLM) we make an exception.
+        """
         ...
+
+
+class LocalModel(Model):
+    pass
+
+
+class RemoteModel(Model):
+    pass
