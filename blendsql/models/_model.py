@@ -119,6 +119,7 @@ class Model:
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
         response, prompt = program(model=self, **kwargs)
+        self.prompts.insert(-1, self.format_prompt(response, **kwargs))
         self.num_calls += 1
         if self.tokenizer is not None:
             self.prompt_tokens += len(self.tokenizer.encode(prompt))
@@ -155,8 +156,8 @@ class Model:
         return hasher.hexdigest()
 
     @staticmethod
-    def format_prompt(res, **kwargs) -> dict:
-        d = {"answer": res}
+    def format_prompt(response: str, **kwargs) -> dict:
+        d = {"answer": response}
         if IngredientKwarg.QUESTION in kwargs:
             d[IngredientKwarg.QUESTION] = kwargs.get(IngredientKwarg.QUESTION)
         if IngredientKwarg.CONTEXT in kwargs:
