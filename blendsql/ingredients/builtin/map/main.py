@@ -8,11 +8,11 @@ from tqdm import tqdm
 import outlines
 
 from blendsql.utils import logger, newline_dedent
-from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM
+from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM, OllamaLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._program import Program
+from blendsql._program import Program, return_ollama_response
 
 
 class MapProgram(Program):
@@ -118,6 +118,14 @@ class MapProgram(Program):
                 self.model.logits_generator, regex(len(values))
             )
         else:
+            if isinstance(self.model, OllamaLLM):
+                # Handle call to ollama
+                return return_ollama_response(
+                    logits_generator=self.model.logits_generator,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=0.0,
+                )
             generator = outlines.generate.text(self.model.logits_generator)
         return (generator(prompt, max_tokens=max_tokens), prompt)
 

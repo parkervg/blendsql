@@ -9,7 +9,7 @@ from ..utils import logger
 from ..ingredients import Ingredient, IngredientException
 from ..models import Model, OllamaLLM
 from ..db import Database, double_quote_escape
-from .._program import Program
+from .._program import Program, return_ollama_response
 from ..grammars.minEarley.parser import EarleyParser
 from ..grammars.utils import load_cfg_parser
 from ..prompts import FewShot
@@ -57,31 +57,12 @@ class ParserProgram(Program):
         )
         if isinstance(self.model, OllamaLLM):
             # Handle call to ollama
-            from ollama import Options
-
-            options = Options(**kwargs)
-            if options.get("temperature") is None:
-                options["temperature"] = 0.0
-            options["stop"] = PARSER_STOP_TOKENS
-            stream = logger.level <= logging.DEBUG
-            response = self.model.logits_generator(
-                messages=[{"role": "user", "content": prompt}],
-                options=options,
-                stream=stream,
+            return return_ollama_response(
+                logits_generator=self.model.logits_generator,
+                prompt=prompt,
+                stop=PARSER_STOP_TOKENS,
+                temperature=0.0,
             )
-            if stream:
-                chunked_res = []
-                for chunk in response:
-                    chunked_res.append(chunk["message"]["content"])
-                    print(
-                        Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
-                        end="",
-                        flush=True,
-                    )
-                print("\n")
-                return ("".join(chunked_res), prompt)
-            else:
-                return (response["message"]["content"], prompt)
         generator = outlines.generate.text(self.model.logits_generator)
         return (generator(prompt, stop_at=PARSER_STOP_TOKENS), prompt)
 

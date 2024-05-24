@@ -3,8 +3,8 @@ import outlines
 import re
 from colorama import Fore
 
-from blendsql.models import Model, LocalModel
-from blendsql._program import Program
+from blendsql.models import Model, LocalModel, OllamaLLM
+from blendsql._program import Program, return_ollama_response
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
 from blendsql.utils import logger, newline_dedent
@@ -95,22 +95,36 @@ class JoinProgram(Program):
             + str(num_repeats)
             + "}"
         )
+        max_tokens = (
+            len(
+                self.model.tokenizer.encode(
+                    "".join(left_values)
+                    + "".join(right_values)
+                    + (CONST.DEFAULT_ANS_SEP * len(left_values)),
+                )
+            )
+            if self.model.tokenizer is not None
+            else None
+        )
+
         if isinstance(self.model, LocalModel):
             generator = outlines.generate.regex(
                 self.model.logits_generator, regex(len(left_values))
             )
         else:
+            if isinstance(self.model, OllamaLLM):
+                # Handle call to ollama
+                return return_ollama_response(
+                    logits_generator=self.model.logits_generator,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=0.0,
+                )
             generator = outlines.generate.text(self.model.logits_generator)
 
         result = generator(
             prompt,
-            max_tokens=len(
-                self.model.logits_generator.tokenizer.encode(
-                    "".join(left_values)
-                    + "".join(right_values)
-                    + (CONST.DEFAULT_ANS_SEP * len(left_values)),
-                )[0][0]
-            ),
+            max_tokens=max_tokens,
             stop_at=["---"],
         )
         logger.debug(Fore.CYAN + prompt + Fore.RESET)

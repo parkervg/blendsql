@@ -4,8 +4,9 @@ import pandas as pd
 import outlines
 import re
 
-from blendsql.models import Model
-from blendsql._program import Program
+from blendsql.models import Model, OllamaLLM
+from blendsql._exceptions import InvalidBlendSQL
+from blendsql._program import Program, return_ollama_response
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 
@@ -54,14 +55,27 @@ class QAProgram(Program):
         else:
             prompt += f"\n\nContext: \n {serialized_db}"
         if options is not None:
+            if isinstance(self.model, OllamaLLM):
+                raise InvalidBlendSQL(
+                    "Can't use `options` argument in LLMQA with an Ollama model!"
+                )
             generator = outlines.generate.choice(
                 self.model.logits_generator, [re.escape(str(i)) for i in options]
             )
-        else:
-            generator = outlines.generate.text(self.model.logits_generator)
-        result = generator(prompt, max_tokens=max_tokens)
-        if options:
+            result = generator(prompt, max_tokens=max_tokens)
+            # Map from modified options to original, as they appear in DB
             result = modified_option_to_original.get(result, result)
+        else:
+            if isinstance(self.model, OllamaLLM):
+                # Handle call to ollama
+                return return_ollama_response(
+                    logits_generator=self.model.logits_generator,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=0.0,
+                )
+            generator = outlines.generate.text(self.model.logits_generator)
+            result = generator(prompt, max_tokens=max_tokens)
         return (result, prompt)
 
 
