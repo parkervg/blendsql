@@ -124,6 +124,7 @@ smoothie = blend(
     # If you don't have OpenAI setup, you can use this small Transformers model below instead
     # blender=TransformersLLM("Qwen/Qwen1.5-0.5B"),
     ingredients={LLMQA},
+    verbose=True
 )
 print(smoothie.df)
 print(smoothie.meta.prompts)
