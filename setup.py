@@ -34,6 +34,7 @@ setup(
     license="Apache License 2.0",
     packages=find_packages(exclude=["examples", "research", "img"]),
     include_package_data=True,
+    data_files=["blendsql/grammars/_cfg_grammar.lark"],
     install_requires=[
         "outlines",
         "pyparsing==3.1.1",
@@ -42,6 +43,7 @@ setup(
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",
         "sqlalchemy>=2.0.0",
+        "huggingface_hub",
         "lark",
         "exrex",
         "platformdirs",
