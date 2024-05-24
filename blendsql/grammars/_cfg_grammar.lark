@@ -79,9 +79,10 @@ BLENDSQL_JOIN_FUNCTIONS: $blendsql_join_functions
 BLENDSQL_SCALAR_FUNCTIONS: $blendsql_scalar_functions
 left_on_arg: "left_on" "=" string
 right_on_arg: "right_on" "=" string
-blendsql_arg: (name "=" literal | literal | "(" start ")")
+blendsql_arg: (literal | "(" start ")")
+blendsql_argnames: ("context"|"question"|"options")
 
-blendsql_expression_math: blendsql_arg ("," blendsql_arg)*
+blendsql_expression_math: [blendsql_argnames "="] blendsql_arg ("," [blendsql_argnames "="] blendsql_arg)*
 blendsql_aggregation_expr: blendsql_function_begin BLENDSQL_AGGREGATE_FUNCTIONS blendsql_expression_math ")" blendsql_function_end
 blendsql_scalar_expr: blendsql_function_begin BLENDSQL_SCALAR_FUNCTIONS blendsql_expression_math ")" blendsql_function_end
 blendsql_join_expr: blendsql_function_begin BLENDSQL_JOIN_FUNCTIONS (left_on_arg "," right_on_arg|right_on_arg "," left_on_arg) ")" blendsql_function_end
