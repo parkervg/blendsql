@@ -75,17 +75,26 @@ SELECT {{VQA('Describe this image.', 'parks::Image')}} FROM parks
     }} LIMIT 1
 ```
 
-_Which park protects an ash flow formed by a volcano eruption?_
+_Which state is the park in that protects an ash flow?_
 
 ```sql
-{{
+SELECT "Location" FROM parks WHERE "Name" = {{
     LLMQA(
-      'Which park protects an ash flow formed by a volcano?',
+      'Which park protects an ash flow?',
       context=(SELECT "Name", "Description" FROM parks),
       options="parks::Name"
     ) 
 }}
 ```
+
+_How many parks are located in more than 1 state?_
+
+```sql
+SELECT COUNT(*) FROM parks
+    WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
+```
+
+Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
 
 For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
 
@@ -93,6 +102,8 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
 
 - Supports many DBMS 💾
   - Currently, SQLite and PostgreSQL are functional - more to come! 
+- Supports many models ✨
+  - Transformers, Llama.cpp, OpenAI, Ollama
 - Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
