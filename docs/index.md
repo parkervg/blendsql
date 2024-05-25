@@ -104,7 +104,7 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
   - Currently, SQLite and PostgreSQL are functional - more to come! 
 - Supports many models ✨
   - Transformers, Llama.cpp, OpenAI, Ollama
-- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
+- Easily extendable to [multi-modal usecases](./reference/examples/vqa-ingredient.ipynb) 🖼️
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [outlines](https://github.com/outlines-dev/outlines) 🚀
