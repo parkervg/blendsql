@@ -37,7 +37,7 @@ It can be viewed as an inversion of the typical text-to-SQL paradigm, where a us
 
 ![comparison](./img/comparison.jpg)
 
-For example, imagine we have the following table titles `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
+For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
 
 We can use BlendSQL to build a travel planning LLM chatbot to help us navigate the options below.
 
