@@ -54,7 +54,7 @@ setup(
         "attrs",
         "tqdm",
         "colorama",
-        "tabulate",
+        "tabulate>=0.9.0",
         "typeguard",
         "rapidfuzz",
     ],
