@@ -2,6 +2,7 @@ from attr import attrs, attrib
 from abc import abstractmethod, ABC
 import pandas as pd
 from skrub import Joiner
+import sys
 from typing import (
     Any,
     Iterable,
@@ -205,7 +206,7 @@ class JoinIngredient(Ingredient):
         question: Optional[str] = None,
         left_on: Optional[str] = None,
         right_on: Optional[str] = None,
-        use_fuzzy_join: bool = False,
+        use_fuzzy_join: bool = True,
         *args,
         **kwargs,
     ) -> tuple:
@@ -237,50 +238,54 @@ class JoinIngredient(Ingredient):
                 ]
             )
             modified_lr_identifiers.append((tablename, colname))
+        sorted_values = sorted(values, key=len)
+        # check swapping only once, at the beginning
+        if sorted_values != values:
+            swapped = True
         if question is None:
             # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
             # First, make sure outer loop is shorter of the two lists
-            if not use_fuzzy_join:
-                outer, inner = sorted(values, key=len)
-                _outer = []
-                inner = set(inner)
-                mapping = {}
-                for l in outer:
-                    if l in inner:
-                        # Define this mapping, and remove from Model inference call
-                        mapping[l] = l
-                        inner -= {l}
-                    else:
-                        _outer.append(l)
-                    if len(inner) == 0:
-                        break
-            else:
-                (_left_tablename, _left_colname), (_right_tablename,_right_colname) = modified_lr_identifiers
+
+
+            outer, inner = sorted_values
+            _outer = []
+            inner = set(inner)
+            mapping = {}
+            for l in outer:
+                if l in inner:
+                    # Define this mapping, and remove from Model inference call
+                    mapping[l] = l
+                    inner -= {l}
+                else:
+                    _outer.append(l)
+                if len(inner) == 0:
+                    break
+            #Remained _outer and inner lists preserved the sorting order in length:
+            # len(_outer) = len(outer) - #matched <= len(inner original) - matched = len(inner)
+            if use_fuzzy_join:
                 # Create the main_table DataFrame
-                main_table = pd.DataFrame(values[0], columns=[_left_colname])
+                main_table = pd.DataFrame(_outer, columns=['out'])
                 # Create the aux_table DataFrame
-                aux_table = pd.DataFrame(values[1], columns=[_right_colname])
+                aux_table = pd.DataFrame(inner, columns=['in'])
                 joiner = Joiner(
                     aux_table,
-                    main_key=_left_colname,
-                    aux_key=_right_colname,
+                    main_key='out',
+                    aux_key='in',
                     max_dist=0.9,
                     add_match_info=False,
                 )
                 res = joiner.fit_transform(main_table)
-                inner = res[_left_colname][res[_right_colname].isnull()].to_list()
-                _outer = aux_table.loc[~aux_table[_right_colname].isin(res[_right_colname]), _right_colname].tolist()
-                res_filtered = res.dropna(subset=[_right_colname])
-                mapping = res_filtered.set_index(_right_colname)[_left_colname].to_dict()
-            to_compare = [inner, _outer]
-        else:
-            to_compare = values
+                inner = aux_table.loc[~aux_table['in'].isin(res['in']), 'in'].tolist()
+                # length(new inner) = length(inner) - #matched by fuzzy join
+                _outer = res['out'][res['in'].isnull()].to_list()
+                # length(new _outer) = length(_outer) - #matched by fuzzy join
+                res_filtered = res.dropna(subset=['in'])
+                mapping = mapping | res_filtered.set_index('out')['in'].to_dict()
+            #order by length is still preserved regardless of using fuzzy join, so after initial matching and possible fuzzy join matching
+            # len(_outer) <= len(inner)
+            sorted_values = [_outer, inner]
 
-        # Finally, order by new (remaining) length and check if we swapped places from original
-        sorted_values = sorted(to_compare, key=len)
-        if sorted_values != to_compare:
-            swapped = True
         left_values, right_values = sorted_values
         kwargs["left_values"] = left_values
         kwargs["right_values"] = right_values

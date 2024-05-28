@@ -53,10 +53,13 @@ if __name__ == "__main__":
     With cached LLM response (100 runs):
         before: 0.0175
         after: 0.0166
+    With cached LLM response (30 runs):
+        with fuzzy join: 0.431
+        without fuzzy join: 0.073
     """
     db = SQLite(fetch_from_hub("1966_NBA_Expansion_Draft_0.db"))
     times = []
-    for i in range(30):
+    for i in range(1):
         for q in TEST_QUERIES:
 
             # Make our smoothie - the executed BlendSQL script
