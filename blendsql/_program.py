@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .models import Model
-from .utils import logger
+from ._logger import logger
 
 
 class Program:

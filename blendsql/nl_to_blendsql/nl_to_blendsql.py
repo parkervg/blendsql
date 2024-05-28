@@ -5,7 +5,7 @@ from colorama import Fore
 import re
 import logging
 
-from ..utils import logger
+from .._logger import logger
 from ..ingredients import Ingredient, IngredientException
 from ..models import Model, OllamaLLM
 from ..db import Database, double_quote_escape

@@ -3,10 +3,16 @@ from typing import List, Collection
 import pandas as pd
 
 from .ingredients import Ingredient
+from .utils import tabulate
+from .db.utils import truncate_df_content
 
-"""
-Defines output of an executed BlendSQL script
-"""
+
+class PrettyDataFrame(pd.DataFrame):
+    def __str__(self):
+        return tabulate(truncate_df_content(self, 50))
+
+    def __repr__(self):
+        return tabulate(truncate_df_content(self, 50))
 
 
 @dataclass
@@ -26,3 +32,6 @@ class SmoothieMeta:
 class Smoothie:
     df: pd.DataFrame
     meta: SmoothieMeta
+
+    def __post_init__(self):
+        self.df = PrettyDataFrame(self.df)

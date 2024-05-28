@@ -11,7 +11,7 @@ from sqlalchemy.engine import Engine, Connection, URL
 from pandas.io.sql import get_schema
 from abc import abstractmethod
 
-from ..utils import logger
+from .._logger import logger
 from .utils import double_quote_escape, truncate_df_content
 from .bridge_content_encoder import get_database_matches
 

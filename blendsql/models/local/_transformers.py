@@ -27,6 +27,8 @@ class TransformersLLM(LocalModel):
             ) from None
         import transformers
 
+        transformers.logging.set_verbosity_error()
+
         super().__init__(
             model_name_or_path=model_name_or_path,
             requires_config=False,

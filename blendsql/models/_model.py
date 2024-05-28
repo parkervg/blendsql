@@ -1,4 +1,3 @@
-import functools
 from typing import Any, List, Optional, Type
 import pandas as pd
 from attr import attrib, attrs
@@ -13,7 +12,7 @@ import hashlib
 from abc import abstractmethod
 from outlines.models import LogitsGenerator
 
-from ..utils import logger
+from .._logger import logger
 from .._program import Program, program_to_str
 from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
@@ -143,7 +142,7 @@ class Model:
                 [
                     (k, sorted(v) if isinstance(v, set) else v)
                     for k, v in kwargs.items()
-                    if not isinstance(v, functools.partial)
+                    if not callable(v)
                 ]
             )
         )

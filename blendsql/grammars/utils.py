@@ -3,7 +3,7 @@ from typing import Optional, Collection, List, Dict, Type
 from string import Template
 from colorama import Fore
 
-from ..utils import logger
+from .._logger import logger
 from ..ingredients import Ingredient
 from .._constants import IngredientType
 from .minEarley.parser import EarleyParser

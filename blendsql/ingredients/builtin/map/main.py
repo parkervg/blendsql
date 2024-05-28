@@ -7,7 +7,8 @@ from colorama import Fore
 from tqdm import tqdm
 import outlines
 
-from blendsql.utils import logger, newline_dedent
+from blendsql.utils import newline_dedent
+from blendsql._logger import logger
 from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM, OllamaLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
@@ -128,7 +129,7 @@ class MapProgram(Program):
                     temperature=0.0,
                 )
             generator = outlines.generate.text(model.logits_generator)
-        return (generator(prompt, max_tokens=max_tokens), prompt)
+        return (generator(prompt, max_tokens=max_tokens, stop_at="\n"), prompt)
 
 
 class LLMMap(MapIngredient):
