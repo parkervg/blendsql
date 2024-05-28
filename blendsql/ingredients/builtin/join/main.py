@@ -5,9 +5,10 @@ from colorama import Fore
 
 from blendsql.models import Model, LocalModel, OllamaLLM
 from blendsql._program import Program, return_ollama_response
+from blendsql._logger import logger
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
-from blendsql.utils import logger, newline_dedent
+from blendsql.utils import newline_dedent
 
 
 class JoinProgram(Program):

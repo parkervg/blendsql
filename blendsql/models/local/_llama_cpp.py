@@ -25,21 +25,39 @@ class LlamaCppLLM(LocalModel):
     """
 
     def __init__(
-        self, model_name_or_path: str, filename: str, caching: bool = True, **kwargs
+        self,
+        model_name_or_path: str,
+        filename: str,
+        hf_repo_with_config: str = None,
+        caching: bool = True,
+        **kwargs
     ):
         if not _has_llama_cpp:
             raise ImportError(
                 "Please install llama_cpp with `pip install llama-cpp-python`!"
             ) from None
+        from llama_cpp import llama_tokenizer
+
+        self._llama_tokenizer = None
+        if hf_repo_with_config:
+            self._llama_tokenizer = llama_tokenizer.LlamaHFTokenizer.from_pretrained(
+                hf_repo_with_config
+            )
 
         super().__init__(
             model_name_or_path=model_name_or_path,
-            # TODO: how to get llama_cpp tokenizer?
-            tokenizer=None,
+            tokenizer=self._llama_tokenizer.hf_tokenizer
+            if self._llama_tokenizer is not None
+            else None,
             requires_config=False,
             load_model_kwargs=kwargs | {"filename": filename},
             caching=caching,
         )
 
     def _load_model(self, filename: str, **kwargs) -> LogitsGenerator:
-        return llamacpp(self.model_name_or_path, filename=filename, **kwargs)
+        return llamacpp(
+            self.model_name_or_path,
+            filename=filename,
+            tokenizer=self._llama_tokenizer,
+            **kwargs
+        )

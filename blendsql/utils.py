@@ -2,13 +2,12 @@ from typing import Tuple
 import re
 from tabulate import tabulate
 from functools import partial
-import logging
 
 from ._constants import HF_REPO_ID
 
-logging.basicConfig()
-logger = logging.getLogger("blendsql")
-tabulate = partial(tabulate, headers="keys", showindex="never", tablefmt="orgtbl")
+tabulate = partial(
+    tabulate, headers="keys", showindex="never", tablefmt="simple_outline"
+)
 newline_dedent = lambda x: "\n".join([m.lstrip() for m in x.split("\n")])
 
 

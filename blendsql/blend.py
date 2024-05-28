@@ -24,8 +24,8 @@ from sqlglot import exp
 from colorama import Fore
 import string
 
+from ._logger import logger, msg_box
 from .utils import (
-    logger,
     sub_tablename,
     get_temp_session_table,
     get_temp_subquery_table,
@@ -791,15 +791,7 @@ def _blend(
                 a, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
             )
 
-    logger.debug("")
-    logger.debug(
-        "**********************************************************************************"
-    )
-    logger.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
-    logger.debug(
-        "**********************************************************************************"
-    )
-    logger.debug("")
+    logger.debug(Fore.LIGHTGREEN_EX + msg_box(f"Final Query:\n{query}") + Fore.RESET)
 
     df = db.execute_to_df(query)
 
