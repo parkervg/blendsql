@@ -12,7 +12,7 @@ from pandas.io.sql import get_schema
 from abc import abstractmethod
 
 from .._logger import logger
-from .utils import double_quote_escape, truncate_df_content
+from .utils import double_quote_escape, truncate_df_content, LazyTables
 from .bridge_content_encoder import get_database_matches
 
 DOCS_TABLE_NAME = "documents"
@@ -27,8 +27,10 @@ class Database:
     con: Connection = attrib(init=False)
     all_tables: List[str] = attrib(init=False)
     tablename_to_columns: Dict[str, Iterable] = attrib(init=False)
+    lazy_tables: LazyTables = attrib(init=False)
 
     def __attrs_post_init__(self):
+        self.lazy_tables = LazyTables()
         self.engine = create_engine(self.db_url)
         self.con = self.engine.connect()
         self.metadata = MetaData()

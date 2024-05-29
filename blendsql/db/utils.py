@@ -1,5 +1,30 @@
 import re
 import pandas as pd
+from attr import attrs, attrib
+from typing import Callable
+
+
+@attrs(frozen=True)
+class LazyTable:
+    """A non-materialized reference to a table.
+    Allows us to delay execution of things like materialized a CTE
+    until we actually interact with that table.
+    """
+
+    tablename: str = attrib()
+    init_func: Callable = attrib()
+
+    def collect(self) -> str:
+        """Runs init_function and returns new SQL query."""
+        return self.init_func()
+
+    def __str__(self):
+        return self.tablename
+
+
+class LazyTables(dict):
+    def add(self, lazy_table: LazyTable):
+        self[lazy_table.tablename] = lazy_table
 
 
 def single_quote_escape(s):

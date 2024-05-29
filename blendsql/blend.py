@@ -34,7 +34,7 @@ from .utils import (
 )
 from ._exceptions import InvalidBlendSQL
 from .db import Database
-from .db.utils import double_quote_escape, select_all_from_table_query
+from .db.utils import double_quote_escape, select_all_from_table_query, LazyTable
 from ._sqlglot import (
     MODIFIERS,
     get_first_child,
@@ -55,6 +55,32 @@ from .ingredients.ingredient import Ingredient, IngredientException
 from ._smoothie import Smoothie, SmoothieMeta
 from ._constants import IngredientType, IngredientKwarg
 from .models._model import Model
+
+
+@attrs
+class QueryContext:
+    """Handles manipulation of underlying SQL query.
+    We need to maintain two representations here:
+        - The underlying sqlglot exp.Expression
+        - The string representation of the query
+    """
+
+    node: exp.Expression = attrib(default=None)
+    query: str = attrib(default=None)
+    last_to_string_node: exp.Expression = None
+
+    def parse(self, query):
+        self.query = query
+        self.node = _parse_one(query)
+
+    def to_string(self):
+        if hash(self.node) != hash(self.last_to_string_node):
+            self.query = recover_blendsql(self.node.sql(dialect=FTS5SQLite))
+            self.last_to_string_node = self.node
+        return self.query
+
+    def __setattr__(self, name, value):
+        self.__dict__[name] = value
 
 
 @attrs
@@ -106,7 +132,7 @@ class Kitchen(list):
 
 def autowrap_query(
     query: str, kitchen: Kitchen, ingredient_alias_to_parsed_dict: Dict[str, dict]
-) -> Tuple[exp.Expression, str]:
+) -> str:
     """
     Check to see if we have some BlendSQL ingredient syntax that needs to be formatted differently
         before passing to sqlglot.parse_one.
@@ -139,9 +165,9 @@ def autowrap_query(
         else:
             continue
     # Now re-parse with sqlglot
-    _query: exp.Expression = _parse_one(query)
-    original_query = copy.deepcopy(recover_blendsql(_query.sql(dialect=FTS5SQLite)))
-    return (_query, original_query)
+    # _query: exp.Expression = _parse_one(query)
+    # original_query = copy.deepcopy(query_context.to_string())
+    return query
 
 
 def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
@@ -154,8 +180,6 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
 
     Returns:
         Tuple, containing:
-
-            - query
 
             - ingredient_alias_to_parsed_dict
 
@@ -170,7 +194,6 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
         ```
         ```text
         (
-            'SELECT documents.title AS \'Player\' , documents.content FROM documents JOIN {{A()}} WHERE w. "rank" = 2',
             {
                 '{{A()}}': {
                     'function': 'LLMJoin',
@@ -275,36 +298,39 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
     return (query, ingredient_alias_to_parsed_dict, tables_in_ingredients)
 
 
-def set_subquery_to_alias(
+def materialize_cte(
     subquery: exp.Expression,
+    query_context: QueryContext,
     aliasname: str,
-    query: exp.Expression,
     db: Database,
     blender: Model,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
-) -> exp.Expression:
+) -> str:
     str_subquery = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
+    materialized_cte_df: pd.DataFrame = disambiguate_and_submit_blend(
+        ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+        query=str_subquery,
+        db=db,
+        blender=blender,
+        aliasname=aliasname,
+        **kwargs,
+    ).df
     db.to_temp_table(
-        df=disambiguate_and_submit_blend(
-            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-            query=str_subquery,
-            db=db,
-            blender=blender,
-            aliasname=aliasname,
-            **kwargs,
-        ).df,
+        df=materialized_cte_df,
         tablename=aliasname,
     )
     # Now, we need to remove subquery and instead insert direct reference to aliasname
     # Example:
     #   `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w`
     #   Should become: `SELECT Symbol FROM w`
-    return query.transform(
+    _query = query_context.node.transform(
         replace_subquery_with_direct_alias_call,
         subquery=subquery.parent,
         aliasname=aliasname,
     ).transform(prune_with)
+    query_context.node = _query
+    return materialized_cte_df
 
 
 def get_sorted_grammar_matches(
@@ -392,6 +418,9 @@ def _blend(
     """Invoked from blend(), this contains the recursive logic to execute
     a BlendSQL query and return a `Smoothie` object.
     """
+    # The QueryContext class is used to track all manipulations done to the
+    # original query.
+    query_context = QueryContext()
     naive_execution = False
     session_uuid = str(uuid.uuid4())[:4]
     if ingredients is None:
@@ -406,35 +435,40 @@ def _blend(
     ) = preprocess_blendsql(query=query, blender=blender)
     try:
         # Try to parse as a normal SQLite query
-        _query: exp.Expression = _parse_one(query)
-        original_query = copy.deepcopy(recover_blendsql(_query.sql(dialect=FTS5SQLite)))
-        query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
+        query_context.parse(query)
+        original_query = copy.deepcopy(query_context.to_string())
     except sqlglot.errors.ParseError:
         # If we hit an error, wrap in SQLite logic so it's able to be executed
-        _query, original_query = autowrap_query(
+        query = autowrap_query(
             query=query,
             kitchen=kitchen,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         )
-        query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
+        original_query = copy.deepcopy(query)
+        query_context.parse(query)
 
     # Preliminary check - we can't have anything that modifies database state
-    if _query.find(MODIFIERS):
+    if query_context.node.find(MODIFIERS):
         raise InvalidBlendSQL("BlendSQL query cannot have `DELETE` clause!")
 
     # If there's no `SELECT` and just a QAIngredient, wrap it in a `SELECT CASE` query
-    if _query.find(exp.Select) is None:
-        _query, original_query = autowrap_query(
-            query=query,
+    if query_context.node.find(exp.Select) is None:
+        original_query = autowrap_query(
+            query=query_context.to_string(),
             kitchen=kitchen,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         )
-        query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
+        query_context.parse(original_query)
 
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
+        logger.debug(
+            Fore.YELLOW
+            + "No BlendSQL ingredients found in query, executing as vanilla SQL..."
+            + Fore.RESET
+        )
         return Smoothie(
-            df=db.execute_to_df(query),
+            df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
                 num_values_passed=0,
                 prompt_tokens=blender.prompt_tokens if blender is not None else 0,
@@ -456,7 +490,9 @@ def _blend(
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
-    for subquery_idx, subquery in enumerate(get_reversed_subqueries(_query)):
+    for subquery_idx, subquery in enumerate(
+        get_reversed_subqueries(query_context.node)
+    ):
         # At this point, we should have already handled cte statements and created associated tables
         if subquery.find(exp.With) is not None:
             subquery = subquery.transform(remove_ctes)
@@ -512,21 +548,42 @@ def _blend(
                 # For example, `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w WHERE w...`
                 # We can't assign `abstracted_query` for non-existent `w`
                 #   until we set `w` to `SELECT DISTINCT Symbol FROM portfolio`
-                _query = set_subquery_to_alias(
-                    subquery=aliased_subquery,
-                    aliasname=tablename,
-                    query=_query,
-                    blender=blender,
-                    db=db,
-                    ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-                    # Below are in case we need to call blend() again
-                    ingredients=ingredients,
-                    infer_gen_constraints=infer_gen_constraints,
-                    table_to_title=table_to_title,
-                    verbose=verbose,
-                    _prev_passed_values=_prev_passed_values,
+                db.lazy_tables.add(
+                    LazyTable(
+                        tablename=tablename,
+                        init_func=partial(
+                            materialize_cte,
+                            query_context=query_context,
+                            subquery=aliased_subquery,
+                            aliasname=tablename,
+                            blender=blender,
+                            db=db,
+                            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                            # Below are in case we need to call blend() again
+                            ingredients=ingredients,
+                            infer_gen_constraints=infer_gen_constraints,
+                            table_to_title=table_to_title,
+                            verbose=verbose,
+                            _prev_passed_values=_prev_passed_values,
+                        ),
+                    )
                 )
-                query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
+                print()
+                # _query = materialize_cte(
+                #     subquery=aliased_subquery,
+                #     aliasname=tablename,
+                #     query=_query,
+                #     blender=blender,
+                #     db=db,
+                #     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                #     # Below are in case we need to call blend() again
+                #     ingredients=ingredients,
+                #     infer_gen_constraints=infer_gen_constraints,
+                #     table_to_title=table_to_title,
+                #     verbose=verbose,
+                #     _prev_passed_values=_prev_passed_values,
+                # )
+                # query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
             if abstracted_query is not None:
                 logger.debug(
                     Fore.CYAN
@@ -547,21 +604,41 @@ def _blend(
                     naive_execution = True
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
-            _query = set_subquery_to_alias(
-                subquery=aliased_subquery,
-                aliasname=aliasname,
-                query=_query,
-                blender=blender,
-                db=db,
-                ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-                # Below are in case we need to call blend() again
-                ingredients=ingredients,
-                infer_gen_constraints=infer_gen_constraints,
-                table_to_title=table_to_title,
-                verbose=verbose,
-                _prev_passed_values=_prev_passed_values,
+            db.lazy_tables.add(
+                LazyTable(
+                    tablename=aliasname,
+                    init_func=partial(
+                        materialize_cte,
+                        query_context=query_context,
+                        subquery=aliased_subquery,
+                        aliasname=aliasname,
+                        blender=blender,
+                        db=db,
+                        ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                        # Below are in case we need to call blend() again
+                        ingredients=ingredients,
+                        infer_gen_constraints=infer_gen_constraints,
+                        table_to_title=table_to_title,
+                        verbose=verbose,
+                        _prev_passed_values=_prev_passed_values,
+                    ),
+                )
             )
-            query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
+            # _query = materialize_cte(
+            #     subquery=aliased_subquery,
+            #     aliasname=aliasname,
+            #     query=_query,
+            #     blender=blender,
+            #     db=db,
+            #     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+            #     # Below are in case we need to call blend() again
+            #     ingredients=ingredients,
+            #     infer_gen_constraints=infer_gen_constraints,
+            #     table_to_title=table_to_title,
+            #     verbose=verbose,
+            #     _prev_passed_values=_prev_passed_values,
+            # )
+            # query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
 
@@ -779,6 +856,7 @@ def _blend(
                 session_modified_tables.add(tablename)
 
     # Now insert the function outputs to the original query
+    query = query_context.to_string()
     for function_str, res in function_call_to_res.items():
         query = query.replace(function_str, str(res))
     for t in session_modified_tables:
