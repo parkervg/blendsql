@@ -186,7 +186,7 @@ class LLMMap(MapIngredient):
                 desc=f"Making calls to Model with batch_size {CONST.VALUE_BATCH_SIZE}",
                 bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
             )
-            if logger.level >= logging.DEBUG
+            if logger.level <= logging.DEBUG
             else range(0, len(values), CONST.VALUE_BATCH_SIZE)
         )
 
