@@ -1,7 +1,7 @@
 import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.scope import build_scope
-from typing import Generator, List, Set, Tuple, Union, Callable
+from typing import Generator, List, Set, Tuple, Union, Callable, Type
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope, find_in_scope
 from attr import attrs, attrib
@@ -377,6 +377,33 @@ def all_terminals_are_true(node) -> bool:
     return True
 
 
+def get_scope_nodes(
+    nodetype: Type[exp.Expression],
+    restrict_scope: bool = False,
+    root: sqlglot.optimizer.Scope = None,
+    node: exp.Expression = None,
+) -> Generator:
+    """Utility to get nodes of a certain type within our subquery scope.
+
+    https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
+    """
+    if root is None:
+        assert node is not None
+        root = build_scope(node)
+
+    if restrict_scope:
+        for tablenode in find_all_in_scope(root.expression, nodetype):
+            yield tablenode
+    else:
+        for tablenode in [
+            source
+            for scope in root.traverse()
+            for alias, (node, source) in scope.selected_sources.items()
+            if isinstance(source, nodetype)
+        ]:
+            yield tablenode
+
+
 @attrs
 class SubqueryContextManager:
     node: exp.Select = attrib()
@@ -467,7 +494,16 @@ class SubqueryContextManager:
                                 return
         for tablename, table_star_query in self._table_star_queries():
             # If this table_star_query doesn't have an ingredient at the top-level, we can safely ignore
-            if len(list(self._get_scope_nodes(exp.Struct, restrict_scope=True))) == 0:
+            if (
+                len(
+                    list(
+                        get_scope_nodes(
+                            root=self.root, nodetype=exp.Struct, restrict_scope=True
+                        )
+                    )
+                )
+                == 0
+            ):
                 continue
             # If our previous subquery has an ingredient, we can't optimize with subquery condition
             # So, remove this subquery constraint and run
@@ -517,7 +553,9 @@ class SubqueryContextManager:
         """
         # Use `scope` to get all unique tablenodes in ast
         tablenodes = set(
-            list(self._get_scope_nodes(nodetype=exp.Table, restrict_scope=True))
+            list(
+                get_scope_nodes(nodetype=exp.Table, root=self.root, restrict_scope=True)
+            )
         )
         # aliasnodes catch instances where we do something like
         #   `SELECT (SELECT * FROM x) AS w`
@@ -568,23 +606,6 @@ class SubqueryContextManager:
                     _parse_one(base_select_str + table_conditions_str),
                 )
 
-    def _get_scope_nodes(self, nodetype, restrict_scope: bool = False) -> Generator:
-        """Utility to get nodes of a certain type within our subquery scope.
-
-        https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
-        """
-        if restrict_scope:
-            for tablenode in find_all_in_scope(self.root.expression, nodetype):
-                yield tablenode
-        else:
-            for tablenode in [
-                source
-                for scope in self.root.traverse()
-                for alias, (node, source) in scope.selected_sources.items()
-                if isinstance(source, nodetype)
-            ]:
-                yield tablenode
-
     def get_table_predicates_str(
         self, tablename, disambiguate_multi_tables: bool
     ) -> str:
@@ -598,8 +619,8 @@ class SubqueryContextManager:
         # 2 places conditions can come in here
         # 'WHERE' statement and predicate in a 'JOIN' statement
         all_table_predicates = []
-        for table_predicates in self._get_scope_nodes(
-            exp.Predicate, restrict_scope=True
+        for table_predicates in get_scope_nodes(
+            nodetype=exp.Predicate, root=self.root, restrict_scope=True
         ):
             if is_in_subquery(table_predicates):
                 continue
