@@ -44,7 +44,7 @@ class SQLite(Database):
                 f"""
             SELECT name, type FROM pragma_table_info(:t)
             """,
-                {"t": tablename},
+                {"t": f'"{tablename}"'},
             ).iterrows():
                 schema[f'"{double_quote_escape(tablename)}"'][
                     '"' + row["name"] + '"'
