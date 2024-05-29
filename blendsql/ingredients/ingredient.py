@@ -1,6 +1,7 @@
 from attr import attrs, attrib
 from abc import abstractmethod, ABC
 import pandas as pd
+from sqlglot import exp
 from typing import (
     Any,
     Iterable,
@@ -78,6 +79,7 @@ class MapIngredient(Ingredient):
 
     def __call__(self, question: str, context: str, *args, **kwargs) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
+        modified_node = None
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
         get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
@@ -104,7 +106,15 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
-        original_table = self.db.execute_to_df(select_all_from_table_query(tablename))
+        # Optionally materialize a CTE
+        if tablename in self.db.lazy_tables:
+            (original_table, modified_node) = self.db.lazy_tables.pop(
+                tablename
+            ).init_func()
+        else:
+            original_table = self.db.execute_to_df(
+                select_all_from_table_query(tablename)
+            )
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
@@ -159,7 +169,7 @@ class MapIngredient(Ingredient):
                 f"subtable from run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
             )
         # Now, new table has original columns + column with the name of the question we answered
-        return (new_arg_column, tablename, colname, new_table)
+        return (new_arg_column, tablename, colname, new_table, modified_node)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Iterable[Any]:
@@ -300,7 +310,9 @@ class QAIngredient(Ingredient):
         options: Optional[Union[list, str]] = None,
         *args,
         **kwargs,
-    ) -> Union[str, int, float]:
+    ) -> Tuple[Union[str, int, float], Optional[exp.Expression]]:
+        modified_node = None
+
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
 
@@ -308,9 +320,15 @@ class QAIngredient(Ingredient):
         if context is not None:
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
-                subtable = self.db.execute_to_df(
-                    f'SELECT "{colname}" FROM "{tablename}"'
-                )
+                # Optionally materialize a CTE
+                if tablename in self.db.lazy_tables:
+                    (subtable, modified_node) = self.db.lazy_tables.pop(
+                        tablename
+                    ).init_func()[colname]
+                else:
+                    subtable = self.db.execute_to_df(
+                        f'SELECT "{colname}" FROM "{tablename}"'
+                    )
             elif not isinstance(context, pd.DataFrame):
                 raise ValueError(
                     f"Unknown type for `identifier` arg in QAIngredient: {type(context)}"
@@ -334,10 +352,7 @@ class QAIngredient(Ingredient):
         kwargs[IngredientKwarg.CONTEXT] = subtable
         kwargs[IngredientKwarg.QUESTION] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
-        return response
-        # response = response.replace("\x00", "").replace(":", "\:")
-        # return response
-        # return f"'{response}'"
+        return (response, modified_node)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Union[str, int, float]:
@@ -365,7 +380,7 @@ class StringIngredient(Ingredient):
             raise IngredientException(
                 f"{self.name}.run() should return str\nGot{type(new_str)}"
             )
-        return new_str
+        return (new_str, None)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> str:
