@@ -56,17 +56,21 @@ if __name__ == "__main__":
     With cached LLM response (30 runs):
         with fuzzy join: 0.431
         without fuzzy join: 0.073
+    Without cached LLM response (30 runs):
+        with fuzzy join: 0.286
+        without fuzzy join: 318.85
     """
     db = SQLite(fetch_from_hub("1966_NBA_Expansion_Draft_0.db"))
+    model = TransformersLLM("Qwen/Qwen1.5-0.5B", caching=False)
     times = []
-    for i in range(1):
+    for i in range(30):
         for q in TEST_QUERIES:
 
             # Make our smoothie - the executed BlendSQL script
             smoothie = blend(
                 query=q,
                 db=db,
-                blender=TransformersLLM("Qwen/Qwen1.5-0.5B", caching=True),
+                blender=model,
                 verbose=False,
                 ingredients={LLMJoin, LLMMap, LLMQA},
             )
