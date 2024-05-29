@@ -522,3 +522,29 @@ def test_subquery_alias_with_join_multi_exec(db, ingredients):
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient
+
+
+def test_materialize_ctes_multi_exec(db, ingredients):
+    """We shouldn't create materialized CTE tables if they aren't used in an ingredient.
+
+    commit dba7540
+    """
+    blendsql = """
+    WITH a AS (
+        SELECT * FROM portfolio WHERE Quantity > 200
+    ), b AS (SELECT Symbol FROM portfolio AS w WHERE w.Symbol LIKE "A%"),
+    c AS (SELECT * FROM geographic)
+    SELECT * FROM a WHERE {{starts_with('F', 'a::Symbol')}} = TRUE
+    """
+    # Need to get the lower level function so we can see what tables got created
+    from blendsql.blend import _blend
+
+    _ = _blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    assert db.has_temp_table("a")
+    assert not db.has_temp_table("b")
+    assert not db.has_temp_table("c")
+    db._reset_connection()
