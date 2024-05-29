@@ -15,9 +15,10 @@ from typing import (
     Callable,
     Collection,
     Type,
+    Union,
 )
 from sqlite3 import OperationalError
-import sqlglot.expressions
+from sqlglot.schema import Schema
 from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
@@ -48,6 +49,7 @@ from ._sqlglot import (
     SubqueryContextManager,
     remove_ctes,
     is_in_cte,
+    get_scope_nodes,
 )
 from ._dialect import _parse_one, FTS5SQLite
 from .grammars._peg_grammar import grammar
@@ -55,6 +57,32 @@ from .ingredients.ingredient import Ingredient, IngredientException
 from ._smoothie import Smoothie, SmoothieMeta
 from ._constants import IngredientType, IngredientKwarg
 from .models._model import Model
+
+
+@attrs
+class QueryContext:
+    """Handles manipulation of underlying SQL query.
+    We need to maintain two representations here:
+        - The underlying sqlglot exp.Expression
+        - The string representation of the query
+    """
+
+    node: exp.Expression = attrib(default=None)
+    _query: str = attrib(default=None)
+    _last_to_string_node: exp.Expression = None
+
+    def parse(self, query, schema: Optional[Union[dict, Schema]] = None):
+        self._query = query
+        self.node = _parse_one(query, schema=schema)
+
+    def to_string(self):
+        if hash(self.node) != hash(self._last_to_string_node):
+            self._query = recover_blendsql(self.node.sql(dialect=FTS5SQLite))
+            self.last_to_string_node = self.node
+        return self._query
+
+    def __setattr__(self, name, value):
+        self.__dict__[name] = value
 
 
 @attrs
@@ -106,7 +134,7 @@ class Kitchen(list):
 
 def autowrap_query(
     query: str, kitchen: Kitchen, ingredient_alias_to_parsed_dict: Dict[str, dict]
-) -> Tuple[exp.Expression, str]:
+) -> str:
     """
     Check to see if we have some BlendSQL ingredient syntax that needs to be formatted differently
         before passing to sqlglot.parse_one.
@@ -125,7 +153,9 @@ def autowrap_query(
     for alias, d in ingredient_alias_to_parsed_dict.items():
         _function: Ingredient = kitchen.get_from_name(d["function"])
         if _function.ingredient_type == IngredientType.QA:
-            if not query.strip().lower().startswith("select"):
+            # If the query only contains the function alias
+            # E.g: '{{A()}}'
+            if query == alias:
                 query = query.replace(
                     alias,
                     f"""SELECT CASE WHEN FALSE THEN FALSE WHEN TRUE THEN {alias} END""",
@@ -138,10 +168,7 @@ def autowrap_query(
             )
         else:
             continue
-    # Now re-parse with sqlglot
-    _query: exp.Expression = _parse_one(query)
-    original_query = copy.deepcopy(recover_blendsql(_query.sql(dialect=FTS5SQLite)))
-    return (_query, original_query)
+    return query
 
 
 def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
@@ -154,8 +181,6 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
 
     Returns:
         Tuple, containing:
-
-            - query
 
             - ingredient_alias_to_parsed_dict
 
@@ -170,7 +195,6 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
         ```
         ```text
         (
-            'SELECT documents.title AS \'Player\' , documents.content FROM documents JOIN {{A()}} WHERE w. "rank" = 2',
             {
                 '{{A()}}': {
                     'function': 'LLMJoin',
@@ -272,17 +296,18 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
                 "kwargs_dict": kwargs_dict,
             }
         query = query[:start] + substituted_ingredient_alias + query[end:]
-    return (query, ingredient_alias_to_parsed_dict, tables_in_ingredients)
+    return (query.strip(), ingredient_alias_to_parsed_dict, tables_in_ingredients)
 
 
 def materialize_cte(
     subquery: exp.Expression,
+    query_context: QueryContext,
     aliasname: str,
     db: Database,
     blender: Model,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
-) -> Tuple[str, exp.Expression]:
+) -> str:
     str_subquery = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
     materialized_cte_df: pd.DataFrame = disambiguate_and_submit_blend(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -300,12 +325,12 @@ def materialize_cte(
     # Example:
     #   `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w`
     #   Should become: `SELECT Symbol FROM w`
-    _query = subquery.transform(
+    query_context.node = query_context.node.transform(
         replace_subquery_with_direct_alias_call,
         subquery=subquery.parent,
         aliasname=aliasname,
     ).transform(prune_with)
-    return (materialized_cte_df, _query)
+    return materialized_cte_df
 
 
 def get_sorted_grammar_matches(
@@ -393,44 +418,45 @@ def _blend(
     """Invoked from blend(), this contains the recursive logic to execute
     a BlendSQL query and return a `Smoothie` object.
     """
+    # The QueryContext class is used to track all manipulations done to
+    # the original query, prior to the final execution on the underlying DBMS.
+    original_query = copy.deepcopy(query)
+    query_context = QueryContext()
     naive_execution = False
     session_uuid = str(uuid.uuid4())[:4]
     if ingredients is None:
         ingredients = []
+
     # Create our Kitchen
     kitchen = Kitchen(db=db, session_uuid=session_uuid)
     kitchen.extend(ingredients)
+    # Replace ingredient calls with short aliases (e.g. '{{A()}}'),
+    # and use _peg_grammar to extract ingredient types
     (
         query,
         ingredient_alias_to_parsed_dict,
         tables_in_ingredients,
     ) = preprocess_blendsql(query=query, blender=blender)
-    try:
-        # Try to parse as a normal SQLite query
-        _query: exp.Expression = _parse_one(query)
-        original_query = copy.deepcopy(recover_blendsql(_query.sql(dialect=FTS5SQLite)))
-        query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
-    except sqlglot.errors.ParseError:
-        # If we hit an error, wrap in SQLite logic so it's able to be executed
-        _query, original_query = autowrap_query(
-            query=query,
-            kitchen=kitchen,
-            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-        )
-        query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
+    query = autowrap_query(
+        query=query,
+        kitchen=kitchen,
+        ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+    )
+    # Parse to our QueryContext object
+    query_context.parse(query)
 
     # Preliminary check - we can't have anything that modifies database state
-    if _query.find(MODIFIERS):
+    if query_context.node.find(MODIFIERS):
         raise InvalidBlendSQL("BlendSQL query cannot have `DELETE` clause!")
 
-    # If there's no `SELECT` and just a QAIngredient, wrap it in a `SELECT CASE` query
-    if _query.find(exp.Select) is None:
-        _query, original_query = autowrap_query(
-            query=query,
-            kitchen=kitchen,
-            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-        )
-        query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
+    # # If there's no `SELECT` and just a QAIngredient, wrap it in a `SELECT CASE` query
+    # if query_context.node.find(exp.Select) is None:
+    #     original_query = autowrap_query(
+    #         query=query_context.to_string(),
+    #         kitchen=kitchen,
+    #         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+    #     )
+    #     query_context.parse(original_query)
 
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
@@ -440,7 +466,7 @@ def _blend(
             + Fore.RESET
         )
         return Smoothie(
-            df=db.execute_to_df(query),
+            df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
                 num_values_passed=0,
                 prompt_tokens=blender.prompt_tokens if blender is not None else 0,
@@ -454,6 +480,12 @@ def _blend(
                 contains_ingredient=False,
             ),
         )
+
+    schema = None
+    if schema_qualify:  # Only construct sqlglot schema if we need to
+        schema = db.get_sqlglot_schema()
+    query_context.parse(query, schema=schema)
+
     _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
     # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
     function_call_to_res: Dict[str, str] = {}
@@ -462,7 +494,10 @@ def _blend(
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
-    for subquery_idx, subquery in enumerate(get_reversed_subqueries(_query)):
+    scm: SubqueryContextManager = None
+    for subquery_idx, subquery in enumerate(
+        get_reversed_subqueries(query_context.node)
+    ):
         # At this point, we should have already handled cte statements and created associated tables
         if subquery.find(exp.With) is not None:
             subquery = subquery.transform(remove_ctes)
@@ -494,12 +529,9 @@ def _blend(
             subquery_str = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
 
         in_cte, table_alias_name = is_in_cte(subquery, return_name=True)
-        schema = None
-        if schema_qualify:  # Only construct sqlglot schema if we need to
-            schema = db.get_sqlglot_schema()
         scm = SubqueryContextManager(
             node=_parse_one(
-                subquery_str, schema=schema
+                subquery_str
             ),  # Need to do this so we don't track parents into construct_abstracted_selects
             prev_subquery_has_ingredient=prev_subquery_has_ingredient,
             alias_to_subquery={table_alias_name: subquery} if in_cte else None,
@@ -523,6 +555,7 @@ def _blend(
                         tablename=tablename,
                         init_func=partial(
                             materialize_cte,
+                            query_context=query_context,
                             subquery=aliased_subquery,
                             aliasname=tablename,
                             blender=blender,
@@ -537,23 +570,9 @@ def _blend(
                         ),
                     )
                 )
-                print()
-                # _query = materialize_cte(
-                #     subquery=aliased_subquery,
-                #     aliasname=tablename,
-                #     query=_query,
-                #     blender=blender,
-                #     db=db,
-                #     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-                #     # Below are in case we need to call blend() again
-                #     ingredients=ingredients,
-                #     infer_gen_constraints=infer_gen_constraints,
-                #     table_to_title=table_to_title,
-                #     verbose=verbose,
-                #     _prev_passed_values=_prev_passed_values,
-                # )
-                # query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
             if abstracted_query is not None:
+                if tablename in db.lazy_tables:
+                    db.lazy_tables.pop(tablename).collect()
                 logger.debug(
                     Fore.CYAN
                     + f"Executing `{abstracted_query}` and setting to `{_get_temp_subquery_table(tablename)}`..."
@@ -578,6 +597,7 @@ def _blend(
                     tablename=aliasname,
                     init_func=partial(
                         materialize_cte,
+                        query_context=query_context,
                         subquery=aliased_subquery,
                         aliasname=aliasname,
                         blender=blender,
@@ -592,21 +612,6 @@ def _blend(
                     ),
                 )
             )
-            # _query = materialize_cte(
-            #     subquery=aliased_subquery,
-            #     aliasname=aliasname,
-            #     query=_query,
-            #     blender=blender,
-            #     db=db,
-            #     ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-            #     # Below are in case we need to call blend() again
-            #     ingredients=ingredients,
-            #     infer_gen_constraints=infer_gen_constraints,
-            #     table_to_title=table_to_title,
-            #     verbose=verbose,
-            #     _prev_passed_values=_prev_passed_values,
-            # )
-            # query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
 
@@ -707,9 +712,7 @@ def _blend(
                 # Parse so we replace this function in blendsql with 1st arg
                 #   (new_col, which is the question we asked)
                 #  But also update our underlying table, so we can execute correctly at the end
-                (new_col, tablename, colname, new_table, modified_node) = function_out
-                if modified_node is not None:
-                    query = recover_blendsql(modified_node.sql(dialect=FTS5SQLite))
+                (new_col, tablename, colname, new_table) = function_out
                 prev_subquery_map_columns.add(new_col)
                 new_table[new_table[new_col].notnull()]
                 if tablename in tablename_to_map_out:
@@ -724,11 +727,8 @@ def _blend(
                 IngredientType.STRING,
                 IngredientType.QA,
             ):
-                (response, modified_node) = function_out
-                if modified_node is not None:
-                    query = recover_blendsql(modified_node.sql(dialect=FTS5SQLite))
                 # Here, we can simply insert the function's output
-                function_call_to_res[alias_function_str] = response
+                function_call_to_res[alias_function_str] = function_out
             elif ingredient.ingredient_type == IngredientType.JOIN:
                 # 1) Get the `JOIN` clause containing function
                 # 2) Replace with just the function alias
@@ -741,7 +741,8 @@ def _blend(
                 ) = function_out
                 # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
                 num_ingredients_in_join = (
-                    len(list(_query.find(exp.Join).find_all(exp.Struct))) // 2
+                    len(list(query_context.node.find(exp.Join).find_all(exp.Struct)))
+                    // 2
                 )
                 if num_ingredients_in_join > 1:
                     # Case where we have
@@ -749,14 +750,14 @@ def _blend(
                     # Since we haven't executed and saved `{{B()}}` to temp table yet,
                     #   we need to keep. So we get:
                     temp_uuid = str(uuid.uuid4())
-                    _query = _query.transform(
+                    query_context.node = query_context.node.transform(
                         replace_join_with_ingredient_multiple_ingredient,
                         ingredient_name=parsed_results_dict["ingredient_aliasname"],
                         ingredient_alias=alias_function_str,
                         temp_uuid=temp_uuid,
                     ).transform(prune_true_where)
-                    query = recover_blendsql(_query.sql(dialect=FTS5SQLite)).replace(
-                        f'SELECT "{temp_uuid}", ', ""
+                    query_context.node = query_context.parse(
+                        query_context.to_string().replace(f'SELECT "{temp_uuid}", ', "")
                     )
                 else:
                     # Case where we have
@@ -767,12 +768,11 @@ def _blend(
                     # This way, `{{A()}}` can get replaced with our new join
                     # TODO: since we're not removing predicates in other areas, probably not best to do it here.
                     #   Should probably modify in the future.
-                    _query = _query.transform(
+                    query_context.node = query_context.node.transform(
                         replace_join_with_ingredient_single_ingredient,
                         ingredient_name=parsed_results_dict["ingredient_aliasname"],
                         ingredient_alias=alias_function_str,
                     )
-                    query = recover_blendsql(_query.sql(dialect=FTS5SQLite))
                 function_call_to_res[alias_function_str] = join_clause
             else:
                 raise ValueError(
@@ -829,17 +829,25 @@ def _blend(
                 session_modified_tables.add(tablename)
 
     # Now insert the function outputs to the original query
+    query = query_context.to_string()
     for function_str, res in function_call_to_res.items():
         query = query.replace(function_str, str(res))
     for t in session_modified_tables:
         query = sub_tablename(
             t, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
         )
-    for a, t in scm.alias_to_tablename.items():
-        if t in session_modified_tables:
-            query = sub_tablename(
-                a, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
-            )
+    if scm is not None:
+        for a, t in scm.alias_to_tablename.items():
+            if t in session_modified_tables:
+                query = sub_tablename(
+                    a, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
+                )
+    # Finally, iter through tables in query and see if we need to collect LazyTable
+    for table in get_scope_nodes(
+        nodetype=exp.Table, node=query_context.node, restrict_scope=False
+    ):
+        if table.name in db.lazy_tables:
+            db.lazy_tables.pop(table.name).collect()
 
     logger.debug(Fore.LIGHTGREEN_EX + msg_box(f"Final Query:\n{query}") + Fore.RESET)
 
@@ -947,16 +955,16 @@ def blend(
             schema_qualify=schema_qualify,
         )
     except Exception as error:
-        if not isinstance(error, (InvalidBlendSQL, IngredientException)):
-            from .grammars.minEarley.parser import EarleyParser
-            from .grammars.utils import load_cfg_parser
-
-            # Parse with CFG and try to get helpful recommendations
-            parser: EarleyParser = load_cfg_parser(ingredients)
-            try:
-                parser.parse(query)
-            except Exception as parser_error:
-                raise parser_error
+        # if not isinstance(error, (InvalidBlendSQL, IngredientException)):
+        #     from .grammars.minEarley.parser import EarleyParser
+        #     from .grammars.utils import load_cfg_parser
+        #
+        #     # Parse with CFG and try to get helpful recommendations
+        #     parser: EarleyParser = load_cfg_parser(ingredients)
+        #     try:
+        #         parser.parse(query)
+        #     except Exception as parser_error:
+        #         raise parser_error
         raise error
     finally:
         # In the case of a recursive `_blend()` call,
