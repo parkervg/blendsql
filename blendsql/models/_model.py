@@ -10,6 +10,7 @@ from diskcache import Cache
 import platformdirs
 import hashlib
 from abc import abstractmethod
+from functools import cached_property
 from outlines.models import LogitsGenerator
 
 from .._logger import logger
@@ -88,9 +89,6 @@ class Model:
             ), f"`tokenizer` passed to {self.__class__} should have `encode` method!"
         if self.run_setup_on_load:
             self._setup()
-        self.logits_generator: LogitsGenerator = self._load_model(
-            **self.load_model_kwargs
-        )
 
     def predict(self, program: Type[Program], **kwargs) -> dict:
         """Takes a `Program` and some kwargs, and evaluates it with context of
@@ -153,6 +151,11 @@ class Model:
         ).encode()
         hasher.update(combined)
         return hasher.hexdigest()
+
+    @cached_property
+    def logits_generator(self) -> LogitsGenerator:
+        """Allows for lazy loading of underlying model."""
+        return self._load_model(**self.load_model_kwargs)
 
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
