@@ -206,7 +206,7 @@ class JoinIngredient(Ingredient):
         question: Optional[str] = None,
         left_on: Optional[str] = None,
         right_on: Optional[str] = None,
-        use_fuzzy_join: bool = True,
+        use_fuzzy_join: bool = False,
         *args,
         **kwargs,
     ) -> tuple:
@@ -263,7 +263,7 @@ class JoinIngredient(Ingredient):
                     break
             #Remained _outer and inner lists preserved the sorting order in length:
             # len(_outer) = len(outer) - #matched <= len(inner original) - matched = len(inner)
-            if use_fuzzy_join:
+            if use_fuzzy_join and len(inner) > 1:
                 # Create the main_table DataFrame
                 main_table = pd.DataFrame(_outer, columns=['out'])
                 # Create the aux_table DataFrame

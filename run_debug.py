@@ -53,6 +53,7 @@ if __name__ == "__main__":
     With cached LLM response (100 runs):
         before: 0.0175
         after: 0.0166
+    "Qwen -1.5-0.5B"
     With cached LLM response (30 runs):
         with fuzzy join: 0.431
         without fuzzy join: 0.073
@@ -61,7 +62,10 @@ if __name__ == "__main__":
         without fuzzy join: 318.85
     """
     db = SQLite(fetch_from_hub("1966_NBA_Expansion_Draft_0.db"))
-    model = TransformersLLM("Qwen/Qwen1.5-0.5B", caching=False)
+    #db = SQLite(fetch_from_hub("multi_table.db"))
+    TEST_TRANSFORMERS_LLM = "hf-internal-testing/tiny-random-PhiForCausalLM"
+    model = TransformersLLM(TEST_TRANSFORMERS_LLM, caching=False)
+
     times = []
     for i in range(30):
         for q in TEST_QUERIES:
