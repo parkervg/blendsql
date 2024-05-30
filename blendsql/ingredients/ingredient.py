@@ -334,9 +334,18 @@ class QAIngredient(Ingredient):
                 try:
                     tablename, colname = utils.get_tablename_colname(options)
                     tablename = aliases_to_tablenames.get(tablename, tablename)
-                    unpacked_options = self.db.execute_to_list(
-                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )
+                    # Optionally materialize a CTE
+                    if tablename in self.db.lazy_tables:
+                        unpacked_options = (
+                            self.db.lazy_tables.pop(tablename)
+                            .init_func()[colname]
+                            .unique()
+                            .tolist()
+                        )
+                    else:
+                        unpacked_options = self.db.execute_to_list(
+                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                        )
                 except ValueError:
                     unpacked_options = options.split(";")
             unpacked_options = set(unpacked_options)
