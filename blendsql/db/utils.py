@@ -12,11 +12,7 @@ class LazyTable:
     """
 
     tablename: str = attrib()
-    init_func: Callable = attrib()
-
-    def collect(self) -> str:
-        """Runs init_function and returns new SQL query."""
-        return self.init_func()
+    collect: Callable[..., pd.DataFrame] = attrib()
 
     def __str__(self):
         return self.tablename

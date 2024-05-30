@@ -525,8 +525,8 @@ def _blend(
                 #   until we set `w` to `SELECT DISTINCT Symbol FROM portfolio`
                 db.lazy_tables.add(
                     LazyTable(
-                        tablename=tablename,
-                        init_func=partial(
+                        tablename,
+                        partial(
                             materialize_cte,
                             query_context=query_context,
                             subquery=aliased_subquery,
@@ -567,8 +567,8 @@ def _blend(
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
             db.lazy_tables.add(
                 LazyTable(
-                    tablename=aliasname,
-                    init_func=partial(
+                    aliasname,
+                    partial(
                         materialize_cte,
                         query_context=query_context,
                         subquery=aliased_subquery,

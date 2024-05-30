@@ -107,7 +107,7 @@ class MapIngredient(Ingredient):
 
         # Optionally materialize a CTE
         if tablename in self.db.lazy_tables:
-            original_table = self.db.lazy_tables.pop(tablename).init_func()
+            original_table = self.db.lazy_tables.pop(tablename).collect()
         else:
             original_table = self.db.execute_to_df(
                 select_all_from_table_query(tablename)
@@ -317,7 +317,7 @@ class QAIngredient(Ingredient):
                 tablename, colname = utils.get_tablename_colname(context)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
-                    subtable = self.db.lazy_tables.pop(tablename).init_func()[colname]
+                    subtable = self.db.lazy_tables.pop(tablename).collect()[colname]
                 else:
                     subtable = self.db.execute_to_df(
                         f'SELECT "{colname}" FROM "{tablename}"'
@@ -338,7 +338,7 @@ class QAIngredient(Ingredient):
                     if tablename in self.db.lazy_tables:
                         unpacked_options = (
                             self.db.lazy_tables.pop(tablename)
-                            .init_func()[colname]
+                            .collect()[colname]
                             .unique()
                             .tolist()
                         )
