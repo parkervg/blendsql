@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Iterable, Any, List, Union
+from typing import Iterable, List, Union
 from blendsql.ingredients import MapIngredient, QAIngredient, JoinIngredient
 from blendsql.db.utils import single_quote_escape
 
@@ -25,7 +25,7 @@ class get_length(MapIngredient):
 
 
 class select_first_sorted(QAIngredient):
-    def run(self, options: set, **kwargs) -> Iterable[Any]:
+    def run(self, options: set, **kwargs) -> Union[str, int, float]:
         """Simple test function, equivalent to the following in SQL:
         `ORDER BY {colname} LIMIT 1`
         """
