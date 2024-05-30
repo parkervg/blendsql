@@ -243,7 +243,7 @@ class JoinIngredient(Ingredient):
 
         # Finally, order by new (remaining) length and check if we swapped places from original
         sorted_values = sorted(to_compare, key=len)
-        if sorted_values != values:
+        if sorted_values != to_compare:
             swapped = True
         left_values, right_values = sorted_values
 
