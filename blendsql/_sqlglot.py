@@ -1,7 +1,7 @@
 import sqlglot
-from sqlglot import exp
+from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
-from typing import Generator, List, Set, Tuple, Union, Callable, Type
+from typing import Generator, List, Set, Tuple, Union, Callable, Type, Optional
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope, find_in_scope
 from attr import attrs, attrib
@@ -402,6 +402,32 @@ def get_scope_nodes(
             if isinstance(source, nodetype)
         ]:
             yield tablenode
+
+
+@attrs
+class QueryContextManager:
+    """Handles manipulation of underlying SQL query.
+    We need to maintain two representations here:
+        - The underlying sqlglot exp.Expression
+        - The string representation of the query
+    """
+
+    node: exp.Expression = attrib(default=None)
+    _query: str = attrib(default=None)
+    _last_to_string_node: exp.Expression = None
+
+    def parse(self, query, schema: Optional[Union[dict, Schema]] = None):
+        self._query = query
+        self.node = _parse_one(query, schema=schema)
+
+    def to_string(self):
+        if hash(self.node) != hash(self._last_to_string_node):
+            self._query = recover_blendsql(self.node.sql(dialect=FTS5SQLite))
+            self.last_to_string_node = self.node
+        return self._query
+
+    def __setattr__(self, name, value):
+        self.__dict__[name] = value
 
 
 @attrs

@@ -15,10 +15,8 @@ from typing import (
     Callable,
     Collection,
     Type,
-    Union,
 )
 from sqlite3 import OperationalError
-from sqlglot.schema import Schema
 from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
@@ -38,6 +36,8 @@ from .db import Database
 from .db.utils import double_quote_escape, select_all_from_table_query, LazyTable
 from ._sqlglot import (
     MODIFIERS,
+    QueryContextManager,
+    SubqueryContextManager,
     get_first_child,
     get_reversed_subqueries,
     replace_join_with_ingredient_single_ingredient,
@@ -46,7 +46,6 @@ from ._sqlglot import (
     prune_with,
     replace_subquery_with_direct_alias_call,
     maybe_set_subqueries_to_true,
-    SubqueryContextManager,
     remove_ctes,
     is_in_cte,
     get_scope_nodes,
@@ -57,32 +56,6 @@ from .ingredients.ingredient import Ingredient, IngredientException
 from ._smoothie import Smoothie, SmoothieMeta
 from ._constants import IngredientType, IngredientKwarg
 from .models._model import Model
-
-
-@attrs
-class QueryContext:
-    """Handles manipulation of underlying SQL query.
-    We need to maintain two representations here:
-        - The underlying sqlglot exp.Expression
-        - The string representation of the query
-    """
-
-    node: exp.Expression = attrib(default=None)
-    _query: str = attrib(default=None)
-    _last_to_string_node: exp.Expression = None
-
-    def parse(self, query, schema: Optional[Union[dict, Schema]] = None):
-        self._query = query
-        self.node = _parse_one(query, schema=schema)
-
-    def to_string(self):
-        if hash(self.node) != hash(self._last_to_string_node):
-            self._query = recover_blendsql(self.node.sql(dialect=FTS5SQLite))
-            self.last_to_string_node = self.node
-        return self._query
-
-    def __setattr__(self, name, value):
-        self.__dict__[name] = value
 
 
 @attrs
@@ -301,7 +274,7 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
 
 def materialize_cte(
     subquery: exp.Expression,
-    query_context: QueryContext,
+    query_context: QueryContextManager,
     aliasname: str,
     db: Database,
     blender: Model,
@@ -418,10 +391,10 @@ def _blend(
     """Invoked from blend(), this contains the recursive logic to execute
     a BlendSQL query and return a `Smoothie` object.
     """
-    # The QueryContext class is used to track all manipulations done to
+    # The QueryContextManager class is used to track all manipulations done to
     # the original query, prior to the final execution on the underlying DBMS.
     original_query = copy.deepcopy(query)
-    query_context = QueryContext()
+    query_context = QueryContextManager()
     naive_execution = False
     session_uuid = str(uuid.uuid4())[:4]
     if ingredients is None:
@@ -442,7 +415,7 @@ def _blend(
         kitchen=kitchen,
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
     )
-    # Parse to our QueryContext object
+    # Parse to our QueryContextManager object
     query_context.parse(query)
 
     # Preliminary check - we can't have anything that modifies database state
