@@ -1,8 +1,8 @@
 from attr import attrs, attrib
 from abc import abstractmethod, ABC
 import pandas as pd
+import json
 from skrub import Joiner
-import sys
 from typing import (
     Any,
     Iterable,
@@ -16,9 +16,11 @@ from typing import (
     Optional,
 )
 import uuid
+from colorama import Fore
 from typeguard import check_type
 
 from .._exceptions import IngredientException
+from .._logger import logger
 from .. import utils
 from .._constants import IngredientKwarg, IngredientType
 from ..db import Database
@@ -52,7 +54,7 @@ class Ingredient(ABC):
         ...
 
     def _run(self, *args, **kwargs):
-        #print('kwargs = ', kwargs)
+        # print('kwargs = ', kwargs)
         return check_type(self.run(*args, **kwargs), self.allowed_output_types)
 
     def maybe_get_temp_table(
@@ -186,7 +188,7 @@ class JoinIngredient(Ingredient):
         question: Optional[str] = None,
         left_on: Optional[str] = None,
         right_on: Optional[str] = None,
-        use_fuzzy_join: bool = False,
+        use_fuzzy_join: bool = True,
         *args,
         **kwargs,
     ) -> tuple:
@@ -223,8 +225,6 @@ class JoinIngredient(Ingredient):
             # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
             # First, make sure outer loop is shorter of the two lists
-
-
             outer, inner = sorted_values
             _outer = []
             inner = set(inner)
@@ -238,28 +238,37 @@ class JoinIngredient(Ingredient):
                     _outer.append(l)
                 if len(inner) == 0:
                     break
-            #Remained _outer and inner lists preserved the sorting order in length:
+            # Remained _outer and inner lists preserved the sorting order in length:
             # len(_outer) = len(outer) - #matched <= len(inner original) - matched = len(inner)
             if use_fuzzy_join and len(inner) > 1:
                 # Create the main_table DataFrame
-                main_table = pd.DataFrame(_outer, columns=['out'])
+                main_table = pd.DataFrame(_outer, columns=["out"])
                 # Create the aux_table DataFrame
-                aux_table = pd.DataFrame(inner, columns=['in'])
+                aux_table = pd.DataFrame(inner, columns=["in"])
                 joiner = Joiner(
                     aux_table,
-                    main_key='out',
-                    aux_key='in',
+                    main_key="out",
+                    aux_key="in",
                     max_dist=0.9,
                     add_match_info=False,
                 )
                 res = joiner.fit_transform(main_table)
-                inner = aux_table.loc[~aux_table['in'].isin(res['in']), 'in'].tolist()
+                # Below is essentially set.difference on aux_table and those paired in res
+                inner = aux_table.loc[~aux_table["in"].isin(res["in"]), "in"].tolist()
                 # length(new inner) = length(inner) - #matched by fuzzy join
-                _outer = res['out'][res['in'].isnull()].to_list()
+                _outer = res["out"][res["in"].isnull()].to_list()
                 # length(new _outer) = length(_outer) - #matched by fuzzy join
-                res_filtered = res.dropna(subset=['in'])
-                mapping = mapping | res_filtered.set_index('out')['in'].to_dict()
-            #order by length is still preserved regardless of using fuzzy join, so after initial matching and possible fuzzy join matching
+                _mapping = res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
+                logger.debug(
+                    Fore.YELLOW
+                    + "Made the following alignment with `skrub.Joiner`:"
+                    + Fore.RESET
+                )
+                logger.debug(Fore.YELLOW + json.dumps(_mapping, indent=4) + Fore.RESET)
+                mapping = mapping | _mapping
+            # order by length is still preserved regardless of using fuzzy join, so after initial matching and possible fuzzy join matching
+            # This is because the lengths of each list will decrease at the same rate, so whichever list was larger at the beginning,
+            # will be larger here at the end.
             # len(_outer) <= len(inner)
             sorted_values = [_outer, inner]
 
