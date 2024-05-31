@@ -28,7 +28,7 @@ setup(
     url="https://github.com/parkervg/blendsql",
     author="Parker Glenn",
     author_email="parkervg5@gmail.com",
-    description="Query language to blend SQL logic and LLM reasoning across multi-modal data.",
+    description="Query language for blending SQL logic and LLM reasoning across multi-modal data.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
@@ -46,6 +46,12 @@ setup(
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",
         "sqlalchemy>=2.0.0",
+        # skrub doesn't currently support python<3.10: https://github.com/skrub-data/skrub/issues/815
+        "skrub==0.1.0 ; python_version>='3.10'",
+        # We fetch this branch which removes python 3.10 style type annotations instead, then
+        "skrub @ git+https://github.com/jeromedockes/skrub.git@strip-type-annotations ; python_version<'3.10'",
+        # https://github.com/skrub-data/skrub/issues/910
+        "scikit-learn==1.4.2",
         "huggingface_hub",
         "datasets",
         "lark",
@@ -74,7 +80,7 @@ setup(
             "recognizers-text-suite",
             "emoji==1.7.0",
         ],
-        "test": ["pytest", "huggingface_hub", "pre-commit"],
+        "test": ["pytest", "pre-commit", "llama-cpp-python", "transformers", "torch"],
         "docs": [
             "mkdocs-material",
             "mkdocstrings",
