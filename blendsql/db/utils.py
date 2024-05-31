@@ -19,6 +19,18 @@ class LazyTable:
 
 
 class LazyTables(dict):
+    """Used for storing LazyTable objects.
+
+    Examples:
+        ```python
+        lazy_tables = LazyTables()
+        # Add a LazyTable object
+        lazy_tables.add(LazyTable("my_table", lambda _: pd.DataFrame())
+        # Retrieve using tablename and call `collect()`
+        df = lazy_tables.pop("my_table").collect()
+        ```
+    """
+
     def add(self, lazy_table: LazyTable):
         self[lazy_table.tablename] = lazy_table
 
