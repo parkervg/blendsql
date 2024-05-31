@@ -25,7 +25,8 @@ class PostgreSQL(Database):
             raise ImportError(
                 "Please install psycopg2 with `pip install psycopg2-binary`!"
             ) from None
-        db_url: URL = make_url(f"postgresql+psycopg2://{db_path}")
+        self._raw_db_path = db_path
+        db_url: URL = make_url(f"postgresql+psycopg2://{self._raw_db_path}")
         if db_url.username is None:
             logging.warning(
                 Fore.RED
@@ -36,7 +37,7 @@ class PostgreSQL(Database):
     def has_temp_table(self, tablename: str) -> bool:
         return (
             tablename
-            in self.execute_query(
+            in self.execute_to_df(
                 "SELECT * FROM information_schema.tables WHERE table_schema LIKE 'pg_temp_%'"
             )["table_name"].unique()
         )

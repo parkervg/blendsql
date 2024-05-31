@@ -1,13 +1,11 @@
-import logging
 import os
-from guidance.models import OpenAI, AzureOpenAI
+from outlines.models import openai, azure_openai, LogitsGenerator
+from outlines.models.openai import OpenAIConfig
 import tiktoken
 
-from .._model import Model
+from .._model import RemoteModel
 
-logging.getLogger("openai").setLevel(logging.CRITICAL)
-logging.getLogger("guidance").setLevel(logging.CRITICAL)
-logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+DEFAULT_CONFIG = OpenAIConfig(temperature=0.0)
 
 
 def openai_setup() -> None:
@@ -45,64 +43,126 @@ def openai_setup() -> None:
         ) from None
 
 
-class AzureOpenaiLLM(Model):
+class AzureOpenaiLLM(RemoteModel):
     """Class for Azure OpenAI Model API.
 
     Args:
         model_name_or_path: Name of the Azure deployment to use
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
             Should either contain the variable `OPENAI_API_KEY`,
-                or all of `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`
+            or all of `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`
+        config: Optional outlines.models.openai.OpenAIConfig to use in loading model
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        Given the following `.env` file in the directory above current:
+        ```text
+        TENANT_ID=my_tenant_id
+        CLIENT_ID=my_client_id
+        CLIENT_SECRET=my_client_secret
+        ```
+        ```python
+        from blendsql.models import AzureOpenaiLLM
+        from outlines.models.openai import OpenAIConfig
+
+        model = AzureOpenaiLLM(
+            "gpt-3.5-turbo",
+            env="..",
+            config=OpenAIConig(
+                temperature=0.7
+            )
+        )
+        ```
     """
 
-    def __init__(self, model_name_or_path: str, env: str = None, **kwargs):
+    def __init__(
+        self,
+        model_name_or_path: str,
+        env: str = None,
+        config: OpenAIConfig = None,
+        caching: bool = True,
+        **kwargs
+    ):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
+            load_model_kwargs=kwargs | {"config": config or DEFAULT_CONFIG},
             env=env,
+            caching=caching,
             **kwargs
         )
 
-    def _load_model(self) -> Model:
-        return AzureOpenAI(
+    def _load_model(self, config: OpenAIConfig, **kwargs) -> LogitsGenerator:
+        return azure_openai(
             self.model_name_or_path,
-            api_key=os.getenv("OPENAI_API_KEY"),
+            config=config,
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
-            azure_deployment=os.getenv("OPENAI_API_VERSION"),
-            echo=False,
+            api_version=os.getenv("OPENAI_API_VERSION"),
+            api_key=os.getenv("OPENAI_API_KEY"),
+            **kwargs
         )
 
     def _setup(self, **kwargs) -> None:
         openai_setup()
-        self.model = self._load_model()
 
 
-class OpenaiLLM(Model):
+class OpenaiLLM(RemoteModel):
     """Class for OpenAI Model API.
 
     Args:
         model_name_or_path: Name of the OpenAI model to use
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
             Should contain the variable `OPENAI_API_KEY`
+        config: Optional outlines.models.openai.OpenAIConfig to use in loading model
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        Given the following `.env` file in the directory above current:
+        ```text
+        OPENAI_API_KEY=my_api_key
+        ```
+        ```python
+        from blendsql.models import OpenaiLLM
+        from outlines.models.openai import OpenAIConfig
+
+        model = AzureOpenaiLLM(
+            "gpt-3.5-turbo",
+            env="..",
+            config=OpenAIConig(
+                temperature=0.7
+            )
+        )
+        ```
     """
 
-    def __init__(self, model_name_or_path: str, env: str = None, **kwargs):
+    def __init__(
+        self,
+        model_name_or_path: str,
+        env: str = None,
+        config: OpenAIConfig = None,
+        caching: bool = True,
+        **kwargs
+    ):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
+            load_model_kwargs={"config": config or DEFAULT_CONFIG},
             env=env,
+            caching=caching,
             **kwargs
         )
 
-    def _load_model(self) -> Model:
-        return OpenAI(
-            self.model_name_or_path, api_key=os.getenv("OPENAI_API_KEY"), echo=False
+    def _load_model(self, config: OpenAIConfig, **kwargs) -> LogitsGenerator:
+        return openai(
+            self.model_name_or_path,
+            config=config,
+            api_key=os.getenv("OPENAI_API_KEY"),
+            **kwargs
         )
 
     def _setup(self, **kwargs) -> None:
         openai_setup()
-        self.model = self._load_model()

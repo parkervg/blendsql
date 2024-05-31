@@ -24,16 +24,6 @@ pip install blendsql
 ```
 </div>
 </center>
-
-### Features
-- Supports many DBMS 💾
-  - Currently, SQLite and PostgreSQL are functional - more to come! 
-- Easily extendable to [multi-modal usecases](reference/examples/vqa-ingredient) 🖼️
-- Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
-
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
 
 As a result, we can *Blend* together...
@@ -45,76 +35,88 @@ It can be viewed as an inversion of the typical text-to-SQL paradigm, where a us
 
 **Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
 
-As shown in our paper, using BlendSQL as an intermediate representation for complex reasoning tasks can <b>boost performance by 8.63%</b> and <b>use 35% fewer tokens</b> compared to the naive end-to-end approach. For an example of this approach, see [this notebook](reference/examples/teaching-blendsql-via-in-context-learning).
+![comparison](./img/comparison.jpg)
 
-![comparison](img/
-comparison.jpg)
+For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
 
-For example, imagine we have the following tables.
+We can use BlendSQL to build a travel planning LLM chatbot to help us navigate the options below.
 
-### `w`
-| **date** | **rival**                 | **city**  | **venue**                   | **score** |
-|----------|---------------------------|-----------|-----------------------------|-----------|
-| 31 may   | nsw waratahs              | sydney    | agricultural society ground | 11-0      |
-| 5 jun    | northern districts        | newcastle | sports ground               | 29-0      |
-| 7 jun    | nsw waratahs              | sydney    | agricultural society ground | 21-2      |
-| 11 jun   | western districts         | bathurst  | bathurst ground             | 11-0      |
-| 12 jun   | wallaroo & university nsw | sydney    | cricket ground              | 23-10     |
 
-### `documents`
-| **title**                      | **content**                                       |
-|--------------------------------|---------------------------------------------------|
-| sydney                         | sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the ... |
-| new south wales waratahs       | the new south wales waratahs ( /ˈwɒrətɑːz/ or ... |
-| sydney showground (moore park) | the former sydney showground ( moore park ) at... |
-| sydney cricket ground          | the sydney cricket ground ( scg ) is a sports ... |
-| newcastle, new south wales     | the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) met... |
-| bathurst, new south wales      | bathurst /ˈbæθərst/ is a city in the central t... |
+| **Name**        | **Image**                                                                   | **Location**       | **Area**                          | **Recreation Visitors (2022)** | **Description**                                                                                                                          |
+|-----------------|-----------------------------------------------------------------------------|--------------------|-----------------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| Death Valley    | ![death_valley.jpeg](./img/national_parks_example/death_valley.jpeg)     | California, Nevada | 3,408,395.63 acres (13,793.3 km2) | 1,128,862                      | Death Valley is the hottest, lowest, and driest place in the United States, with daytime temperatures that have exceeded 130 °F (54 °C). |
+| Everglades      | ![everglades.jpeg](./img/national_parks_example/everglades.jpeg)         | Alaska             | 7,523,897.45 acres (30,448.1 km2) | 9,457                          | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.              |
+| New River Gorge | ![new_river_gorge.jpeg](./img/national_parks_example/new_river_gorge.jpeg) | West Virgina       | 7,021 acres (28.4 km2)            | 1,593,523                      | The New River Gorge is the deepest river gorge east of the Mississippi River.                                                            |
+ | Katmai          | ![katmai.jpg](./img/national_parks_example/katmai.jpg)                  | Alaska             |  3,674,529.33 acres (14,870.3 km2)                                 | 33,908 | This park on the Alaska Peninsula protects the Valley of Ten Thousand Smokes, an ash flow formed by the 1912 eruption of Novarupta.  |
 
 BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
-The below examples work out of the box, but you are able to design your own ingredients as well! 
 
-*What was the result of the game played 120 miles west of Sydney?*
+_Which parks don't have park facilities?_
 ```sql
-SELECT * FROM w
-  WHERE city = {{
-      LLMQA(
-          'Which city is located 120 miles west of Sydney?',
-          (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
-          options='w::city'
-      )
-  }}
+SELECT * FROM parks
+    WHERE NOT {{
+        LLMValidate(
+            'Does this location have park facilities?',
+            context=(SELECT "Name" AS "Park", "Description" FROM parks),
+        )
+    }}
 ```
 
-*Which venues in Sydney saw more than 30 points scored?*
+_What does the largest park in Alaska look like?_
+
 ```sql
-SELECT DISTINCT venue FROM w
-  WHERE city = 'sydney' AND {{
-      LLMMap(
-          'More than 30 total points?',
-          'w::score'
-      )
-  }} = TRUE
+SELECT {{VQA('Describe this image.', 'parks::Image')}} FROM parks
+    WHERE "Location" = 'Alaska'
+    ORDER BY {{
+        LLMMap(
+            'Size in km2?',
+            'parks::Area'
+        )
+    }} LIMIT 1
 ```
 
-*Show all NSW Waratahs games and a description of the team.*
+_Which state is the park in that protects an ash flow?_
+
 ```sql
-SELECT date, rival, score, documents.content AS "Team Description" FROM w
-  JOIN {{
-      LLMJoin(
-          left_on='documents::title',
-          right_on='w::rival'
-      )
-  }} WHERE rival = 'nsw waratahs'
+SELECT "Location" FROM parks WHERE "Name" = {{
+    LLMQA(
+      'Which park protects an ash flow?',
+      context=(SELECT "Name", "Description" FROM parks),
+      options="parks::Name"
+    ) 
+}}
 ```
 
-For a technical walkthrough of how a BlendSQL query is executed, check out [technical_walkthrough.md](reference/technical_walkthrough.md).
+_How many parks are located in more than 1 state?_
+
+```sql
+SELECT COUNT(*) FROM parks
+    WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
+```
+
+Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
+
+For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
+
+### Features
+
+- Supports many DBMS 💾
+  - Currently, SQLite and PostgreSQL are functional - more to come! 
+- Supports many models ✨
+  - Transformers, Llama.cpp, OpenAI, Ollama
+- Easily extendable to [multi-modal usecases](./reference/examples/vqa-ingredient.ipynb) 🖼️
+- Smart parsing optimizes what is passed to external functions 🧠
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+- Constrained decoding with [outlines](https://github.com/outlines-dev/outlines) 🚀
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+
+<hr>
 
 ### Citation
 
 ```bibtex
 @article{glenn2024blendsql,
-      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra}, 
+      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
       author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
       year={2024},
       eprint={2402.17882},
@@ -122,3 +124,15 @@ For a technical walkthrough of how a BlendSQL query is executed, check out [tech
       primaryClass={cs.CL}
 }
 ```
+
+### Acknowledgements
+Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
+
+- The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
+  - This paper was the primary inspiration for BlendSQL.
+- The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
+  - As far as I can tell, the first publication to propose unifying model calls within SQL 
+  - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
+- The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
+- The maintainers of the [Outlines](https://github.com/outlines-dev/outlines) library for powering the constrained decoding capabilities of BlendSQL
+  - Paper at https://arxiv.org/abs/2307.09702

@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 # QAIngredient
 ![ingredients](../../img/
 /LLMQA.jpg)

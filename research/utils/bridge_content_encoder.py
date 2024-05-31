@@ -245,7 +245,7 @@ def get_column_picklist_with_db(table_name: str, column_name: str, db) -> list:
     fetch_sql = 'SELECT DISTINCT `{}` FROM "{}"'.format(
         column_name, double_quote_escape(table_name)
     )
-    picklist = set(db.execute_query(fetch_sql).values.flat)
+    picklist = set(db.execute_to_df(fetch_sql).values.flat)
     picklist = list(picklist)
     cache[key] = picklist
     return picklist

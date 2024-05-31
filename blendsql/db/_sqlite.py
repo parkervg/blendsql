@@ -16,14 +16,15 @@ class SQLite(Database):
         ```
     """
 
-    def __init__(self, db_url: str):
-        db_url: URL = make_url(f"sqlite:///{Path(db_url).resolve()}")
+    def __init__(self, db_path: str):
+        self._raw_db_path = Path(db_path).resolve()
+        db_url: URL = make_url(f"sqlite:///{self._raw_db_path}")
         super().__init__(db_url=db_url)
 
     def has_temp_table(self, tablename: str) -> bool:
         return (
             tablename
-            in self.execute_query(
+            in self.execute_to_df(
                 "SELECT name FROM sqlite_temp_master WHERE type='table';"
             )["name"].unique()
         )
@@ -39,7 +40,7 @@ class SQLite(Database):
         schema = {}
         for tablename in self.tables():
             schema[f'"{double_quote_escape(tablename)}"'] = {}
-            for _, row in self.execute_query(
+            for _, row in self.execute_to_df(
                 f"""
             SELECT name, type FROM pragma_table_info(:t)
             """,

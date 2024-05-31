@@ -3,16 +3,23 @@ from typing import List, Collection
 import pandas as pd
 
 from .ingredients import Ingredient
+from .utils import tabulate
+from .db.utils import truncate_df_content
 
-"""
-Defines output of an executed BlendSQL script
-"""
+
+class PrettyDataFrame(pd.DataFrame):
+    def __str__(self):
+        return tabulate(truncate_df_content(self, 50))
+
+    def __repr__(self):
+        return tabulate(truncate_df_content(self, 50))
 
 
 @dataclass
 class SmoothieMeta:
     num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
-    num_prompt_tokens: int  # Number of prompt tokens (counting user and assistant, i.e. input/output)
+    prompt_tokens: int
+    completion_tokens: int
     prompts: List[str]  # Log of prompts submitted to model
     ingredients: Collection[Ingredient]
     query: str
@@ -25,3 +32,6 @@ class SmoothieMeta:
 class Smoothie:
     df: pd.DataFrame
     meta: SmoothieMeta
+
+    def __post_init__(self):
+        self.df = PrettyDataFrame(self.df)

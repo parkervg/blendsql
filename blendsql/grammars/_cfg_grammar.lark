@@ -69,19 +69,23 @@ JOIN_TYPE: "INNER"i | "FULL"i ["OUTER"i] | "LEFT"i["OUTER"i] | "RIGHT"i ["OUTER"
                | AGGREGATE_FUNCTIONS expression_math ")" [window_form] -> sql_aggregation
                | SCALAR_FUNCTIONS [(expression_math ",")*] expression_math ")" -> sql_scalar
                | blendsql_aggregation_expr -> blendsql_aggregation
+               | blendsql_scalar_expr -> blendsql_scalar
                | "RANK"i "(" ")" window_form -> rank_expression
                | "DENSE_RANK"i "(" ")" window_form -> dense_rank_expression
                | "|" "|" expression_math
 
 BLENDSQL_AGGREGATE_FUNCTIONS: $blendsql_aggregate_functions
 BLENDSQL_JOIN_FUNCTIONS: $blendsql_join_functions
+BLENDSQL_SCALAR_FUNCTIONS: $blendsql_scalar_functions
 left_on_arg: "left_on" "=" string
 right_on_arg: "right_on" "=" string
-blendsql_arg: (name "=" literal | literal | "(" start ")")
+blendsql_arg: (literal | "(" start ")")
+blendsql_argnames: ("context"|"question"|"options")
 
-blendsql_expression_math: blendsql_arg ("," blendsql_arg)*
-blendsql_aggregation_expr: "{{" BLENDSQL_AGGREGATE_FUNCTIONS blendsql_expression_math ")" "}}"
-blendsql_join_expr: "{{" BLENDSQL_JOIN_FUNCTIONS (left_on_arg "," right_on_arg|right_on_arg "," left_on_arg) ")" "}}"
+blendsql_expression_math: [blendsql_argnames "="] blendsql_arg ("," [blendsql_argnames "="] blendsql_arg)*
+blendsql_aggregation_expr: blendsql_function_begin BLENDSQL_AGGREGATE_FUNCTIONS blendsql_expression_math ")" blendsql_function_end
+blendsql_scalar_expr: blendsql_function_begin BLENDSQL_SCALAR_FUNCTIONS blendsql_expression_math ")" blendsql_function_end
+blendsql_join_expr: blendsql_function_begin BLENDSQL_JOIN_FUNCTIONS (left_on_arg "," right_on_arg|right_on_arg "," left_on_arg) ")" blendsql_function_end
 
 window_form: "OVER"i "(" ["PARTITION"i "BY"i (expression_math ",")* expression_math] ["ORDER"i "BY"i (order ",")* order [ row_range_clause ] ] ")"
 
@@ -185,6 +189,10 @@ MINUTES: /[0-9]{2}/
 SECONDS: /[0-9]{2}/
 name: CNAME | ESCAPED_STRING | | /`([^`]|\s)+`|``/
 SEMICOLON: ";"
+CURLY_BRACKET_OPEN: "{"
+CURLY_BRACKET_CLOSE: "}"
+blendsql_function_begin: CURLY_BRACKET_OPEN ~ 2
+blendsql_function_end: CURLY_BRACKET_CLOSE ~ 2
 
 %import common.ESCAPED_STRING
 %import common.CNAME

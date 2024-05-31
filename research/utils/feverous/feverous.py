@@ -142,9 +142,11 @@ def feverous_get_input(
             "serialized_db": serialized_db,
             "entire_serialized_db": entire_serialized_db,
             "bridge_hints": bridge_hints,
-            "extra_task_description": f"Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table."
-            if contains_documents
-            else "",
+            "extra_task_description": (
+                f"Additionally, we have the table `{DOCS_TABLE_NAME}` at our disposal, which contains Wikipedia articles providing more details about the values in our table."
+                if contains_documents
+                else ""
+            ),
         },
     )
 

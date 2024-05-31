@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 # LLMJoin
 ![ingredients](../../img/
 /LLMJoin.jpg)

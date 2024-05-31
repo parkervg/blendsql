@@ -384,9 +384,11 @@ class BlendSQLEvaluation:
             res: Smoothie = blend(
                 query=blendsql,
                 db=db,
-                ingredients={LLMMap, LLMQA, LLMJoin, LLMValidate}
-                if self.model_args.blender_model_name_or_path is not None
-                else set(),
+                ingredients=(
+                    {LLMMap, LLMQA, LLMJoin, LLMValidate}
+                    if self.model_args.blender_model_name_or_path is not None
+                    else set()
+                ),
                 blender=self.blender_endpoint,
                 table_to_title={
                     SINGLE_TABLE_NAME: item["table"].get("page_title", None)
@@ -432,7 +434,7 @@ class BlendSQLEvaluation:
         combined_args_dict = {
             **asdict(self.model_args),
             **asdict(self.data_args),
-            **asdict(self.data_training_args)
+            **asdict(self.data_training_args),
             # **training_args.to_sanitized_dict(),
         }
 

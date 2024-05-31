@@ -1,4 +1,5 @@
 """Spider concept metrics."""
+
 from typing import Optional, Union
 import datasets
 from datasets import load_metric

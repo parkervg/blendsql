@@ -1,59 +1,94 @@
-"""
-Contains base class for guidance programs for LLMs.
-https://github.com/guidance-ai/guidance
-"""
-from typing import Optional
-from guidance.models import Model as GuidanceModel
-from guidance.models import Chat as GuidanceChatModel
-from guidance import user, system, assistant
-from contextlib import nullcontext
+from __future__ import annotations
+from typing import Tuple, Callable
 import inspect
 import ast
 import textwrap
+import logging
+from colorama import Fore
+from typing import TYPE_CHECKING
 
-
-def get_contexts(model: GuidanceModel):
-    usercontext = nullcontext()
-    systemcontext = nullcontext()
-    assistantcontext = nullcontext()
-    if isinstance(model, GuidanceChatModel):
-        usercontext = user()
-        systemcontext = system()
-        assistantcontext = assistant()
-    return (usercontext, systemcontext, assistantcontext)
+if TYPE_CHECKING:
+    from .models import Model
+from ._logger import logger
 
 
 class Program:
-    """
-    TODO: how to add streaming?
-        if isinstance(res, ModelStream):
-        # Fetch actual model by iterating
-        # https://github.com/guidance-ai/guidance/blob/main/tests/models/test_model.py#L85
-        for idx, event in enumerate(res):
-            print(Fore.LIGHTCYAN_EX + str(event) + Fore.RESET)
-            res = event
+    """A Program is the base class used for dynamically formatting prompts
+    and returning unconstrained/constrained generation results.
+    At it's core, a Program should be a callable that takes a BlendSQL model as a named arg,
+    along with any number of other positional or keyword arguments.
+    It should then return a Tuple[str, str], containing the (response, prompt) pair from the
+    internal program logic.
+
+    Examples:
+        ```python
+        import pandas as pd
+        import outlines
+        from typing import Tuple
+
+        from blendsql.models import Model
+        from blendsql._program import Program
+
+        class SummaryProgram(Program):
+            def __call__(self, model: Model, serialized_db: pd.DataFrame) -> Tuple[str, str]:
+                prompt = f"Summarize the table below. {serialized_db}"
+                # Below we follow the outlines pattern for unconstrained text generation
+                # https://github.com/outlines-dev/outlines
+                # Finally, return (response, prompt) tuple
+                # Returning the prompt here allows the underlying BlendSQL classes to track token usage
+                generator = outlines.generate.text(model.logits_generator)
+                return (generator(prompt), prompt)
+        ```
+        We could also write the same `Program` as a function:
+        ```python
+        def summary_program(model: Model, serialized_db: pd.DataFrame) -> Tuple[str, str]:
+            ...
+        ```
     """
 
     def __new__(
         self,
-        model: GuidanceModel,
-        gen_kwargs: Optional[dict] = None,
-        few_shot: bool = True,
+        model: Model,
         **kwargs,
     ):
-        self.model = model
-        self.gen_kwargs = gen_kwargs
-        self.gen_kwargs = {} if gen_kwargs is None else gen_kwargs
-        self.few_shot = few_shot
-        (
-            self.usercontext,
-            self.systemcontext,
-            self.assistantcontext,
-        ) = get_contexts(self.model)
-        return self.__call__(self, **kwargs)
+        return self.__call__(self, model, **kwargs)
 
-    def __call__(self, *args, **kwargs):
-        pass
+    def __call__(self, model: Model, *args, **kwargs) -> Tuple[str, str]:
+        """Logic for formatting prompt and calling the underlying model.
+        Should return tuple of (response, prompt).
+        """
+        ...
+
+
+def return_ollama_response(
+    logits_generator: Callable, prompt, **kwargs
+) -> Tuple[str, str]:
+    """Helper function to work with Ollama models,
+    since they're not recognized in the Outlines ecosystem.
+    """
+    from ollama import Options
+
+    options = Options(**kwargs)
+    if options.get("temperature") is None:
+        options["temperature"] = 0.0
+    stream = logger.level <= logging.DEBUG
+    response = logits_generator(
+        messages=[{"role": "user", "content": prompt}],
+        options=options,
+        stream=stream,
+    )
+    if stream:
+        chunked_res = []
+        for chunk in response:
+            chunked_res.append(chunk["message"]["content"])
+            print(
+                Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
+                end="",
+                flush=True,
+            )
+        print("\n")
+        return ("".join(chunked_res), prompt)
+    return (response["message"]["content"], prompt)
 
 
 def program_to_str(program: Program):
@@ -70,7 +105,7 @@ def program_to_str(program: Program):
         >>> PROMPT = "Here is my question: {question}"
         >>> class CorrectionProgram(Program):
         >>>     def __call__(self, question: str, **kwargs):
-        >>>         return self.model + PROMPT.format(question)
+        >>>         return PROMPT.format(question)
 
     Some helpful refs:
         - https://github.com/universe-proton/universe-topology/issues/15
@@ -86,8 +121,11 @@ def program_to_str(program: Program):
         globals_as_dict = dict(inspect.getmembers(source_func))["__globals__"]
         for name in names_to_resolve:
             if name in globals_as_dict:
+                if name.startswith("__"):
+                    continue
                 val = globals_as_dict[name]
                 # Ignore functions - we really only want scalars here
-                if not callable(val):
-                    resolved_names += f"{val}\n"
+                if any(x for x in [callable(val), hasattr(val, "__module__")]):
+                    continue
+                resolved_names += f"{val}\n"
     return f"{call_content}{resolved_names}"

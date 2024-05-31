@@ -50,13 +50,15 @@ def to_serialized(
             else:
                 serialized_db.append(f"{num_rows} example rows:")
             serialized_db.append(f"{get_rows_query}")
-            rows = db.execute_query(get_rows_query)
+            rows = db.execute_to_df(get_rows_query)
             if truncate_content is not None:
                 # Truncate long strings
                 rows = rows.map(
-                    lambda x: f"{str(x)[:truncate_content]}..."
-                    if isinstance(x, str) and len(str(x)) > truncate_content
-                    else x
+                    lambda x: (
+                        f"{str(x)[:truncate_content]}..."
+                        if isinstance(x, str) and len(str(x)) > truncate_content
+                        else x
+                    )
                 )
             serialized_db.append(f"{rows.to_string(index=False)}")
             serialized_db.append("*/\n")
