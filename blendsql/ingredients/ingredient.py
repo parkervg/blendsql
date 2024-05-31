@@ -1,5 +1,5 @@
 from attr import attrs, attrib
-from abc import abstractmethod, ABC
+from abc import abstractmethod
 import pandas as pd
 import json
 from skrub import Joiner
@@ -18,6 +18,7 @@ from typing import (
 import uuid
 from colorama import Fore
 from typeguard import check_type
+from functools import partialmethod
 
 from .._exceptions import IngredientException
 from .._logger import logger
@@ -34,14 +35,25 @@ def unpack_default_kwargs(**kwargs):
     )
 
 
+def partialclass(cls, *args, **kwds):
+    # https://stackoverflow.com/a/38911383
+    class NewCls(cls):
+        __init__ = partialmethod(cls.__init__, *args, **kwds)
+
+    NewCls.__name__ = cls.__name__
+    return NewCls
+
+
 @attrs
-class Ingredient(ABC):
+class Ingredient:
     name: str = attrib()
+    # Below gets passed via `Kitchen.extend()`
+    db: Database = attrib()
+    session_uuid: str = attrib()
+
     ingredient_type: str = attrib(init=False)
     allowed_output_types: Tuple[Type] = attrib(init=False)
-    # Below gets passed via `Kitchen.extend()`
-    db: Database = attrib(init=False)
-    session_uuid: str = attrib(init=False)
+    num_values_passed: int = 0
 
     def __repr__(self):
         return f"{self.ingredient_type} {self.name}"
@@ -54,7 +66,6 @@ class Ingredient(ABC):
         ...
 
     def _run(self, *args, **kwargs):
-        # print('kwargs = ', kwargs)
         return check_type(self.run(*args, **kwargs), self.allowed_output_types)
 
     def maybe_get_temp_table(
@@ -75,7 +86,6 @@ class MapIngredient(Ingredient):
     to each of the given values, creating a new column."""
 
     ingredient_type: str = IngredientType.MAP.value
-    num_values_passed: int = 0
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
 
     def unpack_default_kwargs(self, **kwargs):
@@ -179,16 +189,20 @@ class JoinIngredient(Ingredient):
         {"tomato": "red", "broccoli": "green", "lemon": "yellow"}
     """
 
+    use_skrub_joiner: bool = attrib(default=True)
+
     ingredient_type: str = IngredientType.JOIN.value
-    num_values_passed: int = 0
     allowed_output_types: Tuple[Type] = (dict,)
+
+    @classmethod
+    def from_args(cls, use_skrub_joiner: bool = True):
+        return partialclass(cls, use_skrub_joiner=use_skrub_joiner)
 
     def __call__(
         self,
         question: Optional[str] = None,
         left_on: Optional[str] = None,
         right_on: Optional[str] = None,
-        use_fuzzy_join: bool = True,
         *args,
         **kwargs,
     ) -> tuple:
@@ -240,7 +254,7 @@ class JoinIngredient(Ingredient):
                     break
             # Remained _outer and inner lists preserved the sorting order in length:
             # len(_outer) = len(outer) - #matched <= len(inner original) - matched = len(inner)
-            if use_fuzzy_join and len(inner) > 1:
+            if self.use_skrub_joiner and len(inner) > 1:
                 # Create the main_table DataFrame
                 main_table = pd.DataFrame(_outer, columns=["out"])
                 # Create the aux_table DataFrame
@@ -322,7 +336,6 @@ class JoinIngredient(Ingredient):
 @attrs
 class QAIngredient(Ingredient):
     ingredient_type: str = IngredientType.QA.value
-    num_values_passed: int = 0
     allowed_output_types: Tuple[Type] = (Union[str, int, float],)
 
     def __call__(
