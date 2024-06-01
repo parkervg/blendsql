@@ -3,12 +3,12 @@ from sqlalchemy.engine import make_url, URL
 from colorama import Fore
 import logging
 
-from ._database import Database
+from ._sqlalchemy import SQLAlchemyDatabase
 
 _has_psycopg2 = importlib.util.find_spec("psycopg2") is not None
 
 
-class PostgreSQL(Database):
+class PostgreSQL(SQLAlchemyDatabase):
     """A PostgreSQL database connection.
     Can be initialized via the SQLAlchemy input string.
     https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
@@ -35,11 +35,8 @@ class PostgreSQL(Database):
         super().__init__(db_url=db_url)
 
     def has_temp_table(self, tablename: str) -> bool:
-        return (
-            tablename
-            in self.execute_to_df(
-                "SELECT * FROM information_schema.tables WHERE table_schema LIKE 'pg_temp_%'"
-            )["table_name"].unique()
+        return tablename in self.execute_to_list(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema LIKE 'pg_temp_%'"
         )
 
     def get_sqlglot_schema(self) -> dict:

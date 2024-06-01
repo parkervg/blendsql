@@ -1,16 +1,16 @@
-from typing import Dict, Optional, Type, Generator, Set, Union
+from typing import Dict, Optional, List, Collection, Type, Generator, Set, Union
 import duckdb
 from duckdb import DuckDBPyConnection
 import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
 
-from .utils import LazyTables
+from ._database import Database
 from .._logger import logger
 
 
 @attrs
-class Pandas:
+class Pandas(Database):
     """A SQLite database connection.
     Can be initialized via a path to the database file.
 
@@ -27,13 +27,13 @@ class Pandas:
     default_tablename: str = attrib(default="w")
 
     con: DuckDBPyConnection = attrib(init=False)
-    db_url: str = attrib(init=False)
+    # We use below to track which tables we should drop on '_reset_connection'
     temp_tables: Set[str] = set()
 
     def __attrs_post_init__(self):
         self.con = duckdb.connect(database=":memory:")
         if isinstance(self.data, pd.DataFrame):
-            self.db_url = "Local pandas table"
+            self.db_url = "Local pandas tables"
             # I don't really understand the scope of duckdb's replacement scan here
             # I assign the underlying data to _df, since passing self.data doesn't work
             # in the self.con.sql call.
@@ -44,20 +44,20 @@ class Pandas:
             self.db_url = f"Local pandas tables {', '.join(self.data.keys())}"
             for tablename, _df in self.data.items():
                 # Note: duckdb.sql connects to the default in-memory database connection
-                self.con.sql(f"CREATE TABLE {tablename} AS SELECT * FROM df")
+                self.con.sql(f"CREATE TABLE {tablename} AS SELECT * FROM _df")
         else:
             raise ValueError(
                 "Unknown datatype passed to `Pandas`!\nWe expect either a single dataframe, or a dictionary mapping many tables from {tablename: df}"
             )
-        self.lazy_tables = LazyTables()
-        # We use below to track which tables we should drop on '_reset_connection'
-        self.temp_tables = set()
 
     def _reset_connection(self):
         """Reset connection, so that temp tables are cleared."""
         for tablename in self.temp_tables:
             self.con.execute(f'DROP TABLE "{tablename}"')
         self.temp_tables = set()
+
+    def tables(self) -> List[str]:
+        return self.execute_to_list("SHOW TABLES;")
 
     def to_temp_table(self, df: pd.DataFrame, tablename: str):
         """Technically, when duckdb is run in-memory (as is the default),
@@ -88,3 +88,21 @@ class Pandas:
         for row in self.con.execute(query).fetchall():
             res.append(to_type(row[0]))
         return res
+
+    def get_sqlglot_schema(self) -> dict:
+        """Returns database schema as a dictionary, in the format that
+        sqlglot.optimizer expects.
+
+        Examples:
+            ```python
+            db.get_sqlglot_schema()
+            > {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
+            ```
+        """
+        # TODO
+        return None
+
+    def schema_string(self, use_tables: Collection[str] = None) -> str:
+        """Converts the database to a series of 'CREATE TABLE' statements."""
+        # TODO
+        return None
