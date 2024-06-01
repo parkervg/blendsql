@@ -1,6 +1,7 @@
 from attr import attrs, attrib
 from abc import abstractmethod
 import pandas as pd
+from sqlglot import exp
 import json
 from skrub import Joiner
 from typing import (
@@ -119,7 +120,13 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
-        original_table = self.db.execute_to_df(select_all_from_table_query(tablename))
+        # Optionally materialize a CTE
+        if tablename in self.db.lazy_tables:
+            original_table = self.db.lazy_tables.pop(tablename).collect()
+        else:
+            original_table = self.db.execute_to_df(
+                select_all_from_table_query(tablename)
+            )
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
@@ -345,7 +352,7 @@ class QAIngredient(Ingredient):
         options: Optional[Union[list, str]] = None,
         *args,
         **kwargs,
-    ) -> Union[str, int, float]:
+    ) -> Tuple[Union[str, int, float], Optional[exp.Expression]]:
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
 
@@ -353,9 +360,13 @@ class QAIngredient(Ingredient):
         if context is not None:
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
-                subtable = self.db.execute_to_df(
-                    f'SELECT "{colname}" FROM "{tablename}"'
-                )
+                # Optionally materialize a CTE
+                if tablename in self.db.lazy_tables:
+                    subtable = self.db.lazy_tables.pop(tablename).collect()[colname]
+                else:
+                    subtable = self.db.execute_to_df(
+                        f'SELECT "{colname}" FROM "{tablename}"'
+                    )
             elif not isinstance(context, pd.DataFrame):
                 raise ValueError(
                     f"Unknown type for `identifier` arg in QAIngredient: {type(context)}"
@@ -368,9 +379,18 @@ class QAIngredient(Ingredient):
                 try:
                     tablename, colname = utils.get_tablename_colname(options)
                     tablename = aliases_to_tablenames.get(tablename, tablename)
-                    unpacked_options = self.db.execute_to_list(
-                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )
+                    # Optionally materialize a CTE
+                    if tablename in self.db.lazy_tables:
+                        unpacked_options = (
+                            self.db.lazy_tables.pop(tablename)
+                            .collect()[colname]
+                            .unique()
+                            .tolist()
+                        )
+                    else:
+                        unpacked_options = self.db.execute_to_list(
+                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                        )
                 except ValueError:
                     unpacked_options = options.split(";")
             unpacked_options = set(unpacked_options)
@@ -380,9 +400,6 @@ class QAIngredient(Ingredient):
         kwargs[IngredientKwarg.QUESTION] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
         return response
-        # response = response.replace("\x00", "").replace(":", "\:")
-        # return response
-        # return f"'{response}'"
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Union[str, int, float]:

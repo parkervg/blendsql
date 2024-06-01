@@ -522,3 +522,57 @@ def test_subquery_alias_with_join_multi_exec(db, ingredients):
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient
+
+
+def test_materialize_ctes_multi_exec(db, ingredients):
+    """We shouldn't create materialized CTE tables if they aren't used in an ingredient.
+
+    commit dba7540
+    """
+    blendsql = """
+    WITH a AS (
+        SELECT * FROM portfolio WHERE Quantity > 200
+    ), b AS (SELECT Symbol FROM portfolio AS w WHERE w.Symbol LIKE "A%"),
+    c AS (SELECT * FROM geographic)
+    SELECT * FROM a WHERE {{starts_with('F', 'a::Symbol')}} = TRUE
+    """
+    # Need to get the lower level function so we can see what tables got created
+    from blendsql.blend import _blend
+
+    _ = _blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    assert db.has_temp_table("a")
+    assert not db.has_temp_table("b")
+    assert not db.has_temp_table("c")
+    db._reset_connection()
+
+
+def test_options_referencing_cte_multi_exec(db, ingredients):
+    """You should be able to reference a CTE in a QAIngredient `options` argument.
+
+    f849ed3
+    """
+    blendsql = """
+    WITH w AS (
+        SELECT *
+        FROM account_history
+        WHERE Symbol IS NOT NULL
+    ) SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1
+    """
+    sql = """
+        WITH w AS (
+        SELECT *
+        FROM account_history
+        WHERE Symbol IS NOT NULL
+    ) SELECT Symbol FROM w ORDER BY Symbol LIMIT 1
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
