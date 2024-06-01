@@ -682,8 +682,12 @@ class SubqueryContextManager:
         def create_pattern(output_type: str) -> Callable[[int], str]:
             if output_type == "boolean":
                 base_pattern = f"((t|f|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
-            elif output_type == "numeric":
-                base_pattern = f"((([0-9]|\.)+|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+            elif output_type == "integer":
+                # SQLite max is 18446744073709551615
+                # This is 20 digits long, so to be safe, cap the generation at 19
+                base_pattern = "((\d{1,18}" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+            elif output_type == "float":
+                base_pattern = f"(((\d|\.)+|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
             else:
                 raise ValueError(f"Unknown output_type {output_type}")
             return lambda num_repeats: base_pattern + "{" + str(num_repeats) + "}"
@@ -709,8 +713,10 @@ class SubqueryContextManager:
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
                 output_type = "boolean"
-            elif all(isinstance(x, (int, float)) for x in predicate_literals):
-                output_type = "numeric"
+            elif all(isinstance(x, float) for x in predicate_literals):
+                output_type = "float"
+            elif all(isinstance(x, int) for x in predicate_literals):
+                output_type = "integer"
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
                 added_kwargs["output_type"] = "string"
@@ -726,7 +732,7 @@ class SubqueryContextManager:
         elif isinstance(
             ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
         ):
-            output_type = "numeric"
+            output_type = "float"  # Use 'float' as default numeric pattern
         if output_type is not None:
             added_kwargs["output_type"] = output_type
             added_kwargs["pattern"] = create_pattern(output_type)
