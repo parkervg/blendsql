@@ -1,11 +1,13 @@
 import os
+import importlib.util
 from outlines.models import openai, azure_openai, LogitsGenerator
 from outlines.models.openai import OpenAIConfig
-import tiktoken
 
 from .._model import RemoteModel
 
 DEFAULT_CONFIG = OpenAIConfig(temperature=0.0)
+
+_has_openai = importlib.util.find_spec("openai") is not None
 
 
 def openai_setup() -> None:
@@ -83,6 +85,13 @@ class AzureOpenaiLLM(RemoteModel):
         caching: bool = True,
         **kwargs
     ):
+        if not _has_openai:
+            raise ImportError(
+                "Please install openai>=1.0.0 with `pip install openai>=1.0.0`!"
+            ) from None
+
+        import tiktoken
+
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
@@ -99,7 +108,6 @@ class AzureOpenaiLLM(RemoteModel):
             self.model_name_or_path,
             config=config,
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
-            api_version=os.getenv("OPENAI_API_VERSION"),
             api_key=os.getenv("OPENAI_API_KEY"),
             **kwargs
         )
@@ -145,6 +153,13 @@ class OpenaiLLM(RemoteModel):
         caching: bool = True,
         **kwargs
     ):
+        if not _has_openai:
+            raise ImportError(
+                "Please install openai>=1.0.0 with `pip install openai>=1.0.0`!"
+            ) from None
+
+        import tiktoken
+
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
