@@ -179,8 +179,7 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
                     'raw': "{{ LLMJoin ( left_on= 'w::player' , right_on= 'documents::title' ) }}",
                     'kwargs_dict': {
                         'left_on': 'w::player',
-                        'right_on': 'documents::title',
-                        'llm': AzureOpenaiLLM(model_name_or_path='gpt-4', ...)
+                        'right_on': 'documents::title'
                     }
                 }
             },

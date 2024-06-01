@@ -88,6 +88,7 @@ nav:
           - Ollama: reference/blenders/ollama.md
       - Databases:
           - reference/databases/databases.md
+          - DuckDB: reference/databases/duckdb.md
           - SQLite: reference/databases/sqlite.md
           - PostgreSQL: reference/databases/postgresql.md
       - Programs:
