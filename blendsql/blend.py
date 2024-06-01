@@ -458,8 +458,10 @@ def _blend(
         )
 
     schema = None
-    if schema_qualify:  # Only construct sqlglot schema if we need to
-        schema = db.get_sqlglot_schema()
+    if schema_qualify:
+        if hasattr(db, "get_sqlglot_schema"):
+            # Only construct sqlglot schema if we need to
+            schema = db.get_sqlglot_schema()
     query_context.parse(query, schema=schema)
 
     _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
