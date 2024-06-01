@@ -82,6 +82,7 @@ class Kitchen(list):
         )
 
     def extend(self, ingredients: Iterable[Ingredient]) -> None:
+        """ "Initializes ingredients class with base attributes, for use in later operations."""
         try:
             if not all(issubclass(x, Ingredient) for x in ingredients):
                 raise IngredientException(
@@ -96,12 +97,14 @@ class Kitchen(list):
             assert (
                 name not in self.added_ingredient_names
             ), f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{name}"
-            ingredient = ingredient(name=name)
+            ingredient = ingredient(
+                name=name,
+                # Add db and session_uuid as default kwargs
+                # This way, ingredients are able to interact with data
+                db=self.db,
+                session_uuid=self.session_uuid,
+            )
             self.added_ingredient_names.add(name)
-            # Add db and session_uuid as default kwargs
-            # This way, ingredients are able to interact with data
-            ingredient.db = self.db
-            ingredient.session_uuid = self.session_uuid
             self.append(ingredient)
 
 
