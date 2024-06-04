@@ -269,7 +269,7 @@ class JoinIngredient(Ingredient):
                     break
             # Remained _outer and inner lists preserved the sorting order in length:
             # len(_outer) = len(outer) - #matched <= len(inner original) - matched = len(inner)
-            if self.use_skrub_joiner and len(inner) > 1:
+            if self.use_skrub_joiner and all(len(x) > 1 for x in [inner, _outer]):
                 # Create the main_table DataFrame
                 main_table = pd.DataFrame(_outer, columns=["out"])
                 # Create the aux_table DataFrame
