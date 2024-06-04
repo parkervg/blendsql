@@ -112,6 +112,14 @@ class MapIngredient(Ingredient):
             temp_table_func=get_temp_session_table, tablename=tablename
         )
 
+        # Optionally materialize a CTE
+        if tablename in self.db.lazy_tables:
+            original_table = self.db.lazy_tables.pop(tablename).collect()
+        else:
+            original_table = self.db.execute_to_df(
+                select_all_from_table_query(tablename)
+            )
+
         # Need to be sure the new column doesn't already exist here
         new_arg_column = question
         while (
