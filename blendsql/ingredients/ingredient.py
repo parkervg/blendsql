@@ -128,14 +128,6 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
-        # Optionally materialize a CTE
-        if tablename in self.db.lazy_tables:
-            original_table = self.db.lazy_tables.pop(tablename).collect()
-        else:
-            original_table = self.db.execute_to_df(
-                select_all_from_table_query(tablename)
-            )
-
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
