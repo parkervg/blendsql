@@ -145,7 +145,9 @@ class DuckDB(Database):
         all created tables are temporary tables (since they expire at the
         end of the session). So, we don't really need to insert 'TEMP' keyword here?
         """
-        self.con.sql(f'CREATE TEMP TABLE "{tablename}" AS SELECT * FROM df')
+        # DuckDB has this cool 'CREATE OR REPLACE' syntax
+        # https://duckdb.org/docs/sql/statements/create_table.html#create-or-replace
+        self.con.sql(f'CREATE OR REPLACE TEMP TABLE "{tablename}" AS SELECT * FROM df')
         self.temp_tables.add(tablename)
         logger.debug(Fore.CYAN + f"Created temp table {tablename}" + Fore.RESET)
 
