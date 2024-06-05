@@ -114,7 +114,7 @@ def autowrap_query(
     """
     Check to see if we have some BlendSQL ingredient syntax that needs to be formatted differently
         before passing to sqlglot.parse_one.
-        - A single `QAIngredient` should be wrapped in `CASE` syntax.
+        - A single `QAIngredient` should be prefaced by a `SELECT`.
         - A `JoinIngredient` needs to include a reference to the left tablename.
 
     Args:
@@ -424,15 +424,6 @@ def _blend(
     if query_context.node.find(MODIFIERS):
         raise InvalidBlendSQL("BlendSQL query cannot have `DELETE` clause!")
 
-    # # If there's no `SELECT` and just a QAIngredient, wrap it in a `SELECT CASE` query
-    # if query_context.node.find(exp.Select) is None:
-    #     original_query = autowrap_query(
-    #         query=query_context.to_string(),
-    #         kitchen=kitchen,
-    #         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-    #     )
-    #     query_context.parse(original_query)
-
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
         logger.debug(
@@ -458,9 +449,8 @@ def _blend(
 
     schema = None
     if schema_qualify:
-        if hasattr(db, "get_sqlglot_schema"):
-            # Only construct sqlglot schema if we need to
-            schema = db.get_sqlglot_schema()
+        # Only construct sqlglot schema if we need to
+        schema = db.sqlglot_schema
     query_context.parse(query, schema=schema)
 
     _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
@@ -881,7 +871,7 @@ def blend(
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
         schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
             This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
-            However, we need to call db.get_sqlglot_schema() if schema_qualify=True, which may add some latency.
+            However, we need to call db.sqlglot_schema if schema_qualify=True, which may add some latency.
             With single-table queries, we can set this to False.
 
     Returns:
