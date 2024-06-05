@@ -89,6 +89,7 @@ nav:
       - Databases:
           - reference/databases/databases.md
           - DuckDB: reference/databases/duckdb.md
+          - Pandas (aka DuckDB in a trench coat): reference/databases/pandas.md
           - SQLite: reference/databases/sqlite.md
           - PostgreSQL: reference/databases/postgresql.md
       - Programs:
