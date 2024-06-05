@@ -134,7 +134,7 @@ def autowrap_query(
             if query == alias:
                 query = query.replace(
                     alias,
-                    f"""SELECT CASE WHEN FALSE THEN FALSE WHEN TRUE THEN {alias} END""",
+                    f"""SELECT {alias}""",
                 )
         elif _function.ingredient_type == IngredientType.JOIN:
             left_table, _ = get_tablename_colname(d["kwargs_dict"]["left_on"])
