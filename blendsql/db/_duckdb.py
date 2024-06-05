@@ -109,7 +109,7 @@ class DuckDB(Database):
     def _reset_connection(self):
         """Reset connection, so that temp tables are cleared."""
         for tablename in self.temp_tables:
-            self.con.execute(f'DROP TABLE "{tablename}"')
+            self.con.execute(f'DROP TABLE IF EXISTS "{tablename}"')
         self.temp_tables = set()
 
     def has_temp_table(self, tablename: str) -> bool:
