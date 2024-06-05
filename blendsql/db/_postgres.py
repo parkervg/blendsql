@@ -2,6 +2,7 @@ import importlib.util
 from sqlalchemy.engine import make_url, URL
 from colorama import Fore
 import logging
+from functools import cached_property
 
 from ._sqlalchemy import SQLAlchemyDatabase
 
@@ -39,6 +40,7 @@ class PostgreSQL(SQLAlchemyDatabase):
             "SELECT table_name FROM information_schema.tables WHERE table_schema LIKE 'pg_temp_%'"
         )
 
+    @cached_property
     def get_sqlglot_schema(self) -> dict:
         # TODO
         return None

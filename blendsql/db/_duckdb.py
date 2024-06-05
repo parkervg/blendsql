@@ -4,6 +4,7 @@ import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
 from pathlib import Path
+from functools import cached_property
 
 from ._database import Database
 from .._logger import logger
@@ -113,6 +114,7 @@ class DuckDB(Database):
     def has_temp_table(self, tablename: str) -> bool:
         return tablename in self.execute_to_list("SHOW TABLES")
 
+    @cached_property
     def get_sqlglot_schema(self) -> dict:
         """Returns database schema as a dictionary, in the format that
         sqlglot.optimizer expects.
@@ -123,7 +125,7 @@ class DuckDB(Database):
             > {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
             ```
         """
-        # TODO
+        print()
         return None
 
     def tables(self) -> List[str]:

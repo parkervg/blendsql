@@ -1,5 +1,6 @@
 from pathlib import Path
 from sqlalchemy.engine import make_url, URL
+from functools import cached_property
 
 from .utils import double_quote_escape
 from ._sqlalchemy import SQLAlchemyDatabase
@@ -26,6 +27,7 @@ class SQLite(SQLAlchemyDatabase):
             "SELECT name FROM sqlite_temp_master WHERE type='table';"
         )
 
+    @cached_property
     def get_sqlglot_schema(self) -> dict:
         """Returns database schema as a dictionary, in the format that
         sqlglot.optimizer expects.
