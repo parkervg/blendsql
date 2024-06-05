@@ -41,6 +41,6 @@ class PostgreSQL(SQLAlchemyDatabase):
         )
 
     @cached_property
-    def get_sqlglot_schema(self) -> dict:
+    def sqlglot_schema(self) -> dict:
         # TODO
         return None

@@ -25,14 +25,15 @@ class Database(ABC):
         """
         ...
 
+    @property
     @abstractmethod
-    def get_sqlglot_schema(self) -> dict:
+    def sqlglot_schema(self) -> dict:
         """Returns database schema as a dictionary, in the format that
         sqlglot.optimizer expects.
 
         Examples:
             ```python
-            db.get_sqlglot_schema()
+            db.sqlglot_schema
             > {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
             ```
         """

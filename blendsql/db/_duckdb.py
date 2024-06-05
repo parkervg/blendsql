@@ -6,6 +6,7 @@ from attr import attrs, attrib
 from pathlib import Path
 from functools import cached_property
 
+from .utils import double_quote_escape
 from ._database import Database
 from .._logger import logger
 
@@ -115,18 +116,26 @@ class DuckDB(Database):
         return tablename in self.execute_to_list("SHOW TABLES")
 
     @cached_property
-    def get_sqlglot_schema(self) -> dict:
+    def sqlglot_schema(self) -> dict:
         """Returns database schema as a dictionary, in the format that
         sqlglot.optimizer expects.
 
         Examples:
             ```python
-            db.get_sqlglot_schema()
+            db.sqlglot_schema
             > {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
             ```
         """
-        print()
-        return None
+        schema = {}
+        for tablename in self.tables():
+            schema[f'"{double_quote_escape(tablename)}"'] = {}
+            for column_name, column_type in self.con.execute(
+                f"SELECT column_name, column_type FROM (DESCRIBE {tablename})"
+            ).fetchall():
+                schema[f'"{double_quote_escape(tablename)}"'][
+                    '"' + column_name + '"'
+                ] = column_type
+        return schema
 
     def tables(self) -> List[str]:
         return self.execute_to_list("SHOW TABLES;")

@@ -28,12 +28,12 @@ class SQLite(SQLAlchemyDatabase):
         )
 
     @cached_property
-    def get_sqlglot_schema(self) -> dict:
+    def sqlglot_schema(self) -> dict:
         """Returns database schema as a dictionary, in the format that
         sqlglot.optimizer expects.
 
         Examples:
-            >>> db.get_sqlglot_schema()
+            >>> db.sqlglot_schema
             {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
         """
         schema = {}
