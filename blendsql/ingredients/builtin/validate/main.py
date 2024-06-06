@@ -12,8 +12,8 @@ class ValidateProgram(Program):
         self,
         model: Model,
         question: str,
-        context: pd.DataFrame = None,
-        table_title: str = None,
+        context: Optional[pd.DataFrame] = None,
+        table_title: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
         serialized_db = context.to_string() if context is not None else ""

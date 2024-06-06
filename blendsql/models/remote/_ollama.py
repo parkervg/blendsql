@@ -2,6 +2,7 @@ import importlib.util
 from functools import partial
 
 from .._model import RemoteModel
+from typing import Optional
 
 _has_ollama = importlib.util.find_spec("ollama") is not None
 
@@ -25,7 +26,11 @@ class OllamaLLM(RemoteModel):
     """
 
     def __init__(
-        self, model_name_or_path: str, host: str = None, caching: bool = True, **kwargs
+        self,
+        model_name_or_path: str,
+        host: Optional[str] = None,
+        caching: bool = True,
+        **kwargs
     ):
         if not _has_ollama:
             raise ImportError(

@@ -43,7 +43,7 @@ class SQLAlchemyDatabase(Database):
             for column_data in inspect(self.engine).get_columns(tablename):
                 yield column_data["name"]
 
-    def schema_string(self, use_tables: Collection[str] = None) -> str:
+    def schema_string(self, use_tables: Optional[Collection[str]] = None) -> str:
         create_table_stmts = []
         for table in self.metadata.sorted_tables:
             if use_tables:
@@ -56,7 +56,7 @@ class SQLAlchemyDatabase(Database):
         self,
         num_rows: int = 3,
         truncate_content: int = 300,
-        use_tables: Collection[str] = None,
+        use_tables: Optional[Collection[str]] = None,
         include_content: Union[str, Collection[str]] = "all",
         use_bridge_encoder: bool = False,
         question: Optional[str] = None,
@@ -129,7 +129,7 @@ class SQLAlchemyDatabase(Database):
         self.con.execute(text(create_table_stmt))
         df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
-    def execute_to_df(self, query: str, params: dict = None) -> pd.DataFrame:
+    def execute_to_df(self, query: str, params: Optional[dict] = None) -> pd.DataFrame:
         """
         Execute the given query and return results as dataframe.
 

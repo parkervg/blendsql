@@ -2,6 +2,7 @@ import importlib.util
 from outlines.models import llamacpp, LogitsGenerator
 
 from .._model import LocalModel
+from typing import Optional
 
 _has_llama_cpp = importlib.util.find_spec("llama_cpp") is not None
 
@@ -28,7 +29,7 @@ class LlamaCppLLM(LocalModel):
         self,
         model_name_or_path: str,
         filename: str,
-        hf_repo_with_config: str = None,
+        hf_repo_with_config: Optional[str] = None,
         caching: bool = True,
         **kwargs
     ):

@@ -146,7 +146,7 @@ class DuckDB(Database):
         ).fetchall():
             yield row[0]
 
-    def schema_string(self, use_tables: Collection[str] = None) -> str:
+    def schema_string(self, use_tables: Optional[Collection[str]] = None) -> str:
         """Converts the database to a series of 'CREATE TABLE' statements."""
         # TODO
         return None
@@ -162,7 +162,7 @@ class DuckDB(Database):
         self.temp_tables.add(tablename)
         logger.debug(Fore.CYAN + f"Created temp table {tablename}" + Fore.RESET)
 
-    def execute_to_df(self, query: str, params: dict = None) -> pd.DataFrame:
+    def execute_to_df(self, query: str, params: Optional[dict] = None) -> pd.DataFrame:
         """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933"""
         return self.con.sql(query).df()
 

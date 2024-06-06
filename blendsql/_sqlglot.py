@@ -380,8 +380,8 @@ def all_terminals_are_true(node) -> bool:
 def get_scope_nodes(
     nodetype: Type[exp.Expression],
     restrict_scope: bool = False,
-    root: sqlglot.optimizer.Scope = None,
-    node: exp.Expression = None,
+    root: Optional[sqlglot.optimizer.Scope] = None,
+    node: Optional[exp.Expression] = None,
 ) -> Generator:
     """Utility to get nodes of a certain type within our subquery scope.
 

@@ -51,7 +51,7 @@ class Database(ABC):
         ...
 
     @abstractmethod
-    def schema_string(self, use_tables: Collection[str] = None) -> str:
+    def schema_string(self, use_tables: Optional[Collection[str]] = None) -> str:
         """Converts the database to a series of 'CREATE TABLE' statements."""
 
     @abstractmethod
@@ -60,7 +60,7 @@ class Database(ABC):
         ...
 
     @abstractmethod
-    def execute_to_df(self, query: str, params: dict = None) -> pd.DataFrame:
+    def execute_to_df(self, query: str, params: Optional[dict] = None) -> pd.DataFrame:
         """
         Execute the given query and return results as dataframe.
 

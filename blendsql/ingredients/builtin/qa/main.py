@@ -20,7 +20,7 @@ class QAProgram(Program):
         options: Optional[List[str]] = None,
         long_answer: Optional[bool] = False,
         table_title: Optional[str] = None,
-        max_tokens: int = None,
+        max_tokens: Optional[int] = None,
         **kwargs,
     ) -> Tuple[str, str]:
         prompt = ""

@@ -307,7 +307,7 @@ def nl_to_blendsql(
 
 
 def post_process_blendsql(
-    blendsql: str, db: Database, use_tables: Collection[str] = None
+    blendsql: str, db: Database, use_tables: Optional[Collection[str]] = None
 ) -> str:
     """Applies any relevant post-processing on the generated BlendSQL query.
     Currently, only adds double-quotes around column references.
