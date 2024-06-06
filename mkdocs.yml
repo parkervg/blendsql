@@ -48,6 +48,8 @@ plugins:
             show_docstring_examples: true
             show_symbol_type_heading: true
             show_if_no_docstring: False
+            members: False
+
   - search
   - section-index
   - mkdocs-jupyter:

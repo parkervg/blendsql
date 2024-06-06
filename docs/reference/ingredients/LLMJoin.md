@@ -37,3 +37,6 @@ For this reason, we can leverage the internal knowledge of a pre-trained LLM to 
 ::: blendsql.ingredients.builtin.join.main.LLMJoin
     handler: python
     show_source: true
+    options:
+      members:
+      - run

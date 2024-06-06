@@ -3,8 +3,11 @@ hide:
   - toc
 ---
 # OpenAI
+!!! Installation
 
-!!! note
+    You need to install `openai>=1.0.0` to use this in blendsql. See their [installation section](https://github.com/abetlen/llama-cpp-python/tree/main?tab=readme-ov-file#installation) for more details. 
+
+!!! Environment Variables
 
     In order to use this LLM as a Blender, we expect that you have a .env file created with all auth variables. 
 

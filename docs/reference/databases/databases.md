@@ -8,10 +8,10 @@ Since BlendSQL relies on the package [sqlglot](https://github.com/tobymao/sqlglo
 
 Currently, the following are supported.
 
-- [DuckDB](./duckdb.md)
-  - Allows for reading local data structures like pandas DataFrames
 - [SQLite](./sqlite.md)
 - [PostgreSQL](./postgresql.md)
+- [DuckDB](./duckdb.md)
+- [Pandas](./pandas.md)
 
 ::: blendsql.db._database.Database
     handler: python
