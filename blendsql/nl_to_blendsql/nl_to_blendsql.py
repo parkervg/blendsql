@@ -145,9 +145,9 @@ def nl_to_blendsql(
     db: Database,
     model: Model,
     ingredients: Optional[Collection[Type[Ingredient]]],
-    correction_model: Model = None,
+    correction_model: Optional[Model] = None,
     few_shot_examples: Union[str, FewShot] = "",
-    args: NLtoBlendSQLArgs = None,
+    args: Optional[NLtoBlendSQLArgs] = None,
     verbose: bool = False,
 ) -> str:
     """Takes a natural language question, and attempts to parse BlendSQL representation for answering against a databse.
