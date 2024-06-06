@@ -426,10 +426,10 @@ def _blend(
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
         logger.debug(
-            Fore.YELLOW
-            + "No BlendSQL ingredients found in query, executing as vanilla SQL..."
-            + Fore.RESET
+            Fore.YELLOW + f"No BlendSQL ingredients found in query:" + Fore.RESET
         )
+        logger.debug(Fore.LIGHTYELLOW_EX + query + Fore.RESET)
+        logger.debug(Fore.YELLOW + f"Executing as vanilla SQL..." + Fore.RESET)
         return Smoothie(
             df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
@@ -876,32 +876,75 @@ def blend(
 
     Examples:
         ```python
-        from blendsql import blend, LLMMap, LLMQA, LLMJoin
-        from blendsql.db import SQLite
-        from blendsql.models import OpenaiLLM
-        from blendsql.utils import fetch_from_hub
+        import pandas as pd
 
+        from blendsql import blend, LLMMap, LLMQA, LLMJoin
+        from blendsql.db import Pandas
+        from blendsql.models import TransformersLLM
+
+        # Load model
+        model = TransformersLLM('Qwen/Qwen1.5-0.5B')
+
+        # Prepare our local database
+        db = Pandas(
+            {
+                "w": pd.DataFrame(
+                    (
+                        ['11 jun', 'western districts', 'bathurst', 'bathurst ground', '11-0'],
+                        ['12 jun', 'wallaroo & university nsq', 'sydney', 'cricket ground',
+                         '23-10'],
+                        ['5 jun', 'northern districts', 'newcastle', 'sports ground', '29-0']
+                    ),
+                    columns=['date', 'rival', 'city', 'venue', 'score']
+                ),
+                "documents": pd.DataFrame(
+                    (
+                        ['bathurst, new south wales', 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
+                        ['sydney', 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
+                        ['newcastle, new south wales', 'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
+                    ),
+                    columns=['title', 'content']
+                )
+            }
+        )
+
+        # Write BlendSQL query
         blendsql = """
         SELECT * FROM w
         WHERE city = {{
             LLMQA(
                 'Which city is located 120 miles west of Sydney?',
-                (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+                (SELECT * FROM documents WHERE content LIKE '%sydney%'),
                 options='w::city'
             )
         }}
         """
         smoothie = blend(
             query=blendsql,
-            db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+            db=db,
             ingredients={LLMMap, LLMQA, LLMJoin},
-            blender=OpenaiLLM("gpt-3.5-turbo"),
+            blender=model,
             # Optional args below
             infer_gen_constraints=True,
-            silence_db_exec_errors=False,
             verbose=True
         )
-        ```
+        print(smoothie.df)
+        # ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐
+        # │ date   │ rival             │ city     │ venue           │ score   │
+        # ├────────┼───────────────────┼──────────┼─────────────────┼─────────┤
+        # │ 11 jun │ western districts │ bathurst │ bathurst ground │ 11-0    │
+        # └────────┴───────────────────┴──────────┴─────────────────┴─────────┘
+        print(smoothie.meta.prompts)
+        # [
+        #   {
+        #       'answer': 'sydney',
+        #       'question': 'Which city is located 120 miles west of Sydney?',
+        #       'context': [
+        #           {'title': 'bathurst, new south wales', 'content': 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about...'},
+        #           {'title': 'sydney', 'content': 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in...'}
+        #       ]
+        #    }
+        # ]
     '''
     if verbose:
         logger.setLevel(logging.DEBUG)
