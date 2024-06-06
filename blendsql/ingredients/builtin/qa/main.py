@@ -63,9 +63,9 @@ class QAProgram(Program):
             generator = outlines.generate.choice(
                 model.logits_generator, [re.escape(str(i)) for i in options]
             )
-            result = generator(prompt, max_tokens=max_tokens)
+            response: str = generator(prompt, max_tokens=max_tokens)
             # Map from modified options to original, as they appear in DB
-            result = modified_option_to_original.get(result, result)
+            response: str = modified_option_to_original.get(response, response)
         else:
             if isinstance(model, OllamaLLM):
                 # Handle call to ollama
@@ -76,8 +76,8 @@ class QAProgram(Program):
                     temperature=0.0,
                 )
             generator = outlines.generate.text(model.logits_generator)
-            result = generator(prompt, max_tokens=max_tokens)
-        return (result, prompt)
+            response: str = generator(prompt, max_tokens=max_tokens)
+        return (response, prompt)
 
 
 class LLMQA(QAIngredient):

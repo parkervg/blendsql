@@ -93,7 +93,8 @@ class CorrectionProgram(Program):
         generator = outlines.generate.choice(
             model.logits_generator, [re.escape(str(i)) for i in candidates]
         )
-        return (generator(prompt), prompt)
+        response: str = generator(prompt)
+        return (response, prompt)
 
 
 def validate_program(prediction: str, parser: EarleyParser) -> bool:
@@ -114,13 +115,15 @@ def obtain_correction_pairs(
     """
     try:
         parser.parse(prediction)
-        return []
+        raise ValueError(
+            "When calling obtain_correction_pairs, the passed prediction should already be assumed to fail the grammar constraints"
+        )
     except Exception as runtime_e:
         return parser.handle_error(runtime_e)
 
 
 def create_system_prompt(
-    ingredients: Collection[Ingredient],
+    ingredients: Optional[Collection[Type[Ingredient]]],
     few_shot_examples: Optional[Union[str, FewShot]] = "",
 ) -> str:
     ingredient_descriptions = []

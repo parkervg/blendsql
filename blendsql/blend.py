@@ -6,7 +6,6 @@ import pandas as pd
 import re
 from typing import (
     Dict,
-    Iterable,
     List,
     Set,
     Tuple,
@@ -81,7 +80,7 @@ class Kitchen(list):
             f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
         )
 
-    def extend(self, ingredients: Iterable[Ingredient]) -> None:
+    def extend(self, ingredients: Collection[Type[Ingredient]]) -> None:
         """ "Initializes ingredients class with base attributes, for use in later operations."""
         try:
             if not all(issubclass(x, Ingredient) for x in ingredients):
@@ -282,7 +281,7 @@ def materialize_cte(
     blender: Model,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
-) -> str:
+) -> pd.DataFrame:
     str_subquery = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
     materialized_cte_df: pd.DataFrame = disambiguate_and_submit_blend(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -461,7 +460,6 @@ def _blend(
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
-    scm: SubqueryContextManager = None
     for subquery_idx, subquery in enumerate(
         get_reversed_subqueries(query_context.node)
     ):
@@ -552,7 +550,7 @@ def _blend(
                     )
                 except OperationalError as e:
                     # Fallback to naive execution
-                    logger.debug(Fore.RED + e + Fore.RESET)
+                    logger.debug(Fore.RED + str(e) + Fore.RESET)
                     logger.debug(
                         Fore.RED + "Falling back to naive execution..." + Fore.RESET
                     )
@@ -823,7 +821,6 @@ def _blend(
     return Smoothie(
         df=df,
         meta=SmoothieMeta(
-            process_time_seconds=time.time() - start,
             num_values_passed=sum(
                 [
                     i.num_values_passed

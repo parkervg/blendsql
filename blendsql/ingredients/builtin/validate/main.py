@@ -24,7 +24,8 @@ class ValidateProgram(Program):
             prompt += f"\nTable Description: {table_title}"
         prompt += f"\n{serialized_db}\n\nAnswer:"
         generator = outlines.generate.choice(model.logits_generator, ["true", "false"])
-        return (generator(prompt), prompt)
+        response: str = generator(prompt)
+        return (response, prompt)
 
 
 class LLMValidate(QAIngredient):

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Collection
 import pandas as pd
 
@@ -25,7 +25,7 @@ class SmoothieMeta:
     query: str
     db_url: str
     contains_ingredient: bool = True
-    process_time_seconds: float = None
+    process_time_seconds: float = field(init=False)
 
 
 @dataclass

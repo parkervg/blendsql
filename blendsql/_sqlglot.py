@@ -457,7 +457,7 @@ class SubqueryContextManager:
         self.node = node
         self._reset_root()
 
-    def abstracted_table_selects(self) -> Generator[Tuple[str, exp.Select], None, None]:
+    def abstracted_table_selects(self) -> Generator[Tuple[str, str], None, None]:
         """For each table in a given query, generates a `SELECT *` query where all unneeded predicates
         are set to `TRUE`.
         We say `unneeded` in the sense that to minimize the data that gets passed to an ingredient,
