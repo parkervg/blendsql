@@ -34,11 +34,9 @@ The following query demonstrates usage of the builtin `LLMQA` ingredient.
 ```
 This is slightly more complicated than the rest of the ingredients. 
 
-Behind the scenes, we wrap the call to `LLMQA` in a trivial `CASE` clause, ensuring that the ingredient's output gets returned.
+Behind the scenes, we wrap the call to `LLMQA` in a `SELECT` clause, ensuring that the ingredient's output gets returned.
 ```sql 
-SELECT CASE WHEN FALSE THEN FALSE 
-  WHEN TRUE then {{QAIngredient}}
-  END
+SELECT {{QAIngredient}}
 ```
 The LLM gets both the question asked, alongside the subset of the SQL database fetched by our subquery.
 
@@ -137,3 +135,6 @@ The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol`
 ::: blendsql.ingredients.builtin.qa.main.LLMQA
     handler: python
     show_source: true
+    options:
+      members:
+      - run

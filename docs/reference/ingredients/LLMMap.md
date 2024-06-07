@@ -37,3 +37,6 @@ The temporary table shown above is then combined with the original "transactions
 ::: blendsql.ingredients.builtin.map.main.LLMMap
     handler: python
     show_source: true
+    options:
+      members:
+      - run

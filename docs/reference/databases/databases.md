@@ -10,6 +10,8 @@ Currently, the following are supported.
 
 - [SQLite](./sqlite.md)
 - [PostgreSQL](./postgresql.md)
+- [DuckDB](./duckdb.md)
+- [Pandas](./pandas.md)
 
 ::: blendsql.db._database.Database
     handler: python

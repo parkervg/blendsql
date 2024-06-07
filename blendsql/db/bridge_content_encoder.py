@@ -94,7 +94,7 @@ def prefix_match(s1: str, s2: str) -> bool:
         return False
 
 
-def get_effective_match_source(s: str, start: int, end: int) -> Match:
+def get_effective_match_source(s: str, start: int, end: int) -> Optional[Match]:
     _start = -1
 
     for i in range(start, start - 2, -1):

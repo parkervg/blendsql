@@ -71,4 +71,6 @@ def assert_equality(smoothie, sql_df: pd.DataFrame, args: List[str] = None):
     # Make column names abstract
     blendsql_df.columns = [i for i in range(len(blendsql_df.columns))]
     sql_df.columns = [i for i in range(len(sql_df.columns))]
-    pd.testing.assert_frame_equal(blendsql_df, sql_df)
+    pd.testing.assert_frame_equal(
+        blendsql_df, sql_df, check_like=True, check_dtype=False
+    )

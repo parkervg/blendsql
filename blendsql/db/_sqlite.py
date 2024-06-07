@@ -1,11 +1,12 @@
 from pathlib import Path
 from sqlalchemy.engine import make_url, URL
+from functools import cached_property
 
 from .utils import double_quote_escape
-from ._database import Database
+from ._sqlalchemy import SQLAlchemyDatabase
 
 
-class SQLite(Database):
+class SQLite(SQLAlchemyDatabase):
     """A SQLite database connection.
     Can be initialized via a path to the database file.
 
@@ -22,19 +23,17 @@ class SQLite(Database):
         super().__init__(db_url=db_url)
 
     def has_temp_table(self, tablename: str) -> bool:
-        return (
-            tablename
-            in self.execute_to_df(
-                "SELECT name FROM sqlite_temp_master WHERE type='table';"
-            )["name"].unique()
+        return tablename in self.execute_to_list(
+            "SELECT name FROM sqlite_temp_master WHERE type='table';"
         )
 
-    def get_sqlglot_schema(self) -> dict:
+    @cached_property
+    def sqlglot_schema(self) -> dict:
         """Returns database schema as a dictionary, in the format that
         sqlglot.optimizer expects.
 
         Examples:
-            >>> db.get_sqlglot_schema()
+            >>> db.sqlglot_schema
             {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
         """
         schema = {}

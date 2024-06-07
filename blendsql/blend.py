@@ -6,7 +6,6 @@ import pandas as pd
 import re
 from typing import (
     Dict,
-    Iterable,
     List,
     Set,
     Tuple,
@@ -81,7 +80,7 @@ class Kitchen(list):
             f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
         )
 
-    def extend(self, ingredients: Iterable[Ingredient]) -> None:
+    def extend(self, ingredients: Collection[Type[Ingredient]]) -> None:
         """ "Initializes ingredients class with base attributes, for use in later operations."""
         try:
             if not all(issubclass(x, Ingredient) for x in ingredients):
@@ -114,7 +113,7 @@ def autowrap_query(
     """
     Check to see if we have some BlendSQL ingredient syntax that needs to be formatted differently
         before passing to sqlglot.parse_one.
-        - A single `QAIngredient` should be wrapped in `CASE` syntax.
+        - A single `QAIngredient` should be prefaced by a `SELECT`.
         - A `JoinIngredient` needs to include a reference to the left tablename.
 
     Args:
@@ -134,7 +133,7 @@ def autowrap_query(
             if query == alias:
                 query = query.replace(
                     alias,
-                    f"""SELECT CASE WHEN FALSE THEN FALSE WHEN TRUE THEN {alias} END""",
+                    f"""SELECT {alias}""",
                 )
         elif _function.ingredient_type == IngredientType.JOIN:
             left_table, _ = get_tablename_colname(d["kwargs_dict"]["left_on"])
@@ -179,8 +178,7 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
                     'raw': "{{ LLMJoin ( left_on= 'w::player' , right_on= 'documents::title' ) }}",
                     'kwargs_dict': {
                         'left_on': 'w::player',
-                        'right_on': 'documents::title',
-                        'llm': AzureOpenaiLLM(model_name_or_path='gpt-4', ...)
+                        'right_on': 'documents::title'
                     }
                 }
             },
@@ -283,7 +281,7 @@ def materialize_cte(
     blender: Model,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
-) -> str:
+) -> pd.DataFrame:
     str_subquery = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
     materialized_cte_df: pd.DataFrame = disambiguate_and_submit_blend(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -425,22 +423,13 @@ def _blend(
     if query_context.node.find(MODIFIERS):
         raise InvalidBlendSQL("BlendSQL query cannot have `DELETE` clause!")
 
-    # # If there's no `SELECT` and just a QAIngredient, wrap it in a `SELECT CASE` query
-    # if query_context.node.find(exp.Select) is None:
-    #     original_query = autowrap_query(
-    #         query=query_context.to_string(),
-    #         kitchen=kitchen,
-    #         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-    #     )
-    #     query_context.parse(original_query)
-
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
         logger.debug(
-            Fore.YELLOW
-            + "No BlendSQL ingredients found in query, executing as vanilla SQL..."
-            + Fore.RESET
+            Fore.YELLOW + f"No BlendSQL ingredients found in query:" + Fore.RESET
         )
+        logger.debug(Fore.LIGHTYELLOW_EX + query + Fore.RESET)
+        logger.debug(Fore.YELLOW + f"Executing as vanilla SQL..." + Fore.RESET)
         return Smoothie(
             df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
@@ -458,8 +447,9 @@ def _blend(
         )
 
     schema = None
-    if schema_qualify:  # Only construct sqlglot schema if we need to
-        schema = db.get_sqlglot_schema()
+    if schema_qualify:
+        # Only construct sqlglot schema if we need to
+        schema = db.sqlglot_schema
     query_context.parse(query, schema=schema)
 
     _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
@@ -470,7 +460,6 @@ def _blend(
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
-    scm: SubqueryContextManager = None
     for subquery_idx, subquery in enumerate(
         get_reversed_subqueries(query_context.node)
     ):
@@ -561,7 +550,7 @@ def _blend(
                     )
                 except OperationalError as e:
                     # Fallback to naive execution
-                    logger.debug(Fore.RED + e + Fore.RESET)
+                    logger.debug(Fore.RED + str(e) + Fore.RESET)
                     logger.debug(
                         Fore.RED + "Falling back to naive execution..." + Fore.RESET
                     )
@@ -832,7 +821,6 @@ def _blend(
     return Smoothie(
         df=df,
         meta=SmoothieMeta(
-            process_time_seconds=time.time() - start,
             num_values_passed=sum(
                 [
                     i.num_values_passed
@@ -880,7 +868,7 @@ def blend(
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
         schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
             This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
-            However, we need to call db.get_sqlglot_schema() if schema_qualify=True, which may add some latency.
+            However, we need to call `db.sqlglot_schema` if schema_qualify=True, which may add some latency.
             With single-table queries, we can set this to False.
 
     Returns:
@@ -888,31 +876,75 @@ def blend(
 
     Examples:
         ```python
-        from blendsql import blend, LLMMap, LLMQA, LLMJoin
-        from blendsql.db import SQLite
-        from blendsql.models import OpenaiLLM
-        from blendsql.utils import fetch_from_hub
+        import pandas as pd
 
+        from blendsql import blend, LLMMap, LLMQA, LLMJoin
+        from blendsql.db import Pandas
+        from blendsql.models import TransformersLLM
+
+        # Load model
+        model = TransformersLLM('Qwen/Qwen1.5-0.5B')
+
+        # Prepare our local database
+        db = Pandas(
+            {
+                "w": pd.DataFrame(
+                    (
+                        ['11 jun', 'western districts', 'bathurst', 'bathurst ground', '11-0'],
+                        ['12 jun', 'wallaroo & university nsq', 'sydney', 'cricket ground',
+                         '23-10'],
+                        ['5 jun', 'northern districts', 'newcastle', 'sports ground', '29-0']
+                    ),
+                    columns=['date', 'rival', 'city', 'venue', 'score']
+                ),
+                "documents": pd.DataFrame(
+                    (
+                        ['bathurst, new south wales', 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
+                        ['sydney', 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
+                        ['newcastle, new south wales', 'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
+                    ),
+                    columns=['title', 'content']
+                )
+            }
+        )
+
+        # Write BlendSQL query
         blendsql = """
         SELECT * FROM w
         WHERE city = {{
             LLMQA(
                 'Which city is located 120 miles west of Sydney?',
-                (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+                (SELECT * FROM documents WHERE content LIKE '%sydney%'),
                 options='w::city'
             )
         }}
         """
         smoothie = blend(
             query=blendsql,
-            db=SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")),
+            db=db,
             ingredients={LLMMap, LLMQA, LLMJoin},
-            blender=OpenaiLLM("gpt-3.5-turbo"),
+            blender=model,
             # Optional args below
             infer_gen_constraints=True,
-            silence_db_exec_errors=False,
             verbose=True
         )
+        print(smoothie.df)
+        # ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐
+        # │ date   │ rival             │ city     │ venue           │ score   │
+        # ├────────┼───────────────────┼──────────┼─────────────────┼─────────┤
+        # │ 11 jun │ western districts │ bathurst │ bathurst ground │ 11-0    │
+        # └────────┴───────────────────┴──────────┴─────────────────┴─────────┘
+        print(smoothie.meta.prompts)
+        # [
+        #   {
+        #       'answer': 'sydney',
+        #       'question': 'Which city is located 120 miles west of Sydney?',
+        #       'context': [
+        #           {'title': 'bathurst, new south wales', 'content': 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about...'},
+        #           {'title': 'sydney', 'content': 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in...'}
+        #       ]
+        #    }
+        # ]
         ```
     '''
     if verbose:

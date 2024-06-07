@@ -3,27 +3,12 @@ hide:
   - toc
 ---
 ### Smoothie 
-The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an executed BlendSQL script.
+The `Smoothie` object defines the output of an executed BlendSQL script.
 
-```python
-@dataclass
-class SmoothieMeta:
-    num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
-    prompt_tokens: int
-    completion_tokens: int
-    prompts: List[str]  # Log of prompts submitted to model
-    ingredients: Collection[Ingredient]
-    query: str
-    db_url: str
-    contains_ingredient: bool = True
-    process_time_seconds: float = None
+::: blendsql._smoothie.Smoothie
+    handler: python
+    show_source: true
 
-
-@dataclass
-class Smoothie:
-    df: pd.DataFrame
-    meta: SmoothieMeta
-
-def blend(*args, **kwargs) -> Smoothie:
-  ... 
-```
+::: blendsql._smoothie.SmoothieMeta
+    handler: python
+    show_source: true

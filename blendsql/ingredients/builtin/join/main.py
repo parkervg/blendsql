@@ -124,14 +124,14 @@ class JoinProgram(Program):
                 )
             generator = outlines.generate.text(model.logits_generator)
 
-        result = generator(
+        response: str = generator(
             prompt,
             max_tokens=max_tokens,
             stop_at=["---"],
         )
         logger.debug(Fore.CYAN + prompt + Fore.RESET)
-        logger.debug(Fore.LIGHTCYAN_EX + result + Fore.RESET)
-        return (result, prompt)
+        logger.debug(Fore.LIGHTCYAN_EX + response + Fore.RESET)
+        return (response, prompt)
 
 
 class LLMJoin(JoinIngredient):

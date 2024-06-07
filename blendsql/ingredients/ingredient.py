@@ -112,14 +112,6 @@ class MapIngredient(Ingredient):
             temp_table_func=get_temp_session_table, tablename=tablename
         )
 
-        # Need to be sure the new column doesn't already exist here
-        new_arg_column = question
-        while (
-            new_arg_column in set(self.db.iter_columns(tablename))
-            or new_arg_column in prev_subquery_map_columns
-        ):
-            new_arg_column = "_" + new_arg_column
-
         # Optionally materialize a CTE
         if tablename in self.db.lazy_tables:
             original_table = self.db.lazy_tables.pop(tablename).collect()
@@ -127,6 +119,14 @@ class MapIngredient(Ingredient):
             original_table = self.db.execute_to_df(
                 select_all_from_table_query(tablename)
             )
+
+        # Need to be sure the new column doesn't already exist here
+        new_arg_column = question
+        while (
+            new_arg_column in set(self.db.iter_columns(tablename))
+            or new_arg_column in prev_subquery_map_columns
+        ):
+            new_arg_column = "_" + new_arg_column
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
@@ -261,7 +261,7 @@ class JoinIngredient(Ingredient):
                     break
             # Remained _outer and inner lists preserved the sorting order in length:
             # len(_outer) = len(outer) - #matched <= len(inner original) - matched = len(inner)
-            if self.use_skrub_joiner and len(inner) > 1:
+            if self.use_skrub_joiner and all(len(x) > 1 for x in [inner, _outer]):
                 # Create the main_table DataFrame
                 main_table = pd.DataFrame(_outer, columns=["out"])
                 # Create the aux_table DataFrame

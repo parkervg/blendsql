@@ -1,4 +1,4 @@
-from typing import Optional, Collection, List
+from typing import Optional, Collection, List, Union
 from dataclasses import dataclass, field
 
 
@@ -11,7 +11,7 @@ class NLtoBlendSQLArgs:
         },
     )
 
-    include_db_content_tables: Optional[List[str]] = field(
+    include_db_content_tables: Optional[Union[List[str], str]] = field(
         default="all",
         metadata={
             "help": "Which database tables to add `num_serialized_rows` worth of content for in serialization."

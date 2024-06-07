@@ -4,6 +4,7 @@ from outlines.models import openai, azure_openai, LogitsGenerator
 from outlines.models.openai import OpenAIConfig
 
 from .._model import RemoteModel
+from typing import Optional
 
 DEFAULT_CONFIG = OpenAIConfig(temperature=0.0)
 
@@ -80,8 +81,8 @@ class AzureOpenaiLLM(RemoteModel):
     def __init__(
         self,
         model_name_or_path: str,
-        env: str = None,
-        config: OpenAIConfig = None,
+        env: Optional[str] = None,
+        config: Optional[OpenAIConfig] = None,
         caching: bool = True,
         **kwargs
     ):
@@ -148,8 +149,8 @@ class OpenaiLLM(RemoteModel):
     def __init__(
         self,
         model_name_or_path: str,
-        env: str = None,
-        config: OpenAIConfig = None,
+        env: Optional[str] = None,
+        config: Optional[OpenAIConfig] = None,
         caching: bool = True,
         **kwargs
     ):

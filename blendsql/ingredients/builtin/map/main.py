@@ -24,12 +24,12 @@ class MapProgram(Program):
         values: List[str],
         sep: str,
         include_tf_disclaimer: bool = False,
-        max_tokens: int = None,
-        regex: Callable[[int], str] = None,
-        output_type: str = None,
-        example_outputs: str = None,
-        table_title: str = None,
-        colname: str = None,
+        max_tokens: Optional[int] = None,
+        regex: Optional[Callable[[int], str]] = None,
+        output_type: Optional[str] = None,
+        example_outputs: Optional[str] = None,
+        table_title: Optional[str] = None,
+        colname: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
         prompt = ""

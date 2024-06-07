@@ -48,6 +48,8 @@ plugins:
             show_docstring_examples: true
             show_symbol_type_heading: true
             show_if_no_docstring: False
+            members: False
+
   - search
   - section-index
   - mkdocs-jupyter:
@@ -88,8 +90,12 @@ nav:
           - Ollama: reference/blenders/ollama.md
       - Databases:
           - reference/databases/databases.md
+          - DuckDB: reference/databases/duckdb.md
+          - Pandas (aka DuckDB in a trench coat): reference/databases/pandas.md
           - SQLite: reference/databases/sqlite.md
           - PostgreSQL: reference/databases/postgresql.md
+      - Smoothie:
+          - reference/smoothie.md
       - Programs:
           - reference/programs.md
       - Natural Language to BlendSQL:

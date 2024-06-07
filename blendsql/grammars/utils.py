@@ -35,9 +35,9 @@ def load_cfg_parser(
         ingredients = set()
     with open(Path(__file__).parent / "./_cfg_grammar.lark", encoding="utf-8") as f:
         cfg_grammar = Template(f.read())
-    blendsql_join_functions = []
-    blendsql_aggregate_functions = []
-    blendsql_scalar_functions = []
+    blendsql_join_functions: List[str] = []
+    blendsql_aggregate_functions: List[str] = []
+    blendsql_scalar_functions: List[str] = []
     ingredient_type_to_function_type: Dict[str, List[str]] = {
         IngredientType.JOIN: blendsql_join_functions,
         IngredientType.QA: blendsql_aggregate_functions,

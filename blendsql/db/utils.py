@@ -1,7 +1,7 @@
 import re
 import pandas as pd
 from attr import attrs, attrib
-from typing import Callable
+from functools import partial
 
 
 @attrs(frozen=True)
@@ -12,7 +12,7 @@ class LazyTable:
     """
 
     tablename: str = attrib()
-    collect: Callable[..., pd.DataFrame] = attrib()
+    collect: partial[..., pd.DataFrame] = attrib()
 
     def __str__(self):
         return self.tablename

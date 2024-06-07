@@ -90,7 +90,7 @@ class Model:
         if self.run_setup_on_load:
             self._setup()
 
-    def predict(self, program: Type[Program], **kwargs) -> dict:
+    def predict(self, program: Type[Program], **kwargs) -> str:
         """Takes a `Program` and some kwargs, and evaluates it with context of
         current Model.
 
