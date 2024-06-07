@@ -3,9 +3,26 @@ hide:
   - toc
 ---
 ### Smoothie 
-The [smoothie.py](./blendsql/_smoothie.py) object defines the output of an executed BlendSQL script.
+The `Smoothie` object defines the output of an executed BlendSQL script.
 
 ```python
+from dataclasses import dataclass, field
+from typing import List, Collection
+import pandas as pd
+
+from .ingredients import Ingredient
+from .utils import tabulate
+from .db.utils import truncate_df_content
+
+
+class PrettyDataFrame(pd.DataFrame):
+    def __str__(self):
+        return tabulate(truncate_df_content(self, 50))
+
+    def __repr__(self):
+        return tabulate(truncate_df_content(self, 50))
+
+
 @dataclass
 class SmoothieMeta:
     num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
@@ -16,13 +33,16 @@ class SmoothieMeta:
     query: str
     db_url: str
     contains_ingredient: bool = True
-    process_time_seconds: float = None
+    process_time_seconds: float = field(init=False)
 
 
 @dataclass
 class Smoothie:
     df: pd.DataFrame
     meta: SmoothieMeta
+
+    def __post_init__(self):
+        self.df = PrettyDataFrame(self.df)
 
 def blend(*args, **kwargs) -> Smoothie:
   ... 
