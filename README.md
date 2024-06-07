@@ -100,7 +100,7 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
 ### Features
 
 - Supports many DBMS 💾
-  - Currently, SQLite and PostgreSQL are functional - more to come! 
+  - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
 - Supports many models ✨
   - Transformers, Llama.cpp, OpenAI, Ollama
 - Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
