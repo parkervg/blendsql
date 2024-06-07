@@ -868,7 +868,7 @@ def blend(
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
         schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
             This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
-            However, we need to call db.sqlglot_schema if schema_qualify=True, which may add some latency.
+            However, we need to call `db.sqlglot_schema` if schema_qualify=True, which may add some latency.
             With single-table queries, we can set this to False.
 
     Returns:
@@ -945,6 +945,7 @@ def blend(
         #       ]
         #    }
         # ]
+        ```
     '''
     if verbose:
         logger.setLevel(logging.DEBUG)
