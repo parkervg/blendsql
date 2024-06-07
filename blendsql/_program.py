@@ -31,7 +31,7 @@ class Program:
 
         class SummaryProgram(Program):
             def __call__(self, model: Model, context: pd.DataFrame) -> Tuple[str, str]:
-                prompt = f"Summarize the table below. \n{context.to_string()}"
+                prompt = f"Summarize the following table. {context.to_string()}"
                 # Below we follow the outlines pattern for unconstrained text generation
                 # https://github.com/outlines-dev/outlines
                 generator = outlines.generate.text(model.logits_generator)
