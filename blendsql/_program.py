@@ -30,18 +30,19 @@ class Program:
         from blendsql._program import Program
 
         class SummaryProgram(Program):
-            def __call__(self, model: Model, serialized_db: pd.DataFrame) -> Tuple[str, str]:
-                prompt = f"Summarize the table below. {serialized_db}"
+            def __call__(self, model: Model, context: pd.DataFrame) -> Tuple[str, str]:
+                prompt = f"Summarize the table below. \n{context.to_string()}"
                 # Below we follow the outlines pattern for unconstrained text generation
                 # https://github.com/outlines-dev/outlines
+                generator = outlines.generate.text(model.logits_generator)
+                response: str = generator(prompt)
                 # Finally, return (response, prompt) tuple
                 # Returning the prompt here allows the underlying BlendSQL classes to track token usage
-                generator = outlines.generate.text(model.logits_generator)
-                return (generator(prompt), prompt)
+                return (response, prompt)
         ```
         We could also write the same `Program` as a function:
         ```python
-        def summary_program(model: Model, serialized_db: pd.DataFrame) -> Tuple[str, str]:
+        def summary_program(model: Model, context: pd.DataFrame) -> Tuple[str, str]:
             ...
         ```
     """
