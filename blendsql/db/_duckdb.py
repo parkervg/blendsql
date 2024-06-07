@@ -94,7 +94,7 @@ class DuckDB(Database):
         """
         if not _has_duckdb:
             raise ImportError(
-                "Please install duckdb with `pip install duckdb`!"
+                "Please install duckdb with `pip install duckdb<1`!"
             ) from None
         import duckdb
 
