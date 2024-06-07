@@ -94,6 +94,8 @@ nav:
           - Pandas (aka DuckDB in a trench coat): reference/databases/pandas.md
           - SQLite: reference/databases/sqlite.md
           - PostgreSQL: reference/databases/postgresql.md
+      - Smoothie:
+          - reference/smoothie.md
       - Programs:
           - reference/programs.md
       - Natural Language to BlendSQL:
