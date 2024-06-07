@@ -5,7 +5,7 @@ hide:
 # OpenAI
 !!! Installation
 
-    You need to install `openai>=1.0.0` to use this in blendsql. See their [installation section](https://github.com/abetlen/llama-cpp-python/tree/main?tab=readme-ov-file#installation) for more details. 
+    You need to install `openai>=1.0.0` to use this in blendsql. 
 
 !!! Environment Variables
 
