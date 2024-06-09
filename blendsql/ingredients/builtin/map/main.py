@@ -181,17 +181,17 @@ class LLMMap(MapIngredient):
         # Only use tqdm if we're in debug mode
         context_manager = (
             tqdm(
-                range(0, len(values), CONST.VALUE_BATCH_SIZE),
-                total=len(values) // CONST.VALUE_BATCH_SIZE,
-                desc=f"Making calls to Model with batch_size {CONST.VALUE_BATCH_SIZE}",
+                range(0, len(values), CONST.MAP_BATCH_SIZE),
+                total=len(values) // CONST.MAP_BATCH_SIZE,
+                desc=f"Making calls to Model with batch_size {CONST.MAP_BATCH_SIZE}",
                 bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
             )
             if logger.level <= logging.DEBUG
-            else range(0, len(values), CONST.VALUE_BATCH_SIZE)
+            else range(0, len(values), CONST.MAP_BATCH_SIZE)
         )
 
         for i in context_manager:
-            answer_length = len(values[i : i + CONST.VALUE_BATCH_SIZE])
+            answer_length = len(values[i : i + CONST.MAP_BATCH_SIZE])
             max_tokens = answer_length * 15
             include_tf_disclaimer = False
 
@@ -204,7 +204,7 @@ class LLMMap(MapIngredient):
                 program=MapProgram,
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,
-                values=values[i : i + CONST.VALUE_BATCH_SIZE],
+                values=values[i : i + CONST.MAP_BATCH_SIZE],
                 example_outputs=example_outputs,
                 output_type=output_type,
                 include_tf_disclaimer=include_tf_disclaimer,
@@ -234,7 +234,7 @@ class LLMMap(MapIngredient):
                 }.get(i.lower(), i)
                 for i in _r
             ]
-            expected_len = len(values[i : i + CONST.VALUE_BATCH_SIZE])
+            expected_len = len(values[i : i + CONST.MAP_BATCH_SIZE])
             if len(_r) != expected_len:
                 logger.debug(
                     Fore.YELLOW
