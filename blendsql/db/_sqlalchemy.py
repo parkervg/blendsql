@@ -19,7 +19,6 @@ from .bridge_content_encoder import get_database_matches
 class SQLAlchemyDatabase(Database):
     db_url: URL = attrib()
 
-    _raw_db_path: str = attrib(init=False)
     engine: Engine = attrib(init=False)
     con: Connection = attrib(init=False)
 

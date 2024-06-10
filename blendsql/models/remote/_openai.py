@@ -81,7 +81,7 @@ class AzureOpenaiLLM(RemoteModel):
     def __init__(
         self,
         model_name_or_path: str,
-        env: Optional[str] = None,
+        env: str = ".",
         config: Optional[OpenAIConfig] = None,
         caching: bool = True,
         **kwargs
@@ -149,7 +149,7 @@ class OpenaiLLM(RemoteModel):
     def __init__(
         self,
         model_name_or_path: str,
-        env: Optional[str] = None,
+        env: str = ".",
         config: Optional[OpenAIConfig] = None,
         caching: bool = True,
         **kwargs

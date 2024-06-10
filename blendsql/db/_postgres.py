@@ -26,8 +26,7 @@ class PostgreSQL(SQLAlchemyDatabase):
             raise ImportError(
                 "Please install psycopg2 with `pip install psycopg2-binary`!"
             ) from None
-        self._raw_db_path = db_path
-        db_url: URL = make_url(f"postgresql+psycopg2://{self._raw_db_path}")
+        db_url: URL = make_url(f"postgresql+psycopg2://{db_path}")
         if db_url.username is None:
             logging.warning(
                 Fore.RED

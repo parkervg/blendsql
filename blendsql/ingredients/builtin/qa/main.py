@@ -1,5 +1,5 @@
 import copy
-from typing import Dict, Union, Optional, Set, List, Tuple
+from typing import Dict, Union, Optional, Set, Tuple
 import pandas as pd
 import outlines
 import re
@@ -17,7 +17,7 @@ class QAProgram(Program):
         model: Model,
         question: str,
         context: Optional[pd.DataFrame] = None,
-        options: Optional[List[str]] = None,
+        options: Optional[Set[str]] = None,
         long_answer: Optional[bool] = False,
         table_title: Optional[str] = None,
         max_tokens: Optional[int] = None,
@@ -26,13 +26,13 @@ class QAProgram(Program):
         prompt = ""
         serialized_db = context.to_string() if context is not None else ""
         prompt += "Answer the question for the table. "
+        modified_option_to_original = {}
         if long_answer:
             prompt += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
         else:
             prompt += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
         if options is not None:
             # Add in title case, since this helps with selection
-            modified_option_to_original = {}
             _options = copy.deepcopy(options)
             # Below we check to see if our options have a unique first word
             # sometimes, the model will generate 'Frank' instead of 'Frank Smith'
@@ -63,9 +63,9 @@ class QAProgram(Program):
             generator = outlines.generate.choice(
                 model.logits_generator, [re.escape(str(i)) for i in options]
             )
-            response: str = generator(prompt, max_tokens=max_tokens)
+            _response: str = generator(prompt, max_tokens=max_tokens)
             # Map from modified options to original, as they appear in DB
-            response: str = modified_option_to_original.get(response, response)
+            response: str = modified_option_to_original.get(_response, _response)
         else:
             if isinstance(model, OllamaLLM):
                 # Handle call to ollama

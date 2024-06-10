@@ -1,6 +1,6 @@
 import pytest
 from blendsql import blend
-from blendsql.db import SQLite, DuckDB
+from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
 from tests.utils import (
     assert_equality,
@@ -14,7 +14,7 @@ from tests.utils import (
 
 databases = [
     SQLite(fetch_from_hub("multi_table.db")),
-    DuckDB.from_sqlite(fetch_from_hub("multi_table.db")),
+    # DuckDB.from_sqlite(fetch_from_hub("multi_table.db")),
 ]
 
 

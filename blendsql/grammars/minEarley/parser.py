@@ -115,7 +115,8 @@ class EarleyParser:
 
             # TODO: handle case where no candidate is found
             if len(candidate_terminals) == 0:
-                candidate_terminals = [""]
+                candidate_terminals = {""}
+
         elif isinstance(e, UnexpectedEOF):
             candidate_terminals = set()
             for terminal_name in e.expected:
