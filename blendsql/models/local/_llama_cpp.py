@@ -1,5 +1,6 @@
 import importlib.util
-from outlines.models import llamacpp, LogitsGenerator
+from outlines.models import LogitsGenerator
+from outlines.models.llamacpp import llamacpp
 
 from .._model import LocalModel
 from typing import Optional
@@ -55,10 +56,10 @@ class LlamaCppLLM(LocalModel):
             caching=caching,
         )
 
-    def _load_model(self, filename: str, **kwargs) -> LogitsGenerator:
+    def _load_model(self, filename: str) -> LogitsGenerator:
         return llamacpp(
             self.model_name_or_path,
             filename=filename,
             tokenizer=self._llama_tokenizer,
-            **kwargs
+            **self.load_model_kwargs
         )

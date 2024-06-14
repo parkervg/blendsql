@@ -123,7 +123,7 @@ class MapProgram(Program):
             if isinstance(model, OllamaLLM):
                 # Handle call to ollama
                 return return_ollama_response(
-                    logits_generator=model.logits_generator,
+                    logits_generator=model.logits_generator,  # type: ignore
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=0.0,
@@ -180,7 +180,7 @@ class LLMMap(MapIngredient):
                 table_title = table_to_title[tablename]
         split_results: List[Union[str, None]] = []
         # Only use tqdm if we're in debug mode
-        context_manager = (
+        context_manager: Iterable = (
             tqdm(
                 range(0, len(values), CONST.MAP_BATCH_SIZE),
                 total=len(values) // CONST.MAP_BATCH_SIZE,

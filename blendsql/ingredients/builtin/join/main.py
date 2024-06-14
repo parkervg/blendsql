@@ -117,7 +117,7 @@ class JoinProgram(Program):
             if isinstance(model, OllamaLLM):
                 # Handle call to ollama
                 return return_ollama_response(
-                    logits_generator=model.logits_generator,
+                    logits_generator=model.logits_generator,  # type: ignore
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=0.0,

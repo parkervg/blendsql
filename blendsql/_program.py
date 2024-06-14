@@ -1,12 +1,12 @@
 from __future__ import annotations
 from typing import Tuple
 import inspect
-from outlines.models import LogitsGenerator
 import ast
 import textwrap
 import logging
 from colorama import Fore
 from abc import abstractmethod
+from functools import partial
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ class Program:
 
 
 def return_ollama_response(
-    logits_generator: LogitsGenerator, prompt, **kwargs
+    logits_generator: partial, prompt, **kwargs
 ) -> Tuple[str, str]:
     """Helper function to work with Ollama models,
     since they're not recognized in the Outlines ecosystem.
@@ -95,7 +95,7 @@ def return_ollama_response(
     return (response["message"]["content"], prompt)
 
 
-def program_to_str(program: Program):
+def program_to_str(program: Program) -> str:
     """Create a string representation of a program.
     It is slightly tricky, since in addition to getting the code content, we need to
         1) identify all global variables referenced within a function, and then

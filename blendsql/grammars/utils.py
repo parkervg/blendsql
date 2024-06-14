@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Optional, Collection, List, Dict, Type
+from typing import Optional, List, Dict, Type
+from collections.abc import Collection
 from string import Template
 from colorama import Fore
 

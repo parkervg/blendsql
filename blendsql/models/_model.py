@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional, Type, Dict
 import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
@@ -45,12 +45,12 @@ class Model:
     tokenizer: Any = attrib(default=None)
     requires_config: bool = attrib(default=False)
     refresh_interval_min: Optional[int] = attrib(default=None)
-    load_model_kwargs: Optional[dict] = attrib(default={})
+    load_model_kwargs: dict = attrib(default=None)
     env: str = attrib(default=".")
     caching: bool = attrib(default=True)
 
     logits_generator: LogitsGenerator = attrib(init=False)
-    prompts: list = attrib(init=False)
+    prompts: List[dict] = attrib(init=False)
     prompt_tokens: int = attrib(init=False)
     completion_tokens: int = attrib(init=False)
     num_calls: int = attrib(init=False)
@@ -63,7 +63,9 @@ class Model:
                 Path(platformdirs.user_cache_dir("blendsql"))
                 / f"{self.model_name_or_path}.diskcache"
             )
-        self.prompts: List[str] = []
+        if self.load_model_kwargs is None:
+            self.load_model_kwargs = {}
+        self.prompts: List[dict] = []
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.num_calls = 0
@@ -107,13 +109,12 @@ class Model:
         """
         if self.caching:
             # First, check our cache
-            key = self._create_key(program, **kwargs)
+            key: str = self._create_key(program, **kwargs)
             if key in self.cache:
                 logger.debug(Fore.MAGENTA + "Using cache..." + Fore.RESET)
-                self.prompts.insert(
-                    -1, self.format_prompt(self.cache.get(key), **kwargs)
-                )
-                return self.cache.get(key)
+                response: str = self.cache.get(key)  # type: ignore
+                self.prompts.insert(-1, self.format_prompt(response, **kwargs))
+                return response
         # Modify fields used for tracking Model usage
         response: str
         prompt: str
@@ -124,10 +125,10 @@ class Model:
             self.prompt_tokens += len(self.tokenizer.encode(prompt))
             self.completion_tokens += len(self.tokenizer.encode(response))
         if self.caching:
-            self.cache[key] = response
+            self.cache[key] = response  # type: ignore
         return response
 
-    def _create_key(self, program: Program, **kwargs) -> str:
+    def _create_key(self, program: Type[Program], **kwargs) -> str:
         """Generates a hash to use in diskcache Cache.
         This way, we don't need to send our prompts to the same Model
         if our context of Model + program + kwargs is the same.
@@ -157,11 +158,11 @@ class Model:
     @cached_property
     def logits_generator(self) -> LogitsGenerator:
         """Allows for lazy loading of underlying model."""
-        return self._load_model(**self.load_model_kwargs)
+        return self._load_model()
 
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
-        d = {"answer": response}
+        d: Dict[str, Any] = {"answer": response}
         if IngredientKwarg.QUESTION in kwargs:
             d[IngredientKwarg.QUESTION] = kwargs.get(IngredientKwarg.QUESTION)
         if IngredientKwarg.CONTEXT in kwargs:

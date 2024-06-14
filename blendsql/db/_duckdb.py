@@ -1,5 +1,6 @@
 import importlib.util
-from typing import Dict, Optional, List, Collection, Type, Generator, Set, Union
+from typing import Dict, Optional, List, Generator, Set, Union, Callable
+from collections.abc import Collection
 import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
@@ -167,7 +168,7 @@ class DuckDB(Database):
         return self.con.sql(query).df()
 
     def execute_to_list(
-        self, query: str, to_type: Optional[Type] = lambda x: x
+        self, query: str, to_type: Optional[Callable] = lambda x: x
     ) -> list:
         res = []
         for row in self.con.execute(query).fetchall():

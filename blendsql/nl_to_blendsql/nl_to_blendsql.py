@@ -1,4 +1,5 @@
-from typing import Collection, Tuple, Set, Optional, Union, Type
+from typing import Tuple, Set, Optional, Union, Type
+from collections.abc import Collection
 from textwrap import dedent
 import outlines
 from colorama import Fore

@@ -1,5 +1,5 @@
-from typing import Generator, Union, List, Collection, Optional
-from typing_extensions import Callable
+from typing import Generator, Union, List, Callable, Optional
+from collections.abc import Collection
 import pandas as pd
 from attr import attrib
 from sqlalchemy.engine import URL

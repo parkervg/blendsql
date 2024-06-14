@@ -1,7 +1,18 @@
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
-from typing import Generator, List, Set, Tuple, Union, Callable, Type, Optional
+from typing import (
+    Generator,
+    List,
+    Set,
+    Tuple,
+    Union,
+    Callable,
+    Type,
+    Optional,
+    Dict,
+    Any,
+)
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope, find_in_scope
 from attr import attrs, attrib
@@ -447,8 +458,6 @@ class SubqueryContextManager:
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
 
     def __attrs_post_init__(self):
-        if self.alias_to_subquery is None:
-            self.alias_to_subquery = {}
         self.alias_to_tablename = {}
         self.tablename_to_alias = {}
         # https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
@@ -600,8 +609,10 @@ class SubqueryContextManager:
                 alias = subquery_node.args["alias"]
             if alias is None:
                 # Try to get from parent
-                if "alias" in subquery_node.parent.args:
-                    alias = subquery_node.parent.args["alias"]
+                parent_node = subquery_node.parent
+                if parent_node is not None:
+                    if "alias" in parent_node.args:
+                        alias = parent_node.args["alias"]
             if alias is not None:
                 if not any(x.name == alias.name for x in tablenodes):
                     tablenodes.add(exp.Table(this=exp.Identifier(this=alias.name)))
@@ -696,7 +707,7 @@ class SubqueryContextManager:
                 raise ValueError(f"Unknown output_type {output_type}")
             return lambda num_repeats: base_pattern + "{" + str(num_repeats) + "}"
 
-        added_kwargs = {}
+        added_kwargs: Dict[str, Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end])
         child = None
         for child, _, _ in self.node.walk():
