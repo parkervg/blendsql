@@ -15,6 +15,7 @@ from typing import (
     Set,
     Collection,
     Optional,
+    List,
 )
 import uuid
 from colorama import Fore
@@ -161,7 +162,7 @@ class MapIngredient(Ingredient):
         kwargs[IngredientKwarg.QUESTION] = question
         mapped_values: Collection[Any] = self._run(*args, **kwargs)
         self.num_values_passed += len(mapped_values)
-        df_as_dict = {colname: [], new_arg_column: []}
+        df_as_dict: Dict[str, list] = {colname: [], new_arg_column: []}
         for value, mapped_value in zip(values, mapped_values):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
@@ -356,24 +357,29 @@ class QAIngredient(Ingredient):
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
 
-        subtable = context
+        subtable: Union[pd.DataFrame, None] = None
         if context is not None:
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
-                    subtable = self.db.lazy_tables.pop(tablename).collect()[colname]
+                    subtable: pd.DataFrame = self.db.lazy_tables.pop(
+                        tablename
+                    ).collect()[colname]
                 else:
-                    subtable = self.db.execute_to_df(
+                    subtable: pd.DataFrame = self.db.execute_to_df(
                         f'SELECT "{colname}" FROM "{tablename}"'
                     )
-            elif not isinstance(context, pd.DataFrame):
+            elif isinstance(context, pd.DataFrame):
+                subtable = context
+            else:
                 raise ValueError(
                     f"Unknown type for `identifier` arg in QAIngredient: {type(context)}"
                 )
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
-        unpacked_options = options
+
+        unpacked_options: Union[List[str], None] = options
         if options is not None:
             if not isinstance(options, list):
                 try:

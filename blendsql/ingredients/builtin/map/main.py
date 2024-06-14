@@ -155,6 +155,7 @@ class LLMMap(MapIngredient):
         Args:
             question: The question to map onto the values. Will also be the new column name
             model: The Model (blender) we will make calls to.
+            values: The list of values to apply question to.
             value_limit: Optional limit on the number of values to pass to the Model
             example_outputs: If binary == False, this gives the Model an example of the output we expect.
             output_type: One of 'numeric', 'string', 'bool'
@@ -177,7 +178,7 @@ class LLMMap(MapIngredient):
                 logger.debug(f"Tablename {tablename} not in given table_to_title!")
             else:
                 table_title = table_to_title[tablename]
-        split_results = []
+        split_results: List[Union[str, None]] = []
         # Only use tqdm if we're in debug mode
         context_manager = (
             tqdm(

@@ -115,6 +115,8 @@ class Model:
                 )
                 return self.cache.get(key)
         # Modify fields used for tracking Model usage
+        response: str
+        prompt: str
         response, prompt = program(model=self, **kwargs)
         self.prompts.insert(-1, self.format_prompt(response, **kwargs))
         self.num_calls += 1

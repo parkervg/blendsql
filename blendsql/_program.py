@@ -1,10 +1,12 @@
 from __future__ import annotations
-from typing import Tuple, Callable
+from typing import Tuple
 import inspect
+from outlines.models import LogitsGenerator
 import ast
 import textwrap
 import logging
 from colorama import Fore
+from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -54,6 +56,7 @@ class Program:
     ):
         return self.__call__(self, model, **kwargs)
 
+    @abstractmethod
     def __call__(self, model: Model, *args, **kwargs) -> Tuple[str, str]:
         """Logic for formatting prompt and calling the underlying model.
         Should return tuple of (response, prompt).
@@ -62,7 +65,7 @@ class Program:
 
 
 def return_ollama_response(
-    logits_generator: Callable, prompt, **kwargs
+    logits_generator: LogitsGenerator, prompt, **kwargs
 ) -> Tuple[str, str]:
     """Helper function to work with Ollama models,
     since they're not recognized in the Outlines ecosystem.
