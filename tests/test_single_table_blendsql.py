@@ -99,13 +99,18 @@ def test_simple_ingredient_exec_at_end(db, ingredients):
 @pytest.mark.parametrize("db", databases)
 def test_simple_ingredient_exec_in_select(db, ingredients):
     blendsql = """
-    SELECT {{starts_with('Z', 'transactions::merchant')}} FROM transactions WHERE parent_category = 'Auto & Transport'
+    SELECT {{get_length('Z', 'transactions::merchant')}} FROM transactions WHERE parent_category = 'Auto & Transport' 
+    """
+    sql = """
+    SELECT LENGTH(merchant) FROM transactions WHERE parent_category = 'Auto & Transport'
     """
     smoothie = blend(
         query=blendsql,
         db=db,
         ingredients=ingredients,
     )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = db.execute_to_list(
         """
