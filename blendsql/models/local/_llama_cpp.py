@@ -1,8 +1,7 @@
 import importlib.util
-from outlines.models import LogitsGenerator
 from outlines.models.llamacpp import llamacpp
 
-from .._model import LocalModel
+from .._model import LocalModel, ModelObj
 from typing import Optional
 
 _has_llama_cpp = importlib.util.find_spec("llama_cpp") is not None
@@ -56,7 +55,7 @@ class LlamaCppLLM(LocalModel):
             caching=caching,
         )
 
-    def _load_model(self, filename: str) -> LogitsGenerator:
+    def _load_model(self, filename: str) -> ModelObj:
         return llamacpp(
             self.model_name_or_path,
             filename=filename,
