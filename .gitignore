@@ -1,5 +1,7 @@
 .chainlit/
 .files/
+.zed/
+pyrightconfig.json
 proxies.py
 site/
 tests/data/
