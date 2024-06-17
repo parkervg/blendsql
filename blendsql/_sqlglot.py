@@ -1,7 +1,19 @@
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
-from typing import Generator, List, Set, Tuple, Union, Callable, Type, Optional
+from typing import (
+    Generator,
+    List,
+    Set,
+    Tuple,
+    Union,
+    Callable,
+    Type,
+    Optional,
+    Dict,
+    Any,
+    Literal,
+)
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope, find_in_scope
 from attr import attrs, attrib
@@ -278,6 +290,8 @@ def extract_multi_table_predicates(
 def get_first_child(node):
     """
     Helper function to get first child of a node.
+    The default argument to `walk()` is bfs=True,
+    meaning we do breadth-first search.
     """
     gen = node.walk()
     _ = next(gen)
@@ -411,9 +425,11 @@ def get_scope_nodes(
 @attrs
 class QueryContextManager:
     """Handles manipulation of underlying SQL query.
-    We need to maintain two representations here:
-        - The underlying sqlglot exp.Expression
-        - The string representation of the query
+    We need to maintain two synced representations here:
+
+        1) The underlying sqlglot exp.Expression node
+
+        2) The string representation of the query
     """
 
     node: exp.Expression = attrib(default=None)
@@ -425,6 +441,7 @@ class QueryContextManager:
         self.node = _parse_one(query, schema=schema)
 
     def to_string(self):
+        # Only call `recover_blendsql` if we need to
         if hash(self.node) != hash(self._last_to_string_node):
             self._query = recover_blendsql(self.node.sql(dialect=FTS5SQLite))
             self.last_to_string_node = self.node
@@ -447,8 +464,6 @@ class SubqueryContextManager:
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
 
     def __attrs_post_init__(self):
-        if self.alias_to_subquery is None:
-            self.alias_to_subquery = {}
         self.alias_to_tablename = {}
         self.tablename_to_alias = {}
         # https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
@@ -474,8 +489,18 @@ class SubqueryContextManager:
             abstracted_queries: Generator with (tablename, exp.Select, alias_to_table). The exp.Select is the abstracted query.
 
         Examples:
-            >>> {{Model('is this an italian restaurant?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1 AND child_category = 'Restaurants & Dining'
+            ```python
+            scm = SubqueryContextManager(
+                node=_parse_one(
+                    "SELECT * FROM transactions WHERE {{Model('is this an italian restaurant?', 'transactions::merchant')}} = TRUE AND child_category = 'Restaurants & Dining'"
+                )
+            )
+            scm.abstracted_table_selects()
+            ```
+            Returns:
+            ```text
             ('transactions', 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
+            ```
         """
         # TODO: don't really know how to optimize with 'CASE' queries right now
         if self.node.find(exp.Case):
@@ -573,13 +598,18 @@ class SubqueryContextManager:
             table_star_queries: Generator with (tablename, exp.Select). The exp.Select is the table_star query
 
         Examples:
-            >>> SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-            >>>  FROM account_history
-            >>>  LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-            >>>  WHERE constituents.Sector = 'Information Technology'
-            >>>  AND lower(Action) like "%dividend%"
+            ```sql
+            SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+                FROM account_history
+                LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+                WHERE constituents.Sector = 'Information Technology'
+                AND lower(Action) like "%dividend%"
+            ```
+            Returns (after getting str representation of `exp.Select`):
+            ```text
             ('account_history', 'SELECT * FROM account_history WHERE lower(Action) like "%dividend%')
             ('constituents', 'SELECT * FROM constituents WHERE sector = \'Information Technology\'')
+            ```
         """
         # Use `scope` to get all unique tablenodes in ast
         tablenodes = set(
@@ -600,8 +630,10 @@ class SubqueryContextManager:
                 alias = subquery_node.args["alias"]
             if alias is None:
                 # Try to get from parent
-                if "alias" in subquery_node.parent.args:
-                    alias = subquery_node.parent.args["alias"]
+                parent_node = subquery_node.parent
+                if parent_node is not None:
+                    if "alias" in parent_node.args:
+                        alias = parent_node.args["alias"]
             if alias is not None:
                 if not any(x.name == alias.name for x in tablenodes):
                     tablenodes.add(exp.Table(this=exp.Identifier(this=alias.name)))
@@ -672,18 +704,35 @@ class SubqueryContextManager:
             downstream Model generations.
 
         For example:
-            >>> SELECT * FROM w WHERE {{LLMMap('Is this true?', 'w::colname')}}
+
+        ```sql
+        SELECT * FROM w WHERE {{LLMMap('Is this true?', 'w::colname')}}
+        ```
 
         We can infer given the structure above that we expect `LLMMap` to return a boolean.
         This function identifies that.
 
+        Arguments:
+            indices: The string indices pointing to the span within the overall BlendSQL query
+                containing our ingredient in question.
+
         Returns:
             dict, with keys:
-                output_type: numeric | string | boolean
-                pattern: regular expression pattern to use in constrained decoding with Model
+
+                - output_type
+                    - 'boolean' | 'integer' | 'float' | 'string'
+
+                - pattern: regular expression pattern lambda to use in constrained decoding with Model
+                    - See `create_pattern` for more info on these pattern lambdas
         """
 
-        def create_pattern(output_type: str) -> Callable[[int], str]:
+        def create_pattern(
+            output_type: Literal["boolean", "integer", "float"]
+        ) -> Callable[[int], str]:
+            """Helper function to create a pattern lambda.
+            These pattern lambdas take an integer (num_repeats) and return
+            a regex pattern which is restricted to repeat exclusively num_repeats times.
+            """
             if output_type == "boolean":
                 base_pattern = f"((t|f|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
             elif output_type == "integer":
@@ -696,7 +745,7 @@ class SubqueryContextManager:
                 raise ValueError(f"Unknown output_type {output_type}")
             return lambda num_repeats: base_pattern + "{" + str(num_repeats) + "}"
 
-        added_kwargs = {}
+        added_kwargs: Dict[str, Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end])
         child = None
         for child, _, _ in self.node.walk():
@@ -710,7 +759,7 @@ class SubqueryContextManager:
         # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
         while isinstance(start_node, exp.Func) and start_node is not None:
             start_node = start_node.parent
-        output_type = None
+        output_type: Literal["boolean", "integer", "float"] = None
         predicate_literals: List[str] = []
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
@@ -736,7 +785,7 @@ class SubqueryContextManager:
         elif isinstance(
             ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
         ):
-            output_type = "float"  # Use 'float' as default numeric pattern
+            output_type = "float"  # Use 'float' as default numeric pattern, since it's more expressive than 'integer'
         if output_type is not None:
             added_kwargs["output_type"] = output_type
             added_kwargs["pattern"] = create_pattern(output_type)

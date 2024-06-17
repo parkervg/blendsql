@@ -1,14 +1,14 @@
 import copy
 from typing import Dict, Union, Optional, Set, Tuple
 import pandas as pd
-import outlines
 import re
 
 from blendsql.models import Model, OllamaLLM
 from blendsql._exceptions import InvalidBlendSQL
-from blendsql._program import Program, return_ollama_response
+from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
+from blendsql import generate
 
 
 class QAProgram(Program):
@@ -60,23 +60,15 @@ class QAProgram(Program):
                 raise InvalidBlendSQL(
                     "Can't use `options` argument in LLMQA with an Ollama model!"
                 )
-            generator = outlines.generate.choice(
-                model.logits_generator, [re.escape(str(i)) for i in options]
+            _response = generate.choice(
+                model, prompt=prompt, choices=[re.escape(str(i)) for i in options]
             )
-            _response: str = generator(prompt, max_tokens=max_tokens)
             # Map from modified options to original, as they appear in DB
             response: str = modified_option_to_original.get(_response, _response)
         else:
-            if isinstance(model, OllamaLLM):
-                # Handle call to ollama
-                return return_ollama_response(
-                    logits_generator=model.logits_generator,
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=0.0,
-                )
-            generator = outlines.generate.text(model.logits_generator)
-            response: str = generator(prompt, max_tokens=max_tokens)
+            response = generate.text(
+                model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
+            )
         return (response, prompt)
 
 
@@ -111,4 +103,5 @@ class LLMQA(QAIngredient):
             table_title=None,
             **kwargs,
         )
+        # Post-process language model response
         return "'{}'".format(single_quote_escape(result.strip().lower()))

@@ -1,14 +1,14 @@
 from typing import List, Optional, Tuple
-import outlines
 import re
 from colorama import Fore
 
-from blendsql.models import Model, LocalModel, OllamaLLM
-from blendsql._program import Program, return_ollama_response
+from blendsql.models import Model, LocalModel
+from blendsql._program import Program
 from blendsql._logger import logger
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import JoinIngredient
 from blendsql.utils import newline_dedent
+from blendsql import generate
 
 
 class JoinProgram(Program):
@@ -110,25 +110,17 @@ class JoinProgram(Program):
         )
 
         if isinstance(model, LocalModel):
-            generator = outlines.generate.regex(
-                model.logits_generator, regex(len(left_values))
+            response = generate.regex(
+                model,
+                prompt=prompt,
+                pattern=regex(len(left_values)),
+                max_tokens=max_tokens,
+                stop_at=["---"],
             )
         else:
-            if isinstance(model, OllamaLLM):
-                # Handle call to ollama
-                return return_ollama_response(
-                    logits_generator=model.logits_generator,
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=0.0,
-                )
-            generator = outlines.generate.text(model.logits_generator)
-
-        response: str = generator(
-            prompt,
-            max_tokens=max_tokens,
-            stop_at=["---"],
-        )
+            response = generate.text(
+                model, prompt=prompt, max_tokens=max_tokens, stop_at=["---"]
+            )
         logger.debug(Fore.CYAN + prompt + Fore.RESET)
         logger.debug(Fore.LIGHTCYAN_EX + response + Fore.RESET)
         return (response, prompt)
@@ -158,7 +150,7 @@ class LLMJoin(JoinIngredient):
             join_criteria=question,
             **kwargs,
         )
-
+        # Post-process language model response
         _result = result.split("\n")
         mapping: dict = {}
         for item in _result:

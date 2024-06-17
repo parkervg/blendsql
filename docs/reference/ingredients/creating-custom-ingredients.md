@@ -31,11 +31,11 @@ class SummaryProgram(Program):
     """Program to call Model and return summary of the passed table.
     """
 
-    def __call__(self, model: Model, serialized_db: str):  
+    def __call__(self, model: Model, serialized_db: str):
         prompt = f"Summarize the table below.\n\n{serialized_db}\n"
         # Below we follow the outlines pattern for unconstrained text generation
         # https://github.com/outlines-dev/outlines
-        generator = outlines.generate.text(model.logits_generator)
+        generator = outlines.generate.text(model.model_obj)
         # Finally, return (response, prompt) tuple
         # Returning the prompt here allows the underlying BlendSQL classes to track token usage
         return (generator(prompt), prompt)

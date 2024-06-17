@@ -5,15 +5,15 @@ import json
 import pandas as pd
 from colorama import Fore
 from tqdm import tqdm
-import outlines
 
 from blendsql.utils import newline_dedent
 from blendsql._logger import logger
-from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM, OllamaLLM
+from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._program import Program, return_ollama_response
+from blendsql._program import Program
+from blendsql import generate
 
 
 class MapProgram(Program):
@@ -116,20 +116,12 @@ class MapProgram(Program):
             prompt += f"\nHere are some example outputs: {example_outputs}\n"
         prompt += "\nA:"
         if isinstance(model, LocalModel) and regex is not None:
-            generator = outlines.generate.regex(
-                model.logits_generator, regex(len(values))
-            )
+            response = generate.regex(model, prompt=prompt, pattern=regex(len(values)))
         else:
-            if isinstance(model, OllamaLLM):
-                # Handle call to ollama
-                return return_ollama_response(
-                    logits_generator=model.logits_generator,
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=0.0,
-                )
-            generator = outlines.generate.text(model.logits_generator)
-        return (generator(prompt, max_tokens=max_tokens, stop_at="\n"), prompt)
+            response = generate.text(
+                model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
+            )
+        return (response, prompt)
 
 
 class LLMMap(MapIngredient):
@@ -180,7 +172,7 @@ class LLMMap(MapIngredient):
                 table_title = table_to_title[tablename]
         split_results: List[Union[str, None]] = []
         # Only use tqdm if we're in debug mode
-        context_manager = (
+        context_manager: Iterable = (
             tqdm(
                 range(0, len(values), CONST.MAP_BATCH_SIZE),
                 total=len(values) // CONST.MAP_BATCH_SIZE,
@@ -214,6 +206,7 @@ class LLMMap(MapIngredient):
                 max_tokens=max_tokens,
                 **kwargs,
             )
+            # Post-process language model response
             _r = [
                 i.strip()
                 for i in result.strip(CONST.DEFAULT_ANS_SEP).split(
