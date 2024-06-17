@@ -12,6 +12,7 @@ from typing import (
     Optional,
     Dict,
     Any,
+    Literal,
 )
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope, find_in_scope
@@ -422,8 +423,8 @@ def get_scope_nodes(
 @attrs
 class QueryContextManager:
     """Handles manipulation of underlying SQL query.
-    We need to maintain two representations here:
-        - The underlying sqlglot exp.Expression
+    We need to maintain two synced representations here:
+        - The underlying sqlglot exp.Expression node
         - The string representation of the query
     """
 
@@ -436,6 +437,7 @@ class QueryContextManager:
         self.node = _parse_one(query, schema=schema)
 
     def to_string(self):
+        # Only call `recover_blendsql` if we need to
         if hash(self.node) != hash(self._last_to_string_node):
             self._query = recover_blendsql(self.node.sql(dialect=FTS5SQLite))
             self.last_to_string_node = self.node
@@ -688,13 +690,24 @@ class SubqueryContextManager:
         We can infer given the structure above that we expect `LLMMap` to return a boolean.
         This function identifies that.
 
+        Arguments:
+            start, end: The string indices pointing to the span within the overall BlendSQL query
+                containing our ingredient in question.
+
         Returns:
             dict, with keys:
-                output_type: numeric | string | boolean
-                pattern: regular expression pattern to use in constrained decoding with Model
+                output_type: boolean | integer | float | string
+                pattern: regular expression pattern lambda to use in constrained decoding with Model
+                    See `create_pattern` for more info on these pattern lambdas
         """
 
-        def create_pattern(output_type: str) -> Callable[[int], str]:
+        def create_pattern(
+            output_type: Literal["boolean", "integer", "float"]
+        ) -> Callable[[int], str]:
+            """Helper function to create a pattern lambda.
+            These pattern lambdas take an integer (num_repeats) and return
+            a regex pattern which is restricted to repeat exclusively num_repeats times.
+            """
             if output_type == "boolean":
                 base_pattern = f"((t|f|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
             elif output_type == "integer":
@@ -721,7 +734,7 @@ class SubqueryContextManager:
         # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
         while isinstance(start_node, exp.Func) and start_node is not None:
             start_node = start_node.parent
-        output_type = None
+        output_type: Literal["boolean", "integer", "float"] = None
         predicate_literals: List[str] = []
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
@@ -747,7 +760,7 @@ class SubqueryContextManager:
         elif isinstance(
             ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
         ):
-            output_type = "float"  # Use 'float' as default numeric pattern
+            output_type = "float"  # Use 'float' as default numeric pattern, since it's more expressive than 'integer'
         if output_type is not None:
             added_kwargs["output_type"] = output_type
             added_kwargs["pattern"] = create_pattern(output_type)
