@@ -1,7 +1,6 @@
 from typing import Tuple, Set, Optional, Union, Type
 from collections.abc import Collection
 from textwrap import dedent
-import outlines
 from colorama import Fore
 import re
 import logging
@@ -10,11 +9,13 @@ from .._logger import logger
 from ..ingredients import Ingredient, IngredientException
 from ..models import Model, OllamaLLM
 from ..db import Database, double_quote_escape
-from .._program import Program, return_ollama_response
+from .._program import Program
 from ..grammars.minEarley.parser import EarleyParser
 from ..grammars.utils import load_cfg_parser
 from ..prompts import FewShot
+from .. import generate
 from .args import NLtoBlendSQLArgs
+
 
 PARSER_STOP_TOKENS = ["---", ";", "\n\n", "Q:"]
 PARSER_SYSTEM_PROMPT = dedent(
@@ -57,16 +58,11 @@ class ParserProgram(Program):
             + prompt
             + Fore.RESET
         )
-        if isinstance(model, OllamaLLM):
-            # Handle call to ollama
-            return return_ollama_response(
-                model_obj=model.model_obj,
-                prompt=prompt,
-                stop=PARSER_STOP_TOKENS,
-                temperature=0.0,
-            )
-        generator = outlines.generate.text(model.model_obj)
-        response: str = generator(prompt, stop_at=PARSER_STOP_TOKENS)
+        response = generate.text(
+            model,
+            prompt=prompt,
+            stop_at=PARSER_STOP_TOKENS,
+        )
         return (response, prompt)
 
 
@@ -92,10 +88,9 @@ class CorrectionProgram(Program):
         prompt += f"Question: {question}\n"
         prompt += f"BlendSQL:\n"
         prompt += partial_completion
-        generator = outlines.generate.choice(
-            model.model_obj, [re.escape(str(i)) for i in candidates]
+        response = generate.choice(
+            model, prompt=prompt, choices=[re.escape(str(i)) for i in candidates]
         )
-        response: str = generator(prompt)  # type: ignore
         return (response, prompt)
 
 

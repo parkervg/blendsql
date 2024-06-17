@@ -33,33 +33,33 @@ TEST_QUERIES = [
           )
       }} = TRUE
     """,
-    # """
-    # SELECT * FROM w
-    #   WHERE city = {{
-    #       LLMQA(
-    #           'Which city is located 120 miles west of Sydney?',
-    #           (SELECT * FROM documents),
-    #           options='w::city'
-    #       )
-    #   }}
-    # """,
-    # """
-    # SELECT date, rival, score, documents.content AS "Team Description" FROM w
-    # JOIN {{
-    #     LLMJoin(
-    #         left_on='documents::title',
-    #         right_on='w::rival'
-    #     )
-    # }}
-    # """,
-    # """
-    # {{
-    #     LLMQA(
-    #         'What is this table about?',
-    #         (SELECT * FROM w;)
-    #     )
-    # }}
-    # """
+    """
+    SELECT * FROM w
+      WHERE city = {{
+          LLMQA(
+              'Which city is located 120 miles west of Sydney?',
+              (SELECT * FROM documents),
+              options='w::city'
+          )
+      }}
+    """,
+    """
+    SELECT date, rival, score, documents.content AS "Team Description" FROM w
+    JOIN {{
+        LLMJoin(
+            left_on='documents::title',
+            right_on='w::rival'
+        )
+    }}
+    """,
+    """
+    {{
+        LLMQA(
+            'What is this table about?',
+            (SELECT * FROM w;)
+        )
+    }}
+    """,
 ]
 
 # TEST_QUERIES = [
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     )
     ingredients = {LLMQA, LLMMap, LLMJoin}
     # db = SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db"))
-    from blendsql.models import OpenaiLLM
+    from blendsql.models import TransformersLLM
 
     # model = OpenaiLLM("gpt-3.5-turbo", caching=False)
     times = []
@@ -113,8 +113,8 @@ if __name__ == "__main__":
             smoothie = blend(
                 query=q,
                 db=db,
-                blender=OpenaiLLM("gpt-3.5-turbo", caching=False),
-                # blender=TransformersLLM("microsoft/Phi-3-mini-128k-instruct"),
+                # blender=OpenaiLLM("gpt-3.5-turbo", caching=False),
+                blender=TransformersLLM("Qwen/Qwen1.5-0.5B", caching=False),
                 # blender=OllamaLLM("phi3", caching=False),
                 verbose=True,
                 ingredients={LLMJoin.from_args(use_skrub_joiner=False), LLMMap, LLMQA},

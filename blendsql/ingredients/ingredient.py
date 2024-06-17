@@ -405,7 +405,7 @@ class QAIngredient(Ingredient):
                         )
                 except ValueError:
                     unpacked_options = options.split(";")
-            unpacked_options = set(unpacked_options)
+            unpacked_options: Set[str] = set(unpacked_options)
         self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[IngredientKwarg.OPTIONS] = unpacked_options
         kwargs[IngredientKwarg.CONTEXT] = subtable

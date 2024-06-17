@@ -5,15 +5,15 @@ import json
 import pandas as pd
 from colorama import Fore
 from tqdm import tqdm
-import outlines
 
 from blendsql.utils import newline_dedent
 from blendsql._logger import logger
-from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM, OllamaLLM
+from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM
 from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._program import Program, return_ollama_response
+from blendsql._program import Program
+from blendsql import generate
 
 
 class MapProgram(Program):
@@ -116,18 +116,12 @@ class MapProgram(Program):
             prompt += f"\nHere are some example outputs: {example_outputs}\n"
         prompt += "\nA:"
         if isinstance(model, LocalModel) and regex is not None:
-            generator = outlines.generate.regex(model.model_obj, regex(len(values)))
+            response = generate.regex(model, prompt=prompt, pattern=regex(len(values)))
         else:
-            if isinstance(model, OllamaLLM):
-                # Handle call to ollama
-                return return_ollama_response(
-                    model_obj=model.model_obj,  # type: ignore
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=0.0,
-                )
-            generator = outlines.generate.text(model.model_obj)
-        return (generator(prompt, max_tokens=max_tokens, stop_at="\n"), prompt)
+            response = generate.text(
+                model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
+            )
+        return (response, prompt)
 
 
 class LLMMap(MapIngredient):
@@ -212,6 +206,7 @@ class LLMMap(MapIngredient):
                 max_tokens=max_tokens,
                 **kwargs,
             )
+            # Post-process language model response
             _r = [
                 i.strip()
                 for i in result.strip(CONST.DEFAULT_ANS_SEP).split(

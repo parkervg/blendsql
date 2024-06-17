@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Type, Dict, TypeVar
+from typing import Any, List, Optional, Generic, Type, Dict, TypeVar
 import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
@@ -49,7 +49,7 @@ class Model:
     env: str = attrib(default=".")
     caching: bool = attrib(default=True)
 
-    model_obj: ModelObj = attrib(init=False)
+    model_obj: Generic[ModelObj] = attrib(init=False)
     prompts: List[dict] = attrib(init=False)
     prompt_tokens: int = attrib(init=False)
     completion_tokens: int = attrib(init=False)
@@ -116,6 +116,8 @@ class Model:
                 self.prompts.insert(-1, self.format_prompt(response, **kwargs))
                 return response
         # Modify fields used for tracking Model usage
+        response: str
+        prompt: str
         response, prompt = program(model=self, **kwargs)
         self.prompts.insert(-1, self.format_prompt(response, **kwargs))
         self.num_calls += 1

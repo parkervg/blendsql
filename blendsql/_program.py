@@ -3,15 +3,12 @@ from typing import Tuple, Type
 import inspect
 import ast
 import textwrap
-import logging
-from colorama import Fore
 from abc import abstractmethod
-from functools import partial
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .models import Model
-from ._logger import logger
 
 
 class Program:
@@ -62,35 +59,6 @@ class Program:
         Should return tuple of (response, prompt).
         """
         ...
-
-
-def return_ollama_response(model_obj: partial, prompt, **kwargs) -> Tuple[str, str]:
-    """Helper function to work with Ollama models,
-    since they're not recognized in the Outlines ecosystem.
-    """
-    from ollama import Options
-
-    options = Options(**kwargs)
-    if options.get("temperature") is None:
-        options["temperature"] = 0.0
-    stream = logger.level <= logging.DEBUG
-    response = model_obj(
-        messages=[{"role": "user", "content": prompt}],
-        options=options,
-        stream=stream,
-    )
-    if stream:
-        chunked_res = []
-        for chunk in response:
-            chunked_res.append(chunk["message"]["content"])
-            print(
-                Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
-                end="",
-                flush=True,
-            )
-        print("\n")
-        return ("".join(chunked_res), prompt)
-    return (response["message"]["content"], prompt)
 
 
 def program_to_str(program: Type[Program]) -> str:

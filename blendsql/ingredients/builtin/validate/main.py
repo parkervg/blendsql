@@ -1,10 +1,10 @@
 from typing import Dict, Union, Optional, Tuple
 import pandas as pd
-import outlines
 
 from blendsql.models import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
+from blendsql import generate
 
 
 class ValidateProgram(Program):
@@ -23,8 +23,7 @@ class ValidateProgram(Program):
         if table_title:
             prompt += f"\nTable Description: {table_title}"
         prompt += f"\n{serialized_db}\n\nAnswer:"
-        generator = outlines.generate.choice(model.model_obj, ["true", "false"])
-        response: str = generator(prompt)  # type: ignore
+        response = generate.choice(model, choices=["true", "false"])
         return (response, prompt)
 
 
@@ -49,4 +48,5 @@ class LLMValidate(QAIngredient):
             table_title=None,
             **kwargs,
         )
-        return int(response == "true")
+        # Post-process language model response
+        return bool(response == "true")

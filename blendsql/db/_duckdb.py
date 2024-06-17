@@ -127,7 +127,7 @@ class DuckDB(Database):
             > {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
             ```
         """
-        schema = {}
+        schema: Dict[str, dict] = {}
         for tablename in self.tables():
             schema[f'"{double_quote_escape(tablename)}"'] = {}
             for column_name, column_type in self.con.execute(
