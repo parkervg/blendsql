@@ -426,8 +426,10 @@ def get_scope_nodes(
 class QueryContextManager:
     """Handles manipulation of underlying SQL query.
     We need to maintain two synced representations here:
-        - The underlying sqlglot exp.Expression node
-        - The string representation of the query
+
+        1) The underlying sqlglot exp.Expression node
+
+        2) The string representation of the query
     """
 
     node: exp.Expression = attrib(default=None)
@@ -487,8 +489,18 @@ class SubqueryContextManager:
             abstracted_queries: Generator with (tablename, exp.Select, alias_to_table). The exp.Select is the abstracted query.
 
         Examples:
-            >>> {{Model('is this an italian restaurant?', 'transactions::merchant', endpoint_name='gpt-4')}} = 1 AND child_category = 'Restaurants & Dining'
+            ```python
+            scm = SubqueryContextManager(
+                node=_parse_one(
+                    "SELECT * FROM transactions WHERE {{Model('is this an italian restaurant?', 'transactions::merchant')}} = TRUE AND child_category = 'Restaurants & Dining'"
+                )
+            )
+            scm.abstracted_table_selects()
+            ```
+            Returns:
+            ```text
             ('transactions', 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
+            ```
         """
         # TODO: don't really know how to optimize with 'CASE' queries right now
         if self.node.find(exp.Case):
@@ -586,13 +598,18 @@ class SubqueryContextManager:
             table_star_queries: Generator with (tablename, exp.Select). The exp.Select is the table_star query
 
         Examples:
-            >>> SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-            >>>  FROM account_history
-            >>>  LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-            >>>  WHERE constituents.Sector = 'Information Technology'
-            >>>  AND lower(Action) like "%dividend%"
+            ```sql
+            SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+                FROM account_history
+                LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+                WHERE constituents.Sector = 'Information Technology'
+                AND lower(Action) like "%dividend%"
+            ```
+            Returns (after getting str representation of `exp.Select`):
+            ```text
             ('account_history', 'SELECT * FROM account_history WHERE lower(Action) like "%dividend%')
             ('constituents', 'SELECT * FROM constituents WHERE sector = \'Information Technology\'')
+            ```
         """
         # Use `scope` to get all unique tablenodes in ast
         tablenodes = set(
@@ -687,20 +704,26 @@ class SubqueryContextManager:
             downstream Model generations.
 
         For example:
-            >>> SELECT * FROM w WHERE {{LLMMap('Is this true?', 'w::colname')}}
+
+        ```sql
+        SELECT * FROM w WHERE {{LLMMap('Is this true?', 'w::colname')}}
+        ```
 
         We can infer given the structure above that we expect `LLMMap` to return a boolean.
         This function identifies that.
 
         Arguments:
-            start, end: The string indices pointing to the span within the overall BlendSQL query
+            indices: The string indices pointing to the span within the overall BlendSQL query
                 containing our ingredient in question.
 
         Returns:
             dict, with keys:
-                output_type: boolean | integer | float | string
-                pattern: regular expression pattern lambda to use in constrained decoding with Model
-                    See `create_pattern` for more info on these pattern lambdas
+
+                - output_type
+                    - 'boolean' | 'integer' | 'float' | 'string'
+
+                - pattern: regular expression pattern lambda to use in constrained decoding with Model
+                    - See `create_pattern` for more info on these pattern lambdas
         """
 
         def create_pattern(

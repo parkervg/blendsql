@@ -100,4 +100,6 @@ nav:
           - reference/programs.md
       - Natural Language to BlendSQL:
           - reference/nl_to_blendsql/nl-to-blendsql.md
-      - Technical Walkthrough: reference/technical_walkthrough.md
+      - Technical Walkthrough:
+          - reference/technical_walkthrough.md
+          - Query Optimization: reference/query_optimization.md
