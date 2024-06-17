@@ -282,14 +282,18 @@ class JoinIngredient(Ingredient):
                 # length(new inner) = length(inner) - #matched by fuzzy join
                 _outer = res["out"][res["in"].isnull()].to_list()
                 # length(new _outer) = length(_outer) - #matched by fuzzy join
-                _mapping = res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
+                _skrub_mapping = (
+                    res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
+                )
                 logger.debug(
                     Fore.YELLOW
                     + "Made the following alignment with `skrub.Joiner`:"
                     + Fore.RESET
                 )
-                logger.debug(Fore.YELLOW + json.dumps(_mapping, indent=4) + Fore.RESET)
-                mapping = mapping | _mapping
+                logger.debug(
+                    Fore.YELLOW + json.dumps(_skrub_mapping, indent=4) + Fore.RESET
+                )
+                mapping = mapping | _skrub_mapping
             # order by length is still preserved regardless of using fuzzy join, so after initial matching and possible fuzzy join matching
             # This is because the lengths of each list will decrease at the same rate, so whichever list was larger at the beginning,
             # will be larger here at the end.
@@ -316,8 +320,8 @@ class JoinIngredient(Ingredient):
             )
 
             kwargs[IngredientKwarg.QUESTION] = question
-            _mapping: Dict[str, str] = self._run(*args, **kwargs)
-            mapping = mapping | _mapping
+            _predicted_mapping: Dict[str, str] = self._run(*args, **kwargs)
+            mapping = mapping | _predicted_mapping
         # Using mapped left/right values, create intermediary mapping table
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         # Below, we check to see if 'swapped' is True

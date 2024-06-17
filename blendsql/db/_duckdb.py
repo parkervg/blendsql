@@ -100,7 +100,7 @@ class DuckDB(Database):
         import duckdb
 
         con = duckdb.connect(database=":memory:")
-        db_url = Path(db_url).resolve()
+        db_url = str(Path(db_url).resolve())
         con.sql("INSTALL sqlite;")
         con.sql("LOAD sqlite;")
         con.sql(f"ATTACH '{db_url}' AS sqlite_db (TYPE sqlite);")

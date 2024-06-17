@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple
+from typing import Tuple, Type
 import inspect
 import ast
 import textwrap
@@ -36,7 +36,7 @@ class Program:
                 prompt = f"Summarize the following table. {context.to_string()}"
                 # Below we follow the outlines pattern for unconstrained text generation
                 # https://github.com/outlines-dev/outlines
-                generator = outlines.generate.text(model.logits_generator)
+                generator = outlines.generate.text(model.model_obj)
                 response: str = generator(prompt)
                 # Finally, return (response, prompt) tuple
                 # Returning the prompt here allows the underlying BlendSQL classes to track token usage
@@ -64,9 +64,7 @@ class Program:
         ...
 
 
-def return_ollama_response(
-    logits_generator: partial, prompt, **kwargs
-) -> Tuple[str, str]:
+def return_ollama_response(model_obj: partial, prompt, **kwargs) -> Tuple[str, str]:
     """Helper function to work with Ollama models,
     since they're not recognized in the Outlines ecosystem.
     """
@@ -76,7 +74,7 @@ def return_ollama_response(
     if options.get("temperature") is None:
         options["temperature"] = 0.0
     stream = logger.level <= logging.DEBUG
-    response = logits_generator(
+    response = model_obj(
         messages=[{"role": "user", "content": prompt}],
         options=options,
         stream=stream,
@@ -95,7 +93,7 @@ def return_ollama_response(
     return (response["message"]["content"], prompt)
 
 
-def program_to_str(program: Program) -> str:
+def program_to_str(program: Type[Program]) -> str:
     """Create a string representation of a program.
     It is slightly tricky, since in addition to getting the code content, we need to
         1) identify all global variables referenced within a function, and then
