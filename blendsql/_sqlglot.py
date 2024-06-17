@@ -290,6 +290,8 @@ def extract_multi_table_predicates(
 def get_first_child(node):
     """
     Helper function to get first child of a node.
+    The default argument to `walk()` is bfs=True,
+    meaning we do breadth-first search.
     """
     gen = node.walk()
     _ = next(gen)
