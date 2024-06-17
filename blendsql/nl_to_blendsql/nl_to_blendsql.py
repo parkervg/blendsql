@@ -60,12 +60,12 @@ class ParserProgram(Program):
         if isinstance(model, OllamaLLM):
             # Handle call to ollama
             return return_ollama_response(
-                logits_generator=model.logits_generator,
+                model_obj=model.model_obj,
                 prompt=prompt,
                 stop=PARSER_STOP_TOKENS,
                 temperature=0.0,
             )
-        generator = outlines.generate.text(model.logits_generator)
+        generator = outlines.generate.text(model.model_obj)
         response: str = generator(prompt, stop_at=PARSER_STOP_TOKENS)
         return (response, prompt)
 
@@ -93,9 +93,9 @@ class CorrectionProgram(Program):
         prompt += f"BlendSQL:\n"
         prompt += partial_completion
         generator = outlines.generate.choice(
-            model.logits_generator, [re.escape(str(i)) for i in candidates]
+            model.model_obj, [re.escape(str(i)) for i in candidates]
         )
-        response: str = generator(prompt)
+        response: str = generator(prompt)  # type: ignore
         return (response, prompt)
 
 

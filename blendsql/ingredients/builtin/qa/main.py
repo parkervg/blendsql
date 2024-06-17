@@ -61,7 +61,7 @@ class QAProgram(Program):
                     "Can't use `options` argument in LLMQA with an Ollama model!"
                 )
             generator = outlines.generate.choice(
-                model.logits_generator, [re.escape(str(i)) for i in options]
+                model.model_obj, [re.escape(str(i)) for i in options]
             )
             _response: str = generator(prompt, max_tokens=max_tokens)
             # Map from modified options to original, as they appear in DB
@@ -70,12 +70,12 @@ class QAProgram(Program):
             if isinstance(model, OllamaLLM):
                 # Handle call to ollama
                 return return_ollama_response(
-                    logits_generator=model.logits_generator,  # type: ignore
+                    model_obj=model.model_obj,  # type: ignore
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=0.0,
                 )
-            generator = outlines.generate.text(model.logits_generator)
+            generator = outlines.generate.text(model.model_obj)
             response: str = generator(prompt, max_tokens=max_tokens)
         return (response, prompt)
 

@@ -116,19 +116,17 @@ class MapProgram(Program):
             prompt += f"\nHere are some example outputs: {example_outputs}\n"
         prompt += "\nA:"
         if isinstance(model, LocalModel) and regex is not None:
-            generator = outlines.generate.regex(
-                model.logits_generator, regex(len(values))
-            )
+            generator = outlines.generate.regex(model.model_obj, regex(len(values)))
         else:
             if isinstance(model, OllamaLLM):
                 # Handle call to ollama
                 return return_ollama_response(
-                    logits_generator=model.logits_generator,  # type: ignore
+                    model_obj=model.model_obj,  # type: ignore
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=0.0,
                 )
-            generator = outlines.generate.text(model.logits_generator)
+            generator = outlines.generate.text(model.model_obj)
         return (generator(prompt, max_tokens=max_tokens, stop_at="\n"), prompt)
 
 

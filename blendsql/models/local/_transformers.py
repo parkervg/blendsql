@@ -1,8 +1,7 @@
 import importlib.util
-from outlines.models import LogitsGenerator
 from outlines.models.transformers import transformers
 
-from .._model import LocalModel
+from .._model import LocalModel, ModelObj
 
 DEFAULT_KWARGS = {"do_sample": True, "temperature": 0.0, "top_p": 1.0}
 
@@ -50,7 +49,7 @@ class TransformersLLM(LocalModel):
             **kwargs
         )
 
-    def _load_model(self) -> LogitsGenerator:
+    def _load_model(self) -> ModelObj:
         # https://huggingface.co/blog/how-to-generate
         return transformers(
             self.model_name_or_path,

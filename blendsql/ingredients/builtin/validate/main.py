@@ -23,8 +23,8 @@ class ValidateProgram(Program):
         if table_title:
             prompt += f"\nTable Description: {table_title}"
         prompt += f"\n{serialized_db}\n\nAnswer:"
-        generator = outlines.generate.choice(model.logits_generator, ["true", "false"])
-        response: str = generator(prompt)
+        generator = outlines.generate.choice(model.model_obj, ["true", "false"])
+        response: str = generator(prompt)  # type: ignore
         return (response, prompt)
 
 

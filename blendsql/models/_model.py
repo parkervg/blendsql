@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Type, Dict
+from typing import Any, List, Optional, Type, Dict, TypeVar
 import pandas as pd
 from attr import attrib, attrs
 from pathlib import Path
@@ -11,7 +11,6 @@ import platformdirs
 import hashlib
 from abc import abstractmethod
 from functools import cached_property
-from outlines.models import LogitsGenerator
 
 from .._logger import logger
 from .._program import Program, program_to_str
@@ -19,6 +18,7 @@ from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
 
 CONTEXT_TRUNCATION_LIMIT = 100
+ModelObj = TypeVar("ModelObj")
 
 
 class TokenTimer(threading.Thread):
@@ -49,7 +49,7 @@ class Model:
     env: str = attrib(default=".")
     caching: bool = attrib(default=True)
 
-    logits_generator: LogitsGenerator = attrib(init=False)
+    model_obj: ModelObj = attrib(init=False)
     prompts: List[dict] = attrib(init=False)
     prompt_tokens: int = attrib(init=False)
     completion_tokens: int = attrib(init=False)
@@ -116,8 +116,6 @@ class Model:
                 self.prompts.insert(-1, self.format_prompt(response, **kwargs))
                 return response
         # Modify fields used for tracking Model usage
-        response: str
-        prompt: str
         response, prompt = program(model=self, **kwargs)
         self.prompts.insert(-1, self.format_prompt(response, **kwargs))
         self.num_calls += 1
@@ -156,8 +154,8 @@ class Model:
         return hasher.hexdigest()
 
     @cached_property
-    def logits_generator(self) -> LogitsGenerator:
-        """Allows for lazy loading of underlying model."""
+    def model_obj(self) -> ModelObj:
+        """Allows for lazy loading of underlying model weights."""
         return self._load_model()
 
     @staticmethod
@@ -183,9 +181,9 @@ class Model:
         ...
 
     @abstractmethod
-    def _load_model(self, *args, **kwargs) -> Any:
+    def _load_model(self, *args, **kwargs) -> ModelObj:
         """Logic for instantiating the model class goes here.
-        Will most likely be an outlines.LogitsGenerator object,
+        Will most likely be an outlines model object,
         but in some cases (like OllamaLLM) we make an exception.
         """
         ...
