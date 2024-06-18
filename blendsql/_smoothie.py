@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Collection
+from typing import List, Iterable, Type
 import pandas as pd
 
 from .ingredients import Ingredient
@@ -20,8 +20,8 @@ class SmoothieMeta:
     num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
     prompt_tokens: int
     completion_tokens: int
-    prompts: List[str]  # Log of prompts submitted to model
-    ingredients: Collection[Ingredient]
+    prompts: List[dict]  # Log of prompts submitted to model
+    ingredients: Iterable[Type[Ingredient]]
     query: str
     db_url: str
     contains_ingredient: bool = True

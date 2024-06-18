@@ -1,11 +1,11 @@
-from typing import Dict, Optional, Union
+from typing import Dict, Union
 import pandas as pd
 
 from ._duckdb import DuckDB
 
 
 def Pandas(
-    data: Union[Dict[str, pd.DataFrame], pd.DataFrame], tablename: Optional[str] = "w"
+    data: Union[Dict[str, pd.DataFrame], pd.DataFrame], tablename: str = "w"
 ) -> DuckDB:
     """This is just a wrapper over the `DuckDB.from_pandas` class method.
     Makes it more intuitive to do a `from blendsql.db import Pandas`, for those

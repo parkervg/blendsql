@@ -23,8 +23,8 @@ class IngredientType(str, Enum, metaclass=StrInMeta):
 
 @dataclass
 class IngredientKwarg:
-    QUESTION = "question"
-    CONTEXT = "context"
-    VALUES = "values"
-    OPTIONS = "options"
-    MODEL = "model"
+    QUESTION: str = "question"
+    CONTEXT: str = "context"
+    VALUES: str = "values"
+    OPTIONS: str = "options"
+    MODEL: str = "model"

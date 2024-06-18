@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
  Copyright (c) 2020, salesforce.com, inc.
  All rights reserved.

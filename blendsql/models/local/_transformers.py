@@ -1,7 +1,9 @@
 import importlib.util
-from outlines.models import transformers, LogitsGenerator
+from outlines.models.transformers import transformers
 
-from .._model import LocalModel
+from .._model import LocalModel, ModelObj
+
+DEFAULT_KWARGS = {"do_sample": True, "temperature": 0.0, "top_p": 1.0}
 
 _has_transformers = importlib.util.find_spec("transformers") is not None
 _has_torch = importlib.util.find_spec("torch") is not None
@@ -42,13 +44,14 @@ class TransformersLLM(LocalModel):
             model_name_or_path=model_name_or_path,
             requires_config=False,
             tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
+            load_model_kwargs=DEFAULT_KWARGS | kwargs,
             caching=caching,
             **kwargs
         )
 
-    def _load_model(self) -> LogitsGenerator:
+    def _load_model(self) -> ModelObj:
         # https://huggingface.co/blog/how-to-generate
         return transformers(
             self.model_name_or_path,
-            model_kwargs={"do_sample": True, "temperature": 0.0, "top_p": 1.0},
+            model_kwargs=self.load_model_kwargs,
         )

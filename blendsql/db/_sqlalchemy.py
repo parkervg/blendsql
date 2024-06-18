@@ -1,4 +1,5 @@
-from typing import Generator, List, Collection, Type, Optional, Union
+from typing import Generator, List, Callable, Optional, Union
+from collections.abc import Collection
 import pandas as pd
 from colorama import Fore
 import re
@@ -149,9 +150,7 @@ class SQLAlchemyDatabase(Database):
         """
         return pd.read_sql(text(query), self.con, params=params)
 
-    def execute_to_list(
-        self, query: str, to_type: Optional[Type] = lambda x: x
-    ) -> list:
+    def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.
         Returns results as a tuple.
         """

@@ -52,7 +52,7 @@ class OllamaLLM(RemoteModel):
             **kwargs
         )
 
-    def _load_model(self, **kwargs) -> partial:
+    def _load_model(self) -> partial:
         import ollama
 
         return partial(

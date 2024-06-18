@@ -6,17 +6,15 @@ import json
 from skrub import Joiner
 from typing import (
     Any,
-    Iterable,
     Union,
     Dict,
     Tuple,
-    Type,
     Callable,
     Set,
-    Collection,
     Optional,
     List,
 )
+from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
 from typeguard import check_type
@@ -54,7 +52,7 @@ class Ingredient:
     session_uuid: str = attrib()
 
     ingredient_type: str = attrib(init=False)
-    allowed_output_types: Tuple[Type] = attrib(init=False)
+    allowed_output_types: Tuple[Any] = attrib(init=False)
     num_values_passed: int = 0
 
     def __repr__(self):
@@ -65,6 +63,10 @@ class Ingredient:
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Any:
+        ...
+
+    @abstractmethod
+    def __call__(self, *args, **kwargs) -> Any:
         ...
 
     def _run(self, *args, **kwargs):
@@ -88,7 +90,7 @@ class MapIngredient(Ingredient):
     to each of the given values, creating a new column."""
 
     ingredient_type: str = IngredientType.MAP.value
-    allowed_output_types: Tuple[Type] = (Iterable[Any],)
+    allowed_output_types: Tuple[Any] = (Iterable[Any],)
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
@@ -96,10 +98,10 @@ class MapIngredient(Ingredient):
     def __call__(self, question: str, context: str, *args, **kwargs) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
-        get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
-        get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
-        prev_subquery_map_columns: Set[str] = kwargs.get("prev_subquery_map_columns")
+        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
+        get_temp_session_table: Callable = kwargs["get_temp_session_table"]
+        prev_subquery_map_columns: Set[str] = kwargs["prev_subquery_map_columns"]
 
         tablename, colname = utils.get_tablename_colname(context)
         tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -200,7 +202,7 @@ class JoinIngredient(Ingredient):
     use_skrub_joiner: bool = attrib(default=True)
 
     ingredient_type: str = IngredientType.JOIN.value
-    allowed_output_types: Tuple[Type] = (dict,)
+    allowed_output_types: Tuple[Any] = (dict,)
 
     @classmethod
     def from_args(cls, use_skrub_joiner: bool = True):
@@ -215,16 +217,16 @@ class JoinIngredient(Ingredient):
         **kwargs,
     ) -> tuple:
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
-        get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
-        get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
+        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
+        get_temp_session_table: Callable = kwargs["get_temp_session_table"]
         # Depending on the size of the underlying data, it may be optimal to swap
         #   the order of 'left_on' and 'right_on' columns during processing
         swapped = False
         values = []
         original_lr_identifiers = []
         modified_lr_identifiers = []
-        mapping = {}
+        mapping: Dict[str, str] = {}
         for on_arg in [left_on, right_on]:
             tablename, colname = utils.get_tablename_colname(on_arg)
             tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -280,14 +282,18 @@ class JoinIngredient(Ingredient):
                 # length(new inner) = length(inner) - #matched by fuzzy join
                 _outer = res["out"][res["in"].isnull()].to_list()
                 # length(new _outer) = length(_outer) - #matched by fuzzy join
-                _mapping = res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
+                _skrub_mapping = (
+                    res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
+                )
                 logger.debug(
                     Fore.YELLOW
                     + "Made the following alignment with `skrub.Joiner`:"
                     + Fore.RESET
                 )
-                logger.debug(Fore.YELLOW + json.dumps(_mapping, indent=4) + Fore.RESET)
-                mapping = mapping | _mapping
+                logger.debug(
+                    Fore.YELLOW + json.dumps(_skrub_mapping, indent=4) + Fore.RESET
+                )
+                mapping = mapping | _skrub_mapping
             # order by length is still preserved regardless of using fuzzy join, so after initial matching and possible fuzzy join matching
             # This is because the lengths of each list will decrease at the same rate, so whichever list was larger at the beginning,
             # will be larger here at the end.
@@ -314,8 +320,8 @@ class JoinIngredient(Ingredient):
             )
 
             kwargs[IngredientKwarg.QUESTION] = question
-            _mapping: Dict[str, str] = self._run(*args, **kwargs)
-            mapping = mapping | _mapping
+            _predicted_mapping: Dict[str, str] = self._run(*args, **kwargs)
+            mapping = mapping | _predicted_mapping
         # Using mapped left/right values, create intermediary mapping table
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         # Below, we check to see if 'swapped' is True
@@ -344,7 +350,7 @@ class JoinIngredient(Ingredient):
 @attrs
 class QAIngredient(Ingredient):
     ingredient_type: str = IngredientType.QA.value
-    allowed_output_types: Tuple[Type] = (Union[str, int, float],)
+    allowed_output_types: Tuple[Any] = (Union[str, int, float],)
 
     def __call__(
         self,
@@ -355,7 +361,7 @@ class QAIngredient(Ingredient):
         **kwargs,
     ) -> Tuple[Union[str, int, float], Optional[exp.Expression]]:
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
+        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
 
         subtable: Union[pd.DataFrame, None] = None
         if context is not None:
@@ -371,7 +377,7 @@ class QAIngredient(Ingredient):
                         f'SELECT "{colname}" FROM "{tablename}"'
                     )
             elif isinstance(context, pd.DataFrame):
-                subtable = context
+                subtable: pd.DataFrame = context
             else:
                 raise ValueError(
                     f"Unknown type for `identifier` arg in QAIngredient: {type(context)}"
@@ -399,7 +405,7 @@ class QAIngredient(Ingredient):
                         )
                 except ValueError:
                     unpacked_options = options.split(";")
-            unpacked_options = set(unpacked_options)
+            unpacked_options: Set[str] = set(unpacked_options)
         self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[IngredientKwarg.OPTIONS] = unpacked_options
         kwargs[IngredientKwarg.CONTEXT] = subtable
@@ -417,7 +423,7 @@ class StringIngredient(Ingredient):
     """Outputs a string to be placed directly into the SQL query."""
 
     ingredient_type: str = IngredientType.STRING.value
-    allowed_output_types: Tuple[Type] = (str,)
+    allowed_output_types: Tuple[Any] = (str,)
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
