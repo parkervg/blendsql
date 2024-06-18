@@ -61,6 +61,7 @@ setup(
         "typeguard",
         "rapidfuzz",
         "httpx",
+        "setuptools",  # For python 3.12
     ],
     extras_require={
         "llama-cpp": ["llama-cpp-python"],
