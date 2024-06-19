@@ -622,7 +622,7 @@ def _blend(
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
 
-            # Optionally, recursively call blend() again to get subtable
+            # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
             for i, unpack_kwarg in enumerate(
                 [IngredientKwarg.CONTEXT, IngredientKwarg.OPTIONS]
@@ -654,8 +654,12 @@ def _blend(
                     )
                     _prev_passed_values = _smoothie.meta.num_values_passed
                     subtable = _smoothie.df
+                    if len(subtable.columns) != 1:
+                        raise InvalidBlendSQL(
+                            f"Invalid subquery passed to `options`!\nNeeds to return exactly one column, got {len(subtable.columns)} instead"
+                        )
                     if unpack_kwarg == IngredientKwarg.OPTIONS:
-                        # Here, we need to format as a flat list
+                        # Here, we need to format as a flat set
                         kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
                     else:
                         kwargs_dict[unpack_kwarg] = subtable
