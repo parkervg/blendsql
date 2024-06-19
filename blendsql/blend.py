@@ -606,18 +606,17 @@ def _blend(
             executed_subquery_ingredients.add(alias_function_str)
             kwargs_dict = parsed_results_dict["kwargs_dict"]
 
-            if ingredient.ingredient_type == IngredientType.MAP:
-                if infer_gen_constraints:
-                    # Latter is the winner.
-                    # So if we already define something in kwargs_dict,
-                    #   It's not overriden here
-                    kwargs_dict = (
-                        scm.infer_gen_constraints(
-                            start=start,
-                            end=end,
-                        )
-                        | kwargs_dict
+            if infer_gen_constraints:
+                # Latter is the winner.
+                # So if we already define something in kwargs_dict,
+                #   It's not overriden here
+                kwargs_dict = (
+                    scm.infer_gen_constraints(
+                        start=start,
+                        end=end,
                     )
+                    | kwargs_dict
+                )
 
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
