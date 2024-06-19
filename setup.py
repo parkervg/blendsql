@@ -79,15 +79,6 @@ setup(
             "recognizers-text-suite",
             "emoji==1.7.0",
         ],
-        "test": [
-            "pytest",
-            "pre-commit",
-            "llama-cpp-python",
-            "transformers",
-            "torch",
-            "coverage",
-            "tox",
-        ],
         "docs": [
             "mkdocs-material",
             "mkdocstrings",
@@ -95,6 +86,5 @@ setup(
             "mkdocstrings-python",
             "mkdocs-jupyter",
         ],
-        "demo": ["chainlit"],
     },
 )

@@ -104,4 +104,4 @@ class LLMQA(QAIngredient):
             **kwargs,
         )
         # Post-process language model response
-        return "'{}'".format(single_quote_escape(result.strip().lower()))
+        return "'{}'".format(single_quote_escape(result.strip()))

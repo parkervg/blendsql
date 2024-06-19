@@ -103,7 +103,7 @@ class AzureOpenaiLLM(RemoteModel):
             **kwargs
         )
 
-    def _load_model(self, config: OpenAIConfig) -> ModelObj:
+    def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
         return azure_openai(
             self.model_name_or_path,
             config=config,
@@ -170,7 +170,7 @@ class OpenaiLLM(RemoteModel):
             **kwargs
         )
 
-    def _load_model(self, config: OpenAIConfig) -> ModelObj:
+    def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
         return openai(
             self.model_name_or_path, config=config, api_key=os.getenv("OPENAI_API_KEY")
         )  # type: ignore

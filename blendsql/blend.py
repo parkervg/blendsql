@@ -606,23 +606,22 @@ def _blend(
             executed_subquery_ingredients.add(alias_function_str)
             kwargs_dict = parsed_results_dict["kwargs_dict"]
 
-            if ingredient.ingredient_type == IngredientType.MAP:
-                if infer_gen_constraints:
-                    # Latter is the winner.
-                    # So if we already define something in kwargs_dict,
-                    #   It's not overriden here
-                    kwargs_dict = (
-                        scm.infer_gen_constraints(
-                            start=start,
-                            end=end,
-                        )
-                        | kwargs_dict
+            if infer_gen_constraints:
+                # Latter is the winner.
+                # So if we already define something in kwargs_dict,
+                #   It's not overriden here
+                kwargs_dict = (
+                    scm.infer_gen_constraints(
+                        start=start,
+                        end=end,
                     )
+                    | kwargs_dict
+                )
 
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
 
-            # Optionally, recursively call blend() again to get subtable
+            # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
             for i, unpack_kwarg in enumerate(
                 [IngredientKwarg.CONTEXT, IngredientKwarg.OPTIONS]
@@ -655,7 +654,11 @@ def _blend(
                     _prev_passed_values = _smoothie.meta.num_values_passed
                     subtable = _smoothie.df
                     if unpack_kwarg == IngredientKwarg.OPTIONS:
-                        # Here, we need to format as a flat list
+                        if len(subtable.columns) != 1:
+                            raise InvalidBlendSQL(
+                                f"Invalid subquery passed to `options`!\nNeeds to return exactly one column, got {len(subtable.columns)} instead"
+                            )
+                        # Here, we need to format as a flat set
                         kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
                     else:
                         kwargs_dict[unpack_kwarg] = subtable

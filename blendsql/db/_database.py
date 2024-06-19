@@ -82,9 +82,7 @@ class Database(ABC):
         ...
 
     @abstractmethod
-    def execute_to_list(
-        self, query: str, to_type: Optional[Callable] = lambda x: x
-    ) -> list:
+    def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.
         Returns results as a list.
         """
