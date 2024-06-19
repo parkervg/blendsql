@@ -654,11 +654,11 @@ def _blend(
                     )
                     _prev_passed_values = _smoothie.meta.num_values_passed
                     subtable = _smoothie.df
-                    if len(subtable.columns) != 1:
-                        raise InvalidBlendSQL(
-                            f"Invalid subquery passed to `options`!\nNeeds to return exactly one column, got {len(subtable.columns)} instead"
-                        )
                     if unpack_kwarg == IngredientKwarg.OPTIONS:
+                        if len(subtable.columns) != 1:
+                            raise InvalidBlendSQL(
+                                f"Invalid subquery passed to `options`!\nNeeds to return exactly one column, got {len(subtable.columns)} instead"
+                            )
                         # Here, we need to format as a flat set
                         kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
                     else:
