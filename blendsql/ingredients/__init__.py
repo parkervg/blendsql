@@ -7,4 +7,4 @@ from .ingredient import (
     IngredientException,
 )
 
-from .builtin import LLMQA, LLMJoin, LLMMap, LLMValidate
+from .builtin import LLMQA, LLMJoin, LLMMap, LLMValidate, VQA

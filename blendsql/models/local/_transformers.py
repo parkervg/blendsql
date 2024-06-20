@@ -1,7 +1,10 @@
 import importlib.util
 from outlines.models import transformers, LogitsGenerator
-
+from typing import List
 from .._model import LocalModel
+from transformers import pipeline
+from PIL import Image
+from io import BytesIO
 
 _has_transformers = importlib.util.find_spec("transformers") is not None
 _has_torch = importlib.util.find_spec("torch") is not None
@@ -43,12 +46,34 @@ class TransformersLLM(LocalModel):
             requires_config=False,
             tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
             caching=caching,
-            **kwargs
+            **kwargs,
         )
 
     def _load_model(self) -> LogitsGenerator:
         # https://huggingface.co/blog/how-to-generate
         return transformers(
             self.model_name_or_path,
-            model_kwargs={"do_sample": True, "temperature": 0.0, "top_p": 1.0},
+            model_kwargs={
+                "do_sample": True,
+                "temperature": 0.0,
+                "top_p": 1.0,
+                "trust_remote_code": True,
+            },
         )
+
+
+class VQAModel(TransformersLLM):
+    def _load_model(self):
+        return pipeline("image-to-text", model=self.model_name_or_path)
+
+    def predict(self, question: str, img_bytes: List[bytes]) -> str:
+        prompt = f"USER: <image>\n{question}"
+        model_output = self.logits_generator(
+            images=[Image.open(BytesIO(value)) for value in img_bytes],
+            prompt=prompt,
+            generate_kwargs={"max_new_tokens": 200},
+        )
+        return [
+            output[0]["generated_text"].lstrip(prompt).strip()
+            for output in model_output
+        ]
