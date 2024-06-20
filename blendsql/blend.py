@@ -661,7 +661,6 @@ def _blend(
                         # Below, we can remove the optional `context` arg we passed in args
                         parsed_results_dict["args"] = parsed_results_dict["args"][:1]
             if getattr(ingredient, "model", None) is not None:
-                kwargs_dict.pop("model", None)
                 kwargs_dict["model"] = ingredient.model
             # Execute our ingredient function
             function_out = ingredient(
