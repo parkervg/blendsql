@@ -21,6 +21,7 @@ from attr import attrs, attrib
 from .utils import recover_blendsql
 from ._constants import DEFAULT_ANS_SEP, DEFAULT_NAN_ANS
 from ._dialect import _parse_one, FTS5SQLite
+from ._logger import logger
 
 """
 Defines a set of transformations on the SQL AST, to be used with sqlglot.
@@ -766,12 +767,19 @@ class SubqueryContextManager:
         predicate_literals: List[str] = []
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
+            # Check for instances like `{column} = {QAIngredient}`
+            # where we can infer the space of possible options for QAIngredient
             if isinstance(start_node, exp.EQ):
                 if isinstance(start_node.args["this"], exp.Column):
-                    # This is valid for a default `options` set
-                    added_kwargs[
-                        "options"
-                    ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
+                    if "table" not in start_node.args["this"].args:
+                        logger.debug(
+                            "When inferring `options` in infer_gen_kwargs, encountered a column node with no table specified!\nShould probably mark `schema_qualify` arg as True"
+                        )
+                    else:
+                        # This is valid for a default `options` set
+                        added_kwargs[
+                            "options"
+                        ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
                 output_type = "boolean"
