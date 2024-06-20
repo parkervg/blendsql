@@ -28,7 +28,6 @@ from .._constants import IngredientKwarg, IngredientType
 from ..db import Database
 from ..db.utils import select_all_from_table_query
 from ..models import Model
-from ..models.local._transformers import VQAModel
 
 
 def unpack_default_kwargs(**kwargs):
@@ -91,10 +90,6 @@ class MapIngredient(Ingredient):
     ingredient_type: str = IngredientType.MAP.value
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
     model = attrib(default=None)
-
-    def __attrs_post_init__(self):
-        if self.model:
-            self.model = VQAModel(model_name_or_path=self.model)
 
     @classmethod
     def from_args(cls, model: Model):

@@ -1,6 +1,6 @@
 from blendsql import blend, LLMMap, VQA
 from blendsql.db import SQLite
-from blendsql.models import TransformersLLM
+from blendsql.models import TransformersLLM, VQAModel
 import pandas as pd
 import sqlite3
 import re
@@ -23,7 +23,7 @@ TEST_QUERIES = [
             'Size in km2?',
             'parks::Area'
         )
-    }} LIMIT 1
+    }} LIMIT 2
     """,
 ]
 
@@ -63,12 +63,13 @@ if __name__ == "__main__":
 
     db = SQLite("example.db")
     q = TEST_QUERIES[1]
+    model = VQAModel("bczhou/tiny-llava-v1-hf")
     # Make our smoothie - the executed BlendSQL script
     smoothie = blend(
         query=q,
         db=db,
         blender=TransformersLLM("microsoft/Phi-3-mini-4k-instruct", caching=True),
         verbose=False,
-        ingredients={LLMMap, VQA.from_args(model="bczhou/tiny-llava-v1-hf")},
+        ingredients={LLMMap, VQA.from_args(model=model)},
     )
     print(smoothie.df)
