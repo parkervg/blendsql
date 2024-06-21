@@ -50,6 +50,7 @@ setup(
         "skrub==0.1.0",
         # https://github.com/skrub-data/skrub/issues/910
         "scikit-learn==1.4.2",
+        "duckdb<1",
         "huggingface_hub",
         "datasets",
         "lark",
