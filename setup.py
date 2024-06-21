@@ -24,6 +24,7 @@ setup(
         "console_scripts": ["blendsql=blendsql.blend_cli:main"],
     },
     name="blendsql",
+    python_requires=">=3.10",
     version=find_version("blendsql", "__init__.py"),
     url="https://github.com/parkervg/blendsql",
     author="Parker Glenn",
