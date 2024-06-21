@@ -1,10 +1,6 @@
 import importlib.util
 from outlines.models import transformers, LogitsGenerator
-from typing import List
 from .._model import LocalModel
-from transformers import pipeline
-from PIL import Image
-from io import BytesIO
 
 _has_transformers = importlib.util.find_spec("transformers") is not None
 _has_torch = importlib.util.find_spec("torch") is not None
@@ -63,17 +59,9 @@ class TransformersLLM(LocalModel):
 
 
 class TransformersVisionModel(TransformersLLM):
-    def _load_model(self):
-        return pipeline("image-to-text", model=self.model_name_or_path)
+    """Wrapper for the image-to-text Transformers pipeline."""
 
-    def predict(self, question: str, img_bytes: List[bytes]) -> str:
-        prompt = f"USER: <image>\n{question}"
-        model_output = self.logits_generator(
-            images=[Image.open(BytesIO(value)) for value in img_bytes],
-            # prompt=prompt,
-            generate_kwargs={"max_new_tokens": 200},
-        )
-        return [
-            output[0]["generated_text"].lstrip(prompt).strip()
-            for output in model_output
-        ]
+    def _load_model(self):
+        from transformers import pipeline
+
+        return pipeline("image-to-text", model=self.model_name_or_path)
