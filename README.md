@@ -53,14 +53,18 @@ BlendSQL allows us to ask the following questions by injecting "ingredients", wh
 
 _Which parks don't have park facilities?_
 ```sql
-SELECT * FROM parks
+SELECT "Name", "Description" FROM parks
     WHERE NOT {{
         LLMValidate(
             'Does this location have park facilities?',
-            context=(SELECT "Name" AS "Park", "Description" FROM parks),
+            context=(SELECT "Name" AS "Park", "Description" FROM parks)
         )
     }}
 ```
+| Name            | Description                                                                                                                            |
+|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
+| Everglades      | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.            |
+<hr>
 
 _What does the largest park in Alaska look like?_
 
@@ -77,17 +81,29 @@ WHERE "Location" = 'Alaska'
 ORDER BY "Size in km" DESC LIMIT 1
 ```
 
+| Name       | Image Description                                       |   Size in km |
+|:-----------|:--------------------------------------------------------|-------------:|
+| Everglades | A forest of tall trees with a sunset in the background. |      30448.1 |
+
+<hr>
+
 _Which state is the park in that protects an ash flow?_
 
 ```sql
-SELECT "Location" FROM parks WHERE "Name" = {{
-    LLMQA(
-      'Which park protects an ash flow?',
-      context=(SELECT "Name", "Description" FROM parks),
-      options="parks::Name"
-    ) 
-}}
+SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks 
+    WHERE "Name" = {{
+      LLMQA(
+        'Which park protects an ash flow?',
+        context=(SELECT "Name", "Description" FROM parks),
+        options="parks::Name"
+      ) 
+  }}
 ```
+| Location   | Park Protecting Ash Flow   |
+|:-----------|:---------------------------|
+| Alaska     | Katmai                     |
+
+<hr>
 
 _How many parks are located in more than 1 state?_
 
@@ -95,6 +111,10 @@ _How many parks are located in more than 1 state?_
 SELECT COUNT(*) FROM parks
     WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
 ```
+|   Count |
+|--------:|
+|       1 |
+<hr>
 
 Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
 
