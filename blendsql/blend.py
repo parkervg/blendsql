@@ -620,7 +620,12 @@ def _blend(
 
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
-
+            # Heuristic check to see if we should snag the singleton arg as context
+            if (
+                len(parsed_results_dict["args"]) == 1
+                and "::" in parsed_results_dict["args"][0]
+            ):
+                kwargs_dict[IngredientKwarg.CONTEXT] = parsed_results_dict["args"].pop()
             # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
             for i, unpack_kwarg in enumerate(
