@@ -1,6 +1,7 @@
 .chainlit/
 .files/
 .zed/
+run*.py
 pyrightconfig.json
 proxies.py
 site/
