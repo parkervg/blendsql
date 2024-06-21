@@ -40,7 +40,7 @@ if __name__ == "__main__":
                 smoothie = blend(
                     query=query,
                     db=db,
-                    blender=MODEL,
+                    default_model=MODEL,
                     verbose=False,
                     ingredients=ingredients,
                 )

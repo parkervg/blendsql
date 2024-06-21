@@ -38,7 +38,9 @@ def test_ollama_basic_llmqa(db, ingredients):
         )
     }}
     """
-    smoothie = blend(query=blendsql, db=db, ingredients=ingredients, blender=model)
+    smoothie = blend(
+        query=blendsql, db=db, ingredients=ingredients, default_model=model
+    )
     assert not smoothie.df.empty
 
 
@@ -58,7 +60,7 @@ def test_ollama_raise_exception(db, ingredients):
                   }}
                 """,
             db=db,
-            blender=model,
+            default_model=model,
             ingredients=ingredients,
         )
 
@@ -81,7 +83,7 @@ def test_ollama_join(db, ingredients):
               }} WHERE rival = 'nsw waratahs'
             """,
         db=db,
-        blender=model,
+        default_model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)

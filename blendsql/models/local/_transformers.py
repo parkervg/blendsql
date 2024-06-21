@@ -1,7 +1,6 @@
 import importlib.util
-from outlines.models.transformers import transformers
-
-from .._model import LocalModel, ModelObj
+from outlines.models import transformers, LogitsGenerator
+from .._model import LocalModel
 
 DEFAULT_KWARGS = {"do_sample": True, "temperature": 0.0, "top_p": 1.0}
 
@@ -46,12 +45,21 @@ class TransformersLLM(LocalModel):
             tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
             load_model_kwargs=DEFAULT_KWARGS | kwargs,
             caching=caching,
-            **kwargs
+            **kwargs,
         )
 
-    def _load_model(self) -> ModelObj:
+    def _load_model(self) -> LogitsGenerator:
         # https://huggingface.co/blog/how-to-generate
         return transformers(
             self.model_name_or_path,
             model_kwargs=self.load_model_kwargs,
         )
+
+
+class TransformersVisionModel(TransformersLLM):
+    """Wrapper for the image-to-text Transformers pipeline."""
+
+    def _load_model(self):
+        from transformers import pipeline
+
+        return pipeline("image-to-text", model=self.model_name_or_path)

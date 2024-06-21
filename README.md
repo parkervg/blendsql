@@ -53,39 +53,57 @@ BlendSQL allows us to ask the following questions by injecting "ingredients", wh
 
 _Which parks don't have park facilities?_
 ```sql
-SELECT * FROM parks
-    WHERE NOT {{
-        LLMValidate(
-            'Does this location have park facilities?',
-            context=(SELECT "Name" AS "Park", "Description" FROM parks),
-        )
-    }}
+SELECT "Name", "Description" FROM parks
+  WHERE {{
+      LLMMap(
+          'Does this location have park facilities?',
+          context='parks::Description'
+      )
+  }} = FALSE
 ```
+| Name            | Description                                                                                                                            |
+|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
+| Everglades      | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.            |
+<hr>
 
 _What does the largest park in Alaska look like?_
 
 ```sql
-SELECT {{VQA('Describe this image.', 'parks::Image')}} FROM parks
-    WHERE "Location" = 'Alaska'
-    ORDER BY {{
-        LLMMap(
-            'Size in km2?',
-            'parks::Area'
-        )
-    }} LIMIT 1
+SELECT "Name",
+{{ImageCaption('parks::Image')}} as "Image Description", 
+{{
+    LLMMap(
+        question='Size in km2?',
+        context='parks::Area'
+    )
+}} as "Size in km" FROM parks
+WHERE "Location" = 'Alaska'
+ORDER BY "Size in km" DESC LIMIT 1
 ```
+
+| Name       | Image Description                                       |   Size in km |
+|:-----------|:--------------------------------------------------------|-------------:|
+| Everglades | A forest of tall trees with a sunset in the background. |      30448.1 |
+
+<hr>
 
 _Which state is the park in that protects an ash flow?_
 
 ```sql
-SELECT "Location" FROM parks WHERE "Name" = {{
-    LLMQA(
-      'Which park protects an ash flow?',
-      context=(SELECT "Name", "Description" FROM parks),
-      options="parks::Name"
-    ) 
-}}
+SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks 
+    WHERE "Name" = {{
+      LLMQA(
+        'Which park protects an ash flow?',
+        context=(SELECT "Name", "Description" FROM parks),
+        options="parks::Name"
+      ) 
+  }}
 ```
+| Location   | Park Protecting Ash Flow   |
+|:-----------|:---------------------------|
+| Alaska     | Katmai                     |
+
+<hr>
 
 _How many parks are located in more than 1 state?_
 
@@ -93,6 +111,10 @@ _How many parks are located in more than 1 state?_
 SELECT COUNT(*) FROM parks
     WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
 ```
+|   Count |
+|--------:|
+|       1 |
+<hr>
 
 Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
 
@@ -124,25 +146,28 @@ model = TransformersLLM('Qwen/Qwen1.5-0.5B')
 
 # Prepare our local database
 db = Pandas(
-    {
-        "w": pd.DataFrame(
-            (
-                ['11 jun', 'western districts', 'bathurst', 'bathurst ground', '11-0'],
-                ['12 jun', 'wallaroo & university nsq', 'sydney', 'cricket ground',
-                 '23-10'],
-                ['5 jun', 'northern districts', 'newcastle', 'sports ground', '29-0']
-            ),
-            columns=['date', 'rival', 'city', 'venue', 'score']
-        ),
-        "documents": pd.DataFrame(
-            (
-                ['bathurst, new south wales', 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
-                ['sydney', 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
-                ['newcastle, new south wales', 'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
-            ),
-            columns=['title', 'content']
-        )
-    }
+  {
+    "w": pd.DataFrame(
+      (
+        ['11 jun', 'western districts', 'bathurst', 'bathurst ground', '11-0'],
+        ['12 jun', 'wallaroo & university nsq', 'sydney', 'cricket ground',
+         '23-10'],
+        ['5 jun', 'northern districts', 'newcastle', 'sports ground', '29-0']
+      ),
+      columns=['date', 'rival', 'city', 'venue', 'score']
+    ),
+    "documents": pd.DataFrame(
+      (
+        ['bathurst, new south wales',
+         'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
+        ['sydney',
+         'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
+        ['newcastle, new south wales',
+         'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
+      ),
+      columns=['title', 'content']
+    )
+  }
 )
 
 # Write BlendSQL query
@@ -157,13 +182,13 @@ WHERE city = {{
 }}
 """
 smoothie = blend(
-    query=blendsql,
-    db=db,
-    ingredients={LLMMap, LLMQA, LLMJoin},
-    blender=model,
-    # Optional args below
-    infer_gen_constraints=True,
-    verbose=True
+  query=blendsql,
+  db=db,
+  ingredients={LLMMap, LLMQA, LLMJoin},
+  default_model=model,
+  # Optional args below
+  infer_gen_constraints=True,
+  verbose=True
 )
 print(smoothie.df)
 # ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐

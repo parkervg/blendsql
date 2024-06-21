@@ -4,16 +4,7 @@ import pandas as pd
 from sqlglot import exp
 import json
 from skrub import Joiner
-from typing import (
-    Any,
-    Union,
-    Dict,
-    Tuple,
-    Callable,
-    Set,
-    Optional,
-    List,
-)
+from typing import Any, Union, Dict, Tuple, Callable, Set, Optional, List, Type
 from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
@@ -26,6 +17,7 @@ from .. import utils
 from .._constants import IngredientKwarg, IngredientType
 from ..db import Database
 from ..db.utils import select_all_from_table_query
+from ..models import Model
 
 
 def unpack_default_kwargs(**kwargs):
@@ -52,7 +44,7 @@ class Ingredient:
     session_uuid: str = attrib()
 
     ingredient_type: str = attrib(init=False)
-    allowed_output_types: Tuple[Any] = attrib(init=False)
+    allowed_output_types: Tuple[Type] = attrib(init=False)
     num_values_passed: int = 0
 
     def __repr__(self):
@@ -90,12 +82,20 @@ class MapIngredient(Ingredient):
     to each of the given values, creating a new column."""
 
     ingredient_type: str = IngredientType.MAP.value
-    allowed_output_types: Tuple[Any] = (Iterable[Any],)
+    allowed_output_types: Tuple[Type] = (Iterable[Any],)
+
+    model: Model = attrib(default=None)
+
+    @classmethod
+    def from_args(cls, model: Model):
+        return partialclass(cls, model=model)
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
 
-    def __call__(self, question: str, context: str, *args, **kwargs) -> tuple:
+    def __call__(
+        self, question: str = None, context: str = None, *args, **kwargs
+    ) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
@@ -124,7 +124,7 @@ class MapIngredient(Ingredient):
             )
 
         # Need to be sure the new column doesn't already exist here
-        new_arg_column = question
+        new_arg_column = question or str(uuid.uuid4())[:4]
         while (
             new_arg_column in set(self.db.iter_columns(tablename))
             or new_arg_column in prev_subquery_map_columns
@@ -169,14 +169,14 @@ class MapIngredient(Ingredient):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
         subtable = pd.DataFrame(df_as_dict)
-        if kwargs.get("output_type") == "boolean":
-            subtable[new_arg_column] = subtable[new_arg_column].astype(bool)
-        else:
-            if all(
-                isinstance(x, (int, type(None))) and not isinstance(x, bool)
-                for x in mapped_values
-            ):
-                subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
+        # if kwargs.get("output_type") == "boolean":
+        #     subtable[new_arg_column] = subtable[new_arg_column].astype(bool)
+        # else:
+        if all(
+            isinstance(x, (int, type(None))) and not isinstance(x, bool)
+            for x in mapped_values
+        ):
+            subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
         # Add new_table to original table
         new_table = original_table.merge(subtable, how="left", on=colname)
         if new_table.shape[0] != original_table.shape[0]:
@@ -202,7 +202,7 @@ class JoinIngredient(Ingredient):
     use_skrub_joiner: bool = attrib(default=True)
 
     ingredient_type: str = IngredientType.JOIN.value
-    allowed_output_types: Tuple[Any] = (dict,)
+    allowed_output_types: Tuple[Type] = (dict,)
 
     @classmethod
     def from_args(cls, use_skrub_joiner: bool = True):
@@ -350,7 +350,7 @@ class JoinIngredient(Ingredient):
 @attrs
 class QAIngredient(Ingredient):
     ingredient_type: str = IngredientType.QA.value
-    allowed_output_types: Tuple[Any] = (Union[str, int, float],)
+    allowed_output_types: Tuple[Type] = (Union[str, int, float],)
 
     def __call__(
         self,
@@ -423,7 +423,7 @@ class StringIngredient(Ingredient):
     """Outputs a string to be placed directly into the SQL query."""
 
     ingredient_type: str = IngredientType.STRING.value
-    allowed_output_types: Tuple[Any] = (str,)
+    allowed_output_types: Tuple[Type] = (str,)
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)

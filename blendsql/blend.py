@@ -147,13 +147,13 @@ def autowrap_query(
     return query
 
 
-def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
+def preprocess_blendsql(query: str, default_model: Model) -> Tuple[str, dict, set]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
 
     Args:
         query: The BlendSQL query to preprocess
-        blender: Model object, which we attach to each parsed_dict
+        default_model: Model object, which we attach to each parsed_dict
 
     Returns:
         Tuple, containing:
@@ -166,7 +166,7 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
         ```python
         preprocess_blendsql(
             query="SELECT * FROM documents JOIN {{LLMJoin(left_on='w::player', right_on='documents::title')}} WHERE rank = 2",
-            blender=blender
+            default_model=default_model
         )
         ```
         ```text
@@ -236,7 +236,7 @@ def preprocess_blendsql(query: str, blender: Model) -> Tuple[str, dict, set]:
             # So we need to parse by indices in dict expression
             # maybe if I was better at pp.Suppress we wouldn't need this
             kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
-            kwargs_dict[IngredientKwarg.MODEL] = blender
+            kwargs_dict[IngredientKwarg.MODEL] = default_model
             context_arg = kwargs_dict.get(
                 IngredientKwarg.CONTEXT,
                 (
@@ -279,7 +279,7 @@ def materialize_cte(
     query_context: QueryContextManager,
     aliasname: str,
     db: Database,
-    blender: Model,
+    default_model: Model,
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
 ) -> pd.DataFrame:
@@ -288,7 +288,7 @@ def materialize_cte(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         query=str_subquery,
         db=db,
-        blender=blender,
+        default_model=default_model,
         aliasname=aliasname,
         **kwargs,
     ).df
@@ -382,7 +382,7 @@ def disambiguate_and_submit_blend(
 def _blend(
     query: str,
     db: Database,
-    blender: Optional[Model] = None,
+    default_model: Optional[Model] = None,
     ingredients: Optional[Collection[Type[Ingredient]]] = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
@@ -411,7 +411,7 @@ def _blend(
         query,
         ingredient_alias_to_parsed_dict,
         tables_in_ingredients,
-    ) = preprocess_blendsql(query=query, blender=blender)
+    ) = preprocess_blendsql(query=query, default_model=default_model)
     query = autowrap_query(
         query=query,
         kitchen=kitchen,
@@ -435,11 +435,13 @@ def _blend(
             df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
                 num_values_passed=0,
-                prompt_tokens=blender.prompt_tokens if blender is not None else 0,
+                prompt_tokens=default_model.prompt_tokens
+                if default_model is not None
+                else 0,
                 completion_tokens=(
-                    blender.completion_tokens if blender is not None else 0
+                    default_model.completion_tokens if default_model is not None else 0
                 ),
-                prompts=blender.prompts if blender is not None else [],
+                prompts=default_model.prompts if default_model is not None else [],
                 ingredients=[],
                 query=original_query,
                 db_url=str(db.db_url),
@@ -524,7 +526,7 @@ def _blend(
                             query_context=query_context,
                             subquery=aliased_subquery,
                             aliasname=tablename,
-                            blender=blender,
+                            default_model=default_model,
                             db=db,
                             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                             # Below are in case we need to call blend() again
@@ -566,7 +568,7 @@ def _blend(
                         query_context=query_context,
                         subquery=aliased_subquery,
                         aliasname=aliasname,
-                        blender=blender,
+                        default_model=default_model,
                         db=db,
                         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
                         # Below are in case we need to call blend() again
@@ -620,7 +622,12 @@ def _blend(
 
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
-
+            # Heuristic check to see if we should snag the singleton arg as context
+            if (
+                len(parsed_results_dict["args"]) == 1
+                and "::" in parsed_results_dict["args"][0]
+            ):
+                kwargs_dict[IngredientKwarg.CONTEXT] = parsed_results_dict["args"].pop()
             # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
             for i, unpack_kwarg in enumerate(
@@ -644,7 +651,7 @@ def _blend(
                     _smoothie = _blend(
                         query=unpack_value,
                         db=db,
-                        blender=blender,
+                        default_model=default_model,
                         ingredients=ingredients,
                         infer_gen_constraints=infer_gen_constraints,
                         table_to_title=table_to_title,
@@ -664,7 +671,8 @@ def _blend(
                         kwargs_dict[unpack_kwarg] = subtable
                         # Below, we can remove the optional `context` arg we passed in args
                         parsed_results_dict["args"] = parsed_results_dict["args"][:1]
-
+            if getattr(ingredient, "model", None) is not None:
+                kwargs_dict["model"] = ingredient.model
             # Execute our ingredient function
             function_out = ingredient(
                 *parsed_results_dict["args"],
@@ -832,9 +840,13 @@ def _blend(
                 ]
             )
             + _prev_passed_values,
-            prompt_tokens=blender.prompt_tokens if blender is not None else 0,
-            completion_tokens=blender.completion_tokens if blender is not None else 0,
-            prompts=blender.prompts if blender is not None else [],
+            prompt_tokens=default_model.prompt_tokens
+            if default_model is not None
+            else 0,
+            completion_tokens=default_model.completion_tokens
+            if default_model is not None
+            else 0,
+            prompts=default_model.prompts if default_model is not None else [],
             ingredients=ingredients,
             query=original_query,
             db_url=str(db.db_url),
@@ -845,7 +857,7 @@ def _blend(
 def blend(
     query: str,
     db: Database,
-    blender: Optional[Model] = None,
+    default_model: Optional[Model] = None,
     ingredients: Optional[Collection[Type[Ingredient]]] = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
@@ -861,7 +873,7 @@ def blend(
         db: Database connector object
         ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query
         verbose: Boolean defining whether to run with logger in debug mode
-        blender: Which BlendSQL model to use in performing ingredient tasks in the current query
+        default_model: Which BlendSQL model to use in performing ingredient tasks in the current query
         infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
             We can infer the output format should look like '1960-12-31' and both:
@@ -926,7 +938,7 @@ def blend(
             query=blendsql,
             db=db,
             ingredients={LLMMap, LLMQA, LLMJoin},
-            blender=model,
+            default_model=model,
             # Optional args below
             infer_gen_constraints=True,
             verbose=True
@@ -959,7 +971,7 @@ def blend(
         smoothie = _blend(
             query=query,
             db=db,
-            blender=blender,
+            default_model=default_model,
             ingredients=ingredients,
             infer_gen_constraints=infer_gen_constraints,
             table_to_title=table_to_title,

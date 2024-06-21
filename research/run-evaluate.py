@@ -389,7 +389,7 @@ class BlendSQLEvaluation:
                     if self.model_args.blender_model_name_or_path is not None
                     else set()
                 ),
-                blender=self.blender_endpoint,
+                default_model=self.blender_endpoint,
                 table_to_title={
                     SINGLE_TABLE_NAME: item["table"].get("page_title", None)
                 },

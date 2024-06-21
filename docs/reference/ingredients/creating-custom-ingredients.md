@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
     smoothie = blend(
         query=blendsql,
-        blender=TransformersLLM("Qwen/Qwen1.5-0.5B"),
+        default_model=TransformersLLM("Qwen/Qwen1.5-0.5B"),
         db=SQLite(fetch_from_hub("single_table.db")),
         ingredients={TableSummary}
     )
@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
     smoothie = blend(
         query=blendsql,
-        blender=None,
+        default_model=None,
         db=SQLite(fetch_from_hub("urls.db")),
         ingredients={GetQRCode}
     )
