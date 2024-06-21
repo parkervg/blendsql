@@ -65,14 +65,16 @@ SELECT * FROM parks
 _What does the largest park in Alaska look like?_
 
 ```sql
-SELECT {{VQA('Describe this image.', 'parks::Image')}} FROM parks
-    WHERE "Location" = 'Alaska'
-    ORDER BY {{
-        LLMMap(
-            'Size in km2?',
-            'parks::Area'
-        )
-    }} LIMIT 1
+SELECT "Name",
+{{ImageCaption('parks::Image')}} as "Image Description", 
+{{
+    LLMMap(
+        question='Size in km2?',
+        context='parks::Area'
+    )
+}} as "Size in km" FROM parks
+WHERE "Location" = 'Alaska'
+ORDER BY "Size in km" DESC LIMIT 1
 ```
 
 _Which state is the park in that protects an ash flow?_
