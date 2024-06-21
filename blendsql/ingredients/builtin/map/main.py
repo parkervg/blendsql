@@ -248,9 +248,14 @@ class LLMMap(MapIngredient):
                 _r.append(None)
             split_results.extend(_r)
         for idx, i in enumerate(split_results):
+            if i is None:
+                continue
+            if isinstance(i, str):
+                i = i.replace(",", "")
             try:
                 split_results[idx] = literal_eval(i)
-            except (ValueError, SyntaxError):
+                assert isinstance(i, (float, int, str))
+            except (ValueError, SyntaxError, AssertionError):
                 continue
         logger.debug(
             Fore.YELLOW
