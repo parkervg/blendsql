@@ -1,27 +1,6 @@
-from blendsql import blend, LLMJoin, LLMMap, LLMQA
+from blendsql import blend, LLMJoin, LLMMap, LLMQA, LLMValidate, ImageCaption
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
-
-# db = DuckDB.from_pandas(
-#     pd.DataFrame(
-#             {
-#                 "name": ["John", "Parker"],
-#                 "age": [12, 26]
-#             },
-#     )
-# )
-# DuckDB.from_sqlite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db"))
-# print()
-#
-# db.to_temp_table(df=pd.DataFrame(
-#     {
-#         "class": ["Boxing 101"],
-#         "num_enrolled": [23]
-#     }
-# ), tablename="classes"
-# )
-# print()
-
 
 TEST_QUERIES = [
     """
@@ -98,27 +77,27 @@ if __name__ == "__main__":
         0.538 - 0.7
 
     """
-    db = SQLite(
-        fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
-    )
-    ingredients = {LLMQA, LLMMap, LLMJoin}
-    # db = SQLite(fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db"))
-    from blendsql.models import TransformersLLM
+    from blendsql.models import OpenaiLLM, TransformersVisionModel
 
-    # model = OpenaiLLM("gpt-3.5-turbo", caching=False)
-    times = []
-    for _i in range(1):
-        for q in TEST_QUERIES:
-            # Make our smoothie - the executed BlendSQL script
-            smoothie = blend(
-                query=q,
-                db=db,
-                # blender=OpenaiLLM("gpt-3.5-turbo", caching=False),
-                blender=TransformersLLM("Qwen/Qwen1.5-0.5B", caching=False),
-                # blender=OllamaLLM("phi3", caching=False),
-                verbose=True,
-                ingredients={LLMJoin.from_args(use_skrub_joiner=False), LLMMap, LLMQA},
-            )
-            times.append(smoothie.meta.process_time_seconds)
-    # print(smoothie.df)
-    print(f"Average time across {len(times)} runs: {sum(times) / len(times)}")
+    db = SQLite(fetch_from_hub("national_parks.db"))
+    ingredients = {
+        LLMQA,
+        LLMMap,
+        LLMJoin,
+        LLMValidate,
+        ImageCaption.from_args(model=TransformersVisionModel("Mozilla/distilvit")),
+    }
+    q = """
+SELECT COUNT(*) AS "Count" FROM parks
+    WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
+    """
+    smoothie = blend(
+        query=q,
+        db=db,
+        default_model=OpenaiLLM("gpt-4", caching=False),
+        # default_model=TransformersLLM("Qwen/Qwen1.5-0.5B", caching=False),
+        # default_model=OllamaLLM("phi3", caching=False),
+        verbose=True,
+        ingredients=ingredients,
+    )
+    print(smoothie.df.to_markdown(index=False))

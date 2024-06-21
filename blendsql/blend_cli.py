@@ -89,7 +89,7 @@ def main():
                 query=text,
                 db=db,
                 ingredients={LLMQA, LLMMap, LLMJoin},
-                blender=MODEL_TYPE_TO_CLASS.get(args.model_type)(
+                default_model=MODEL_TYPE_TO_CLASS.get(args.model_type)(
                     args.model_name_or_path
                 ),
                 infer_gen_constraints=True,

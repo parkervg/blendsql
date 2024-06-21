@@ -31,7 +31,7 @@ if __name__ == "__main__":
         )
         smoothie = blend(
             query=prediction,
-            blender=transformers_model,
+            default_model=transformers_model,
             ingredients={LLMMap, LLMQA},
             db=db,
         )

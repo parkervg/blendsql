@@ -33,7 +33,7 @@ def test_no_ingredients(db, model, ingredients):
         select * from w
         """,
         db=db,
-        blender=model,
+        default_model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -52,7 +52,7 @@ def test_llmmap(db, model, ingredients):
           }} = TRUE
         """,
         db=db,
-        blender=model,
+        default_model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -71,7 +71,7 @@ def test_llmjoin(db, model, ingredients):
           }} WHERE rival = 'nsw waratahs'
         """,
         db=db,
-        blender=model,
+        default_model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -91,7 +91,7 @@ def test_llmqa(db, model, ingredients):
           }}
         """,
         db=db,
-        blender=model,
+        default_model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)

@@ -59,7 +59,7 @@ async def main(message: cl.Message):
             query=blendsql_query,
             db=db,
             ingredients={LLMMap, LLMQA, LLMJoin},
-            blender=blender_model,
+            default_model=blender_model,
             infer_gen_constraints=True,
             verbose=False,
         )

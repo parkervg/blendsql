@@ -28,9 +28,12 @@ db = Pandas(
         ),
         "documents": pd.DataFrame(
             (
-                ['bathurst, new south wales', 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
-                ['sydney', 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
-                ['newcastle, new south wales', 'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
+                ['bathurst, new south wales',
+                 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
+                ['sydney',
+                 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
+                ['newcastle, new south wales',
+                 'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
             ),
             columns=['title', 'content']
         )
@@ -52,7 +55,7 @@ smoothie = blend(
     query=blendsql,
     db=db,
     ingredients={LLMMap, LLMQA, LLMJoin},
-    blender=model,
+    default_model=model,
     # Optional args below
     infer_gen_constraints=True,
     verbose=True

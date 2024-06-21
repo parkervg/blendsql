@@ -31,7 +31,7 @@ def test_no_ingredients(db, model, ingredients):
         select * from parks
         """,
         db=db,
-        blender=model,
+        default_model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -47,7 +47,7 @@ def test_image_caption(db, model, ingredients):
         WHERE "Location" = 'Alaska'
         """,
         db=db,
-        blender=model,
+        default_model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
