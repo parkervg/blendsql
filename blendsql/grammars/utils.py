@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Optional, Collection, List, Dict, Type
+from typing import Optional, List, Dict, Type
+from collections.abc import Collection
 from string import Template
 from colorama import Fore
 
@@ -50,7 +51,7 @@ def load_cfg_parser(
         ingredient_type_to_function_type[ingredient.ingredient_type].append(
             ingredient.__name__
         )
-    cfg_grammar = cfg_grammar.substitute(
+    cfg_grammar_str: str = cfg_grammar.substitute(
         blendsql_join_functions=format_ingredient_names_to_lark(
             blendsql_join_functions
         ),
@@ -62,7 +63,7 @@ def load_cfg_parser(
         ),
     )
     return EarleyParser(
-        grammar=cfg_grammar,
+        grammar=cfg_grammar_str,
         start="start",
         keep_all_tokens=True,
     )

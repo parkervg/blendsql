@@ -1,6 +1,6 @@
-from typing import Collection, List, Tuple, Set, Optional, Union, Type
+from typing import Tuple, Set, Optional, Union, Type
+from collections.abc import Collection
 from textwrap import dedent
-import outlines
 from colorama import Fore
 import re
 import logging
@@ -9,11 +9,13 @@ from .._logger import logger
 from ..ingredients import Ingredient, IngredientException
 from ..models import Model, OllamaLLM
 from ..db import Database, double_quote_escape
-from .._program import Program, return_ollama_response
+from .._program import Program
 from ..grammars.minEarley.parser import EarleyParser
 from ..grammars.utils import load_cfg_parser
 from ..prompts import FewShot
+from .. import generate
 from .args import NLtoBlendSQLArgs
+
 
 PARSER_STOP_TOKENS = ["---", ";", "\n\n", "Q:"]
 PARSER_SYSTEM_PROMPT = dedent(
@@ -56,16 +58,12 @@ class ParserProgram(Program):
             + prompt
             + Fore.RESET
         )
-        if isinstance(model, OllamaLLM):
-            # Handle call to ollama
-            return return_ollama_response(
-                logits_generator=model.logits_generator,
-                prompt=prompt,
-                stop=PARSER_STOP_TOKENS,
-                temperature=0.0,
-            )
-        generator = outlines.generate.text(model.logits_generator)
-        return (generator(prompt, stop_at=PARSER_STOP_TOKENS), prompt)
+        response = generate.text(
+            model,
+            prompt=prompt,
+            stop_at=PARSER_STOP_TOKENS,
+        )
+        return (response, prompt)
 
 
 class CorrectionProgram(Program):
@@ -76,7 +74,7 @@ class CorrectionProgram(Program):
         serialized_db: str,
         question: str,
         partial_completion: str,
-        candidates: List[str],
+        candidates: Set[str],
         **kwargs,
     ) -> Tuple[str, str]:
         if isinstance(model, OllamaLLM):
@@ -90,10 +88,9 @@ class CorrectionProgram(Program):
         prompt += f"Question: {question}\n"
         prompt += f"BlendSQL:\n"
         prompt += partial_completion
-        generator = outlines.generate.choice(
-            model.logits_generator, [re.escape(str(i)) for i in candidates]
+        response = generate.choice(
+            model, prompt=prompt, choices=[re.escape(str(i)) for i in candidates]
         )
-        response: str = generator(prompt)
         return (response, prompt)
 
 
@@ -111,7 +108,7 @@ def obtain_correction_pairs(
     prediction: str, parser: EarleyParser
 ) -> Tuple[str, Set[str], int]:
     """
-    Returns a list of candidates in the form of (prefix, suffix).
+    Returns a list of candidates in the form of (prefix, candidates, error_position_index).
     """
     try:
         parser.parse(prediction)
@@ -258,7 +255,7 @@ def nl_to_blendsql(
         prefix, candidates, pos_in_stream = obtain_correction_pairs(
             program_prediction, parser
         )
-        candidates = [i for i in candidates if i.strip() != ""]
+        # candidates = [i for i in candidates if i.strip() != ""]
         if len(candidates) == 0:
             logger.debug(
                 Fore.LIGHTMAGENTA_EX + "No correction pairs found" + Fore.RESET
@@ -266,7 +263,7 @@ def nl_to_blendsql(
             return prefix
         elif len(candidates) == 1:
             # If we only have 1 candidate, no need to call LLM
-            selected_candidate = candidates[0]
+            selected_candidate = candidates.pop()
         else:
             # Generate the continuation candidate with the highest probability
             selected_candidate = correction_model.predict(

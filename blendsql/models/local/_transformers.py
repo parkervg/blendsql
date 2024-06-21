@@ -62,7 +62,7 @@ class TransformersLLM(LocalModel):
         )
 
 
-class VQAModel(TransformersLLM):
+class TransformersVisionModel(TransformersLLM):
     def _load_model(self):
         return pipeline("image-to-text", model=self.model_name_or_path)
 
@@ -70,7 +70,7 @@ class VQAModel(TransformersLLM):
         prompt = f"USER: <image>\n{question}"
         model_output = self.logits_generator(
             images=[Image.open(BytesIO(value)) for value in img_bytes],
-            prompt=prompt,
+            # prompt=prompt,
             generate_kwargs={"max_new_tokens": 200},
         )
         return [

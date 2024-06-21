@@ -1,6 +1,7 @@
 from pathlib import Path
 from sqlalchemy.engine import make_url, URL
 from functools import cached_property
+from typing import Dict
 
 from .utils import double_quote_escape
 from ._sqlalchemy import SQLAlchemyDatabase
@@ -18,8 +19,7 @@ class SQLite(SQLAlchemyDatabase):
     """
 
     def __init__(self, db_path: str):
-        self._raw_db_path = Path(db_path).resolve()
-        db_url: URL = make_url(f"sqlite:///{self._raw_db_path}")
+        db_url: URL = make_url(f"sqlite:///{Path(db_path).resolve()}")
         super().__init__(db_url=db_url)
 
     def has_temp_table(self, tablename: str) -> bool:
@@ -36,7 +36,7 @@ class SQLite(SQLAlchemyDatabase):
             >>> db.sqlglot_schema
             {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
         """
-        schema = {}
+        schema: Dict[str, dict] = {}
         for tablename in self.tables():
             schema[f'"{double_quote_escape(tablename)}"'] = {}
             for _, row in self.execute_to_df(

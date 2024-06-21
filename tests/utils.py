@@ -50,7 +50,7 @@ class select_first_option(QAIngredient):
         self, question: str, context: pd.DataFrame, options: set, **kwargs
     ) -> Union[str, int, float]:
         """Returns the first item in the (ordered) options set"""
-        return f"'{single_quote_escape(sorted(list(options))[0])}'"
+        return f"'{single_quote_escape(sorted(list(filter(lambda x: x, options)))[0])}'"
 
 
 class do_join(JoinIngredient):

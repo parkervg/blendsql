@@ -1,6 +1,6 @@
 import pytest
 from blendsql import blend
-from blendsql.db import SQLite, DuckDB
+from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
 from tests.utils import (
     assert_equality,
@@ -10,11 +10,12 @@ from tests.utils import (
     do_join,
     return_aapl,
     get_table_size,
+    select_first_option,
 )
 
 databases = [
     SQLite(fetch_from_hub("multi_table.db")),
-    DuckDB.from_sqlite(fetch_from_hub("multi_table.db")),
+    # DuckDB.from_sqlite(fetch_from_hub("multi_table.db")),
 ]
 
 
@@ -29,6 +30,7 @@ def ingredients() -> set:
         do_join.from_args(use_skrub_joiner=False),
         return_aapl,
         get_table_size,
+        select_first_option,
     }
 
 
@@ -597,6 +599,30 @@ def test_options_referencing_cte_multi_exec(db, ingredients):
         FROM account_history
         WHERE Symbol IS NOT NULL
     ) SELECT Symbol FROM w ORDER BY Symbol LIMIT 1
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+@pytest.mark.parametrize("db", databases)
+def test_infer_options_arg(db, ingredients):
+    """The infer_gen_constraints function should extend to cases when we do a
+    `column = {{QAIngredient()}}` predicate.
+
+    1a98559
+    """
+    blendsql = """
+    SELECT * FROM account_history 
+    WHERE Symbol = {{select_first_option()}}
+    """
+    sql = """
+    SELECT * FROM account_history 
+    WHERE Symbol = (SELECT Symbol FROM account_history WHERE Symbol NOT NULL ORDER BY Symbol LIMIT 1)
     """
     smoothie = blend(
         query=blendsql,

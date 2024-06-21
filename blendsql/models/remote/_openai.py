@@ -1,9 +1,8 @@
 import os
 import importlib.util
-from outlines.models import openai, azure_openai, LogitsGenerator
-from outlines.models.openai import OpenAIConfig
+from outlines.models.openai import openai, azure_openai, OpenAIConfig
 
-from .._model import RemoteModel
+from .._model import RemoteModel, ModelObj
 from typing import Optional
 
 DEFAULT_CONFIG = OpenAIConfig(temperature=0.0)
@@ -81,7 +80,7 @@ class AzureOpenaiLLM(RemoteModel):
     def __init__(
         self,
         model_name_or_path: str,
-        env: Optional[str] = None,
+        env: str = ".",
         config: Optional[OpenAIConfig] = None,
         caching: bool = True,
         **kwargs
@@ -104,14 +103,13 @@ class AzureOpenaiLLM(RemoteModel):
             **kwargs
         )
 
-    def _load_model(self, config: OpenAIConfig, **kwargs) -> LogitsGenerator:
+    def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
         return azure_openai(
             self.model_name_or_path,
             config=config,
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
             api_key=os.getenv("OPENAI_API_KEY"),
-            **kwargs
-        )
+        )  # type: ignore
 
     def _setup(self, **kwargs) -> None:
         openai_setup()
@@ -149,7 +147,7 @@ class OpenaiLLM(RemoteModel):
     def __init__(
         self,
         model_name_or_path: str,
-        env: Optional[str] = None,
+        env: str = ".",
         config: Optional[OpenAIConfig] = None,
         caching: bool = True,
         **kwargs
@@ -172,13 +170,10 @@ class OpenaiLLM(RemoteModel):
             **kwargs
         )
 
-    def _load_model(self, config: OpenAIConfig, **kwargs) -> LogitsGenerator:
+    def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
         return openai(
-            self.model_name_or_path,
-            config=config,
-            api_key=os.getenv("OPENAI_API_KEY"),
-            **kwargs
-        )
+            self.model_name_or_path, config=config, api_key=os.getenv("OPENAI_API_KEY")
+        )  # type: ignore
 
     def _setup(self, **kwargs) -> None:
         openai_setup()

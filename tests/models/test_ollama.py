@@ -27,7 +27,7 @@ def ingredients() -> set:
 def test_ollama_basic_llmqa(db, ingredients):
     try:
         model = OllamaLLM(TEST_OLLAMA_LLM, caching=False)
-        model.logits_generator(messages=[{"role": "user", "content": "hello"}])
+        model.model_obj(messages=[{"role": "user", "content": "hello"}])
     except httpx.ConnectError:
         pytest.skip("Ollama server is not running, skipping this test")
     blendsql = """
@@ -67,7 +67,7 @@ def test_ollama_raise_exception(db, ingredients):
 def test_ollama_join(db, ingredients):
     try:
         model = OllamaLLM(TEST_OLLAMA_LLM, caching=False)
-        model.logits_generator(messages=[{"role": "user", "content": "hello"}])
+        model.model_obj(messages=[{"role": "user", "content": "hello"}])
     except httpx.ConnectError:
         pytest.skip("Ollama server is not running, skipping this test")
     res = blend(

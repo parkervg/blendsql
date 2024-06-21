@@ -1,5 +1,5 @@
-from typing import Generator, Union, List, Collection, Optional
-from typing_extensions import Callable
+from typing import Generator, Union, List, Callable, Optional
+from collections.abc import Collection
 import pandas as pd
 from attr import attrib
 from sqlalchemy.engine import URL
@@ -82,9 +82,7 @@ class Database(ABC):
         ...
 
     @abstractmethod
-    def execute_to_list(
-        self, query: str, to_type: Optional[Callable] = lambda x: x
-    ) -> list:
+    def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.
         Returns results as a list.
         """

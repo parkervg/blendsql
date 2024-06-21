@@ -1,5 +1,6 @@
 import importlib.util
-from typing import Dict, Optional, List, Collection, Type, Generator, Set, Union
+from typing import Dict, Optional, List, Generator, Set, Union, Callable
+from collections.abc import Collection
 import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
@@ -99,7 +100,7 @@ class DuckDB(Database):
         import duckdb
 
         con = duckdb.connect(database=":memory:")
-        db_url = Path(db_url).resolve()
+        db_url = str(Path(db_url).resolve())
         con.sql("INSTALL sqlite;")
         con.sql("LOAD sqlite;")
         con.sql(f"ATTACH '{db_url}' AS sqlite_db (TYPE sqlite);")
@@ -126,7 +127,7 @@ class DuckDB(Database):
             > {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
             ```
         """
-        schema = {}
+        schema: Dict[str, dict] = {}
         for tablename in self.tables():
             schema[f'"{double_quote_escape(tablename)}"'] = {}
             for column_name, column_type in self.con.execute(
@@ -167,7 +168,7 @@ class DuckDB(Database):
         return self.con.sql(query).df()
 
     def execute_to_list(
-        self, query: str, to_type: Optional[Type] = lambda x: x
+        self, query: str, to_type: Optional[Callable] = lambda x: x
     ) -> list:
         res = []
         for row in self.con.execute(query).fetchall():

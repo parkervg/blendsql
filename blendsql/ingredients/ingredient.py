@@ -4,18 +4,8 @@ import pandas as pd
 from sqlglot import exp
 import json
 from skrub import Joiner
-from typing import (
-    Any,
-    Iterable,
-    Union,
-    Dict,
-    Tuple,
-    Type,
-    Callable,
-    Set,
-    Collection,
-    Optional,
-)
+from typing import Any, Union, Dict, Tuple, Callable, Set, Optional, List, Type
+from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
 from typeguard import check_type
@@ -67,6 +57,10 @@ class Ingredient:
     def run(self, *args, **kwargs) -> Any:
         ...
 
+    @abstractmethod
+    def __call__(self, *args, **kwargs) -> Any:
+        ...
+
     def _run(self, *args, **kwargs):
         return check_type(self.run(*args, **kwargs), self.allowed_output_types)
 
@@ -89,7 +83,8 @@ class MapIngredient(Ingredient):
 
     ingredient_type: str = IngredientType.MAP.value
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
-    model = attrib(default=None)
+
+    model: Model = attrib(default=None)
 
     @classmethod
     def from_args(cls, model: Model):
@@ -101,10 +96,10 @@ class MapIngredient(Ingredient):
     def __call__(self, question: str, context: str, *args, **kwargs) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
-        get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
-        get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
-        prev_subquery_map_columns: Set[str] = kwargs.get("prev_subquery_map_columns")
+        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
+        get_temp_session_table: Callable = kwargs["get_temp_session_table"]
+        prev_subquery_map_columns: Set[str] = kwargs["prev_subquery_map_columns"]
 
         tablename, colname = utils.get_tablename_colname(context)
         tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -156,6 +151,7 @@ class MapIngredient(Ingredient):
             values = self.db.execute_to_list(
                 f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"',
             )
+
         # No need to run ingredient if we have no values to map onto
         if len(values) == 0:
             original_table[new_arg_column] = None
@@ -166,7 +162,7 @@ class MapIngredient(Ingredient):
         kwargs[IngredientKwarg.QUESTION] = question
         mapped_values: Collection[Any] = self._run(*args, **kwargs)
         self.num_values_passed += len(mapped_values)
-        df_as_dict = {colname: [], new_arg_column: []}
+        df_as_dict: Dict[str, list] = {colname: [], new_arg_column: []}
         for value, mapped_value in zip(values, mapped_values):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
@@ -219,16 +215,16 @@ class JoinIngredient(Ingredient):
         **kwargs,
     ) -> tuple:
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
-        get_temp_subquery_table: Callable = kwargs.get("get_temp_subquery_table")
-        get_temp_session_table: Callable = kwargs.get("get_temp_session_table")
+        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
+        get_temp_session_table: Callable = kwargs["get_temp_session_table"]
         # Depending on the size of the underlying data, it may be optimal to swap
         #   the order of 'left_on' and 'right_on' columns during processing
         swapped = False
         values = []
         original_lr_identifiers = []
         modified_lr_identifiers = []
-        mapping = {}
+        mapping: Dict[str, str] = {}
         for on_arg in [left_on, right_on]:
             tablename, colname = utils.get_tablename_colname(on_arg)
             tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -284,14 +280,18 @@ class JoinIngredient(Ingredient):
                 # length(new inner) = length(inner) - #matched by fuzzy join
                 _outer = res["out"][res["in"].isnull()].to_list()
                 # length(new _outer) = length(_outer) - #matched by fuzzy join
-                _mapping = res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
+                _skrub_mapping = (
+                    res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
+                )
                 logger.debug(
                     Fore.YELLOW
                     + "Made the following alignment with `skrub.Joiner`:"
                     + Fore.RESET
                 )
-                logger.debug(Fore.YELLOW + json.dumps(_mapping, indent=4) + Fore.RESET)
-                mapping = mapping | _mapping
+                logger.debug(
+                    Fore.YELLOW + json.dumps(_skrub_mapping, indent=4) + Fore.RESET
+                )
+                mapping = mapping | _skrub_mapping
             # order by length is still preserved regardless of using fuzzy join, so after initial matching and possible fuzzy join matching
             # This is because the lengths of each list will decrease at the same rate, so whichever list was larger at the beginning,
             # will be larger here at the end.
@@ -318,8 +318,8 @@ class JoinIngredient(Ingredient):
             )
 
             kwargs[IngredientKwarg.QUESTION] = question
-            _mapping: Dict[str, str] = self._run(*args, **kwargs)
-            mapping = mapping | _mapping
+            _predicted_mapping: Dict[str, str] = self._run(*args, **kwargs)
+            mapping = mapping | _predicted_mapping
         # Using mapped left/right values, create intermediary mapping table
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         # Below, we check to see if 'swapped' is True
@@ -359,26 +359,31 @@ class QAIngredient(Ingredient):
         **kwargs,
     ) -> Tuple[Union[str, int, float], Optional[exp.Expression]]:
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs.get("aliases_to_tablenames")
+        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
 
-        subtable = context
+        subtable: Union[pd.DataFrame, None] = None
         if context is not None:
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
-                    subtable = self.db.lazy_tables.pop(tablename).collect()[colname]
+                    subtable: pd.DataFrame = self.db.lazy_tables.pop(
+                        tablename
+                    ).collect()[colname]
                 else:
-                    subtable = self.db.execute_to_df(
+                    subtable: pd.DataFrame = self.db.execute_to_df(
                         f'SELECT "{colname}" FROM "{tablename}"'
                     )
-            elif not isinstance(context, pd.DataFrame):
+            elif isinstance(context, pd.DataFrame):
+                subtable: pd.DataFrame = context
+            else:
                 raise ValueError(
                     f"Unknown type for `identifier` arg in QAIngredient: {type(context)}"
                 )
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
-        unpacked_options = options
+
+        unpacked_options: Union[List[str], None] = options
         if options is not None:
             if not isinstance(options, list):
                 try:
@@ -398,7 +403,7 @@ class QAIngredient(Ingredient):
                         )
                 except ValueError:
                     unpacked_options = options.split(";")
-            unpacked_options = set(unpacked_options)
+            unpacked_options: Set[str] = set(unpacked_options)
         self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[IngredientKwarg.OPTIONS] = unpacked_options
         kwargs[IngredientKwarg.CONTEXT] = subtable

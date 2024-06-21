@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from attr import attrs, attrib
-from typing import List, Collection, Type, Set
+from typing import List, Iterable, Type, Set
 
 from ..ingredients import Ingredient
 from ..grammars._peg_grammar import grammar as peg_grammar
@@ -67,7 +67,7 @@ class Examples:
                     stack.append(arg)
         return True
 
-    def filter(self, ingredients: Collection[Type[Ingredient]]) -> "Examples":
+    def filter(self, ingredients: Iterable[Type[Ingredient]]) -> "Examples":
         """Retrieve only those prompts which do not include any ingredient not specified in `ingredients`."""
         ingredient_names: Set[str] = {
             ingredient.__name__.upper() for ingredient in ingredients

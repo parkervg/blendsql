@@ -46,10 +46,7 @@ setup(
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",
         "sqlalchemy>=2.0.0",
-        # skrub doesn't currently support python<3.10: https://github.com/skrub-data/skrub/issues/815
-        "skrub==0.1.0 ; python_version>='3.10'",
-        # We fetch this branch which removes python 3.10 style type annotations instead, then
-        "skrub @ git+https://github.com/jeromedockes/skrub.git@strip-type-annotations ; python_version<'3.10'",
+        "skrub==0.1.0",
         # https://github.com/skrub-data/skrub/issues/910
         "scikit-learn==1.4.2",
         "huggingface_hub",
@@ -63,6 +60,8 @@ setup(
         "tabulate>=0.9.0",
         "typeguard",
         "rapidfuzz",
+        "httpx",
+        "setuptools",  # For python 3.12
     ],
     extras_require={
         "llama-cpp": ["llama-cpp-python"],
@@ -80,7 +79,6 @@ setup(
             "recognizers-text-suite",
             "emoji==1.7.0",
         ],
-        "test": ["pytest", "pre-commit", "llama-cpp-python", "transformers", "torch"],
         "docs": [
             "mkdocs-material",
             "mkdocstrings",
@@ -88,6 +86,5 @@ setup(
             "mkdocstrings-python",
             "mkdocs-jupyter",
         ],
-        "demo": ["chainlit"],
     },
 )

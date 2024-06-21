@@ -12,9 +12,9 @@ from typing import (
     Generator,
     Optional,
     Callable,
-    Collection,
     Type,
 )
+from collections.abc import Collection, Iterable
 from sqlite3 import OperationalError
 from attr import attrs, attrib
 from functools import partial
@@ -64,23 +64,23 @@ class Kitchen(list):
     db: Database = attrib()
     session_uuid: str = attrib()
 
-    added_ingredient_names: set = attrib(init=False)
+    name_to_ingredient: Dict[str, Ingredient] = attrib(init=False)
 
     def __attrs_post_init__(self):
-        self.added_ingredient_names = set()
+        self.name_to_ingredient = {}
 
     def names(self):
         return [i.name for i in self]
 
     def get_from_name(self, name: str):
-        for f in self:
-            if f.name == name.upper():
-                return f
-        raise InvalidBlendSQL(
-            f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
-        )
+        try:
+            return self.name_to_ingredient[name.upper()]
+        except KeyError:
+            raise InvalidBlendSQL(
+                f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
+            ) from None
 
-    def extend(self, ingredients: Collection[Type[Ingredient]]) -> None:
+    def extend(self, ingredients: Iterable[Type[Ingredient]]) -> None:
         """ "Initializes ingredients class with base attributes, for use in later operations."""
         try:
             if not all(issubclass(x, Ingredient) for x in ingredients):
@@ -94,17 +94,18 @@ class Kitchen(list):
         for ingredient in ingredients:
             name = ingredient.__name__.upper()
             assert (
-                name not in self.added_ingredient_names
+                name not in self.name_to_ingredient
             ), f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{name}"
-            ingredient = ingredient(
+            # Initialize the ingredient, going from `Type[Ingredient]` to `Ingredient`
+            initialied_ingredient: Ingredient = ingredient(
                 name=name,
                 # Add db and session_uuid as default kwargs
                 # This way, ingredients are able to interact with data
                 db=self.db,
                 session_uuid=self.session_uuid,
             )
-            self.added_ingredient_names.add(name)
-            self.append(ingredient)
+            self.name_to_ingredient[name] = initialied_ingredient
+            self.append(initialied_ingredient)
 
 
 def autowrap_query(
@@ -499,7 +500,7 @@ def _blend(
                 subquery_str
             ),  # Need to do this so we don't track parents into construct_abstracted_selects
             prev_subquery_has_ingredient=prev_subquery_has_ingredient,
-            alias_to_subquery={table_alias_name: subquery} if in_cte else None,
+            alias_to_subquery={table_alias_name: subquery} if in_cte else {},
             tables_in_ingredients=tables_in_ingredients,
         )
         for tablename, abstracted_query in scm.abstracted_table_selects():
@@ -605,23 +606,22 @@ def _blend(
             executed_subquery_ingredients.add(alias_function_str)
             kwargs_dict = parsed_results_dict["kwargs_dict"]
 
-            if ingredient.ingredient_type == IngredientType.MAP:
-                if infer_gen_constraints:
-                    # Latter is the winner.
-                    # So if we already define something in kwargs_dict,
-                    #   It's not overriden here
-                    kwargs_dict = (
-                        scm.infer_gen_constraints(
-                            start=start,
-                            end=end,
-                        )
-                        | kwargs_dict
+            if infer_gen_constraints:
+                # Latter is the winner.
+                # So if we already define something in kwargs_dict,
+                #   It's not overriden here
+                kwargs_dict = (
+                    scm.infer_gen_constraints(
+                        start=start,
+                        end=end,
                     )
+                    | kwargs_dict
+                )
 
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
 
-            # Optionally, recursively call blend() again to get subtable
+            # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
             for i, unpack_kwarg in enumerate(
                 [IngredientKwarg.CONTEXT, IngredientKwarg.OPTIONS]
@@ -654,7 +654,11 @@ def _blend(
                     _prev_passed_values = _smoothie.meta.num_values_passed
                     subtable = _smoothie.df
                     if unpack_kwarg == IngredientKwarg.OPTIONS:
-                        # Here, we need to format as a flat list
+                        if len(subtable.columns) != 1:
+                            raise InvalidBlendSQL(
+                                f"Invalid subquery passed to `options`!\nNeeds to return exactly one column, got {len(subtable.columns)} instead"
+                            )
+                        # Here, we need to format as a flat set
                         kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
                     else:
                         kwargs_dict[unpack_kwarg] = subtable
@@ -706,10 +710,9 @@ def _blend(
                     temp_join_tablename,
                 ) = function_out
                 # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
-                num_ingredients_in_join = (
-                    len(list(query_context.node.find(exp.Join).find_all(exp.Struct)))
-                    // 2
-                )
+                join_node = query_context.node.find(exp.Join)
+                assert join_node is not None
+                num_ingredients_in_join = len(list(join_node.find_all(exp.Struct))) // 2
                 if num_ingredients_in_join > 1:
                     # Case where we have
                     # `SELECT * FROM w0 JOIN w0 ON {{B()}} > 1 AND {{A()}} WHERE TRUE`

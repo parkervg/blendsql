@@ -71,7 +71,7 @@ def recover_blendsql(select_sql: str):
 
 
 def get_temp_subquery_table(
-    session_uuid: str, subquery_idx: str, tablename: str
+    session_uuid: str, subquery_idx: int, tablename: str
 ) -> str:
     """Generates temporary tablename for a subquery"""
     return f"{session_uuid}_{tablename}_{subquery_idx}"

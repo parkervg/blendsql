@@ -1,15 +1,14 @@
 from __future__ import annotations
-from typing import Tuple, Callable
+from typing import Tuple, Type
 import inspect
 import ast
 import textwrap
-import logging
-from colorama import Fore
+from abc import abstractmethod
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .models import Model
-from ._logger import logger
 
 
 class Program:
@@ -34,7 +33,7 @@ class Program:
                 prompt = f"Summarize the following table. {context.to_string()}"
                 # Below we follow the outlines pattern for unconstrained text generation
                 # https://github.com/outlines-dev/outlines
-                generator = outlines.generate.text(model.logits_generator)
+                generator = outlines.generate.text(model.model_obj)
                 response: str = generator(prompt)
                 # Finally, return (response, prompt) tuple
                 # Returning the prompt here allows the underlying BlendSQL classes to track token usage
@@ -54,6 +53,7 @@ class Program:
     ):
         return self.__call__(self, model, **kwargs)
 
+    @abstractmethod
     def __call__(self, model: Model, *args, **kwargs) -> Tuple[str, str]:
         """Logic for formatting prompt and calling the underlying model.
         Should return tuple of (response, prompt).
@@ -61,38 +61,7 @@ class Program:
         ...
 
 
-def return_ollama_response(
-    logits_generator: Callable, prompt, **kwargs
-) -> Tuple[str, str]:
-    """Helper function to work with Ollama models,
-    since they're not recognized in the Outlines ecosystem.
-    """
-    from ollama import Options
-
-    options = Options(**kwargs)
-    if options.get("temperature") is None:
-        options["temperature"] = 0.0
-    stream = logger.level <= logging.DEBUG
-    response = logits_generator(
-        messages=[{"role": "user", "content": prompt}],
-        options=options,
-        stream=stream,
-    )
-    if stream:
-        chunked_res = []
-        for chunk in response:
-            chunked_res.append(chunk["message"]["content"])
-            print(
-                Fore.CYAN + chunk["message"]["content"] + Fore.RESET,
-                end="",
-                flush=True,
-            )
-        print("\n")
-        return ("".join(chunked_res), prompt)
-    return (response["message"]["content"], prompt)
-
-
-def program_to_str(program: Program):
+def program_to_str(program: Type[Program]) -> str:
     """Create a string representation of a program.
     It is slightly tricky, since in addition to getting the code content, we need to
         1) identify all global variables referenced within a function, and then

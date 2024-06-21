@@ -11,7 +11,7 @@ class StrInMeta(EnumMeta):
 
 DEFAULT_ANS_SEP = ";"
 DEFAULT_NAN_ANS = "-"
-VALUE_BATCH_SIZE = 5
+MAP_BATCH_SIZE = 5
 
 
 class IngredientType(str, Enum, metaclass=StrInMeta):
@@ -23,8 +23,8 @@ class IngredientType(str, Enum, metaclass=StrInMeta):
 
 @dataclass
 class IngredientKwarg:
-    QUESTION = "question"
-    CONTEXT = "context"
-    VALUES = "values"
-    OPTIONS = "options"
-    MODEL = "model"
+    QUESTION: str = "question"
+    CONTEXT: str = "context"
+    VALUES: str = "values"
+    OPTIONS: str = "options"
+    MODEL: str = "model"

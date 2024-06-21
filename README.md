@@ -1,6 +1,7 @@
 <div align="right">
 <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
 <a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
+<a><img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/parkervg/e24f1214fdff3ab086b829b5f01f85a8/raw/covbadge.json"/></a>
 <a><img src="https://img.shields.io/badge/PRs-Welcome-Green"/></a>
 <br>
 </div>
