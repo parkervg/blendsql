@@ -61,9 +61,11 @@ SELECT "Name", "Description" FROM parks
       )
   }} = FALSE
 ```
+
 | Name            | Description                                                                                                                            |
 |:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
 | Everglades      | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.            |
+
 <hr>
 
 _What does the largest park in Alaska look like?_
@@ -99,6 +101,7 @@ SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
       ) 
   }}
 ```
+
 | Location   | Park Protecting Ash Flow   |
 |:-----------|:---------------------------|
 | Alaska     | Katmai                     |
@@ -111,9 +114,11 @@ _How many parks are located in more than 1 state?_
 SELECT COUNT(*) FROM parks
     WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
 ```
+
 |   Count |
 |--------:|
 |       1 |
+
 <hr>
 Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
 
