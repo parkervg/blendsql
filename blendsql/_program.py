@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple, Type
+from typing import Tuple, Type, List, Union
 import inspect
 import ast
 import textwrap
@@ -54,7 +54,9 @@ class Program:
         return self.__call__(self, model, **kwargs)
 
     @abstractmethod
-    def __call__(self, model: Model, *args, **kwargs) -> Tuple[str, str]:
+    def __call__(
+        self, model: Model, *args, **kwargs
+    ) -> Tuple[Union[str, List[str]], str]:
         """Logic for formatting prompt and calling the underlying model.
         Should return tuple of (response, prompt).
         """
