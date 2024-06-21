@@ -82,8 +82,8 @@ class LLMQA(QAIngredient):
 
     def run(
         self,
-        question: str,
         model: Model,
+        question: str,
         options: Optional[Set[str]] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,

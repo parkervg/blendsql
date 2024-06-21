@@ -132,8 +132,8 @@ class LLMMap(MapIngredient):
 
     def run(
         self,
-        question: str,
         model: Model,
+        question: str,
         values: List[str],
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,

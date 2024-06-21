@@ -30,8 +30,8 @@ class ValidateProgram(Program):
 class LLMValidate(QAIngredient):
     def run(
         self,
-        question: str,
         model: Model,
+        question: str,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
         table_to_title: Optional[Dict[str, str]] = None,

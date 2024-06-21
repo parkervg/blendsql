@@ -134,9 +134,9 @@ class LLMJoin(JoinIngredient):
 
     def run(
         self,
+        model: Model,
         left_values: List[str],
         right_values: List[str],
-        model: Model,
         question: Optional[str] = None,
         **kwargs,
     ) -> dict:
