@@ -154,7 +154,7 @@ class OpenaiLLM(RemoteModel):
     ):
         if not _has_openai:
             raise ImportError(
-                "Please install openai>=1.0.0 with `pip install openai>=1.0.0`!"
+                'Please install openai>=1.0.0 and tiktoken with `pip install "openai>=1.0.0" tiktoken`!'
             ) from None
 
         import tiktoken
