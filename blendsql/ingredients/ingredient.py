@@ -93,7 +93,9 @@ class MapIngredient(Ingredient):
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
 
-    def __call__(self, question: str, context: str, *args, **kwargs) -> tuple:
+    def __call__(
+        self, question: str = None, context: str = None, *args, **kwargs
+    ) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
@@ -122,7 +124,7 @@ class MapIngredient(Ingredient):
             )
 
         # Need to be sure the new column doesn't already exist here
-        new_arg_column = question
+        new_arg_column = question or str(uuid.uuid4())[:4]
         while (
             new_arg_column in set(self.db.iter_columns(tablename))
             or new_arg_column in prev_subquery_map_columns
