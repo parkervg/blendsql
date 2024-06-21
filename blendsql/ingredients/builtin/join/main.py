@@ -45,27 +45,6 @@ class JoinProgram(Program):
         ron ryan;ron ryan
 
         ---
-
-        Criteria: Align the fruit to their corresponding colors.
-
-        Left Values:
-        apple
-        banana
-        blueberry
-        orange
-
-        Right Values:
-        blue
-        yellow
-        red
-
-        Output:
-        apple;red
-        banana;yellow
-        blueberry;blue
-        orange;-
-
-        ---
         """
         )
         prompt += newline_dedent(
