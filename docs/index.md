@@ -53,39 +53,57 @@ BlendSQL allows us to ask the following questions by injecting "ingredients", wh
 
 _Which parks don't have park facilities?_
 ```sql
-SELECT * FROM parks
-    WHERE NOT {{
-        LLMValidate(
-            'Does this location have park facilities?',
-            context=(SELECT "Name" AS "Park", "Description" FROM parks),
-        )
-    }}
+SELECT "Name", "Description" FROM parks
+  WHERE {{
+      LLMMap(
+          'Does this location have park facilities?',
+          context='parks::Description'
+      )
+  }} = FALSE
 ```
+| Name            | Description                                                                                                                            |
+|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
+| Everglades      | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.            |
+<hr>
 
 _What does the largest park in Alaska look like?_
 
 ```sql
-SELECT {{VQA('Describe this image.', 'parks::Image')}} FROM parks
-    WHERE "Location" = 'Alaska'
-    ORDER BY {{
-        LLMMap(
-            'Size in km2?',
-            'parks::Area'
-        )
-    }} LIMIT 1
+SELECT "Name",
+{{ImageCaption('parks::Image')}} as "Image Description", 
+{{
+    LLMMap(
+        question='Size in km2?',
+        context='parks::Area'
+    )
+}} as "Size in km" FROM parks
+WHERE "Location" = 'Alaska'
+ORDER BY "Size in km" DESC LIMIT 1
 ```
+
+| Name       | Image Description                                       |   Size in km |
+|:-----------|:--------------------------------------------------------|-------------:|
+| Everglades | A forest of tall trees with a sunset in the background. |      30448.1 |
+
+<hr>
 
 _Which state is the park in that protects an ash flow?_
 
 ```sql
-SELECT "Location" FROM parks WHERE "Name" = {{
-    LLMQA(
-      'Which park protects an ash flow?',
-      context=(SELECT "Name", "Description" FROM parks),
-      options="parks::Name"
-    ) 
-}}
+SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks 
+    WHERE "Name" = {{
+      LLMQA(
+        'Which park protects an ash flow?',
+        context=(SELECT "Name", "Description" FROM parks),
+        options="parks::Name"
+      ) 
+  }}
 ```
+| Location   | Park Protecting Ash Flow   |
+|:-----------|:---------------------------|
+| Alaska     | Katmai                     |
+
+<hr>
 
 _How many parks are located in more than 1 state?_
 
@@ -93,7 +111,10 @@ _How many parks are located in more than 1 state?_
 SELECT COUNT(*) FROM parks
     WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
 ```
-
+|   Count |
+|--------:|
+|       1 |
+<hr>
 Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
 
 For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
@@ -129,10 +150,10 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
 Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
 
 - The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
-  - This paper was the primary inspiration for BlendSQL.
+    - This paper was the primary inspiration for BlendSQL.
 - The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
-  - As far as I can tell, the first publication to propose unifying model calls within SQL 
-  - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
+    - As far as I can tell, the first publication to propose unifying model calls within SQL 
+    - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
 - The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
 - The maintainers of the [Outlines](https://github.com/outlines-dev/outlines) library for powering the constrained decoding capabilities of BlendSQL
-  - Paper at https://arxiv.org/abs/2307.09702
+    - Paper at https://arxiv.org/abs/2307.09702
