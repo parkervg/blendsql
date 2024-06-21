@@ -23,7 +23,7 @@ class ValidateProgram(Program):
         if table_title:
             prompt += f"\nTable Description: {table_title}"
         prompt += f"\n{serialized_db}\n\nAnswer:"
-        response = generate.choice(model, choices=["true", "false"])
+        response = generate.choice(model, prompt=question, choices=["true", "false"])
         return (response, prompt)
 
 
