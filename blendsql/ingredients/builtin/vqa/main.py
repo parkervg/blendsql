@@ -21,6 +21,11 @@ class ImageCaptionProgram(Program):
 
 
 class ImageCaption(MapIngredient):
+    DESCRIPTION = """
+    If we need to generate a caption for an image stored in the database, we can use the scalar function to map to a new column:
+        `{{ImageCaption('table::column')}}`
+    """
+
     def run(self, model: Model, values: List[bytes], **kwargs):
         """Generates a caption for all byte images passed to it."""
         if not all(isinstance(value, bytes) for value in values):
