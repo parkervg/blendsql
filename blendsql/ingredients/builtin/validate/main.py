@@ -5,6 +5,7 @@ from blendsql.models import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql import generate
+from blendsql._exceptions import IngredientException
 
 
 class ValidateProgram(Program):
@@ -38,6 +39,10 @@ class LLMValidate(QAIngredient):
         long_answer: bool = False,
         **kwargs,
     ) -> Union[str, int, float]:
+        if model is None:
+            raise IngredientException(
+                "LLMValidate requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
+            )
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]

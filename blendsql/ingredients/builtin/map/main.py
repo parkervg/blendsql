@@ -14,6 +14,7 @@ from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._program import Program
 from blendsql import generate
+from blendsql._exceptions import IngredientException
 
 
 class MapProgram(Program):
@@ -157,6 +158,10 @@ class LLMMap(MapIngredient):
         Returns:
             Iterable[Any] containing the output of the Model for each value.
         """
+        if model is None:
+            raise IngredientException(
+                "LLMMap requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
+            )
         # Unpack default kwargs
         tablename, colname = self.unpack_default_kwargs(**kwargs)
         # Remote endpoints can't use patterns

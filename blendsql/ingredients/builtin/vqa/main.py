@@ -28,6 +28,10 @@ class ImageCaption(MapIngredient):
 
     def run(self, model: Model, values: List[bytes], **kwargs):
         """Generates a caption for all byte images passed to it."""
+        if model is None:
+            raise IngredientException(
+                "ImageCaption requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
+            )
         if not all(isinstance(value, bytes) for value in values):
             raise IngredientException(
                 f"All values must be 'byte' type for ImageCaption!"
