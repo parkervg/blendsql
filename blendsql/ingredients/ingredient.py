@@ -169,14 +169,14 @@ class MapIngredient(Ingredient):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
         subtable = pd.DataFrame(df_as_dict)
-        if kwargs.get("output_type") == "boolean":
-            subtable[new_arg_column] = subtable[new_arg_column].astype(bool)
-        else:
-            if all(
-                isinstance(x, (int, type(None))) and not isinstance(x, bool)
-                for x in mapped_values
-            ):
-                subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
+        # if kwargs.get("output_type") == "boolean":
+        #     subtable[new_arg_column] = subtable[new_arg_column].astype(bool)
+        # else:
+        if all(
+            isinstance(x, (int, type(None))) and not isinstance(x, bool)
+            for x in mapped_values
+        ):
+            subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
         # Add new_table to original table
         new_table = original_table.merge(subtable, how="left", on=colname)
         if new_table.shape[0] != original_table.shape[0]:
