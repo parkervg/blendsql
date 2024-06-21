@@ -63,6 +63,7 @@ setup(
         "typeguard",
         "rapidfuzz",
         "httpx",
+        "pillow",
         "setuptools",  # For python 3.12
     ],
     extras_require={
