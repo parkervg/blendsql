@@ -54,12 +54,12 @@ BlendSQL allows us to ask the following questions by injecting "ingredients", wh
 _Which parks don't have park facilities?_
 ```sql
 SELECT "Name", "Description" FROM parks
-    WHERE NOT {{
-        LLMValidate(
-            'Does this location have park facilities?',
-            context=(SELECT "Name" AS "Park", "Description" FROM parks)
-        )
-    }}
+  WHERE {{
+      LLMMap(
+          'Does this location have park facilities?',
+          context='parks::Description'
+      )
+  }} = FALSE
 ```
 | Name            | Description                                                                                                                            |
 |:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
