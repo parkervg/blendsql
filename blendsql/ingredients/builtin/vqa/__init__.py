@@ -1,1 +1,1 @@
-from .main import VQA
+from .main import ImageCaption
