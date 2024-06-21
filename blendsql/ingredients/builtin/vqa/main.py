@@ -1,5 +1,6 @@
 from typing import List, Tuple
 from io import BytesIO
+from PIL import Image
 
 from blendsql.models import Model
 from blendsql._program import Program
@@ -11,12 +12,6 @@ class ImageCaptionProgram(Program):
     def __call__(
         self, model: Model, img_bytes: List[bytes], **kwargs
     ) -> Tuple[List[str], str]:
-        try:
-            from PIL import Image
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                "Need to install PIL with `pip install pillow`!"
-            ) from None
         model_output = model.model_obj(
             images=[Image.open(BytesIO(value)) for value in img_bytes],
             # prompt=prompt,
