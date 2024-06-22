@@ -379,7 +379,7 @@ def maybe_set_subqueries_to_true(node):
     return node.transform(set_subqueries_to_true).transform(prune_empty_where)
 
 
-def all_terminals_are_true(node) -> bool:
+def check_all_terminals_are_true(node) -> bool:
     """Check to see if all terminal nodes of a given node are TRUE booleans."""
     for n, _, _ in node.walk():
         try:
@@ -417,7 +417,7 @@ def get_scope_nodes(
             yield tablenode
 
 
-def check_ingredients_only_in_top_select(node):
+def check_ingredients_only_in_top_select(node) -> bool:
     select_exps = list(node.find_all(exp.Select))
     if len(select_exps) == 1:
         # Check if the only `STRUCT` nodes are found in select
@@ -432,6 +432,15 @@ def check_ingredients_only_in_top_select(node):
             if num_select_struct_exps == len(all_struct_exps):
                 return True
     return False
+
+
+def to_select_star(node) -> exp.Expression:
+    """ """
+    select_star_node = copy.deepcopy(node)
+    select_star_node.find(exp.Select).set(
+        "expressions", exp.select("*").args["expressions"]
+    )
+    return select_star_node
 
 
 @attrs
@@ -551,11 +560,9 @@ class SubqueryContextManager:
                         yield (tablename, abstracted_query_str)
                         return
             elif len(tablenames) == 1:
-                select_star_node = copy.deepcopy(self.node)
-                select_star_node.find(exp.Select).set(
-                    "expressions", exp.select("*").args["expressions"]
+                abstracted_query = to_select_star(self.node).transform(
+                    set_structs_to_true
                 )
-                abstracted_query = select_star_node.transform(set_structs_to_true)
                 abstracted_query_str = recover_blendsql(
                     abstracted_query.sql(dialect=FTS5SQLite)
                 )
@@ -590,7 +597,7 @@ class SubqueryContextManager:
                     continue
                 elif isinstance(where_node.args["this"], exp.Column):
                     continue
-                elif all_terminals_are_true(where_node):
+                elif check_all_terminals_are_true(where_node):
                     continue
             elif not where_node:
                 continue
