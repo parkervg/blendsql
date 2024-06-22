@@ -551,5 +551,19 @@ def test_query_options_arg(db, ingredients):
     assert smoothie.df.values.flat[0] == "Paypal"
 
 
+@pytest.mark.parametrize("db", databases)
+def test_apply_limit(db, ingredients):
+    # commit 335c67a
+    blendsql = """
+    SELECT {{get_length('length', 'transactions::merchant')}} FROM transactions ORDER BY merchant LIMIT 1
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    assert smoothie.meta.num_values_passed == 1
+
+
 if __name__ == "__main__":
     pytest.main()
