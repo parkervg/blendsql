@@ -33,14 +33,6 @@ sqlglot.optimizer.simplify looks interesting
 """
 
 SUBQUERY_EXP = (exp.Select,)
-CONDITIONS = (
-    exp.Where,
-    exp.Group,
-    # IMPORTANT: If we uncomment limit, then `test_limit` in `test_single_table_blendsql.py` will not pass
-    # exp.Limit,
-    exp.Except,
-    exp.Order,
-)
 MODIFIERS = (
     exp.Delete,
     exp.AlterColumn,
