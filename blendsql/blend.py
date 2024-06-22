@@ -237,6 +237,12 @@ def preprocess_blendsql(query: str, default_model: Model) -> Tuple[str, dict, se
             # maybe if I was better at pp.Suppress we wouldn't need this
             kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
             kwargs_dict[IngredientKwarg.MODEL] = default_model
+            # Heuristic check to see if we should snag the singleton arg as context
+            if (
+                len(parsed_results_dict["args"]) == 1
+                and "::" in parsed_results_dict["args"][0]
+            ):
+                kwargs_dict[IngredientKwarg.CONTEXT] = parsed_results_dict["args"].pop()
             context_arg = kwargs_dict.get(
                 IngredientKwarg.CONTEXT,
                 (
@@ -622,12 +628,7 @@ def _blend(
 
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
-            # Heuristic check to see if we should snag the singleton arg as context
-            if (
-                len(parsed_results_dict["args"]) == 1
-                and "::" in parsed_results_dict["args"][0]
-            ):
-                kwargs_dict[IngredientKwarg.CONTEXT] = parsed_results_dict["args"].pop()
+
             # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
             for i, unpack_kwarg in enumerate(

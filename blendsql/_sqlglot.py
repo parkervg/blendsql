@@ -1,3 +1,5 @@
+import copy
+
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
@@ -423,6 +425,23 @@ def get_scope_nodes(
             yield tablenode
 
 
+def check_ingredients_only_in_top_select(node):
+    select_exps = list(node.find_all(exp.Select))
+    if len(select_exps) == 1:
+        # Check if the only `STRUCT` nodes are found in select
+        all_struct_exps = list(node.find_all(exp.Struct))
+        if len(all_struct_exps) > 0:
+            num_select_struct_exps = sum(
+                [
+                    len(list(n.find_all(exp.Struct)))
+                    for n in select_exps[0].find_all(exp.Alias)
+                ]
+            )
+            if num_select_struct_exps == len(all_struct_exps):
+                return True
+    return False
+
+
 @attrs
 class QueryContextManager:
     """Handles manipulation of underlying SQL query.
@@ -514,40 +533,42 @@ class SubqueryContextManager:
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
         #         FROM images JOIN w ON w.title = images.title
         #         WHERE "designer ( s )" = 'georgia gerber'"""
-        join_exp = self.node.find(exp.Join)
-        if join_exp is not None:
-            select_exps = list(self.node.find_all(exp.Select))
-            if len(select_exps) == 1:
-                # Check if the only `STRUCT` nodes are found in select
-                all_struct_exps = list(self.node.find_all(exp.Struct))
-                if len(all_struct_exps) > 0:
-                    num_select_struct_exps = sum(
-                        [
-                            len(list(n.find_all(exp.Struct)))
-                            for n in select_exps[0].find_all(exp.Alias)
-                        ]
-                    )
-                    if num_select_struct_exps == len(all_struct_exps):
-                        if len(self.tables_in_ingredients) == 1:
-                            tablename = next(iter(self.tables_in_ingredients))
-                            join_tablename = set(
-                                [i.name for i in self.node.find_all(exp.Table)]
-                            ).difference({tablename})
-                            if len(join_tablename) == 1:
-                                join_tablename = next(iter(join_tablename))
-                                base_select_str = f'SELECT "{tablename}".* FROM "{tablename}", {join_tablename} WHERE '
-                                table_conditions_str = self.get_table_predicates_str(
-                                    tablename=tablename,
-                                    disambiguate_multi_tables=False,
-                                )
-                                abstracted_query = _parse_one(
-                                    base_select_str + table_conditions_str
-                                )
-                                abstracted_query_str = recover_blendsql(
-                                    abstracted_query.sql(dialect=FTS5SQLite)
-                                )
-                                yield (tablename, abstracted_query_str)
-                                return
+        if check_ingredients_only_in_top_select(self.node):
+            tablenames = [i.name for i in self.node.find_all(exp.Table)]
+            if len(tablenames) > 1:
+                join_exp = self.node.find(exp.Join)
+                assert join_exp is not None
+                if len(self.tables_in_ingredients) == 1:
+                    tablename = next(iter(self.tables_in_ingredients))
+                    join_tablename = set(
+                        [i.name for i in self.node.find_all(exp.Table)]
+                    ).difference({tablename})
+                    if len(join_tablename) == 1:
+                        join_tablename = next(iter(join_tablename))
+                        base_select_str = f'SELECT "{tablename}".* FROM "{tablename}", {join_tablename} WHERE '
+                        table_conditions_str = self.get_table_predicates_str(
+                            tablename=tablename,
+                            disambiguate_multi_tables=False,
+                        )
+                        abstracted_query = _parse_one(
+                            base_select_str + table_conditions_str
+                        )
+                        abstracted_query_str = recover_blendsql(
+                            abstracted_query.sql(dialect=FTS5SQLite)
+                        )
+                        yield (tablename, abstracted_query_str)
+                        return
+            elif len(tablenames) == 1:
+                select_star_node = copy.deepcopy(self.node)
+                select_star_node.find(exp.Select).set(
+                    "expressions", exp.select("*").args["expressions"]
+                )
+                abstracted_query = select_star_node.transform(set_structs_to_true)
+                abstracted_query_str = recover_blendsql(
+                    abstracted_query.sql(dialect=FTS5SQLite)
+                )
+                yield (tablenames.pop(), abstracted_query_str)
+
         for tablename, table_star_query in self._table_star_queries():
             # If this table_star_query doesn't have an ingredient at the top-level, we can safely ignore
             if (
