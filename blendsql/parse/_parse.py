@@ -1,12 +1,9 @@
-import copy
-
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
 from typing import (
     Generator,
     List,
-    Set,
     Tuple,
     Union,
     Callable,
@@ -17,289 +14,17 @@ from typing import (
     Literal,
 )
 from ast import literal_eval
-from sqlglot.optimizer.scope import find_all_in_scope, find_in_scope
+from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
-from .utils import recover_blendsql
-from ._constants import DEFAULT_ANS_SEP, DEFAULT_NAN_ANS
+from ..utils import recover_blendsql
+from .._constants import DEFAULT_ANS_SEP, DEFAULT_NAN_ANS
 from ._dialect import _parse_one, FTS5SQLite
-from ._logger import logger
-
-"""
-Defines a set of transformations on the SQL AST, to be used with sqlglot.
-https://github.com/tobymao/sqlglot
-
-sqlglot.optimizer.simplify looks interesting
-"""
-
-SUBQUERY_EXP = (exp.Select,)
-MODIFIERS = (
-    exp.Delete,
-    exp.AlterColumn,
-    exp.AlterTable,
-    exp.Drop,
-    exp.RenameTable,
-    exp.Drop,
-    exp.DropPartition,
-)
-
-
-def is_in_subquery(node):
-    _ancestor = node.find_ancestor(SUBQUERY_EXP)
-    if _ancestor is not None:
-        return _ancestor.find_ancestor(SUBQUERY_EXP) is not None
-    return False
-
-
-def set_subqueries_to_true(node) -> Union[exp.Expression, None]:
-    """For all subqueries (i.e. children exp.Select statements)
-    set all these to TRUE abstractions.
-
-    Used with node.transform().
-    """
-    if isinstance(node, exp.Predicate):
-        if all(x in node.args for x in {"this", "expression"}):
-            if node.args["expression"].find(exp.Subquery):
-                if node.args["this"].find(exp.Select) is None:
-                    return node.args["this"]
-                else:
-                    return None
-        if is_in_subquery(node):
-            return None
-    if isinstance(node, SUBQUERY_EXP + (exp.Paren,)) and node.parent is not None:
-        return exp.true()
-    parent_select = node.find_ancestor(SUBQUERY_EXP)
-    if parent_select and parent_select.parent is not None:
-        return None
-    return node
-
-
-def prune_empty_where(node) -> Union[exp.Expression, None]:
-    """
-    Removes any `exp.Where` clause without any values.
-
-    Used with node.transform()
-    """
-    if isinstance(node, exp.Where):
-        if set(node.args.values()) == {None}:
-            return None
-        elif "this" in node.args:
-            where_arg = node.args["this"]
-            if "query" in where_arg.args and isinstance(
-                where_arg.args["query"], exp.Boolean
-            ):
-                return None
-    # Don't check *all* predicates here
-    # Since 'WHERE a = TRUE' is valid and should be kept
-    elif isinstance(node, exp.In):
-        if "query" in node.args:
-            if isinstance(node.args["query"], exp.Boolean):
-                return None
-    return node
-
-
-def prune_with(node):
-    """
-    Removes any exp.With nodes.
-
-    Used with node.transform()
-    """
-    if isinstance(node, exp.With):
-        return None
-    return node
-
-
-def prune_true_where(node):
-    """
-    Removes artifacts like `WHERE TRUE AND TRUE`
-
-    Used with node.transform()
-    """
-    if isinstance(node, exp.Where):
-        if isinstance(node.args["this"], exp.Connector):
-            values_to_check = set(node.args["this"].args.values())
-        else:
-            values_to_check = set([node.args["this"]])
-        if values_to_check == {exp.true()}:
-            return None
-    return node
-
-
-def set_structs_to_true(node) -> Union[exp.Expression, None]:
-    """Prunes all nodes with an exp.Struct parent.
-
-    CASE 1
-    Turns the exp.Struct node itself to a TRUE.
-
-    CASE 2
-    In the case below ('x = {{A()}}'):
-        exp.Condition
-             / \
-           x    exp.Struct
-    We need to set the whole exp.Condition clause to TRUE.
-
-    Used with node.transform()
-    """
-    # Case 1: we have an exp.Struct in isolation
-    if isinstance(node, exp.Struct):
-        return exp.true()
-    # Case 2: we have an exp.Struct within a predicate (=, <, >, etc.)
-    if isinstance(node, exp.Predicate):
-        if any(
-            isinstance(x, exp.Struct)
-            for x in {node.args.get("this", None), node.args.get("expression", None)}
-        ):
-            return exp.true()
-    return node
-
-
-def replace_join_with_ingredient_multiple_ingredient(
-    node: exp.Where, ingredient_name: str, ingredient_alias: str, temp_uuid: str
-) -> Union[exp.Expression, None]:
-    """
-
-    Used with node.transform()
-
-    sqlglot re-orders `WHERE` conditions to appear in `JOIN`:
-
-    SELECT * FROM documents JOIN "w" ON {{B()}} WHERE w.film = {{A()}}
-    SELECT * FROM documents JOIN "w" ON w.film = {{A()}}  AND  {{B()}}  WHERE TRUE
-    """
-    if isinstance(node, exp.Join):
-        anon_child_nodes = node.find_all(exp.Anonymous)
-        to_return = []
-        join_alias: str = ""
-        for anon_child_node in anon_child_nodes:
-            if anon_child_node.name == ingredient_name:
-                join_alias = ingredient_alias
-                continue
-            # Traverse and get the whole ingredient
-            # We need to go up 3 parents
-            _parent = anon_child_node
-            for _ in range(3):
-                _parent = _parent.parent
-                assert isinstance(_parent, exp.Expression)
-            to_return.append(_parent.sql(dialect=FTS5SQLite))
-        if len(to_return) == 0:
-            return node
-        # temp_uuid is used to ensure a partial query that is parse-able by sqlglot
-        # This gets removed after
-        return _parse_one(
-            f' SELECT "{temp_uuid}", '
-            + join_alias
-            + " WHERE "
-            + " AND ".join(to_return)
-        )
-    return node
-
-
-def replace_join_with_ingredient_single_ingredient(
-    node: exp.Where, ingredient_name: str, ingredient_alias: str
-) -> Union[exp.Expression, None]:
-    """
-
-    Used with node.transform()
-    """
-    if isinstance(node, exp.Join):
-        anon_child_node = node.find(exp.Anonymous)
-        if anon_child_node is not None:
-            if anon_child_node.name == ingredient_name:
-                return _parse_one(f" {ingredient_alias}")
-    return node
-
-
-def extract_multi_table_predicates(
-    node: exp.Where, tablename: str
-) -> Union[exp.Expression, None]:
-    """Extracts all non-Column predicates acting on a given tablename.
-    non-Column since we want to exclude JOIN's (e.g. JOIN on A.col = B.col)
-
-    Requirements to keep:
-        - Must be a predicate node with an expression arg containing column associated with tablename, and some other non-column arg
-        - Or, we're in a subquery
-    If we have a predicate not meeting these conditions, set to exp.true()
-        - This is much simpler than doing surgery on `WHERE AND ...` sort of relics
-        - TODO: is the above true? Maybe simpler to actually fully remove vs. set to true?
-
-    Used with node.transform()
-
-    Args:
-        node: The exp.Where clause we're extracting predicates from
-        tablename: The name of the table whose predicates we keep
-    """
-    if isinstance(node, exp.Where):
-        return node
-    # Don't abstract to `TRUE` if we're in a subquery
-    # This is important!!! Without this, test_multi_table_blendsql.test_simple_multi_exec will fail
-    # Causes difference between `SELECT * FROM portfolio WHERE TRUE AND portfolio.Symbol IN (SELECT Symbol FROM constituents WHERE constituents.Sector = 'Information Technology')`
-    #   and `SELECT * FROM portfolio WHERE TRUE AND portfolio.Symbol IN (SELECT Symbol FROM constituents WHERE TRUE)`
-    if is_in_subquery(node):
-        return node
-    if isinstance(node, exp.Table):
-        if node.name != tablename:
-            return None
-    if isinstance(node, exp.Predicate):
-        # Search for child table, in current view
-        # This below ensures we don't go into subqueries
-        child_table = find_in_scope(node, exp.Table)
-        if child_table is not None and child_table.name != tablename:
-            return None
-        if "this" in node.args:
-            # Need to apply `find` here in case of `LOWER` arg getting in our way
-            this_column = (
-                node.args["this"].find(exp.Column) if "this" in node.args else None
-            )
-            expression_column = (
-                node.args["expression"].find(exp.Column)
-                if "expression" in node.args
-                else None
-            )
-            if this_column is None:
-                return node
-            if this_column.table == tablename:
-                # This is true if we have a subquery as a 2nd arg
-                # Just leave this as-is
-                if "query" in node.args:
-                    return node
-                if expression_column is None:
-                    return node
-                # This is False if we have a `JOIN` (a.colname = b.colname)
-                elif expression_column.table == "":
-                    return node
-            else:
-                # If the expression is a self-contained subquery
-                # 'self-contained' means it starts with its own `SELECT`
-                expression_args = (
-                    node.args["expression"] if "expression" in node.args else None
-                )
-                if expression_args is None:
-                    return node
-                if isinstance(expression_args, exp.Subquery) and expression_args.find(
-                    exp.Select
-                ):
-                    return node
-        return exp.true()
-    return node
-
-
-def get_first_child(node):
-    """
-    Helper function to get first child of a node.
-    The default argument to `walk()` is bfs=True,
-    meaning we do breadth-first search.
-    """
-    gen = node.walk()
-    _ = next(gen)
-    return next(gen)[0]
-
-
-def get_alias_identifiers(node) -> Set[str]:
-    """Given a SQL statement, returns defined aliases.
-    Examples:
-        >>> get_alias_identifiers(_parse_one("SELECT {{LLMMap('year from date', 'w::date')}} AS year FROM w")
-        ['year']
-    """
-    return set([i.find(exp.Identifier).name for i in node.find_all(exp.Alias)])
+from . import _checks as check
+from . import _transforms as transform
+from ._constants import SUBQUERY_EXP
+from ._utils import to_select_star
+from .._logger import logger
 
 
 def get_predicate_literals(node) -> List[str]:
@@ -338,56 +63,14 @@ def get_reversed_subqueries(node):
     Reverses all EXCEPT for CTEs, which should remain in order.
     """
     # First, fetch all common table expressions
-    r = [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if is_in_cte(i)]
+    r = [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if check.in_cte(i)]
     # Then, add (reversed) other subqueries
     return (
         r
-        + [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if not is_in_cte(i)][
-            ::-1
-        ]
+        + [
+            i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if not check.in_cte(i)
+        ][::-1]
     )
-
-
-def replace_subquery_with_direct_alias_call(node, subquery, aliasname):
-    """
-
-    Used with node.transform()
-    """
-    if node == subquery:
-        return exp.Table(this=exp.Identifier(this=aliasname))
-    return node
-
-
-def is_in_cte(node, return_name: bool = False):
-    p = node.parent
-    if p is not None:
-        table_alias = p.find(exp.TableAlias)
-        if table_alias is not None:
-            return (True, table_alias.name) if return_name else True
-    return (False, None) if return_name else False
-
-
-def remove_ctes(node):
-    if isinstance(node, exp.With):
-        return None
-    return node
-
-
-def maybe_set_subqueries_to_true(node):
-    if len([i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,))]) == 1:
-        return node
-    return node.transform(set_subqueries_to_true).transform(prune_empty_where)
-
-
-def check_all_terminals_are_true(node) -> bool:
-    """Check to see if all terminal nodes of a given node are TRUE booleans."""
-    for n, _, _ in node.walk():
-        try:
-            get_first_child(n)
-        except StopIteration:
-            if n != exp.true():
-                return False
-    return True
 
 
 def get_scope_nodes(
@@ -415,32 +98,6 @@ def get_scope_nodes(
             if isinstance(source, nodetype)
         ]:
             yield tablenode
-
-
-def check_ingredients_only_in_top_select(node) -> bool:
-    select_exps = list(node.find_all(exp.Select))
-    if len(select_exps) == 1:
-        # Check if the only `STRUCT` nodes are found in select
-        all_struct_exps = list(node.find_all(exp.Struct))
-        if len(all_struct_exps) > 0:
-            num_select_struct_exps = sum(
-                [
-                    len(list(n.find_all(exp.Struct)))
-                    for n in select_exps[0].find_all(exp.Alias)
-                ]
-            )
-            if num_select_struct_exps == len(all_struct_exps):
-                return True
-    return False
-
-
-def to_select_star(node) -> exp.Expression:
-    """ """
-    select_star_node = copy.deepcopy(node)
-    select_star_node.find(exp.Select).set(
-        "expressions", exp.select("*").args["expressions"]
-    )
-    return select_star_node
 
 
 @attrs
@@ -536,10 +193,12 @@ class SubqueryContextManager:
         #         WHERE "designer ( s )" = 'georgia gerber'"""
         # Below, we need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
         #   E.g. `SELECT A() AS _col_0` should be ignored
-        if check_ingredients_only_in_top_select(self.node) and self.node.find(
+        if check.ingredients_only_in_top_select(self.node) and self.node.find(
             exp.Table
         ):
-            abstracted_query = to_select_star(self.node).transform(set_structs_to_true)
+            abstracted_query = to_select_star(self.node).transform(
+                transform.set_structs_to_true
+            )
             abstracted_query_str = recover_blendsql(
                 abstracted_query.sql(dialect=FTS5SQLite)
             )
@@ -563,10 +222,10 @@ class SubqueryContextManager:
             # So, remove this subquery constraint and run
             if self.prev_subquery_has_ingredient:
                 table_star_query = table_star_query.transform(
-                    maybe_set_subqueries_to_true
+                    transform.maybe_set_subqueries_to_true
                 )
             # Substitute all ingredients with 'TRUE'
-            abstracted_query = table_star_query.transform(set_structs_to_true)
+            abstracted_query = table_star_query.transform(transform.set_structs_to_true)
             # Check here to see if we have no other predicates other than 'WHERE TRUE'
             # There's no point in creating a temporary table in this situation
             where_node = abstracted_query.find(exp.Where)
@@ -575,7 +234,7 @@ class SubqueryContextManager:
                     continue
                 elif isinstance(where_node.args["this"], exp.Column):
                     continue
-                elif check_all_terminals_are_true(where_node):
+                elif check.all_terminals_are_true(where_node):
                     continue
             elif not where_node:
                 continue
@@ -639,7 +298,7 @@ class SubqueryContextManager:
                 curr_alias_to_subquery = {alias.name: subquery_node.args["this"]}
         for tablenode in tablenodes:
             # Check to be sure this is in the top-level `SELECT`
-            if is_in_subquery(tablenode):
+            if check.in_subquery(tablenode):
                 continue
             # Check to see if we have a table alias
             # e.g. `SELECT a FROM table AS w`
@@ -683,11 +342,11 @@ class SubqueryContextManager:
         for table_predicates in get_scope_nodes(
             nodetype=exp.Predicate, root=self.root, restrict_scope=True
         ):
-            if is_in_subquery(table_predicates):
+            if check.in_subquery(table_predicates):
                 continue
             if disambiguate_multi_tables:
                 table_predicates = table_predicates.transform(
-                    extract_multi_table_predicates, tablename=tablename
+                    transform.extract_multi_table_predicates, tablename=tablename
                 )
             if isinstance(table_predicates, exp.Expression):
                 all_table_predicates.append(table_predicates)

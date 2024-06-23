@@ -15,7 +15,6 @@ from typing import (
     Type,
 )
 from collections.abc import Collection, Iterable
-from sqlite3 import OperationalError
 from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
@@ -33,23 +32,18 @@ from .utils import (
 from ._exceptions import InvalidBlendSQL
 from .db import Database, DuckDB
 from .db.utils import double_quote_escape, select_all_from_table_query, LazyTable
-from ._sqlglot import (
-    MODIFIERS,
+from .parse import (
     QueryContextManager,
     SubqueryContextManager,
-    get_first_child,
+    _parse_one,
+    FTS5SQLite,
+    transform,
+    check,
     get_reversed_subqueries,
-    replace_join_with_ingredient_single_ingredient,
-    replace_join_with_ingredient_multiple_ingredient,
-    prune_true_where,
-    prune_with,
-    replace_subquery_with_direct_alias_call,
-    maybe_set_subqueries_to_true,
-    remove_ctes,
-    is_in_cte,
     get_scope_nodes,
+    get_first_child,
 )
-from ._dialect import _parse_one, FTS5SQLite
+from .parse._constants import MODIFIERS
 from .grammars._peg_grammar import grammar
 from .ingredients.ingredient import Ingredient, IngredientException
 from ._smoothie import Smoothie, SmoothieMeta
@@ -307,10 +301,10 @@ def materialize_cte(
     #   `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w`
     #   Should become: `SELECT Symbol FROM w`
     query_context.node = query_context.node.transform(
-        replace_subquery_with_direct_alias_call,
+        transform.replace_subquery_with_direct_alias_call,
         subquery=subquery.parent,
         aliasname=aliasname,
-    ).transform(prune_with)
+    ).transform(transform.prune_with)
     return materialized_cte_df
 
 
@@ -474,7 +468,7 @@ def _blend(
     ):
         # At this point, we should have already handled cte statements and created associated tables
         if subquery.find(exp.With) is not None:
-            subquery = subquery.transform(remove_ctes)
+            subquery = subquery.transform(transform.remove_ctes)
         # Only cache executed_ingredients within the same subquery
         # The same ingredient may have different results within a different subquery context
         executed_subquery_ingredients: Set[str] = set()
@@ -502,7 +496,7 @@ def _blend(
         else:
             subquery_str = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
 
-        in_cte, table_alias_name = is_in_cte(subquery, return_name=True)
+        in_cte, table_alias_name = check.in_cte(subquery, return_name=True)
         scm = SubqueryContextManager(
             node=_parse_one(
                 subquery_str
@@ -574,7 +568,7 @@ def _blend(
                         df=abstracted_df,
                         tablename=_get_temp_subquery_table(tablename),
                     )
-                except OperationalError as e:
+                except Exception as e:
                     # Fallback to naive execution
                     logger.debug(Fore.RED + str(e) + Fore.RESET)
                     logger.debug(
@@ -604,7 +598,7 @@ def _blend(
                 )
             )
         if prev_subquery_has_ingredient:
-            scm.set_node(scm.node.transform(maybe_set_subqueries_to_true))
+            scm.set_node(scm.node.transform(transform.maybe_set_subqueries_to_true))
 
         # lazy_limit: Union[int, None] = scm.get_lazy_limit()
         # After above processing of AST, sync back to string repr
@@ -745,7 +739,7 @@ def _blend(
                     #   we need to keep. So we get:
                     temp_uuid = str(uuid.uuid4())
                     query_context.node = query_context.node.transform(
-                        replace_join_with_ingredient_multiple_ingredient,
+                        transform.replace_join_with_ingredient_multiple_ingredient,
                         ingredient_name=parsed_results_dict["ingredient_aliasname"],
                         ingredient_alias=alias_function_str,
                         temp_uuid=temp_uuid,
@@ -763,7 +757,7 @@ def _blend(
                     # TODO: since we're not removing predicates in other areas, probably not best to do it here.
                     #   Should probably modify in the future.
                     query_context.node = query_context.node.transform(
-                        replace_join_with_ingredient_single_ingredient,
+                        transform.replace_join_with_ingredient_single_ingredient,
                         ingredient_name=parsed_results_dict["ingredient_aliasname"],
                         ingredient_alias=alias_function_str,
                     )
