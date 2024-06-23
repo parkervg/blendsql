@@ -184,9 +184,7 @@ class SubqueryContextManager:
         if self.node.find(exp.Case):
             return
         # Special condition: If...
-        #   1) We have a `JOIN` clause
-        #   2) We *only* have an ingredient in the top-level `SELECT` clause
-        #   3) Our ingredients *only* call a single table
+        #   1) We *only* have an ingredient in the top-level `SELECT` clause
         # ... then we should execute entire rest of SQL first and assign to temporary session table.
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
         #         FROM images JOIN w ON w.title = images.title
