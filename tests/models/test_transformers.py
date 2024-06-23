@@ -95,3 +95,22 @@ def test_llmqa(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
+
+
+@pytest.mark.long
+def test_llmqa_with_string(db, model, ingredients):
+    res = blend(
+        query="""
+        SELECT * FROM w
+        WHERE {{
+              LLMMap(
+                  'Direction of district?',
+                  'w::rival'
+              )
+          }} = 'northern'
+        """,
+        db=db,
+        default_model=model,
+        ingredients=ingredients,
+    )
+    assert isinstance(res, Smoothie)

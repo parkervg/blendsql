@@ -598,5 +598,54 @@ def test_apply_limit_with_predicate(db, ingredients):
     assert smoothie.meta.num_values_passed <= passed_to_ingredient
 
 
+@pytest.mark.parametrize("db", databases)
+def test_where_with_true(db, ingredients):
+    """Makes sure we don't ignore `{column} = TRUE` SQL clauses."""
+    blendsql = """
+    WITH a AS (
+        SELECT LENGTH(merchant) = 5 AS b, merchant FROM transactions 
+    )
+    SELECT merchant FROM a WHERE a.b = TRUE AND {{starts_with('Z', 'a::merchant')}} 
+    """
+    sql = """
+    WITH a AS (
+        SELECT LENGTH(merchant) = 5 AS b, merchant FROM transactions 
+    )
+    SELECT merchant FROM a WHERE a.b = TRUE AND a.merchant LIKE 'Z%'
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT merchant) FROM transactions WHERE LENGTH(merchant) = 5
+    """
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
+
+
+@pytest.mark.parametrize("db", databases)
+def test_where_in_clause(db, ingredients):
+    """Makes sure we don't ignore `{column} = TRUE` SQL clauses."""
+    blendsql = """
+    SELECT merchant FROM transactions WHERE merchant IN (SELECT merchant FROM transactions WHERE {{starts_with('Z', 'transactions::merchant')}})
+    """
+    sql = """
+    SELECT merchant FROM transactions WHERE merchant IN (SELECT merchant FROM transactions WHERE merchant LIKE 'Z%')
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
 if __name__ == "__main__":
     pytest.main()
