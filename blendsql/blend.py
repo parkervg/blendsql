@@ -31,7 +31,7 @@ from .utils import (
     get_tablename_colname,
 )
 from ._exceptions import InvalidBlendSQL
-from .db import Database
+from .db import Database, DuckDB
 from .db.utils import double_quote_escape, select_all_from_table_query, LazyTable
 from ._sqlglot import (
     MODIFIERS,
@@ -237,6 +237,12 @@ def preprocess_blendsql(query: str, default_model: Model) -> Tuple[str, dict, se
             # maybe if I was better at pp.Suppress we wouldn't need this
             kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
             kwargs_dict[IngredientKwarg.MODEL] = default_model
+            # Heuristic check to see if we should snag the singleton arg as context
+            if (
+                len(parsed_results_dict["args"]) == 1
+                and "::" in parsed_results_dict["args"][0]
+            ):
+                kwargs_dict[IngredientKwarg.CONTEXT] = parsed_results_dict["args"].pop()
             context_arg = kwargs_dict.get(
                 IngredientKwarg.CONTEXT,
                 (
@@ -547,8 +553,25 @@ def _blend(
                     + Fore.RESET
                 )
                 try:
+                    abstracted_df = db.execute_to_df(abstracted_query)
+                    if isinstance(db, DuckDB):
+                        set_of_column_names = set(
+                            i.strip('"') for i in schema[f'"{tablename}"']
+                        )
+                        # In case of a join, duckdb formats columns with 'column_1'
+                        # But some columns (e.g. 'parent_category') just have underscores in them already
+                        abstracted_df = abstracted_df.rename(
+                            columns=lambda x: re.sub(r"_\d$", "", x)
+                            if x not in set_of_column_names  # noqa: B023
+                            else x
+                        )
+                    # In case of a join, we could have duplicate column names in our pandas dataframe
+                    # This will throw an error when we try to write to the database
+                    abstracted_df = abstracted_df.loc[
+                        :, ~abstracted_df.columns.duplicated()
+                    ]
                     db.to_temp_table(
-                        df=db.execute_to_df(abstracted_query),
+                        df=abstracted_df,
                         tablename=_get_temp_subquery_table(tablename),
                     )
                 except OperationalError as e:
@@ -622,12 +645,7 @@ def _blend(
 
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
-            # Heuristic check to see if we should snag the singleton arg as context
-            if (
-                len(parsed_results_dict["args"]) == 1
-                and "::" in parsed_results_dict["args"][0]
-            ):
-                kwargs_dict[IngredientKwarg.CONTEXT] = parsed_results_dict["args"].pop()
+
             # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
             for i, unpack_kwarg in enumerate(

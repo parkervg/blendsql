@@ -90,7 +90,7 @@ def test_join_multi_exec(db, ingredients):
         LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
         WHERE constituents.Sector = 'Information Technology'
         AND {{starts_with('A', 'constituents::Name')}} = 1
-        AND lower(account_history.Action) like '%dividend%'
+        AND lower(LOWER(account_history.Action)) like '%dividend%'
         ORDER BY "Total Dividend Payout ($$)"
         """
     sql = """
@@ -99,7 +99,7 @@ def test_join_multi_exec(db, ingredients):
         LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
         WHERE constituents.Sector = 'Information Technology'
         AND constituents.Name LIKE 'A%'
-        AND lower(account_history.Action) like '%dividend%'
+        AND lower(LOWER(account_history.Action)) like '%dividend%'
         ORDER BY "Total Dividend Payout ($$)"
     """
     smoothie = blend(
@@ -165,7 +165,7 @@ def test_select_multi_exec(db, ingredients):
         FROM account_history
         LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
         WHERE constituents.Sector = {{select_first_sorted(options='constituents::Sector')}}
-        AND lower(account_history.Action) like '%dividend%'
+        AND lower(LOWER(account_history.Action)) like '%dividend%'
     """
     sql = """
     SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
@@ -175,7 +175,7 @@ def test_select_multi_exec(db, ingredients):
             SELECT Sector FROM constituents
             ORDER BY Sector LIMIT 1
         )
-        AND lower(account_history.Action) like '%dividend%'
+        AND lower(LOWER(account_history.Action)) like '%dividend%'
     """
     smoothie = blend(
         query=blendsql,
@@ -457,13 +457,13 @@ def test_ingredient_in_select_with_join_multi_exec(db, ingredients):
     blendsql = """
     SELECT {{get_length('n_length', 'constituents::Name')}}
         FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
-        WHERE account_history.Action like '%dividend%'
+        WHERE LOWER(account_history.Action) like '%dividend%'
         ORDER BY constituents.Name
     """
     sql = """
     SELECT LENGTH(constituents.Name)
         FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
-        WHERE account_history.Action like '%dividend%'
+        WHERE LOWER(account_history.Action) like '%dividend%'
         ORDER BY constituents.Name
     """
     smoothie = blend(
@@ -478,7 +478,7 @@ def test_ingredient_in_select_with_join_multi_exec(db, ingredients):
         """
     SELECT COUNT(DISTINCT constituents.Name)
     FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
-    WHERE account_history.Action like '%dividend%'
+    WHERE LOWER(account_history.Action) like '%dividend%'
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient
@@ -493,12 +493,12 @@ def test_ingredient_in_select_with_join_multi_select_multi_exec(db, ingredients)
     blendsql = """
     SELECT {{get_length('n_length', 'constituents::Name')}}, Action
         FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
-        WHERE Action like '%dividend%'
+        WHERE LOWER(Action) like '%dividend%'
     """
     sql = """
     SELECT LENGTH(constituents.Name), Action
         FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
-        WHERE Action like '%dividend%'
+        WHERE LOWER(Action) like '%dividend%'
     """
     smoothie = blend(
         query=blendsql,
@@ -512,7 +512,7 @@ def test_ingredient_in_select_with_join_multi_select_multi_exec(db, ingredients)
         """
     SELECT COUNT(DISTINCT constituents.Name)
     FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
-    WHERE account_history.Action like '%dividend%'
+    WHERE LOWER(account_history.Action) like '%dividend%'
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient

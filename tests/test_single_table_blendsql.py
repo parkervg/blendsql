@@ -551,5 +551,52 @@ def test_query_options_arg(db, ingredients):
     assert smoothie.df.values.flat[0] == "Paypal"
 
 
+@pytest.mark.parametrize("db", databases)
+def test_apply_limit(db, ingredients):
+    # commit 335c67a
+    blendsql = """
+    SELECT {{get_length('length', 'transactions::merchant')}} FROM transactions ORDER BY merchant LIMIT 1
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    assert smoothie.meta.num_values_passed == 1
+
+
+@pytest.mark.parametrize("db", databases)
+def test_apply_limit_with_predicate(db, ingredients):
+    # commit 335c67a
+    blendsql = """
+    SELECT {{get_length('length', 'transactions::merchant')}} 
+    FROM transactions 
+    WHERE amount > 1300
+    ORDER BY merchant LIMIT 3
+    """
+    sql = """
+    SELECT LENGTH(merchant)
+    FROM transactions 
+    WHERE amount > 1300
+    ORDER BY merchant LIMIT 3
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT merchant) FROM transactions WHERE amount > 1300 LIMIT 3    """
+    )[0]
+    # We say `<=` here because the ingredient operates over sets, rather than lists
+    # So this kind of screws up the `LIMIT` calculation
+    # But execution outputs should be the same (tested above)
+    assert smoothie.meta.num_values_passed <= passed_to_ingredient
+
+
 if __name__ == "__main__":
     pytest.main()

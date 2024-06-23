@@ -1,3 +1,5 @@
+import copy
+
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
@@ -31,14 +33,6 @@ sqlglot.optimizer.simplify looks interesting
 """
 
 SUBQUERY_EXP = (exp.Select,)
-CONDITIONS = (
-    exp.Where,
-    exp.Group,
-    # IMPORTANT: If we uncomment limit, then `test_limit` in `test_single_table_blendsql.py` will not pass
-    # exp.Limit,
-    exp.Except,
-    exp.Order,
-)
 MODIFIERS = (
     exp.Delete,
     exp.AlterColumn,
@@ -385,7 +379,7 @@ def maybe_set_subqueries_to_true(node):
     return node.transform(set_subqueries_to_true).transform(prune_empty_where)
 
 
-def all_terminals_are_true(node) -> bool:
+def check_all_terminals_are_true(node) -> bool:
     """Check to see if all terminal nodes of a given node are TRUE booleans."""
     for n, _, _ in node.walk():
         try:
@@ -421,6 +415,32 @@ def get_scope_nodes(
             if isinstance(source, nodetype)
         ]:
             yield tablenode
+
+
+def check_ingredients_only_in_top_select(node) -> bool:
+    select_exps = list(node.find_all(exp.Select))
+    if len(select_exps) == 1:
+        # Check if the only `STRUCT` nodes are found in select
+        all_struct_exps = list(node.find_all(exp.Struct))
+        if len(all_struct_exps) > 0:
+            num_select_struct_exps = sum(
+                [
+                    len(list(n.find_all(exp.Struct)))
+                    for n in select_exps[0].find_all(exp.Alias)
+                ]
+            )
+            if num_select_struct_exps == len(all_struct_exps):
+                return True
+    return False
+
+
+def to_select_star(node) -> exp.Expression:
+    """ """
+    select_star_node = copy.deepcopy(node)
+    select_star_node.find(exp.Select).set(
+        "expressions", exp.select("*").args["expressions"]
+    )
+    return select_star_node
 
 
 @attrs
@@ -514,40 +534,18 @@ class SubqueryContextManager:
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
         #         FROM images JOIN w ON w.title = images.title
         #         WHERE "designer ( s )" = 'georgia gerber'"""
-        join_exp = self.node.find(exp.Join)
-        if join_exp is not None:
-            select_exps = list(self.node.find_all(exp.Select))
-            if len(select_exps) == 1:
-                # Check if the only `STRUCT` nodes are found in select
-                all_struct_exps = list(self.node.find_all(exp.Struct))
-                if len(all_struct_exps) > 0:
-                    num_select_struct_exps = sum(
-                        [
-                            len(list(n.find_all(exp.Struct)))
-                            for n in select_exps[0].find_all(exp.Alias)
-                        ]
-                    )
-                    if num_select_struct_exps == len(all_struct_exps):
-                        if len(self.tables_in_ingredients) == 1:
-                            tablename = next(iter(self.tables_in_ingredients))
-                            join_tablename = set(
-                                [i.name for i in self.node.find_all(exp.Table)]
-                            ).difference({tablename})
-                            if len(join_tablename) == 1:
-                                join_tablename = next(iter(join_tablename))
-                                base_select_str = f'SELECT "{tablename}".* FROM "{tablename}", {join_tablename} WHERE '
-                                table_conditions_str = self.get_table_predicates_str(
-                                    tablename=tablename,
-                                    disambiguate_multi_tables=False,
-                                )
-                                abstracted_query = _parse_one(
-                                    base_select_str + table_conditions_str
-                                )
-                                abstracted_query_str = recover_blendsql(
-                                    abstracted_query.sql(dialect=FTS5SQLite)
-                                )
-                                yield (tablename, abstracted_query_str)
-                                return
+        # Below, we need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
+        #   E.g. `SELECT A() AS _col_0` should be ignored
+        if check_ingredients_only_in_top_select(self.node) and self.node.find(
+            exp.Table
+        ):
+            abstracted_query = to_select_star(self.node).transform(set_structs_to_true)
+            abstracted_query_str = recover_blendsql(
+                abstracted_query.sql(dialect=FTS5SQLite)
+            )
+            for tablename in self.tables_in_ingredients:
+                yield (tablename, abstracted_query_str)
+            return
         for tablename, table_star_query in self._table_star_queries():
             # If this table_star_query doesn't have an ingredient at the top-level, we can safely ignore
             if (
@@ -577,7 +575,7 @@ class SubqueryContextManager:
                     continue
                 elif isinstance(where_node.args["this"], exp.Column):
                     continue
-                elif all_terminals_are_true(where_node):
+                elif check_all_terminals_are_true(where_node):
                     continue
             elif not where_node:
                 continue
