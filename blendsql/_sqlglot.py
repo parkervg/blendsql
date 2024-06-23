@@ -534,40 +534,18 @@ class SubqueryContextManager:
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
         #         FROM images JOIN w ON w.title = images.title
         #         WHERE "designer ( s )" = 'georgia gerber'"""
-        if check_ingredients_only_in_top_select(self.node):
-            tablenames = [i.name for i in self.node.find_all(exp.Table)]
-            if len(tablenames) > 1:
-                join_exp = self.node.find(exp.Join)
-                assert join_exp is not None
-                if len(self.tables_in_ingredients) == 1:
-                    tablename = next(iter(self.tables_in_ingredients))
-                    join_tablename = set(
-                        [i.name for i in self.node.find_all(exp.Table)]
-                    ).difference({tablename})
-                    if len(join_tablename) == 1:
-                        join_tablename = next(iter(join_tablename))
-                        base_select_str = f'SELECT "{tablename}".* FROM "{tablename}", {join_tablename} WHERE '
-                        table_conditions_str = self.get_table_predicates_str(
-                            tablename=tablename,
-                            disambiguate_multi_tables=False,
-                        )
-                        abstracted_query = _parse_one(
-                            base_select_str + table_conditions_str
-                        )
-                        abstracted_query_str = recover_blendsql(
-                            abstracted_query.sql(dialect=FTS5SQLite)
-                        )
-                        yield (tablename, abstracted_query_str)
-                        return
-            elif len(tablenames) == 1:
-                abstracted_query = to_select_star(self.node).transform(
-                    set_structs_to_true
-                )
-                abstracted_query_str = recover_blendsql(
-                    abstracted_query.sql(dialect=FTS5SQLite)
-                )
-                yield (tablenames.pop(), abstracted_query_str)
-
+        # Below, we need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
+        #   E.g. `SELECT A() AS _col_0` should be ignored
+        if check_ingredients_only_in_top_select(self.node) and self.node.find(
+            exp.Table
+        ):
+            abstracted_query = to_select_star(self.node).transform(set_structs_to_true)
+            abstracted_query_str = recover_blendsql(
+                abstracted_query.sql(dialect=FTS5SQLite)
+            )
+            for tablename in self.tables_in_ingredients:
+                yield (tablename, abstracted_query_str)
+            return
         for tablename, table_star_query in self._table_star_queries():
             # If this table_star_query doesn't have an ingredient at the top-level, we can safely ignore
             if (
