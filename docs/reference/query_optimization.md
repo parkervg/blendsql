@@ -2,13 +2,14 @@
 hide:
   - toc
 ---
-### Query Optimization
+### QueryContextManager
 
-::: blendsql._sqlglot.QueryContextManager
+::: blendsql.parse._parse.QueryContextManager
     handler: python
     show_source: true
 
-::: blendsql._sqlglot.SubqueryContextManager
+### SubqueryContextManager
+:::blendsql.parse._parse.SubqueryContextManager
     handler: python
     show_source: true
     options:
