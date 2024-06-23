@@ -1,5 +1,4 @@
 import importlib.util
-from outlines.models.llamacpp import llamacpp
 
 from .._model import LocalModel, ModelObj
 from typing import Optional
@@ -56,6 +55,8 @@ class LlamaCppLLM(LocalModel):
         )
 
     def _load_model(self, filename: str) -> ModelObj:
+        from outlines.models.llamacpp import llamacpp
+
         return llamacpp(
             self.model_name_or_path,
             filename=filename,

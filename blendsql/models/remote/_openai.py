@@ -1,6 +1,6 @@
 import os
 import importlib.util
-from outlines.models.openai import openai, azure_openai, OpenAIConfig
+from outlines.models.openai import OpenAIConfig
 
 from .._model import RemoteModel, ModelObj
 from typing import Optional
@@ -104,6 +104,8 @@ class AzureOpenaiLLM(RemoteModel):
         )
 
     def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
+        from outlines.models.openai import azure_openai
+
         return azure_openai(
             self.model_name_or_path,
             config=config,
@@ -171,6 +173,8 @@ class OpenaiLLM(RemoteModel):
         )
 
     def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
+        from outlines.models.openai import openai
+
         return openai(
             self.model_name_or_path, config=config, api_key=os.getenv("OPENAI_API_KEY")
         )  # type: ignore
