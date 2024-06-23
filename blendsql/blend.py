@@ -31,7 +31,7 @@ from .utils import (
     get_tablename_colname,
 )
 from ._exceptions import InvalidBlendSQL
-from .db import Database
+from .db import Database, DuckDB
 from .db.utils import double_quote_escape, select_all_from_table_query, LazyTable
 from ._sqlglot import (
     MODIFIERS,
@@ -553,8 +553,25 @@ def _blend(
                     + Fore.RESET
                 )
                 try:
+                    abstracted_df = db.execute_to_df(abstracted_query)
+                    if isinstance(db, DuckDB):
+                        set_of_column_names = set(
+                            i.strip('"') for i in schema[f'"{tablename}"']
+                        )
+                        # In case of a join, duckdb formats columns with 'column_1'
+                        # But some columns (e.g. 'parent_category') just have underscores in them already
+                        abstracted_df = abstracted_df.rename(
+                            columns=lambda x: re.sub(r"_\d$", "", x)
+                            if x not in set_of_column_names  # noqa: B023
+                            else x
+                        )
+                    # In case of a join, we could have duplicate column names in our pandas dataframe
+                    # This will throw an error when we try to write to the database
+                    abstracted_df = abstracted_df.loc[
+                        :, ~abstracted_df.columns.duplicated()
+                    ]
                     db.to_temp_table(
-                        df=db.execute_to_df(abstracted_query),
+                        df=abstracted_df,
                         tablename=_get_temp_subquery_table(tablename),
                     )
                 except OperationalError as e:
