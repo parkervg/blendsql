@@ -154,7 +154,7 @@ class SubqueryContextManager:
         self.node = node
         self._reset_root()
 
-    def abstracted_table_selects(self) -> Generator[Tuple[str, str], None, None]:
+    def abstracted_table_selects(self) -> Generator[Tuple[str, bool, str], None, None]:
         """For each table in a given query, generates a `SELECT *` query where all unneeded predicates
         are set to `TRUE`.
         We say `unneeded` in the sense that to minimize the data that gets passed to an ingredient,
@@ -164,7 +164,8 @@ class SubqueryContextManager:
             node: exp.Select node from which to construct abstracted versions of queries for each table.
 
         Returns:
-            abstracted_queries: Generator with (tablename, exp.Select, alias_to_table). The exp.Select is the abstracted query.
+            abstracted_queries: Generator with (tablename, postprocess_columns, abstracted_query_str).
+            postprocess_columns tells us if we potentially executed a query with a `JOIN`, and need to apply some extra post-processing.
 
         Examples:
             ```python
@@ -201,7 +202,7 @@ class SubqueryContextManager:
                 abstracted_query.sql(dialect=FTS5SQLite)
             )
             for tablename in self.tables_in_ingredients:
-                yield (tablename, abstracted_query_str)
+                yield (tablename, True, abstracted_query_str)
             return
         for tablename, table_star_query in self._table_star_queries():
             # If this table_star_query doesn't have an ingredient at the top-level, we can safely ignore
@@ -239,7 +240,7 @@ class SubqueryContextManager:
             abstracted_query_str = recover_blendsql(
                 abstracted_query.sql(dialect=FTS5SQLite)
             )
-            yield (tablename, abstracted_query_str)
+            yield (tablename, False, abstracted_query_str)
 
     def _table_star_queries(
         self,

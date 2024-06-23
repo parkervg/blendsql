@@ -505,7 +505,11 @@ def _blend(
             alias_to_subquery={table_alias_name: subquery} if in_cte else {},
             tables_in_ingredients=tables_in_ingredients,
         )
-        for tablename, abstracted_query in scm.abstracted_table_selects():
+        for (
+            tablename,
+            postprocess_columns,
+            abstracted_query_str,
+        ) in scm.abstracted_table_selects():
             # If this table isn't being used in any ingredient calls, there's no
             #   need to create a temporary session table
             if (tablename not in tables_in_ingredients) and (
@@ -538,32 +542,33 @@ def _blend(
                         ),
                     )
                 )
-            if abstracted_query is not None:
+            if abstracted_query_str is not None:
                 if tablename in db.lazy_tables:
                     db.lazy_tables.pop(tablename).collect()
                 logger.debug(
                     Fore.CYAN
-                    + f"Executing `{abstracted_query}` and setting to `{_get_temp_subquery_table(tablename)}`..."
+                    + f"Executing `{abstracted_query_str}` and setting to `{_get_temp_subquery_table(tablename)}`..."
                     + Fore.RESET
                 )
                 try:
-                    abstracted_df = db.execute_to_df(abstracted_query)
-                    if isinstance(db, DuckDB):
-                        set_of_column_names = set(
-                            i.strip('"') for i in schema[f'"{tablename}"']
-                        )
-                        # In case of a join, duckdb formats columns with 'column_1'
-                        # But some columns (e.g. 'parent_category') just have underscores in them already
-                        abstracted_df = abstracted_df.rename(
-                            columns=lambda x: re.sub(r"_\d$", "", x)
-                            if x not in set_of_column_names  # noqa: B023
-                            else x
-                        )
-                    # In case of a join, we could have duplicate column names in our pandas dataframe
-                    # This will throw an error when we try to write to the database
-                    abstracted_df = abstracted_df.loc[
-                        :, ~abstracted_df.columns.duplicated()
-                    ]
+                    abstracted_df = db.execute_to_df(abstracted_query_str)
+                    if postprocess_columns:
+                        if isinstance(db, DuckDB):
+                            set_of_column_names = set(
+                                i.strip('"') for i in schema[f'"{tablename}"']
+                            )
+                            # In case of a join, duckdb formats columns with 'column_1'
+                            # But some columns (e.g. 'parent_category') just have underscores in them already
+                            abstracted_df = abstracted_df.rename(
+                                columns=lambda x: re.sub(r"_\d$", "", x)
+                                if x not in set_of_column_names  # noqa: B023
+                                else x
+                            )
+                        # In case of a join, we could have duplicate column names in our pandas dataframe
+                        # This will throw an error when we try to write to the database
+                        abstracted_df = abstracted_df.loc[
+                            :, ~abstracted_df.columns.duplicated()
+                        ]
                     db.to_temp_table(
                         df=abstracted_df,
                         tablename=_get_temp_subquery_table(tablename),
