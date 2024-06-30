@@ -117,7 +117,7 @@ class MapProgram(Program):
             prompt += f"\nHere are some example outputs: {example_outputs}\n"
         prompt += "\nA:"
         if isinstance(model, LocalModel) and regex is not None:
-            response = generate.regex(model, prompt=prompt, pattern=regex(len(values)))
+            response = generate.regex(model, prompt=prompt, regex=regex(len(values)))
         else:
             response = generate.text(
                 model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
@@ -139,7 +139,7 @@ class LLMMap(MapIngredient):
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
         output_type: Optional[str] = None,
-        pattern: Optional[str] = None,
+        regex: Optional[str] = None,
         table_to_title: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Iterable[Any]:
@@ -152,7 +152,7 @@ class LLMMap(MapIngredient):
             value_limit: Optional limit on the number of values to pass to the Model
             example_outputs: If binary == False, this gives the Model an example of the output we expect.
             output_type: One of 'numeric', 'string', 'bool'
-            pattern: Optional regex to constrain answer generation.
+            regex: Optional regex to constrain answer generation.
             table_to_title: Mapping from tablename to a title providing some more context.
 
         Returns:
@@ -165,7 +165,7 @@ class LLMMap(MapIngredient):
         # Unpack default kwargs
         tablename, colname = self.unpack_default_kwargs(**kwargs)
         # Remote endpoints can't use patterns
-        pattern = None if isinstance(model, RemoteModel) else pattern
+        regex = None if isinstance(model, RemoteModel) else regex
         if value_limit is not None:
             values = values[:value_limit]
         values = [value if not pd.isna(value) else "-" for value in values]
@@ -207,7 +207,7 @@ class LLMMap(MapIngredient):
                 output_type=output_type,
                 include_tf_disclaimer=include_tf_disclaimer,
                 table_title=table_title,
-                regex=pattern,
+                regex=regex,
                 max_tokens=max_tokens,
                 **kwargs,
             )
@@ -259,7 +259,7 @@ class LLMMap(MapIngredient):
                 continue
         logger.debug(
             Fore.YELLOW
-            + f"Finished with values:\n{json.dumps(dict(zip(values[:10], split_results[:10])), indent=4)}"
+            + f"Finished LLMMap with values:\n{json.dumps(dict(zip(values[:10], split_results[:10])), indent=4)}"
             + Fore.RESET
         )
         return split_results
