@@ -27,4 +27,5 @@ class IngredientKwarg:
     CONTEXT: str = "context"
     VALUES: str = "values"
     OPTIONS: str = "options"
+    REGEX: str = "regex"
     MODEL: str = "model"
