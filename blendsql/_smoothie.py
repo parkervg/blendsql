@@ -37,7 +37,9 @@ class Smoothie:
         self.df = PrettyDataFrame(self.df)
 
     def summary(self):
-        return tabulate(
+        s = "---------------- SUMMARY ----------------\n"
+        s += self.meta.query + "\n"
+        s += tabulate(
             pd.DataFrame(
                 {
                     "Time (s)": self.meta.process_time_seconds,
@@ -48,3 +50,4 @@ class Smoothie:
                 index=[0],
             )
         )
+        return s
