@@ -18,7 +18,7 @@ from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
 from ..utils import recover_blendsql
-from .._constants import DEFAULT_ANS_SEP, DEFAULT_NAN_ANS
+from .._constants import DEFAULT_ANS_SEP, DEFAULT_NAN_ANS, IngredientKwarg
 from ._dialect import _parse_one, FTS5SQLite
 from . import _checks as check
 from . import _transforms as transform
@@ -381,31 +381,31 @@ class SubqueryContextManager:
                 - output_type
                     - 'boolean' | 'integer' | 'float' | 'string'
 
-                - pattern: regular expression pattern lambda to use in constrained decoding with Model
-                    - See `create_pattern` for more info on these pattern lambdas
+                - regex: regular expression pattern lambda to use in constrained decoding with Model
+                    - See `create_regex` for more info on these regex lambdas
 
                 - options: Optional str default to pass to `options` argument in a QAIngredient
                     - Will have the form '{table}::{column}'
         """
 
-        def create_pattern(
+        def create_regex(
             output_type: Literal["boolean", "integer", "float"]
         ) -> Callable[[int], str]:
-            """Helper function to create a pattern lambda.
-            These pattern lambdas take an integer (num_repeats) and return
-            a regex pattern which is restricted to repeat exclusively num_repeats times.
+            """Helper function to create a regex lambda.
+            These regex lambdas take an integer (num_repeats) and return
+            a regex regex which is restricted to repeat exclusively num_repeats times.
             """
             if output_type == "boolean":
-                base_pattern = f"((t|f|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+                base_regex = f"((t|f|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
             elif output_type == "integer":
                 # SQLite max is 18446744073709551615
                 # This is 20 digits long, so to be safe, cap the generation at 19
-                base_pattern = r"((\d{1,18}" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+                base_regex = r"((\d{1,18}" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
             elif output_type == "float":
-                base_pattern = r"(((\d|\.)+" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+                base_regex = r"(((\d|\.)+" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
             else:
                 raise ValueError(f"Unknown output_type {output_type}")
-            return lambda num_repeats: base_pattern + "{" + str(num_repeats) + "}"
+            return lambda num_repeats: base_regex + "{" + str(num_repeats) + "}"
 
         added_kwargs: Dict[str, Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end])
@@ -461,10 +461,10 @@ class SubqueryContextManager:
         elif isinstance(
             ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
         ):
-            output_type = "float"  # Use 'float' as default numeric pattern, since it's more expressive than 'integer'
+            output_type = "float"  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
         if output_type is not None:
             added_kwargs["output_type"] = output_type
-            added_kwargs["pattern"] = create_pattern(output_type)
+            added_kwargs[IngredientKwarg.REGEX] = create_regex(output_type)
         return added_kwargs
 
     def sql(self, dialect: sqlglot.dialects.Dialect = FTS5SQLite):
