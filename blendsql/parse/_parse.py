@@ -165,7 +165,7 @@ class SubqueryContextManager:
 
         Returns:
             abstracted_queries: Generator with (tablename, postprocess_columns, abstracted_query_str).
-            postprocess_columns tells us if we potentially executed a query with a `JOIN`, and need to apply some extra post-processing.
+                postprocess_columns tells us if we potentially executed a query with a `JOIN`, and need to apply some extra post-processing.
 
         Examples:
             ```python
@@ -178,7 +178,7 @@ class SubqueryContextManager:
             ```
             Returns:
             ```text
-            ('transactions', 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
+            ('transactions', False, 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
             ```
         """
         # TODO: don't really know how to optimize with 'CASE' queries right now
@@ -192,8 +192,10 @@ class SubqueryContextManager:
         #         WHERE "designer ( s )" = 'georgia gerber'"""
         # Below, we need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
         #   E.g. `SELECT A() AS _col_0` should be ignored
-        if check.ingredients_only_in_top_select(self.node) and self.node.find(
-            exp.Table
+        if (
+            self.node.find(exp.Table)
+            and check.ingredients_only_in_top_select(self.node)
+            and not check.ingredient_alias_in_query_body(self.node)
         ):
             abstracted_query = to_select_star(self.node).transform(
                 transform.set_structs_to_true
@@ -398,9 +400,9 @@ class SubqueryContextManager:
             elif output_type == "integer":
                 # SQLite max is 18446744073709551615
                 # This is 20 digits long, so to be safe, cap the generation at 19
-                base_pattern = "((\d{1,18}" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+                base_pattern = r"((\d{1,18}" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
             elif output_type == "float":
-                base_pattern = f"(((\d|\.)+|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+                base_pattern = r"(((\d|\.)+" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
             else:
                 raise ValueError(f"Unknown output_type {output_type}")
             return lambda num_repeats: base_pattern + "{" + str(num_repeats) + "}"
