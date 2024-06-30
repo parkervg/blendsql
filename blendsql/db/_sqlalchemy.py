@@ -125,7 +125,7 @@ class SQLAlchemyDatabase(Database):
         create_table_stmt = re.sub(
             r"^CREATE TABLE", "CREATE TEMP TABLE", create_table_stmt
         )
-        logger.debug(Fore.CYAN + create_table_stmt + Fore.RESET)
+        logger.debug(Fore.LIGHTBLACK_EX + create_table_stmt + Fore.RESET)
         self.con.execute(text(create_table_stmt))
         df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
