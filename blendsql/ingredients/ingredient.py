@@ -172,7 +172,7 @@ class MapIngredient(Ingredient):
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
 
-        if options:
+        if options is not None:
             # Override any pattern with our new unpacked options
             unpacked_options = unpack_options(
                 options=options, aliases_to_tablenames=aliases_to_tablenames, db=self.db
@@ -408,12 +408,14 @@ class QAIngredient(Ingredient):
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
 
-        unpacked_options = unpack_options(
-            options=options, aliases_to_tablenames=aliases_to_tablenames, db=self.db
-        )
+        if options is not None:
+            kwargs[IngredientKwarg.OPTIONS] = unpack_options(
+                options=options, aliases_to_tablenames=aliases_to_tablenames, db=self.db
+            )
+        else:
+            kwargs[IngredientKwarg.OPTIONS] = None
 
         self.num_values_passed += len(subtable) if subtable is not None else 0
-        kwargs[IngredientKwarg.OPTIONS] = unpacked_options
         kwargs[IngredientKwarg.CONTEXT] = subtable
         kwargs[IngredientKwarg.QUESTION] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)
