@@ -35,3 +35,19 @@ class Smoothie:
 
     def __post_init__(self):
         self.df = PrettyDataFrame(self.df)
+
+    def summary(self):
+        s = "---------------- SUMMARY ----------------\n"
+        s += self.meta.query + "\n"
+        s += tabulate(
+            pd.DataFrame(
+                {
+                    "Time (s)": self.meta.process_time_seconds,
+                    "Values Passed to Ingredients": self.meta.num_values_passed,
+                    "Prompt Tokens": self.meta.prompt_tokens,
+                    "Completion Tokens": self.meta.completion_tokens,
+                },
+                index=[0],
+            )
+        )
+        return s

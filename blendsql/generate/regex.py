@@ -9,11 +9,11 @@ from ..models import Model, OllamaLLM
 def regex(
     model: Model,
     prompt: str,
-    pattern: str,
+    regex: str,
     max_tokens: Optional[int] = None,
     stop_at: Optional[Union[List[str], str]] = None,
 ) -> str:
-    generator = outlines.generate.regex(model.model_obj, regex_str=pattern)
+    generator = outlines.generate.regex(model.model_obj, regex_str=regex)
     return generator(prompt, max_tokens=max_tokens, stop_at=stop_at)
 
 

@@ -21,7 +21,7 @@ from sqlglot import exp
 from colorama import Fore
 import string
 
-from ._logger import logger, msg_box
+from ._logger import logger
 from .utils import (
     sub_tablename,
     get_temp_session_table,
@@ -374,7 +374,7 @@ def disambiguate_and_submit_blend(
     for alias, d in ingredient_alias_to_parsed_dict.items():
         query = re.sub(re.escape(alias), d["raw"], query)
     logger.debug(
-        Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`..." + Fore.RESET
+        Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`" + Fore.RESET
     )
     return _blend(query=query, **kwargs)
 
@@ -547,7 +547,11 @@ def _blend(
                     db.lazy_tables.pop(tablename).collect()
                 logger.debug(
                     Fore.CYAN
-                    + f"Executing `{abstracted_query_str}` and setting to `{_get_temp_subquery_table(tablename)}`..."
+                    + "Executing "
+                    + Fore.LIGHTCYAN_EX
+                    + f"`{abstracted_query_str}` "
+                    + Fore.CYAN
+                    + f"and setting to `{_get_temp_subquery_table(tablename)}`..."
                     + Fore.RESET
                 )
                 try:
@@ -629,7 +633,13 @@ def _blend(
                 continue
             executed_subquery_ingredients.add(alias_function_str)
             kwargs_dict = parsed_results_dict["kwargs_dict"]
-
+            logger.debug(
+                Fore.CYAN
+                + "Executing "
+                + Fore.LIGHTCYAN_EX
+                + f" `{parsed_results_dict['raw']}`..."
+                + Fore.RESET
+            )
             if infer_gen_constraints:
                 # Latter is the winner.
                 # So if we already define something in kwargs_dict,
@@ -774,8 +784,13 @@ def _blend(
             if naive_execution:
                 break
         # Combine all the retrieved ingredient outputs
-        for tablename, llm_outs in tablename_to_map_out.items():
-            if len(llm_outs) > 0:
+        for tablename, ingredient_outputs in tablename_to_map_out.items():
+            if len(ingredient_outputs) > 0:
+                logger.debug(
+                    Fore.CYAN
+                    + f"Combining {len(ingredient_outputs)} outputs for table `{tablename}`"
+                    + Fore.RESET
+                )
                 # Once we finish parsing this subquery, write to our session_uuid table
                 # Below, we differ from Binder, which seems to replace the old table
                 # On their left join merge command: https://github.com/HKUNLP/Binder/blob/9eede69186ef3f621d2a50572e1696bc418c0e77/nsql/database.py#L196
@@ -793,8 +808,8 @@ def _blend(
                 previously_added_columns = base_table.columns.difference(
                     _base_table.columns
                 )
-                assert len(set([len(x) for x in llm_outs])) == 1
-                llm_out_df = pd.concat(llm_outs, axis=1)
+                assert len(set([len(x) for x in ingredient_outputs])) == 1
+                llm_out_df = pd.concat(ingredient_outputs, axis=1)
                 llm_out_df = llm_out_df.loc[:, ~llm_out_df.columns.duplicated()]
                 # Handle duplicate columns, e.g. in test_nested_duplicate_ingredient_calls()
                 for column in previously_added_columns:
@@ -842,7 +857,7 @@ def _blend(
         if table.name in db.lazy_tables:
             db.lazy_tables.pop(table.name).collect()
 
-    logger.debug(Fore.LIGHTGREEN_EX + msg_box(f"Final Query:\n{query}") + Fore.RESET)
+    logger.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
 
     df = db.execute_to_df(query)
 

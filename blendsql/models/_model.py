@@ -111,7 +111,7 @@ class Model:
             # First, check our cache
             key: str = self._create_key(program, **kwargs)
             if key in self.cache:
-                logger.debug(Fore.MAGENTA + "Using cache..." + Fore.RESET)
+                logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
                 response: str = self.cache.get(key)  # type: ignore
                 self.prompts.insert(-1, self.format_prompt(response, **kwargs))
                 return response

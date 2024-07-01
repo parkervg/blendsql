@@ -1,10 +1,11 @@
+import re
 from attr import attrs, attrib
 from abc import abstractmethod
 import pandas as pd
 from sqlglot import exp
 import json
 from skrub import Joiner
-from typing import Any, Union, Dict, Tuple, Callable, Set, Optional, List, Type
+from typing import Any, Union, Dict, Tuple, Callable, Set, Optional, Type
 from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
@@ -14,10 +15,16 @@ from functools import partialmethod
 from .._exceptions import IngredientException
 from .._logger import logger
 from .. import utils
-from .._constants import IngredientKwarg, IngredientType
+from .._constants import (
+    IngredientKwarg,
+    IngredientType,
+    DEFAULT_ANS_SEP,
+    DEFAULT_NAN_ANS,
+)
 from ..db import Database
 from ..db.utils import select_all_from_table_query
 from ..models import Model
+from .utils import unpack_options
 
 
 def unpack_default_kwargs(**kwargs):
@@ -94,7 +101,13 @@ class MapIngredient(Ingredient):
         return unpack_default_kwargs(**kwargs)
 
     def __call__(
-        self, question: str = None, context: str = None, *args, **kwargs
+        self,
+        question: str = None,
+        context: str = None,
+        regex: Optional[Callable] = None,
+        options: Optional[Union[list, str]] = None,
+        *args,
+        **kwargs,
     ) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
@@ -159,8 +172,18 @@ class MapIngredient(Ingredient):
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
 
+        if options is not None:
+            # Override any pattern with our new unpacked options
+            unpacked_options = unpack_options(
+                options=options, aliases_to_tablenames=aliases_to_tablenames, db=self.db
+            )
+            base_regex = f"(({'|'.join([re.escape(option) for option in unpacked_options])}|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+            kwargs[IngredientKwarg.REGEX] = (
+                lambda num_repeats: base_regex + "{" + str(num_repeats) + "}"
+            )
+        else:
+            kwargs[IngredientKwarg.REGEX] = regex
         kwargs[IngredientKwarg.VALUES] = values
-        kwargs["original_table"] = original_table
         kwargs[IngredientKwarg.QUESTION] = question
         mapped_values: Collection[Any] = self._run(*args, **kwargs)
         self.num_values_passed += len(mapped_values)
@@ -385,29 +408,14 @@ class QAIngredient(Ingredient):
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
 
-        unpacked_options: Union[List[str], None] = options
         if options is not None:
-            if not isinstance(options, list):
-                try:
-                    tablename, colname = utils.get_tablename_colname(options)
-                    tablename = aliases_to_tablenames.get(tablename, tablename)
-                    # Optionally materialize a CTE
-                    if tablename in self.db.lazy_tables:
-                        unpacked_options = (
-                            self.db.lazy_tables.pop(tablename)
-                            .collect()[colname]
-                            .unique()
-                            .tolist()
-                        )
-                    else:
-                        unpacked_options = self.db.execute_to_list(
-                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                        )
-                except ValueError:
-                    unpacked_options = options.split(";")
-            unpacked_options: Set[str] = set(unpacked_options)
+            kwargs[IngredientKwarg.OPTIONS] = unpack_options(
+                options=options, aliases_to_tablenames=aliases_to_tablenames, db=self.db
+            )
+        else:
+            kwargs[IngredientKwarg.OPTIONS] = None
+
         self.num_values_passed += len(subtable) if subtable is not None else 0
-        kwargs[IngredientKwarg.OPTIONS] = unpacked_options
         kwargs[IngredientKwarg.CONTEXT] = subtable
         kwargs[IngredientKwarg.QUESTION] = question
         response: Union[str, int, float] = self._run(*args, **kwargs)

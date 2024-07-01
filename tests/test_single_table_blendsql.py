@@ -647,5 +647,31 @@ def test_where_in_clause(db, ingredients):
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
+@pytest.mark.parametrize("db", databases)
+def test_group_by_with_ingredient_alias(db, ingredients):
+    """b28a129"""
+    blendsql = """
+    SELECT SUM(amount) AS "total amount", 
+    {{get_length('transactions::merchant')}} AS "Merchant Length"
+    FROM transactions
+    GROUP BY "Merchant Length"
+    ORDER BY "total amount"
+    """
+    sql = """
+    SELECT SUM(amount) AS "total amount", 
+    LENGTH(merchant) AS "Merchant Length"
+    FROM transactions
+    GROUP BY "Merchant Length"
+    ORDER BY "total amount"
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
 if __name__ == "__main__":
     pytest.main()

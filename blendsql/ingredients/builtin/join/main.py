@@ -92,7 +92,7 @@ class JoinProgram(Program):
             response = generate.regex(
                 model,
                 prompt=prompt,
-                pattern=regex(len(left_values)),
+                regex=regex(len(left_values)),
                 max_tokens=max_tokens,
                 stop_at=["---"],
             )
