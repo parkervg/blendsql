@@ -116,6 +116,20 @@ SELECT COUNT(*) FROM parks
 |       1 |
 <hr>
 
+_What's the difference in visitors for those parks with a superlative in their description vs. those without?_
+```sql
+SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors", 
+{{LLMMap('Contains a superlative?', 'parks::Description', options='t;f')}} AS "Description Contains Superlative",
+GROUP_CONCAT(Name, ', ') AS "Park Names"
+FROM parks
+GROUP BY "Description Contains Superlative"
+```
+| Total Visitors |   Description Contains Superlative | Park Names                    |
+|---------------:|-----------------------------------:|:------------------------------|
+|          43365 |                                  0 | Everglades, Katmai            |
+|        2722385 |                                  1 | Death Valley, New River Gorge |
+<hr>
+
 Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
 
 For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
