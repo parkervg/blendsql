@@ -102,8 +102,8 @@ class MapIngredient(Ingredient):
 
     def __call__(
         self,
-        question: str = None,
-        context: str = None,
+        question: Optional[str] = None,
+        context: Optional[str] = None,
         regex: Optional[Callable] = None,
         options: Optional[Union[list, str]] = None,
         *args,
