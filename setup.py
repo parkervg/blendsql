@@ -24,7 +24,7 @@ setup(
         "console_scripts": ["blendsql=blendsql.blend_cli:main"],
     },
     name="blendsql",
-    python_requires=">=3.10",
+    python_requires=">=3.9",
     version=find_version("blendsql", "__init__.py"),
     url="https://github.com/parkervg/blendsql",
     author="Parker Glenn",
@@ -47,7 +47,7 @@ setup(
         "python-dotenv==1.0.1",
         "sqlglot==18.13.0",
         "sqlalchemy>=2.0.0",
-        "skrub==0.1.0",
+        "skrub==0.2.0",
         # https://github.com/skrub-data/skrub/issues/910
         "scikit-learn==1.4.2",
         "duckdb<1",
