@@ -30,8 +30,6 @@ markdown_extensions:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
-
-
 plugins:
   - mkdocstrings:
       default_handler: python
@@ -61,14 +59,15 @@ extra_css:
 
 nav:
   - Home:
-    - Home: index.md
-    - Examples from QA Datasets:
-      - HybridQA: examples/hybridqa.md
-      - OTT-QA: examples/ottqa.md
-      - FEVEROUS: examples/feverous.md
-    - FAQ: faq.md
+      - Home: index.md
+      - Examples from QA Datasets:
+          - HybridQA: examples/hybridqa.md
+          - OTT-QA: examples/ottqa.md
+          - FEVEROUS: examples/feverous.md
+      - FAQ: faq.md
   - Getting Started:
       - Quickstart: quickstart.md
+      - Some Cool Things by Example: by-example.md
       - Examples:
           - Custom VQA Ingredient with LLaVA: reference/examples/vqa-ingredient.ipynb
           - Teaching BlendSQL via In-Context Learning: reference/examples/teaching-blendsql-via-in-context-learning.ipynb
@@ -79,9 +78,9 @@ nav:
           - reference/ingredients/ingredients.md
           - Creating Custom Ingredients: reference/ingredients/creating-custom-ingredients.md
           - Built-in:
-            - LLMMap: reference/ingredients/LLMMap.md
-            - LLMQA: reference/ingredients/LLMQA.md
-            - LLMJoin: reference/ingredients/LLMJoin.md
+              - LLMMap: reference/ingredients/LLMMap.md
+              - LLMQA: reference/ingredients/LLMQA.md
+              - LLMJoin: reference/ingredients/LLMJoin.md
       - Blenders:
           - reference/blenders/blenders.md
           - OpenAI: reference/blenders/openai.md
