@@ -6,12 +6,12 @@ hide:
 <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
 <a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
 <a><img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/parkervg/e24f1214fdff3ab086b829b5f01f85a8/raw/covbadge.json"/></a>
-<a><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue"/></a>
+<a><img src="https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue"/></a>
 <br>
 </div>
 
 <center>
-<picture> 
+<picture>
   <img alt="blendsql" src="img/logo_light.png" width=350">
 </picture>
 <br>
@@ -25,7 +25,7 @@ pip install blendsql
 ```
 </div>
 </center>
-BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
+BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs.
 
 As a result, we can *Blend* together...
 
@@ -73,7 +73,7 @@ _What does the largest park in Alaska look like?_
 
 ```sql
 SELECT "Name",
-{{ImageCaption('parks::Image')}} as "Image Description", 
+{{ImageCaption('parks::Image')}} as "Image Description",
 {{
     LLMMap(
         question='Size in km2?',
@@ -93,13 +93,13 @@ ORDER BY "Size in km" DESC LIMIT 1
 _Which state is the park in that protects an ash flow?_
 
 ```sql
-SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks 
+SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
     WHERE "Name" = {{
       LLMQA(
         'Which park protects an ash flow?',
         context=(SELECT "Name", "Description" FROM parks),
         options="parks::Name"
-      ) 
+      )
   }}
 ```
 
@@ -158,7 +158,7 @@ Special thanks to those below for inspiring this project. Definitely recommend c
 - The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
     - This paper was the primary inspiration for BlendSQL.
 - The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
-    - As far as I can tell, the first publication to propose unifying model calls within SQL 
+    - As far as I can tell, the first publication to propose unifying model calls within SQL
     - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
 - The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
 - The maintainers of the [Outlines](https://github.com/outlines-dev/outlines) library for powering the constrained decoding capabilities of BlendSQL
