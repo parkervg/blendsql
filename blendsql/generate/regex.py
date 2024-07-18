@@ -1,6 +1,6 @@
 from functools import singledispatch
 from typing import Optional, List, Union
-import outlines
+from guidance import capture, gen
 
 from ..models import Model, OllamaLLM
 
@@ -13,8 +13,18 @@ def regex(
     max_tokens: Optional[int] = None,
     stop_at: Optional[Union[List[str], str]] = None,
 ) -> str:
-    generator = outlines.generate.regex(model.model_obj, regex_str=regex)
-    return generator(prompt, max_tokens=max_tokens, stop_at=stop_at)
+    print(regex)
+    regex = "((t|f|-);)((t|f|-);)((t|f|-);)((t|f|-);)"
+    res = (
+        model.model_obj
+        + prompt
+        + capture(
+            gen(regex=regex, max_tokens=max_tokens or 1e10, stop=stop_at), name="res"
+        )
+    )
+    return res["res"]
+    # generator = outlines.generate.regex(model.model_obj, regex_str=regex)
+    # return generator(prompt, max_tokens=max_tokens, stop_at=stop_at)
 
 
 @regex.register(OllamaLLM)
