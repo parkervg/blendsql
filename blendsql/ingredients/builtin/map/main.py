@@ -139,7 +139,7 @@ class LLMMap(MapIngredient):
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
         output_type: Optional[str] = None,
-        regex: Optional[str] = None,
+        regex: Optional[Callable[[int], str]] = None,
         table_to_title: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Iterable[Any]:
