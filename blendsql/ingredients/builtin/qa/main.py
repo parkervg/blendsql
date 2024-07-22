@@ -27,7 +27,7 @@ class QAProgram(Program):
         prompt = ""
         serialized_db = context.to_string() if context is not None else ""
         prompt += "Answer the question for the table. "
-        modified_option_to_original = {}
+        options_alias_to_original = {}
         if long_answer:
             prompt += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
         else:
@@ -43,11 +43,11 @@ class QAProgram(Program):
                 add_first_word = True
             for option in options:
                 option = str(option)
-                for modified_option in [option.title(), option.upper()]:
-                    _options.add(modified_option)
-                    modified_option_to_original[modified_option] = option
+                for option_alias in [option.title(), option.upper()]:
+                    _options.add(option_alias)
+                    options_alias_to_original[option_alias] = option
                 if add_first_word:
-                    modified_option_to_original[option.split(" ")[0]] = option
+                    options_alias_to_original[option.split(" ")[0]] = option
             options = _options
         prompt += f"\n\nQuestion: {question}"
         if table_title is not None:
@@ -65,7 +65,7 @@ class QAProgram(Program):
                 model, prompt=prompt, choices=[re.escape(str(i)) for i in options]
             )
             # Map from modified options to original, as they appear in DB
-            response: str = modified_option_to_original.get(_response, _response)
+            response: str = options_alias_to_original.get(_response, _response)
         else:
             response = generate.text(
                 model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
