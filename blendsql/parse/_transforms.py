@@ -210,14 +210,16 @@ def replace_join_with_ingredient_multiple_ingredient(
                 join_alias = ingredient_alias
                 continue
             # Traverse and get the whole ingredient
-            # We need to go up 3 parents
+            # We need to go up 2 parents
             _parent = anon_child_node
-            for _ in range(3):
+            for _ in range(2):
                 _parent = _parent.parent
                 assert isinstance(_parent, exp.Expression)
             to_return.append(_parent.sql(dialect=FTS5SQLite))
         if len(to_return) == 0:
             return node
+        if join_alias == "":
+            raise ValueError
         # temp_uuid is used to ensure a partial query that is parse-able by sqlglot
         # This gets removed after
         return _parse_one(
