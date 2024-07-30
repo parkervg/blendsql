@@ -631,3 +631,36 @@ def test_infer_options_arg(db, ingredients):
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+@pytest.mark.parametrize("db", databases)
+def test_join_with_multiple_ingredients(db, ingredients):
+    """
+    af86714
+    """
+    blendsql = """
+    SELECT "Run Date", Action, portfolio.Symbol FROM account_history
+    JOIN {{
+        do_join(
+            right_on='account_history::Symbol',
+            left_on='portfolio::Symbol'
+        )
+    }} AND {{
+        starts_with('H', 'portfolio::Description')
+    }} AND {{
+        get_length('length', 'account_history::Security Description') 
+    }} > 3
+    """
+    sql = """
+    SELECT "Run Date", Action, portfolio.Symbol FROM account_history
+    JOIN portfolio ON account_history.Symbol = portfolio.Symbol
+    WHERE portfolio.Description LIKE 'H%'
+    AND LENGTH(account_history."Security Description") > 3
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
