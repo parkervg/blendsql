@@ -14,11 +14,11 @@ def unpack_options(
             tablename = aliases_to_tablenames.get(tablename, tablename)
             # Optionally materialize a CTE
             if tablename in db.lazy_tables:
-                unpacked_options = (
+                unpacked_options: list = (
                     db.lazy_tables.pop(tablename).collect()[colname].unique().tolist()
                 )
             else:
-                unpacked_options = db.execute_to_list(
+                unpacked_options: list = db.execute_to_list(
                     f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
                 )
         except ValueError:

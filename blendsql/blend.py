@@ -758,14 +758,14 @@ def _blend(
                     # Since we haven't executed and saved `{{B()}}` to temp table yet,
                     #   we need to keep. So we get:
                     temp_uuid = str(uuid.uuid4())
-                    query_context.node = query_context.node.transform(
+                    _node = query_context.node.transform(
                         transform.replace_join_with_ingredient_multiple_ingredient,
                         ingredient_name=parsed_results_dict["ingredient_aliasname"],
                         ingredient_alias=alias_function_str,
                         temp_uuid=temp_uuid,
-                    ).transform(prune_true_where)
-                    query_context.node = query_context.parse(
-                        query_context.to_string().replace(f'SELECT "{temp_uuid}", ', "")
+                    ).transform(transform.prune_true_where)
+                    query_context.parse(
+                        str(_node).replace(f'SELECT "{temp_uuid}", ', ""), schema=schema
                     )
                 else:
                     # Case where we have
