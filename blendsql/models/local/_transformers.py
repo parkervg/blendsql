@@ -60,7 +60,28 @@ class TransformersLLM(LocalModel):
 class TransformersVisionModel(TransformersLLM):
     """Wrapper for the image-to-text Transformers pipeline."""
 
-    def _load_model(self):
-        from transformers import pipeline
+    def __init__(
+        self, model_name_or_path: str, model_class, caching: bool = True, **kwargs
+    ):
+        self.model_class = model_class
+        if not _has_transformers:
+            raise ImportError(
+                "Please install transformers with `pip install transformers`!"
+            ) from None
+        else:
+            from transformers import AutoProcessor
 
-        return pipeline("image-to-text", model=self.model_name_or_path)
+            self.processor = AutoProcessor.from_pretrained(model_name_or_path)
+
+        super().__init__(
+            model_name_or_path=model_name_or_path,
+            caching=caching,
+            **kwargs,
+        )
+
+    def _load_model(self):
+        from outlines.models import transformers_vision
+
+        return transformers_vision(
+            model_name=self.model_name_or_path, model_class=self.model_class
+        )

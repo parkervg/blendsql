@@ -1,15 +1,11 @@
-import logging
 from typing import Union, Iterable, Any, Dict, Optional, List, Callable, Tuple
-
-import json
 import pandas as pd
-from colorama import Fore
-from tqdm import tqdm
+from functools import partial
 
 from blendsql.utils import newline_dedent
+from blendsql.ingredients.utils import batch_run_map
 from blendsql._logger import logger
 from blendsql.models import Model, LocalModel, RemoteModel, OpenaiLLM
-from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._program import Program
@@ -175,91 +171,28 @@ class LLMMap(MapIngredient):
                 logger.debug(f"Tablename {tablename} not in given table_to_title!")
             else:
                 table_title = table_to_title[tablename]
-        split_results: List[Union[str, None]] = []
-        # Only use tqdm if we're in debug mode
-        context_manager: Iterable = (
-            tqdm(
-                range(0, len(values), CONST.MAP_BATCH_SIZE),
-                total=len(values) // CONST.MAP_BATCH_SIZE,
-                desc=f"Making calls to Model with batch_size {CONST.MAP_BATCH_SIZE}",
-                bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
-            )
-            if logger.level <= logging.DEBUG
-            else range(0, len(values), CONST.MAP_BATCH_SIZE)
+        include_tf_disclaimer = False
+        if output_type == "boolean":
+            include_tf_disclaimer = True
+        elif isinstance(model, OpenaiLLM):
+            include_tf_disclaimer = True
+        pred_func = partial(
+            model.predict,
+            program=MapProgram,
+            question=question,
+            sep=CONST.DEFAULT_ANS_SEP,
+            example_outputs=example_outputs,
+            output_type=output_type,
+            include_tf_disclaimer=include_tf_disclaimer,
+            table_title=table_title,
+            regex=regex,
+            **kwargs,
         )
-
-        for i in context_manager:
-            answer_length = len(values[i : i + CONST.MAP_BATCH_SIZE])
-            max_tokens = answer_length * 15
-            include_tf_disclaimer = False
-
-            if output_type == "boolean":
-                include_tf_disclaimer = True
-            elif isinstance(model, OpenaiLLM):
-                include_tf_disclaimer = True
-
-            result = model.predict(
-                program=MapProgram,
-                question=question,
-                sep=CONST.DEFAULT_ANS_SEP,
-                values=values[i : i + CONST.MAP_BATCH_SIZE],
-                example_outputs=example_outputs,
-                output_type=output_type,
-                include_tf_disclaimer=include_tf_disclaimer,
-                table_title=table_title,
-                regex=regex,
-                max_tokens=max_tokens,
-                **kwargs,
-            )
-            # Post-process language model response
-            _r = [
-                i.strip()
-                for i in result.strip(CONST.DEFAULT_ANS_SEP).split(
-                    CONST.DEFAULT_ANS_SEP
-                )
-            ]
-            # Try to map to booleans and `None`
-            _r = [
-                {
-                    "t": True,
-                    "f": False,
-                    "true": True,
-                    "false": False,
-                    "y": True,
-                    "n": False,
-                    "yes": True,
-                    "no": False,
-                    CONST.DEFAULT_NAN_ANS: None,
-                }.get(i.lower(), i)
-                for i in _r
-            ]
-            expected_len = len(values[i : i + CONST.MAP_BATCH_SIZE])
-            if len(_r) != expected_len:
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Mismatch between length of values and answers!\nvalues:{expected_len}, answers:{len(_r)}"
-                    + Fore.RESET
-                )
-                logger.debug(_r)
-            # Cut off, in case we over-predicted
-            _r = _r[:expected_len]
-            # Add, in case we under-predicted
-            while len(_r) < expected_len:
-                _r.append(None)
-            split_results.extend(_r)
-        for idx, i in enumerate(split_results):
-            if i is None:
-                continue
-            if isinstance(i, str):
-                i = i.replace(",", "")
-            try:
-                split_results[idx] = literal_eval(i)
-                assert isinstance(i, (float, int, str))
-            except (ValueError, SyntaxError, AssertionError):
-                continue
-        logger.debug(
-            Fore.YELLOW
-            + f"Finished LLMMap with values:\n{json.dumps(dict(zip(values[:10], split_results[:10])), indent=4)}"
-            + Fore.RESET
+        split_results: List[Any] = batch_run_map(
+            pred_func,
+            values=values,
+            batch_size=CONST.MAP_BATCH_SIZE,
+            sep=CONST.DEFAULT_ANS_SEP,
+            nan_answer=CONST.DEFAULT_NAN_ANS,
         )
         return split_results

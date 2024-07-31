@@ -2,7 +2,7 @@ from functools import singledispatch
 from typing import Optional, List, Union
 import outlines
 
-from ..models import Model, OllamaLLM
+from ..models import Model, OllamaLLM, TransformersVisionModel
 
 
 @singledispatch
@@ -15,6 +15,20 @@ def regex(
 ) -> str:
     generator = outlines.generate.regex(model.model_obj, regex_str=regex)
     return generator(prompt, max_tokens=max_tokens, stop_at=stop_at)
+
+
+@regex.register(TransformersVisionModel)
+def regex_transformers_vision(
+    model: TransformersVisionModel,
+    prompt: str,
+    regex: str,
+    media=None,
+    max_tokens: Optional[int] = None,
+    stop_at: Optional[Union[List[str], str]] = None,
+    **kwargs
+):
+    generator = outlines.generate.regex(model.model_obj, regex_str=regex)
+    return generator(prompt, media=media, max_tokens=max_tokens, stop_at=stop_at)
 
 
 @regex.register(OllamaLLM)

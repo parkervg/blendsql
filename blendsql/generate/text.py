@@ -5,7 +5,7 @@ from typing import Optional, List, Union
 import outlines
 
 from .._logger import logger
-from ..models import Model, OllamaLLM
+from ..models import Model, OllamaLLM, TransformersVisionModel
 
 
 @singledispatch
@@ -18,6 +18,19 @@ def text(
 ) -> str:
     generator = outlines.generate.text(model.model_obj)
     return generator(prompt, max_tokens=max_tokens, stop_at=stop_at)
+
+
+@text.register(TransformersVisionModel)
+def text_transformers_vision(
+    model: TransformersVisionModel,
+    prompt: str,
+    media=None,
+    max_tokens: Optional[int] = None,
+    stop_at: Optional[Union[List[str], str]] = None,
+    **kwargs
+):
+    generator = outlines.generate.text(model.model_obj)
+    return generator(prompt, media=media, max_tokens=max_tokens, stop_at=stop_at)
 
 
 @text.register(OllamaLLM)

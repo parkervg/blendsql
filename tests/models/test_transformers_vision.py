@@ -1,6 +1,6 @@
 import pytest
 
-from blendsql import blend, ImageCaption, LLMMap, LLMQA
+from blendsql import blend, VQA, LLMMap, LLMQA
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
@@ -8,7 +8,7 @@ from blendsql.models import TransformersVisionModel, TransformersLLM
 from blendsql._exceptions import IngredientException
 
 TEST_TRANSFORMERS_LLM = "hf-internal-testing/tiny-random-PhiForCausalLM"
-TEST_TRANSFORMERS_VISION_LLM = "Mozilla/distilvit"
+TEST_TRANSFORMERS_VISION_LLM = "llava-hf/llava-interleave-qwen-0.5b-hf"
 
 
 @pytest.fixture(scope="session")
@@ -18,7 +18,13 @@ def db() -> SQLite:
 
 @pytest.fixture(scope="session")
 def vision_model() -> TransformersVisionModel:
-    return TransformersVisionModel(TEST_TRANSFORMERS_VISION_LLM, caching=False)
+    from transformers import LlavaForConditionalGeneration
+
+    return TransformersVisionModel(
+        TEST_TRANSFORMERS_VISION_LLM,
+        model_class=LlavaForConditionalGeneration,
+        caching=False,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -40,11 +46,11 @@ def test_no_ingredients(db, vision_model):
 
 @pytest.mark.long
 def test_image_caption(db, vision_model):
-    ingredients = {ImageCaption}
+    ingredients = {VQA}
     res = blend(
         query="""
         SELECT "Name",
-        {{ImageCaption('parks::Image')}} as "Image Description"
+        {{VQA('Describe the image.', 'parks::Image')}} as "Image Description"
         FROM parks
         WHERE "Location" = 'Alaska'
         """,
@@ -57,11 +63,11 @@ def test_image_caption(db, vision_model):
 
 @pytest.mark.long
 def test_mixed_models(db, vision_model, text_model):
-    ingredients = {ImageCaption.from_args(model=vision_model), LLMMap}
+    ingredients = {VQA.from_args(model=vision_model), LLMMap}
     res = blend(
         query="""
         SELECT "Name",
-        {{ImageCaption('parks::Image')}} as "Image Description", 
+        {{VQA('Describe the image.', 'parks::Image')}} as "Image Description", 
         {{
             LLMMap(
                 question='Size in km2?',
@@ -83,12 +89,12 @@ def test_mixed_models_no_default_error(db, vision_model):
     """If we don't pass a default_model and don't specify one in `.from_args`,
     we should raise the appropriate IngredientException error.
     """
-    ingredients = {ImageCaption.from_args(model=vision_model), LLMMap}
+    ingredients = {VQA.from_args(model=vision_model), LLMMap}
     with pytest.raises(IngredientException):
         _ = blend(
             query="""
             SELECT "Name",
-            {{ImageCaption('parks::Image')}} as "Image Description", 
+            {{VQA('Describe the image.', 'parks::Image')}} as "Image Description", 
             {{
                 LLMMap(
                     question='Size in km2?',
