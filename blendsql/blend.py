@@ -463,6 +463,7 @@ def _blend(
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
+    scm = None
     for subquery_idx, subquery in enumerate(
         get_reversed_subqueries(query_context.node)
     ):
