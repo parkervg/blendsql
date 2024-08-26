@@ -30,7 +30,7 @@ class OllamaLLM(RemoteModel):
         model_name_or_path: str,
         host: Optional[str] = None,
         caching: bool = True,
-        **kwargs
+        **kwargs,
     ):
         if not _has_ollama:
             raise ImportError(
@@ -49,7 +49,7 @@ class OllamaLLM(RemoteModel):
             # TODO: how to get ollama tokenizer?
             tokenizer=None,
             caching=caching,
-            **kwargs
+            **kwargs,
         )
 
     def _load_model(self) -> partial:

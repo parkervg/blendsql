@@ -49,11 +49,14 @@ class TransformersLLM(LocalModel):
 
     def _load_model(self) -> ModelObj:
         # https://huggingface.co/blog/how-to-generate
-        from outlines.models import transformers
+        from guidance.models import Transformers
+        import torch
 
-        return transformers(
+        return Transformers(
             self.model_name_or_path,
-            model_kwargs=self.load_model_kwargs,
+            echo=False,
+            device_map="cuda" if torch.cuda.is_available() else "cpu",
+            **self.load_model_kwargs,
         )
 
 

@@ -83,7 +83,7 @@ class AzureOpenaiLLM(RemoteModel):
         env: str = ".",
         config: Optional[OpenAIConfig] = None,
         caching: bool = True,
-        **kwargs
+        **kwargs,
     ):
         if not _has_openai:
             raise ImportError(
@@ -100,7 +100,7 @@ class AzureOpenaiLLM(RemoteModel):
             load_model_kwargs=kwargs | {"config": config or DEFAULT_CONFIG},
             env=env,
             caching=caching,
-            **kwargs
+            **kwargs,
         )
 
     def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
@@ -152,7 +152,7 @@ class OpenaiLLM(RemoteModel):
         env: str = ".",
         config: Optional[OpenAIConfig] = None,
         caching: bool = True,
-        **kwargs
+        **kwargs,
     ):
         if not _has_openai:
             raise ImportError(
@@ -169,14 +169,14 @@ class OpenaiLLM(RemoteModel):
             load_model_kwargs={"config": config or DEFAULT_CONFIG},
             env=env,
             caching=caching,
-            **kwargs
+            **kwargs,
         )
 
     def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
-        from outlines.models.openai import openai
+        from guidance.models import OpenAI
 
-        return openai(
-            self.model_name_or_path, config=config, api_key=os.getenv("OPENAI_API_KEY")
+        return OpenAI(
+            self.model_name_or_path, echo=False, api_key=os.getenv("OPENAI_API_KEY")
         )  # type: ignore
 
     def _setup(self, **kwargs) -> None:

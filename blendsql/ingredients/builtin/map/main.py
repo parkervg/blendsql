@@ -5,6 +5,7 @@ import json
 import pandas as pd
 from colorama import Fore
 from tqdm import tqdm
+import guidance
 
 from blendsql.utils import newline_dedent
 from blendsql._logger import logger
@@ -13,7 +14,6 @@ from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._program import Program
-from blendsql import generate
 from blendsql._exceptions import IngredientException
 
 
@@ -33,96 +33,62 @@ class MapProgram(Program):
         colname: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
-        prompt = ""
-        prompt += """Given a set of values from a database, answer the question row-by-row, in order."""
-        if include_tf_disclaimer:
-            prompt += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-        prompt += newline_dedent(
-            f"""
-        The answer should be a list separated by '{sep}', and have {len(values)} items in total.
-        When you have given all {len(values)} answers, stop responding.
-        If a given value has no appropriate answer, give '-' as a response.
-        """
-        )
-        prompt += newline_dedent(
+        m: guidance.models.Model = model.model_obj
+        with guidance.system():
+            m += """Given a set of values from a database, answer the question row-by-row, in order."""
+            if include_tf_disclaimer:
+                m += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
+            m += newline_dedent(
+                f"""
+            If a given value has no appropriate answer, give '-' as a response.
             """
-        ---
-
-        The following values come from the column 'Home Town', in a table titled '2010\u201311 North Carolina Tar Heels men's basketball team'.
-        Q: What state is this?
-        Values:
-        `Ames, IA`
-        `Carrboro, NC`
-        `Kinston, NC`
-        `Encino, CA`
-
-        Output type: string
-        Here are some example outputs: `MA;CA;-;`
-
-        A: IA;NC;NC;CA
-
-        ---
-
-        The following values come from the column 'Penalties (P+P+S+S)', in a table titled 'Biathlon World Championships 2013 \u2013 Men's pursuit'.
-        Q: Total penalty count?
-        Values:
-        `1 (0+0+0+1)`
-        `10 (5+3+2+0)`
-        `6 (2+2+2+0)`
-
-        Output type: numeric
-        Here are some example outputs: `9;-`
-
-        A: 1;10;6
-
-        ---
-
-        The following values come from the column 'term', in a table titled 'Electoral district of Lachlan'.
-        Q: how long did it last?
-        Values:
-        `1859–1864`
-        `1864–1869`
-        `1869–1880`
-
-        Output type: numeric
-
-        A: 5;5;11
-
-        ---
-
-        The following values come from the column 'Length of use', in a table titled 'Crest Whitestrips'.
-        Q: Is the time less than a week?
-        Values:
-        `14 days`
-        `10 days`
-        `daily`
-        `2 hours`
-
-        Output type: boolean
-        A: f;f;t;t
-
-        ---
-        """
-        )
-        if table_title:
-            prompt += newline_dedent(
-                f"The following values come from the column '{colname}', in a table titled '{table_title}'."
             )
-        prompt += newline_dedent(f"""Q: {question}\nValues:\n""")
-        for value in values:
-            prompt += f"`{value}`\n"
-        if output_type:
-            prompt += f"\nOutput type: {output_type}"
-        if example_outputs:
-            prompt += f"\nHere are some example outputs: {example_outputs}\n"
-        prompt += "\nA:"
+            m += newline_dedent(
+                """
+            ---
+    
+            The following values come from the column 'Penalties (P+P+S+S)', in a table titled 'Biathlon World Championships 2013 \u2013 Men's pursuit'.
+            Q: Total penalty count?
+            Here are some example outputs: '1', '2', '5'
+            A:
+                - 1 (0+0+0+1) -> 1
+                - 10 (5+3+2+0) -> 10
+                - 6 (2+2+2+0) -> 6
+    
+            ---
+    
+            The following values come from the column 'Length of use', in a table titled 'Crest Whitestrips'.
+            Q: Is the time less than a week?
+            A:
+                - 14 days -> f
+                - 10 days -> f
+                - daily -> t
+                - 2 hours -> t
+                
+            ---
+            """
+            )
+            if table_title:
+                m += newline_dedent(
+                    f"The following values come from the column '{colname}', in a table titled '{table_title}'."
+                )
+        with guidance.user():
+            m += newline_dedent(f"""Q: {question}\nA:\n""")
+        prompt = m._current_prompt()
         if isinstance(model, LocalModel) and regex is not None:
-            response = generate.regex(model, prompt=prompt, regex=regex(len(values)))
+            gen_f = lambda: guidance.regex(pattern=regex)
         else:
-            response = generate.text(
-                model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
-            )
-        return (response, prompt)
+            gen_f = lambda: guidance.gen(max_tokens=max_tokens or 1000)
+
+        @guidance(stateless=True, dedent=False)
+        def make_predictions(lm, values, gen_f) -> guidance.models.Model:
+            for _idx, value in enumerate(values):
+                lm += f"\n{value} -> " + guidance.capture(gen_f(), name=value)
+            return lm
+
+        with guidance.assistant():
+            m += make_predictions(values=values, gen_f=gen_f)
+        return (m._variables, prompt)
 
 
 class LLMMap(MapIngredient):
@@ -192,17 +158,18 @@ class LLMMap(MapIngredient):
             answer_length = len(values[i : i + CONST.MAP_BATCH_SIZE])
             max_tokens = answer_length * 15
             include_tf_disclaimer = False
+            curr_batch_values = values[i : i + CONST.MAP_BATCH_SIZE]
 
             if output_type == "boolean":
                 include_tf_disclaimer = True
             elif isinstance(model, OpenaiLLM):
                 include_tf_disclaimer = True
 
-            result = model.predict(
+            result: dict = model.predict(
                 program=MapProgram,
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,
-                values=values[i : i + CONST.MAP_BATCH_SIZE],
+                values=curr_batch_values,
                 example_outputs=example_outputs,
                 output_type=output_type,
                 include_tf_disclaimer=include_tf_disclaimer,
@@ -212,12 +179,7 @@ class LLMMap(MapIngredient):
                 **kwargs,
             )
             # Post-process language model response
-            _r = [
-                i.strip()
-                for i in result.strip(CONST.DEFAULT_ANS_SEP).split(
-                    CONST.DEFAULT_ANS_SEP
-                )
-            ]
+            _r = [result[value] for value in curr_batch_values]
             # Try to map to booleans and `None`
             _r = [
                 {
@@ -233,7 +195,7 @@ class LLMMap(MapIngredient):
                 }.get(i.lower(), i)
                 for i in _r
             ]
-            expected_len = len(values[i : i + CONST.MAP_BATCH_SIZE])
+            expected_len = len(curr_batch_values)
             if len(_r) != expected_len:
                 logger.debug(
                     Fore.YELLOW
@@ -241,11 +203,6 @@ class LLMMap(MapIngredient):
                     + Fore.RESET
                 )
                 logger.debug(_r)
-            # Cut off, in case we over-predicted
-            _r = _r[:expected_len]
-            # Add, in case we under-predicted
-            while len(_r) < expected_len:
-                _r.append(None)
             split_results.extend(_r)
         for idx, i in enumerate(split_results):
             if i is None:

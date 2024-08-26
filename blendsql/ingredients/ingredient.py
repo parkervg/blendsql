@@ -18,7 +18,6 @@ from .. import utils
 from .._constants import (
     IngredientKwarg,
     IngredientType,
-    DEFAULT_ANS_SEP,
     DEFAULT_NAN_ANS,
 )
 from ..db import Database
@@ -177,10 +176,9 @@ class MapIngredient(Ingredient):
             unpacked_options = unpack_options(
                 options=options, aliases_to_tablenames=aliases_to_tablenames, db=self.db
             )
-            base_regex = f"(({'|'.join([re.escape(option) for option in unpacked_options])}|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
-            kwargs[IngredientKwarg.REGEX] = (
-                lambda num_repeats: base_regex + "{" + str(num_repeats) + "}"
-            )
+            kwargs[
+                IngredientKwarg.REGEX
+            ] = f"({'|'.join([re.escape(option) for option in unpacked_options])}|{DEFAULT_NAN_ANS})"
         else:
             kwargs[IngredientKwarg.REGEX] = regex
         kwargs[IngredientKwarg.VALUES] = values

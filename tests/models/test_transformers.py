@@ -6,7 +6,7 @@ from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
 from blendsql.models import TransformersLLM
 
-TEST_TRANSFORMERS_LLM = "hf-internal-testing/tiny-random-PhiForCausalLM"
+TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M"
 
 
 @pytest.fixture(scope="session")

@@ -1,27 +1,36 @@
 from functools import singledispatch
 import logging
 from colorama import Fore
-from typing import Optional, List, Union
-import outlines
+from typing import Optional
 
 from .._logger import logger
-from ..models import Model, OllamaLLM
+from ..models import Model, OllamaLLM, OpenaiLLM
 
 
 @singledispatch
-def text(
-    model: Model,
-    prompt: str,
-    max_tokens: Optional[int] = None,
-    stop_at: Optional[Union[List[str], str]] = None,
-    **kwargs
+def generate(model: Model, *args, **kwargs) -> str:
+    pass
+
+
+@generate.register(OpenaiLLM)
+def generate_openai(
+    model: OpenaiLLM, prompt, max_tokens: Optional[int], **kwargs
 ) -> str:
-    generator = outlines.generate.text(model.model_obj)
-    return generator(prompt, max_tokens=max_tokens, stop_at=stop_at)
+    client = model.model_obj.engine.client
+    return (
+        client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model=model.model_obj.engine.model_name,
+            max_tokens=max_tokens,
+            temperature=model.model_obj.engine._current_temp,
+        )
+        .choices[0]
+        .message.content
+    )
 
 
-@text.register(OllamaLLM)
-def text_ollama(model: OllamaLLM, prompt, **kwargs) -> str:
+@generate.register(OllamaLLM)
+def generate_ollama(model: OllamaLLM, prompt, **kwargs) -> str:
     """Helper function to work with Ollama models,
     since they're not recognized in the Outlines ecosystem.
     """

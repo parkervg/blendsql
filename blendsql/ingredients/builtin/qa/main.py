@@ -2,13 +2,13 @@ import copy
 from typing import Dict, Union, Optional, Set, Tuple
 import pandas as pd
 import re
+import guidance
 
-from blendsql.models import Model, OllamaLLM
-from blendsql._exceptions import InvalidBlendSQL
+from blendsql.models import Model, LocalModel
+from blendsql.ingredients.generate import generate
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
-from blendsql import generate
 from blendsql._exceptions import IngredientException
 
 
@@ -24,14 +24,17 @@ class QAProgram(Program):
         max_tokens: Optional[int] = None,
         **kwargs,
     ) -> Tuple[str, str]:
-        prompt = ""
+        if isinstance(model, LocalModel):
+            m: guidance.models.Model = model.model_obj
+        else:
+            m: str = ""
         serialized_db = context.to_string() if context is not None else ""
-        prompt += "Answer the question for the table. "
+        m += "Answer the question for the table. "
         options_alias_to_original = {}
         if long_answer:
-            prompt += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
+            m += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
         else:
-            prompt += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
+            m += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
         if options is not None:
             # Add in title case, since this helps with selection
             _options = copy.deepcopy(options)
@@ -49,25 +52,27 @@ class QAProgram(Program):
                 if add_first_word:
                     options_alias_to_original[option.split(" ")[0]] = option
             options = _options
-        prompt += f"\n\nQuestion: {question}"
+        m += f"\n\nQuestion: {question}"
         if table_title is not None:
-            prompt += (
-                f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
-            )
+            m += f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
         else:
-            prompt += f"\n\nContext: \n {serialized_db}"
-        if options is not None:
-            if isinstance(model, OllamaLLM):
-                raise InvalidBlendSQL(
-                    "Can't use `options` argument in LLMQA with an Ollama model!"
+            m += f"\n\nContext: \n {serialized_db}"
+        if isinstance(model, LocalModel):
+            prompt = m._current_prompt()
+            if options is not None:
+                m += guidance.capture(
+                    guidance.select(options=[re.escape(str(i)) for i in options]),
+                    name="result",
                 )
-            _response = generate.choice(
-                model, prompt=prompt, choices=[re.escape(str(i)) for i in options]
-            )
-            # Map from modified options to original, as they appear in DB
-            response: str = options_alias_to_original.get(_response, _response)
+                # Map from modified options to original, as they appear in DB
+                response: str = options_alias_to_original.get(m["result"], m["result"])
+            else:
+                response = guidance.capture(
+                    m + guidance.gen(max_tokens=max_tokens, stop="\n"), name="response"
+                )["response"]
         else:
-            response = generate.text(
+            prompt = m
+            response = generate(
                 model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
             )
         return (response, prompt)
