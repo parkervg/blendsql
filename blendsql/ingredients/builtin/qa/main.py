@@ -3,6 +3,7 @@ from typing import Dict, Union, Optional, Set, Tuple
 import pandas as pd
 import re
 import guidance
+from colorama import Fore
 
 from blendsql.models import Model, LocalModel
 from blendsql.ingredients.generate import generate
@@ -57,15 +58,16 @@ class QAProgram(Program):
             m += f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
         else:
             m += f"\n\nContext: \n {serialized_db}"
+        if options and not isinstance(model, LocalModel):
+            m += f"\n\nFor your answer, select from one of the following options: {options}"
+        m += "\n\nAnswer:\n"
         if isinstance(model, LocalModel):
             prompt = m._current_prompt()
             if options is not None:
-                m += guidance.capture(
+                response = guidance.capture(
                     guidance.select(options=[re.escape(str(i)) for i in options]),
                     name="result",
-                )
-                # Map from modified options to original, as they appear in DB
-                response: str = options_alias_to_original.get(m["result"], m["result"])
+                )["response"]
             else:
                 response = guidance.capture(
                     m + guidance.gen(max_tokens=max_tokens, stop="\n"), name="response"
@@ -73,7 +75,26 @@ class QAProgram(Program):
         else:
             prompt = m
             response = generate(
-                model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
+                model,
+                prompt=prompt,
+                options=options,
+                max_tokens=max(
+                    [
+                        len(model.tokenizer.encode(alias))
+                        for alias in options_alias_to_original
+                    ]
+                )
+                if options
+                else max_tokens,
+                stop_at="\n",
+            )
+        # Map from modified options to original, as they appear in DB
+        response: str = options_alias_to_original.get(response, response)
+        if options and response not in options:
+            print(
+                Fore.RED
+                + f"Model did not select from a valid option!\nExpected one of {options}, got {response}"
+                + Fore.RESET
             )
         return (response, prompt)
 

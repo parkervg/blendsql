@@ -2,6 +2,7 @@ from functools import singledispatch
 import logging
 from colorama import Fore
 from typing import Optional
+from collections.abc import Collection
 
 from .._logger import logger
 from ..models import Model, OllamaLLM, OpenaiLLM
@@ -30,10 +31,17 @@ def generate_openai(
 
 
 @generate.register(OllamaLLM)
-def generate_ollama(model: OllamaLLM, prompt, **kwargs) -> str:
+def generate_ollama(
+    model: OllamaLLM, prompt, options: Optional[Collection[str]] = None, **kwargs
+) -> str:
     """Helper function to work with Ollama models,
     since they're not recognized in the Outlines ecosystem.
     """
+    if options:
+        raise NotImplementedError(
+            "Cannot use choice generation with an Ollama model"
+            + "due to the limitations of the Ollama API."
+        )
     from ollama import Options
 
     # Turn outlines kwargs into Ollama
