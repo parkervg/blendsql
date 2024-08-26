@@ -64,28 +64,38 @@ class QAProgram(Program):
         if isinstance(model, LocalModel):
             prompt = m._current_prompt()
             if options is not None:
-                response = guidance.capture(
-                    guidance.select(options=[re.escape(str(i)) for i in options]),
-                    name="result",
-                )["response"]
+                response = (
+                    m
+                    + guidance.capture(
+                        guidance.select(options=[re.escape(str(i)) for i in options]),
+                        name="result",
+                    )
+                )._variables["result"]
             else:
-                response = guidance.capture(
-                    m + guidance.gen(max_tokens=max_tokens, stop="\n"), name="response"
-                )["response"]
+                response = (
+                    m
+                    + guidance.capture(
+                        guidance.gen(max_tokens=max_tokens, stop="\n"), name="response"
+                    )
+                )._variables["result"]
         else:
             prompt = m
+            if model.tokenizer is not None:
+                max_tokens = (
+                    max(
+                        [
+                            len(model.tokenizer.encode(alias))
+                            for alias in options_alias_to_original
+                        ]
+                    )
+                    if options
+                    else max_tokens
+                )
             response = generate(
                 model,
                 prompt=prompt,
                 options=options,
-                max_tokens=max(
-                    [
-                        len(model.tokenizer.encode(alias))
-                        for alias in options_alias_to_original
-                    ]
-                )
-                if options
-                else max_tokens,
+                max_tokens=max_tokens,
                 stop_at="\n",
             )
         # Map from modified options to original, as they appear in DB
