@@ -1,3 +1,64 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blendsql"
+description = "Query language for blending SQL logic and LLM reasoning across multi-modal data. [Findings of ACL 2024]"
+authors = [
+    {"name" = "Parker Glenn", "email" = "parkervg5@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+keywords = [
+    "language models",
+    "query language",
+    "symbolic ai",
+    "sql"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "guidance",
+    "pyparsing==3.1.1",
+    "pandas>=2.0.0",
+    "bottleneck>=1.3.6",
+    "python-dotenv==1.0.1",
+    "sqlglot==18.13.0",
+    "sqlalchemy>=2.0.0",
+    "skrub==0.2.0",
+    "scikit-learn==1.4.2",
+    "duckdb<1",
+    "huggingface_hub",
+    "datasets",
+    "platformdirs",
+    "attrs",
+    "tqdm",
+    "colorama",
+    "tabulate>=0.9.0",
+    "typeguard",
+    "rapidfuzz",
+    "httpx",
+    "setuptools",  # For python 3.12
+]
+dynamic = ["version"]
+
+[project.urls]
+Documentation = "https://parkervg.github.io/blendsql/"
+
+[project.scripts]
+blendsql = "blendsql.blend_cli:main"
+
+[tool.setuptools]
+packages = ["blendsql"]
+
 [tool.black]
 line-length = 88
 
