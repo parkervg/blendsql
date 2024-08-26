@@ -23,7 +23,7 @@ def generate_openai(
             messages=[{"role": "user", "content": prompt}],
             model=model.model_obj.engine.model_name,
             max_tokens=max_tokens,
-            temperature=model.model_obj.engine._current_temp,
+            **model.load_model_kwargs,
         )
         .choices[0]
         .message.content

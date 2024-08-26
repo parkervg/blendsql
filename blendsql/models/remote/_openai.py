@@ -5,7 +5,7 @@ from outlines.models.openai import OpenAIConfig
 from .._model import RemoteModel, ModelObj
 from typing import Optional
 
-DEFAULT_CONFIG = OpenAIConfig(temperature=0.0)
+DEFAULT_CONFIG = {"temperature": 0.0}
 
 _has_openai = importlib.util.find_spec("openai") is not None
 
@@ -81,7 +81,7 @@ class AzureOpenaiLLM(RemoteModel):
         self,
         model_name_or_path: str,
         env: str = ".",
-        config: Optional[OpenAIConfig] = None,
+        config: Optional[dict] = None,
         caching: bool = True,
         **kwargs,
     ):
@@ -92,23 +92,24 @@ class AzureOpenaiLLM(RemoteModel):
 
         import tiktoken
 
+        if config is None:
+            config = {}
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
-            load_model_kwargs=kwargs | {"config": config or DEFAULT_CONFIG},
+            load_model_kwargs=config | DEFAULT_CONFIG,
             env=env,
             caching=caching,
             **kwargs,
         )
 
     def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
-        from outlines.models.openai import azure_openai
+        from guidance.models import AzureGuidance
 
-        return azure_openai(
+        return AzureGuidance(
             self.model_name_or_path,
-            config=config,
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
             api_key=os.getenv("OPENAI_API_KEY"),
         )  # type: ignore
@@ -150,7 +151,7 @@ class OpenaiLLM(RemoteModel):
         self,
         model_name_or_path: str,
         env: str = ".",
-        config: Optional[OpenAIConfig] = None,
+        config: Optional[dict] = None,
         caching: bool = True,
         **kwargs,
     ):
@@ -161,23 +162,25 @@ class OpenaiLLM(RemoteModel):
 
         import tiktoken
 
+        if config is None:
+            config = {}
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
-            load_model_kwargs={"config": config or DEFAULT_CONFIG},
+            load_model_kwargs=config | DEFAULT_CONFIG,
             env=env,
             caching=caching,
             **kwargs,
         )
 
-    def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
+    def _load_model(self) -> ModelObj:
         from guidance.models import OpenAI
 
         return OpenAI(
             self.model_name_or_path, echo=False, api_key=os.getenv("OPENAI_API_KEY")
-        )  # type: ignore
+        )
 
     def _setup(self, **kwargs) -> None:
         openai_setup()
