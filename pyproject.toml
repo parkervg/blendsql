@@ -48,7 +48,7 @@ dependencies = [
     "httpx",
     "setuptools",  # For python 3.12
 ]
-dynamic = ["version"]
+version = "0.0.22"
 
 [project.urls]
 Documentation = "https://parkervg.github.io/blendsql/"
