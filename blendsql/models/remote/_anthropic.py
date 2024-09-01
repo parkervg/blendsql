@@ -15,14 +15,14 @@ class AnthropicLLM(RemoteModel):
     Args:
         model_name_or_path: Name of the Anthropic model to use
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
-            Should contain the variable `ANTRHOPIC_API_KEY`
+            Should contain the variable `ANTHROPIC_API_KEY`
         config: Optional argument mapping to use in loading model
         caching: Bool determining whether we access the model's cache
 
     Examples:
         Given the following `.env` file in the directory above current:
         ```text
-        ANTRHOPIC_API_KEY=my_api_key
+        ANTHROPIC_API_KEY=my_api_key
         ```
         ```python
         from blendsql.models import AnthropicLLM
@@ -66,5 +66,5 @@ class AnthropicLLM(RemoteModel):
         from guidance.models import Anthropic
 
         return Anthropic(
-            self.model_name_or_path, echo=False, api_key=os.getenv("ANTRHOPIC_API_KEY")
+            self.model_name_or_path, echo=False, api_key=os.getenv("ANTHROPIC_API_KEY")
         )
