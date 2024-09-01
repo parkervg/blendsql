@@ -10,6 +10,6 @@ hide:
 
 ## AnthropicLLM
 
-::: blendsql.models.local._anthropic.AnthropicLLM
+::: blendsql.models.remote._anthropic.AnthropicLLM
     handler: python
     show_source: false

@@ -10,6 +10,31 @@ _has_anthropic = importlib.util.find_spec("anthropic") is not None
 
 
 class AnthropicLLM(RemoteModel):
+    """Class for Anthropic Model API.
+
+    Args:
+        model_name_or_path: Name of the Anthropic model to use
+        env: Path to directory of .env file, or to the file itself to load as a dotfile.
+            Should contain the variable `ANTRHOPIC_API_KEY`
+        config: Optional argument mapping to use in loading model
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        Given the following `.env` file in the directory above current:
+        ```text
+        ANTRHOPIC_API_KEY=my_api_key
+        ```
+        ```python
+        from blendsql.models import AnthropicLLM
+
+        model = AnthropicLLM(
+            "claude-3-5-sonnet-20240620",
+            env="..",
+            config={"temperature": 0.7}
+        )
+        ```
+    """
+
     def __init__(
         self,
         model_name_or_path: str,
@@ -18,30 +43,6 @@ class AnthropicLLM(RemoteModel):
         caching: bool = True,
         **kwargs,
     ):
-        """Class for Anthropic Model API.
-
-        Args:
-            model_name_or_path: Name of the Anthropic model to use
-            env: Path to directory of .env file, or to the file itself to load as a dotfile.
-                Should contain the variable `ANTRHOPIC_API_KEY`
-            config: Optional argument mapping to use in loading model
-            caching: Bool determining whether we access the model's cache
-
-        Examples:
-            Given the following `.env` file in the directory above current:
-            ```text
-            ANTRHOPIC_API_KEY=my_api_key
-            ```
-            ```python
-            from blendsql.models import AnthropicLLM
-
-            model = AnthropicLLM(
-                "claude-3-5-sonnet-20240620",
-                env="..",
-                config={"temperature": 0.7}
-            )
-            ```
-        """
         if not _has_anthropic:
             raise ImportError(
                 "Please install anthropic with `pip install anthropic`!"
