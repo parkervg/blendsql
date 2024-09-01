@@ -1,6 +1,5 @@
 import os
 import importlib.util
-from outlines.models.openai import OpenAIConfig
 
 from .._model import RemoteModel, ModelObj
 from typing import Optional
@@ -105,7 +104,7 @@ class AzureOpenaiLLM(RemoteModel):
             **kwargs,
         )
 
-    def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
+    def _load_model(self) -> ModelObj:
         from guidance.models import AzureGuidance
 
         return AzureGuidance(
