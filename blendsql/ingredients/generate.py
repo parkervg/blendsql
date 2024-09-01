@@ -1,7 +1,7 @@
 from functools import singledispatch
 import logging
 from colorama import Fore
-from typing import Optional
+from typing import Optional, List
 from collections.abc import Collection
 
 from .._logger import logger
@@ -15,7 +15,7 @@ def generate(model: Model, *args, **kwargs) -> str:
 
 @generate.register(OpenaiLLM)
 def generate_openai(
-    model: OpenaiLLM, prompt, max_tokens: Optional[int], **kwargs
+    model: OpenaiLLM, prompt, max_tokens: Optional[int], stop_at: List[str], **kwargs
 ) -> str:
     client = model.model_obj.engine.client
     return (
@@ -23,6 +23,7 @@ def generate_openai(
             messages=[{"role": "user", "content": prompt}],
             model=model.model_obj.engine.model_name,
             max_tokens=max_tokens,
+            stop=stop_at,
             **model.load_model_kwargs,
         )
         .choices[0]
