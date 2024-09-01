@@ -187,7 +187,7 @@ class Model:
     @abstractmethod
     def _load_model(self, *args, **kwargs) -> ModelObj:
         """Logic for instantiating the model class goes here.
-        Will most likely be an outlines model object,
+        Will most likely be an guidance model object,
         but in some cases (like OllamaLLM) we make an exception.
         """
         ...

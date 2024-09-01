@@ -915,7 +915,7 @@ def blend(
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
             We can infer the output format should look like '1960-12-31' and both:
                 1) Put this string in the `example_outputs` kwarg
-                2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to outlines.generate.regex
+                2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to guidance
         table_to_title: Optional mapping from table name to title of table.
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
         schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot

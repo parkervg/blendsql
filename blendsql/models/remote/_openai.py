@@ -52,7 +52,7 @@ class AzureOpenaiLLM(RemoteModel):
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
             Should either contain the variable `OPENAI_API_KEY`,
             or all of `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`
-        config: Optional outlines.models.openai.OpenAIConfig to use in loading model
+        config: Optional dict to use in loading model
         caching: Bool determining whether we access the model's cache
 
     Examples:
@@ -64,14 +64,11 @@ class AzureOpenaiLLM(RemoteModel):
         ```
         ```python
         from blendsql.models import AzureOpenaiLLM
-        from outlines.models.openai import OpenAIConfig
 
         model = AzureOpenaiLLM(
             "gpt-3.5-turbo",
             env="..",
-            config=OpenAIConig(
-                temperature=0.7
-            )
+            config={"temperature": 0.7}
         )
         ```
     """
@@ -124,7 +121,7 @@ class OpenaiLLM(RemoteModel):
         model_name_or_path: Name of the OpenAI model to use
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
             Should contain the variable `OPENAI_API_KEY`
-        config: Optional outlines.models.openai.OpenAIConfig to use in loading model
+        config: Optional argument mapping to use in loading model
         caching: Bool determining whether we access the model's cache
 
     Examples:
@@ -134,14 +131,11 @@ class OpenaiLLM(RemoteModel):
         ```
         ```python
         from blendsql.models import OpenaiLLM
-        from outlines.models.openai import OpenAIConfig
 
-        model = AzureOpenaiLLM(
+        model = OpenaiLLM(
             "gpt-3.5-turbo",
             env="..",
-            config=OpenAIConig(
-                temperature=0.7
-            )
+            config={"temperature": 0.7}
         )
         ```
     """

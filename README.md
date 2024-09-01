@@ -143,7 +143,7 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
 - Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- Constrained decoding with [outlines](https://github.com/outlines-dev/outlines) 🚀
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
 ## Quickstart
@@ -246,5 +246,4 @@ Special thanks to those below for inspiring this project. Definitely recommend c
   - As far as I can tell, the first publication to propose unifying model calls within SQL 
   - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
 - The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
-- The maintainers of the [Outlines](https://github.com/outlines-dev/outlines) library for powering the constrained decoding capabilities of BlendSQL
-  - Paper at https://arxiv.org/abs/2307.09702
+- The maintainers of the [Guidance](https://github.com/guidance-ai/guidance) library for powering the constrained decoding capabilities of BlendSQL

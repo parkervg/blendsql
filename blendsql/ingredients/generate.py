@@ -17,6 +17,9 @@ def generate(model: Model, *args, **kwargs) -> str:
 def generate_openai(
     model: OpenaiLLM, prompt, max_tokens: Optional[int], stop_at: List[str], **kwargs
 ) -> str:
+    """This function only exists because of a bug in guidance
+    https://github.com/guidance-ai/guidance/issues/881
+    """
     client = model.model_obj.engine.client
     return (
         client.chat.completions.create(
@@ -36,7 +39,7 @@ def generate_ollama(
     model: OllamaLLM, prompt, options: Optional[Collection[str]] = None, **kwargs
 ) -> str:
     """Helper function to work with Ollama models,
-    since they're not recognized in the Outlines ecosystem.
+    since they're not recognized natively in the guidance ecosystem.
     """
     if options:
         raise NotImplementedError(
