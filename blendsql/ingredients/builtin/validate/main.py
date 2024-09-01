@@ -2,10 +2,11 @@ from typing import Dict, Union, Optional, Tuple
 import pandas as pd
 import guidance
 
-from blendsql.models import Model
+from blendsql.models import Model, LocalModel
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql._exceptions import IngredientException
+from blendsql.ingredients.generate import generate
 
 
 class ValidateProgram(Program):
@@ -25,12 +26,15 @@ class ValidateProgram(Program):
             m += f"\nTable Description: {table_title}"
         m += f"\n{serialized_db}\n\nAnswer:"
         prompt = m._current_prompt()
-        response = (
-            m
-            + guidance.capture(
-                guidance.select(options=["true", "false"]), name="result"
-            )["result"]
-        )
+        if isinstance(model, LocalModel):
+            response = (
+                m
+                + guidance.capture(
+                    guidance.select(options=["true", "false"]), name="result"
+                )["result"]
+            )
+        else:
+            response = generate(model, prompt=prompt, max_tokens=5)
         return (response, prompt)
 
 

@@ -15,6 +15,7 @@ from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._program import Program
 from blendsql._exceptions import IngredientException
+from blendsql.ingredients.generate import generate
 
 
 class MapProgram(Program):
@@ -33,62 +34,129 @@ class MapProgram(Program):
         colname: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
-        m: guidance.models.Model = model.model_obj
-        with guidance.system():
-            m += """Given a set of values from a database, answer the question row-by-row, in order."""
+        if isinstance(model, LocalModel):
+            m: guidance.models.Model = model.model_obj
+            with guidance.system():
+                m += """Given a set of values from a database, answer the question row-by-row, in order."""
+                if include_tf_disclaimer:
+                    m += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
+                m += newline_dedent(
+                    f"""
+                If a given value has no appropriate answer, give '-' as a response.
+                """
+                )
+                m += newline_dedent(
+                    """
+                ---
+    
+                The following values come from the column 'Penalties (P+P+S+S)', in a table titled 'Biathlon World Championships 2013 \u2013 Men's pursuit'.
+                Q: Total penalty count?
+                Here are some example outputs: '1', '2', '5'
+                A:
+                    - 1 (0+0+0+1) -> 1
+                    - 10 (5+3+2+0) -> 10
+                    - 6 (2+2+2+0) -> 6
+    
+                ---
+    
+                The following values come from the column 'Length of use', in a table titled 'Crest Whitestrips'.
+                Q: Is the time less than a week?
+                A:
+                    - 14 days -> f
+                    - 10 days -> f
+                    - daily -> t
+                    - 2 hours -> t
+    
+                ---
+                """
+                )
+                if table_title:
+                    m += newline_dedent(
+                        f"The following values come from the column '{colname}', in a table titled '{table_title}'."
+                    )
+            with guidance.user():
+                m += newline_dedent(f"""Q: {question}\nA:\n""")
+            prompt = m._current_prompt()
+            if isinstance(model, LocalModel) and regex is not None:
+                gen_f = lambda: guidance.regex(pattern=regex)
+            else:
+                gen_f = lambda: guidance.gen(max_tokens=max_tokens or 1000)
+
+            @guidance(stateless=True, dedent=False)
+            def make_predictions(lm, values, gen_f) -> guidance.models.Model:
+                for _idx, value in enumerate(values):
+                    lm += f"\n{value} -> " + guidance.capture(gen_f(), name=value)
+                return lm
+
+            with guidance.assistant():
+                m += make_predictions(values=values, gen_f=gen_f)
+            return ([m[value] for value in values], prompt)
+        else:
+            # Use the 'old' style of prompting when we have a remote model
+            prompt = ""
+            prompt += """Given a set of values from a database, answer the question row-by-row, in order."""
             if include_tf_disclaimer:
-                m += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-            m += newline_dedent(
+                prompt += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
+            prompt += newline_dedent(
                 f"""
-            If a given value has no appropriate answer, give '-' as a response.
-            """
+                    The answer should be a list separated by '{sep}', and have {len(values)} items in total.
+                    When you have given all {len(values)} answers, stop responding.
+                    If a given value has no appropriate answer, give '-' as a response.
+                    """
             )
-            m += newline_dedent(
+            prompt += newline_dedent(
                 """
             ---
-    
+
             The following values come from the column 'Penalties (P+P+S+S)', in a table titled 'Biathlon World Championships 2013 \u2013 Men's pursuit'.
             Q: Total penalty count?
-            Here are some example outputs: '1', '2', '5'
-            A:
-                - 1 (0+0+0+1) -> 1
-                - 10 (5+3+2+0) -> 10
-                - 6 (2+2+2+0) -> 6
-    
+            Values:
+            `1 (0+0+0+1)`
+            `10 (5+3+2+0)`
+            `6 (2+2+2+0)`
+
+            Output type: numeric
+            Here are some example outputs: `9;-`
+
+            A: 1;10;6
+
             ---
-    
+
             The following values come from the column 'Length of use', in a table titled 'Crest Whitestrips'.
             Q: Is the time less than a week?
-            A:
-                - 14 days -> f
-                - 10 days -> f
-                - daily -> t
-                - 2 hours -> t
-                
+            Values:
+            `14 days`
+            `10 days`
+            `daily`
+            `2 hours`
+
+            Output type: boolean
+            A: f;f;t;t
+
             ---
             """
             )
             if table_title:
-                m += newline_dedent(
+                prompt += newline_dedent(
                     f"The following values come from the column '{colname}', in a table titled '{table_title}'."
                 )
-        with guidance.user():
-            m += newline_dedent(f"""Q: {question}\nA:\n""")
-        prompt = m._current_prompt()
-        if isinstance(model, LocalModel) and regex is not None:
-            gen_f = lambda: guidance.regex(pattern=regex)
-        else:
-            gen_f = lambda: guidance.gen(max_tokens=max_tokens or 1000)
-
-        @guidance(stateless=True, dedent=False)
-        def make_predictions(lm, values, gen_f) -> guidance.models.Model:
-            for _idx, value in enumerate(values):
-                lm += f"\n{value} -> " + guidance.capture(gen_f(), name=value)
-            return lm
-
-        with guidance.assistant():
-            m += make_predictions(values=values, gen_f=gen_f)
-        return (m._variables, prompt)
+            prompt += newline_dedent(f"""Q: {question}\nValues:\n""")
+            for value in values:
+                prompt += f"`{value}`\n"
+            if output_type:
+                prompt += f"\nOutput type: {output_type}"
+            if example_outputs:
+                prompt += f"\nHere are some example outputs: {example_outputs}\n"
+            prompt += "\nA:"
+            response = generate(model, prompt=prompt, max_tokens=max_tokens)
+            # Post-process language model response
+            _r = [
+                i.strip()
+                for i in response.strip(CONST.DEFAULT_ANS_SEP).split(
+                    CONST.DEFAULT_ANS_SEP
+                )
+            ]
+            return (_r, prompt)
 
 
 class LLMMap(MapIngredient):
@@ -165,7 +233,7 @@ class LLMMap(MapIngredient):
             elif isinstance(model, OpenaiLLM):
                 include_tf_disclaimer = True
 
-            result: dict = model.predict(
+            result: List[str] = model.predict(
                 program=MapProgram,
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,
@@ -178,8 +246,6 @@ class LLMMap(MapIngredient):
                 max_tokens=max_tokens,
                 **kwargs,
             )
-            # Post-process language model response
-            _r = [result[value] for value in curr_batch_values]
             # Try to map to booleans and `None`
             _r = [
                 {
@@ -193,7 +259,7 @@ class LLMMap(MapIngredient):
                     "no": False,
                     CONST.DEFAULT_NAN_ANS: None,
                 }.get(i.lower(), i)
-                for i in _r
+                for i in result
             ]
             expected_len = len(curr_batch_values)
             if len(_r) != expected_len:
