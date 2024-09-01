@@ -1,7 +1,6 @@
 import copy
 from typing import Dict, Union, Optional, Set, Tuple
 import pandas as pd
-import re
 import guidance
 from colorama import Fore
 
@@ -38,7 +37,7 @@ class QAProgram(Program):
             m += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
         if options is not None:
             # Add in title case, since this helps with selection
-            _options = copy.deepcopy(options)
+            options_with_aliases = copy.deepcopy(options)
             # Below we check to see if our options have a unique first word
             # sometimes, the model will generate 'Frank' instead of 'Frank Smith'
             # We still want to align that, in this case
@@ -48,11 +47,12 @@ class QAProgram(Program):
             for option in options:
                 option = str(option)
                 for option_alias in [option.title(), option.upper()]:
-                    _options.add(option_alias)
+                    options_with_aliases.add(option_alias)
                     options_alias_to_original[option_alias] = option
                 if add_first_word:
-                    options_alias_to_original[option.split(" ")[0]] = option
-            options = _options
+                    option_alias = option.split(" ")[0]
+                    options_alias_to_original[option_alias] = option
+                    options_with_aliases.add(option_alias)
         m += f"\n\nQuestion: {question}"
         if table_title is not None:
             m += f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
@@ -67,7 +67,7 @@ class QAProgram(Program):
                 response = (
                     m
                     + guidance.capture(
-                        guidance.select(options=[re.escape(str(i)) for i in options]),
+                        guidance.select(options=options_with_aliases),
                         name="result",
                     )
                 )._variables["result"]
