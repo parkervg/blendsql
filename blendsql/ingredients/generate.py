@@ -5,7 +5,7 @@ from typing import Optional, List
 from collections.abc import Collection
 
 from .._logger import logger
-from ..models import Model, OllamaLLM, OpenaiLLM
+from ..models import Model, OllamaLLM, OpenaiLLM, AnthropicLLM
 
 
 @singledispatch
@@ -23,14 +23,32 @@ def generate_openai(
     client = model.model_obj.engine.client
     return (
         client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
             model=model.model_obj.engine.model_name,
+            messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
             stop=stop_at,
             **model.load_model_kwargs,
         )
         .choices[0]
         .message.content
+    )
+
+
+@generate.register(AnthropicLLM)
+def generate_anthropic(
+    model: AnthropicLLM, prompt, max_tokens: Optional[int], stop_at: List[str], **kwargs
+):
+    client = model.model_obj.engine.anthropic
+    return (
+        client.messages.create(
+            model=model.model_obj.engine.model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens or 5000,
+            # stop_sequences=stop_at
+            **model.load_model_kwargs,
+        )
+        .content[0]
+        .text
     )
 
 

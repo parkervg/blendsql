@@ -84,8 +84,8 @@ nav:
       - Blenders:
           - reference/blenders/blenders.md
           - OpenAI: reference/blenders/openai.md
+          - Anthropic: reference/blenders/anthropic.md
           - Transformers: reference/blenders/transformers.md
-          - llama.cpp: reference/blenders/llamacpp.md
           - Ollama: reference/blenders/ollama.md
       - Databases:
           - reference/databases/databases.md

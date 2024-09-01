@@ -96,7 +96,7 @@ class QAProgram(Program):
                 prompt=prompt,
                 options=options,
                 max_tokens=max_tokens,
-                stop_at="\n",
+                stop_at=["\n"],
             )
         # Map from modified options to original, as they appear in DB
         response: str = options_alias_to_original.get(response, response)
