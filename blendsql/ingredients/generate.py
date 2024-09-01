@@ -15,7 +15,11 @@ def generate(model: Model, *args, **kwargs) -> str:
 
 @generate.register(OpenaiLLM)
 def generate_openai(
-    model: OpenaiLLM, prompt, max_tokens: Optional[int], stop_at: List[str], **kwargs
+    model: OpenaiLLM,
+    prompt,
+    max_tokens: Optional[int] = None,
+    stop_at: Optional[List[str]] = None,
+    **kwargs,
 ) -> str:
     """This function only exists because of a bug in guidance
     https://github.com/guidance-ai/guidance/issues/881
@@ -36,7 +40,11 @@ def generate_openai(
 
 @generate.register(AnthropicLLM)
 def generate_anthropic(
-    model: AnthropicLLM, prompt, max_tokens: Optional[int], stop_at: List[str], **kwargs
+    model: AnthropicLLM,
+    prompt,
+    max_tokens: Optional[int] = None,
+    stop_at: Optional[List[str]] = None,
+    **kwargs,
 ):
     client = model.model_obj.engine.anthropic
     return (
