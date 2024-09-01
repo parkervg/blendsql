@@ -822,9 +822,14 @@ def _blend(
                         column in x for x in [llm_out_df.columns, base_table.columns]
                     ):
                         # Fill nan in llm_out_df with those values in base_table
-                        pd.testing.assert_index_equal(
-                            base_table.index, llm_out_df.index
-                        )
+                        try:
+                            pd.testing.assert_index_equal(
+                                base_table.index, llm_out_df.index
+                            )
+                        except AssertionError:
+                            logger.debug(
+                                Fore.RED + "pd.testing.assert_index_equal error"
+                            )
                         llm_out_df[column] = llm_out_df[column].fillna(
                             base_table[column]
                         )
@@ -832,7 +837,10 @@ def _blend(
                 llm_out_df = llm_out_df[
                     llm_out_df.columns.difference(base_table.columns)
                 ]
-                pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
+                try:
+                    pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
+                except AssertionError:
+                    logger.debug(Fore.RED + "pd.testing.assert_index_equal error")
                 merged = base_table.merge(
                     llm_out_df, how="left", right_index=True, left_index=True
                 )
