@@ -7,7 +7,7 @@ from blendsql.utils import fetch_from_hub
 from blendsql.models import TransformersVisionModel, TransformersLLM
 from blendsql._exceptions import IngredientException
 
-TEST_TRANSFORMERS_LLM = "hf-internal-testing/tiny-random-PhiForCausalLM"
+TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M"
 TEST_TRANSFORMERS_VISION_LLM = "Mozilla/distilvit"
 
 

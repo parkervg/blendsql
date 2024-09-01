@@ -1,11 +1,12 @@
 from typing import Dict, Union, Optional, Tuple
 import pandas as pd
+import guidance
 
-from blendsql.models import Model
+from blendsql.models import Model, LocalModel
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
-from blendsql import generate
 from blendsql._exceptions import IngredientException
+from blendsql.ingredients.generate import generate
 
 
 class ValidateProgram(Program):
@@ -17,14 +18,23 @@ class ValidateProgram(Program):
         table_title: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
+        m: guidance.models.Model = model.model_obj
         serialized_db = context.to_string() if context is not None else ""
-        prompt = ""
-        prompt += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
-        prompt += f"Claim: {question}"
+        m += "You are a database expert in charge of validating a claim given a context. Given a claim and associated database context, you will respond 'true' if the claim is factual given the context, and 'false' if not."
+        m += f"Claim: {question}"
         if table_title:
-            prompt += f"\nTable Description: {table_title}"
-        prompt += f"\n{serialized_db}\n\nAnswer:"
-        response = generate.choice(model, prompt=question, choices=["true", "false"])
+            m += f"\nTable Description: {table_title}"
+        m += f"\n{serialized_db}\n\nAnswer:"
+        prompt = m._current_prompt()
+        if isinstance(model, LocalModel):
+            response = (
+                m
+                + guidance.capture(
+                    guidance.select(options=["true", "false"]), name="result"
+                )["result"]
+            )
+        else:
+            response = generate(model, prompt=prompt, max_tokens=5)
         return (response, prompt)
 
 

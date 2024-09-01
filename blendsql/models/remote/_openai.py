@@ -1,11 +1,10 @@
 import os
 import importlib.util
-from outlines.models.openai import OpenAIConfig
 
 from .._model import RemoteModel, ModelObj
 from typing import Optional
 
-DEFAULT_CONFIG = OpenAIConfig(temperature=0.0)
+DEFAULT_CONFIG = {"temperature": 0.0}
 
 _has_openai = importlib.util.find_spec("openai") is not None
 
@@ -53,7 +52,7 @@ class AzureOpenaiLLM(RemoteModel):
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
             Should either contain the variable `OPENAI_API_KEY`,
             or all of `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`
-        config: Optional outlines.models.openai.OpenAIConfig to use in loading model
+        config: Optional dict to use in loading model
         caching: Bool determining whether we access the model's cache
 
     Examples:
@@ -65,14 +64,11 @@ class AzureOpenaiLLM(RemoteModel):
         ```
         ```python
         from blendsql.models import AzureOpenaiLLM
-        from outlines.models.openai import OpenAIConfig
 
         model = AzureOpenaiLLM(
             "gpt-3.5-turbo",
             env="..",
-            config=OpenAIConig(
-                temperature=0.7
-            )
+            config={"temperature": 0.7}
         )
         ```
     """
@@ -81,9 +77,9 @@ class AzureOpenaiLLM(RemoteModel):
         self,
         model_name_or_path: str,
         env: str = ".",
-        config: Optional[OpenAIConfig] = None,
+        config: Optional[dict] = None,
         caching: bool = True,
-        **kwargs
+        **kwargs,
     ):
         if not _has_openai:
             raise ImportError(
@@ -92,23 +88,24 @@ class AzureOpenaiLLM(RemoteModel):
 
         import tiktoken
 
+        if config is None:
+            config = {}
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
-            load_model_kwargs=kwargs | {"config": config or DEFAULT_CONFIG},
+            load_model_kwargs=config | DEFAULT_CONFIG,
             env=env,
             caching=caching,
-            **kwargs
+            **kwargs,
         )
 
-    def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
-        from outlines.models.openai import azure_openai
+    def _load_model(self) -> ModelObj:
+        from guidance.models import AzureGuidance
 
-        return azure_openai(
+        return AzureGuidance(
             self.model_name_or_path,
-            config=config,
             azure_endpoint=os.getenv("OPENAI_API_BASE"),
             api_key=os.getenv("OPENAI_API_KEY"),
         )  # type: ignore
@@ -124,7 +121,7 @@ class OpenaiLLM(RemoteModel):
         model_name_or_path: Name of the OpenAI model to use
         env: Path to directory of .env file, or to the file itself to load as a dotfile.
             Should contain the variable `OPENAI_API_KEY`
-        config: Optional outlines.models.openai.OpenAIConfig to use in loading model
+        config: Optional argument mapping to use in loading model
         caching: Bool determining whether we access the model's cache
 
     Examples:
@@ -134,14 +131,11 @@ class OpenaiLLM(RemoteModel):
         ```
         ```python
         from blendsql.models import OpenaiLLM
-        from outlines.models.openai import OpenAIConfig
 
-        model = AzureOpenaiLLM(
+        model = OpenaiLLM(
             "gpt-3.5-turbo",
             env="..",
-            config=OpenAIConig(
-                temperature=0.7
-            )
+            config={"temperature": 0.7}
         )
         ```
     """
@@ -150,9 +144,9 @@ class OpenaiLLM(RemoteModel):
         self,
         model_name_or_path: str,
         env: str = ".",
-        config: Optional[OpenAIConfig] = None,
+        config: Optional[dict] = None,
         caching: bool = True,
-        **kwargs
+        **kwargs,
     ):
         if not _has_openai:
             raise ImportError(
@@ -161,23 +155,25 @@ class OpenaiLLM(RemoteModel):
 
         import tiktoken
 
+        if config is None:
+            config = {}
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=tiktoken.encoding_for_model(model_name_or_path),
             requires_config=True,
             refresh_interval_min=30,
-            load_model_kwargs={"config": config or DEFAULT_CONFIG},
+            load_model_kwargs=config | DEFAULT_CONFIG,
             env=env,
             caching=caching,
-            **kwargs
+            **kwargs,
         )
 
-    def _load_model(self, config: Optional[OpenAIConfig] = None) -> ModelObj:
-        from outlines.models.openai import openai
+    def _load_model(self) -> ModelObj:
+        from guidance.models import OpenAI
 
-        return openai(
-            self.model_name_or_path, config=config, api_key=os.getenv("OPENAI_API_KEY")
-        )  # type: ignore
+        return OpenAI(
+            self.model_name_or_path, echo=False, api_key=os.getenv("OPENAI_API_KEY")
+        )
 
     def _setup(self, **kwargs) -> None:
         openai_setup()

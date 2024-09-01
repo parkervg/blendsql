@@ -10,7 +10,7 @@ hide:
 
 !!! Note
 
-    We consider Ollama models 'remote', since we're unable to access the underlying logits via outlines. As a result, we can only use Ollama for traditional generation, and not constrained generation (such as via the `options` arg in [LLMQA](../ingredients/LLMQA.md)) 
+    We consider Ollama models 'remote', since we're unable to access the underlying logits. As a result, we can only use Ollama for traditional generation, and not constrained generation (such as via the `options` arg in [LLMQA](../ingredients/LLMQA.md)) 
 
 ## OllamaLLM
 

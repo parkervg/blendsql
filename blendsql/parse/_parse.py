@@ -396,16 +396,16 @@ class SubqueryContextManager:
             a regex regex which is restricted to repeat exclusively num_repeats times.
             """
             if output_type == "boolean":
-                base_regex = f"((t|f|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+                base_regex = f"(t|f|{DEFAULT_NAN_ANS})"
             elif output_type == "integer":
                 # SQLite max is 18446744073709551615
                 # This is 20 digits long, so to be safe, cap the generation at 19
-                base_regex = r"((\d{1,18}" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+                base_regex = r"(\d{1,18}" + f"|{DEFAULT_NAN_ANS})"
             elif output_type == "float":
-                base_regex = r"((\d(\d|\.)*" + f"|{DEFAULT_NAN_ANS}){DEFAULT_ANS_SEP})"
+                base_regex = r"(\d(\d|\.)*" + f"|{DEFAULT_NAN_ANS})"
             else:
                 raise ValueError(f"Unknown output_type {output_type}")
-            return lambda num_repeats: base_regex + "{" + str(num_repeats) + "}"
+            return base_regex
 
         added_kwargs: Dict[str, Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end])

@@ -7,11 +7,8 @@ import pandas as pd
 
 from blendsql import blend
 from blendsql.models import TransformersLLM
-import outlines.caching
 
-outlines.caching.clear_cache()
-
-MODEL = TransformersLLM("hf-internal-testing/tiny-random-PhiForCausalLM", caching=False)
+MODEL = TransformersLLM("HuggingFaceTB/SmolLM-135M", caching=False)
 NUM_ITER_PER_QUERY = 5
 
 if __name__ == "__main__":

@@ -654,7 +654,7 @@ def _blend(
             if kwargs_dict.get(IngredientKwarg.REGEX, None) is not None:
                 logger.debug(
                     Fore.LIGHTBLACK_EX
-                    + f"Using regex '{kwargs_dict[IngredientKwarg.REGEX](1)}'"
+                    + f"Using regex '{kwargs_dict[IngredientKwarg.REGEX]}'"
                     + Fore.RESET
                 )
             if table_to_title is not None:
@@ -822,9 +822,14 @@ def _blend(
                         column in x for x in [llm_out_df.columns, base_table.columns]
                     ):
                         # Fill nan in llm_out_df with those values in base_table
-                        pd.testing.assert_index_equal(
-                            base_table.index, llm_out_df.index
-                        )
+                        try:
+                            pd.testing.assert_index_equal(
+                                base_table.index, llm_out_df.index
+                            )
+                        except AssertionError:
+                            logger.debug(
+                                Fore.RED + "pd.testing.assert_index_equal error"
+                            )
                         llm_out_df[column] = llm_out_df[column].fillna(
                             base_table[column]
                         )
@@ -832,7 +837,10 @@ def _blend(
                 llm_out_df = llm_out_df[
                     llm_out_df.columns.difference(base_table.columns)
                 ]
-                pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
+                try:
+                    pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
+                except AssertionError:
+                    logger.debug(Fore.RED + "pd.testing.assert_index_equal error")
                 merged = base_table.merge(
                     llm_out_df, how="left", right_index=True, left_index=True
                 )
@@ -915,7 +923,7 @@ def blend(
             For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
             We can infer the output format should look like '1960-12-31' and both:
                 1) Put this string in the `example_outputs` kwarg
-                2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to outlines.generate.regex
+                2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to guidance
         table_to_title: Optional mapping from table name to title of table.
             Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
         schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot

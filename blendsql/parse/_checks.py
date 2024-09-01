@@ -7,7 +7,15 @@ from ._utils import get_first_child
 
 
 def all_terminals_are_true(node: exp.Expression) -> bool:
-    """Check to see if all terminal nodes of a given node are TRUE booleans."""
+    """
+    Check if all terminal nodes of a given node are TRUE booleans.
+
+    Args:
+        node (exp.Expression): The root expression node to check.
+
+    Returns:
+        bool: True if all terminal nodes are TRUE booleans, False otherwise.
+    """
     for n, _, _ in node.walk():
         try:
             get_first_child(n)
@@ -18,6 +26,15 @@ def all_terminals_are_true(node: exp.Expression) -> bool:
 
 
 def ingredients_only_in_top_select(node: exp.Expression) -> bool:
+    """
+    Check if all `STRUCT` nodes are only found in the top-level SELECT statement.
+
+    Args:
+        node (exp.Expression): The root expression node to check.
+
+    Returns:
+        bool: True if all `STRUCT` nodes are only found in the top-level SELECT statement, False otherwise.
+    """
     select_exps = list(node.find_all(exp.Select))
     if len(select_exps) == 1:
         # Check if the only `STRUCT` nodes are found in select

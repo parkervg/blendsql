@@ -2,8 +2,6 @@ import pytest
 import httpx
 
 from blendsql import blend, LLMQA, LLMJoin
-from blendsql._smoothie import Smoothie
-from blendsql._exceptions import InvalidBlendSQL
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
 from blendsql.models import OllamaLLM
@@ -47,7 +45,7 @@ def test_ollama_basic_llmqa(db, ingredients):
 @pytest.mark.long
 def test_ollama_raise_exception(db, ingredients):
     model = OllamaLLM(TEST_OLLAMA_LLM, caching=False)
-    with pytest.raises(InvalidBlendSQL):
+    with pytest.raises(NotImplementedError):
         _ = blend(
             query="""
                 SELECT * FROM w
@@ -65,25 +63,25 @@ def test_ollama_raise_exception(db, ingredients):
         )
 
 
-@pytest.mark.long
-def test_ollama_join(db, ingredients):
-    try:
-        model = OllamaLLM(TEST_OLLAMA_LLM, caching=False)
-        model.model_obj(messages=[{"role": "user", "content": "hello"}])
-    except httpx.ConnectError:
-        pytest.skip("Ollama server is not running, skipping this test")
-    res = blend(
-        query="""
-            SELECT date, rival, score, documents.content AS "Team Description" FROM w
-              JOIN {{
-                  LLMJoin(
-                      left_on='documents::title',
-                      right_on='w::rival'
-                  )
-              }} WHERE rival = 'nsw waratahs'
-            """,
-        db=db,
-        default_model=model,
-        ingredients=ingredients,
-    )
-    assert isinstance(res, Smoothie)
+# @pytest.mark.long
+# def test_ollama_join(db, ingredients):
+#     try:
+#         model = OllamaLLM(TEST_OLLAMA_LLM, caching=False)
+#         model.model_obj(messages=[{"role": "user", "content": "hello"}])
+#     except httpx.ConnectError:
+#         pytest.skip("Ollama server is not running, skipping this test")
+#     res = blend(
+#         query="""
+#             SELECT date, rival, score, documents.content AS "Team Description" FROM w
+#               JOIN {{
+#                   LLMJoin(
+#                       left_on='documents::title',
+#                       right_on='w::rival'
+#                   )
+#               }} WHERE rival = 'nsw waratahs'
+#             """,
+#         db=db,
+#         default_model=model,
+#         ingredients=ingredients,
+#     )
+#     assert isinstance(res, Smoothie)

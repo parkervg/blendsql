@@ -1,14 +1,14 @@
 import copy
 from typing import Dict, Union, Optional, Set, Tuple
 import pandas as pd
-import re
+import guidance
+from colorama import Fore
 
-from blendsql.models import Model, OllamaLLM
-from blendsql._exceptions import InvalidBlendSQL
+from blendsql.models import Model, LocalModel
+from blendsql.ingredients.generate import generate
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
-from blendsql import generate
 from blendsql._exceptions import IngredientException
 
 
@@ -24,17 +24,20 @@ class QAProgram(Program):
         max_tokens: Optional[int] = None,
         **kwargs,
     ) -> Tuple[str, str]:
-        prompt = ""
+        if isinstance(model, LocalModel):
+            m: guidance.models.Model = model.model_obj
+        else:
+            m: str = ""
         serialized_db = context.to_string() if context is not None else ""
-        prompt += "Answer the question for the table. "
+        m += "Answer the question for the table. "
         options_alias_to_original = {}
         if long_answer:
-            prompt += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
+            m += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
         else:
-            prompt += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
+            m += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
         if options is not None:
             # Add in title case, since this helps with selection
-            _options = copy.deepcopy(options)
+            options_with_aliases = copy.deepcopy(options)
             # Below we check to see if our options have a unique first word
             # sometimes, the model will generate 'Frank' instead of 'Frank Smith'
             # We still want to align that, in this case
@@ -44,31 +47,64 @@ class QAProgram(Program):
             for option in options:
                 option = str(option)
                 for option_alias in [option.title(), option.upper()]:
-                    _options.add(option_alias)
+                    options_with_aliases.add(option_alias)
                     options_alias_to_original[option_alias] = option
                 if add_first_word:
-                    options_alias_to_original[option.split(" ")[0]] = option
-            options = _options
-        prompt += f"\n\nQuestion: {question}"
+                    option_alias = option.split(" ")[0]
+                    options_alias_to_original[option_alias] = option
+                    options_with_aliases.add(option_alias)
+        m += f"\n\nQuestion: {question}"
         if table_title is not None:
-            prompt += (
-                f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
-            )
+            m += f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
         else:
-            prompt += f"\n\nContext: \n {serialized_db}"
-        if options is not None:
-            if isinstance(model, OllamaLLM):
-                raise InvalidBlendSQL(
-                    "Can't use `options` argument in LLMQA with an Ollama model!"
+            m += f"\n\nContext: \n {serialized_db}"
+        if options and not isinstance(model, LocalModel):
+            m += f"\n\nFor your answer, select from one of the following options: {options}"
+        m += "\n\nAnswer:\n"
+        if isinstance(model, LocalModel):
+            prompt = m._current_prompt()
+            if options is not None:
+                response = (
+                    m
+                    + guidance.capture(
+                        guidance.select(options=options_with_aliases),
+                        name="result",
+                    )
+                )._variables["result"]
+            else:
+                response = (
+                    m
+                    + guidance.capture(
+                        guidance.gen(max_tokens=max_tokens, stop="\n"), name="response"
+                    )
+                )._variables["result"]
+        else:
+            prompt = m
+            if model.tokenizer is not None:
+                max_tokens = (
+                    max(
+                        [
+                            len(model.tokenizer.encode(alias))
+                            for alias in options_alias_to_original
+                        ]
+                    )
+                    if options
+                    else max_tokens
                 )
-            _response = generate.choice(
-                model, prompt=prompt, choices=[re.escape(str(i)) for i in options]
+            response = generate(
+                model,
+                prompt=prompt,
+                options=options,
+                max_tokens=max_tokens,
+                stop_at=["\n"],
             )
-            # Map from modified options to original, as they appear in DB
-            response: str = options_alias_to_original.get(_response, _response)
-        else:
-            response = generate.text(
-                model, prompt=prompt, max_tokens=max_tokens, stop_at="\n"
+        # Map from modified options to original, as they appear in DB
+        response: str = options_alias_to_original.get(response, response)
+        if options and response not in options:
+            print(
+                Fore.RED
+                + f"Model did not select from a valid option!\nExpected one of {options}, got {response}"
+                + Fore.RESET
             )
         return (response, prompt)
 
