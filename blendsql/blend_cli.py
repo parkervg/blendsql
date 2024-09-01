@@ -10,7 +10,6 @@ from blendsql.models import (
     OpenaiLLM,
     TransformersLLM,
     AzureOpenaiLLM,
-    LlamaCppLLM,
     OllamaLLM,
 )
 from blendsql.ingredients.builtin import LLMQA, LLMMap, LLMJoin
@@ -20,7 +19,6 @@ _has_readline = importlib.util.find_spec("readline") is not None
 MODEL_TYPE_TO_CLASS = {
     "openai": OpenaiLLM,
     "azure_openai": AzureOpenaiLLM,
-    "llama_cpp": LlamaCppLLM,
     "transformers": TransformersLLM,
     "ollama": OllamaLLM,
 }
