@@ -139,7 +139,7 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
 - Supports many DBMS 💾
   - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
 - Supports many models ✨
-  - Transformers, Llama.cpp, OpenAI, Ollama
+  - Transformers, OpenAI, Ollama
 - Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
 - Smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
