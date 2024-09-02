@@ -114,3 +114,21 @@ def test_llmqa_with_string(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
+
+
+@pytest.mark.long
+def test_unconstrained_llmqa(db, model, ingredients):
+    res = blend(
+        query="""
+        {{
+          LLMQA(
+            "What's this table about?",
+            (SELECT * FROM w LIMIT 1)      
+          )
+        }}
+        """,
+        db=db,
+        default_model=model,
+        ingredients=ingredients,
+    )
+    assert isinstance(res, Smoothie)
