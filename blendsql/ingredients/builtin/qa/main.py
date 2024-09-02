@@ -68,16 +68,16 @@ class QAProgram(Program):
                     m
                     + guidance.capture(
                         guidance.select(options=options_with_aliases),
-                        name="result",
+                        name="response",
                     )
-                )._variables["result"]
+                )._variables["response"]
             else:
                 response = (
                     m
                     + guidance.capture(
-                        guidance.gen(max_tokens=max_tokens, stop="\n"), name="response"
+                        guidance.gen(max_tokens=max_tokens or 50), name="response"
                     )
-                )._variables["result"]
+                )._variables["response"]
         else:
             prompt = m
             if model.tokenizer is not None:

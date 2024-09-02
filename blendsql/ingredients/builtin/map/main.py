@@ -148,7 +148,7 @@ class MapProgram(Program):
             if example_outputs:
                 prompt += f"\nHere are some example outputs: {example_outputs}\n"
             prompt += "\nA:"
-            response = generate(model, prompt=prompt, max_tokens=max_tokens)
+            response = generate(model, prompt=prompt, max_tokens=max_tokens or 1000)
             # Post-process language model response
             _r = [
                 i.strip()
