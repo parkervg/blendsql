@@ -1,4 +1,6 @@
 import importlib.util
+from typing import Optional
+
 from .._model import LocalModel, ModelObj
 
 DEFAULT_KWARGS = {"do_sample": True, "temperature": 0.0, "top_p": 1.0}
@@ -21,7 +23,13 @@ class TransformersLLM(LocalModel):
         ```
     """
 
-    def __init__(self, model_name_or_path: str, caching: bool = True, **kwargs):
+    def __init__(
+        self,
+        model_name_or_path: str,
+        config: Optional[dict] = None,
+        caching: bool = True,
+        **kwargs,
+    ):
         if not _has_transformers and _has_torch:
             raise ImportError(
                 "Please install transformers with `pip install transformers`!"
@@ -37,12 +45,13 @@ class TransformersLLM(LocalModel):
         import transformers
 
         transformers.logging.set_verbosity_error()
-
+        if config is None:
+            config = {}
         super().__init__(
             model_name_or_path=model_name_or_path,
             requires_config=False,
             tokenizer=transformers.AutoTokenizer.from_pretrained(model_name_or_path),
-            load_model_kwargs=DEFAULT_KWARGS | kwargs,
+            load_model_kwargs=DEFAULT_KWARGS | config,
             caching=caching,
             **kwargs,
         )
