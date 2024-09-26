@@ -56,8 +56,9 @@ Documentation = "https://parkervg.github.io/blendsql/"
 [project.scripts]
 blendsql = "blendsql.blend_cli:main"
 
-[tool.setuptools]
-packages = ["blendsql"]
+[tool.setuptools.packages.find]
+exclude=["examples*", "research*", "img*"]
+
 
 [tool.black]
 line-length = 88
