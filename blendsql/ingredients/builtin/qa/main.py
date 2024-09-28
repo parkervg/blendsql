@@ -29,12 +29,13 @@ class QAProgram(Program):
         else:
             m: str = ""
         serialized_db = context.to_string() if context is not None else ""
-        m += "Answer the question for the table. "
-        options_alias_to_original = {}
-        if long_answer:
-            m += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
-        else:
-            m += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
+        with guidance.system():
+            m += "Answer the question for the table. "
+            options_alias_to_original = {}
+            if long_answer:
+                m += "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
+            else:
+                m += "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
         if options is not None:
             # Add in title case, since this helps with selection
             options_with_aliases = copy.deepcopy(options)
@@ -53,31 +54,33 @@ class QAProgram(Program):
                     option_alias = option.split(" ")[0]
                     options_alias_to_original[option_alias] = option
                     options_with_aliases.add(option_alias)
-        m += f"\n\nQuestion: {question}"
-        if table_title is not None:
-            m += f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
-        else:
-            m += f"\n\nContext: \n {serialized_db}"
-        if options and not isinstance(model, LocalModel):
-            m += f"\n\nFor your answer, select from one of the following options: {options}"
-        m += "\n\nAnswer:\n"
-        if isinstance(model, LocalModel):
-            prompt = m._current_prompt()
-            if options is not None:
-                response = (
-                    m
-                    + guidance.capture(
-                        guidance.select(options=options_with_aliases),
-                        name="response",
-                    )
-                )._variables["response"]
+        with guidance.user():
+            m += f"\n\nQuestion: {question}"
+            if table_title is not None:
+                m += f"\n\nContext: \n Table Description: {table_title} \n {serialized_db}"
             else:
-                response = (
-                    m
-                    + guidance.capture(
-                        guidance.gen(max_tokens=max_tokens or 50), name="response"
-                    )
-                )._variables["response"]
+                m += f"\n\nContext: \n {serialized_db}"
+            if options and not isinstance(model, LocalModel):
+                m += f"\n\nFor your answer, select from one of the following options: {options}"
+            m += "\n\nAnswer:\n"
+        if isinstance(model, LocalModel):
+            with guidance.assistant():
+                prompt = m._current_prompt()
+                if options is not None:
+                    response = (
+                        m
+                        + guidance.capture(
+                            guidance.select(options=options_with_aliases),
+                            name="response",
+                        )
+                    )._variables["response"]
+                else:
+                    response = (
+                        m
+                        + guidance.capture(
+                            guidance.gen(max_tokens=max_tokens or 50), name="response"
+                        )
+                    )._variables["response"]
         else:
             prompt = m
             if model.tokenizer is not None:
