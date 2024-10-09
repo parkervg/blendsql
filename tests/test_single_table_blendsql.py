@@ -673,5 +673,27 @@ def test_group_by_with_ingredient_alias(db, ingredients):
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
+@pytest.mark.parametrize("db", databases)
+def test_null_negation(db, ingredients):
+    """ee3b0c4"""
+    blendsql = """
+    SELECT merchant FROM transactions
+    WHERE merchant IS NOT NULL
+    AND {{starts_with('Z', 'transactions::merchant')}}
+    """
+    sql = """
+    SELECT merchant FROM transactions
+    WHERE merchant IS NOT NULL
+    AND merchant LIKE 'Z%'
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
 if __name__ == "__main__":
     pytest.main()
