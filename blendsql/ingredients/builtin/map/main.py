@@ -53,7 +53,7 @@ class MapProgram(Program):
                 m += """Given a set of values from a database, answer the question row-by-row, in order."""
                 if include_tf_disclaimer:
                     m += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-                if regex and f"|{CONST.DEFAULT_NAN_ANS}" in regex:
+                if allow_null_option:
                     m += newline_dedent(
                         f"""
                     If a given value has no appropriate answer, give '-' as a response.
@@ -91,10 +91,7 @@ class MapProgram(Program):
             with guidance.user():
                 if list_options_in_prompt and options:
                     m += f"Your responses should select from one of the following values:\n"
-                    m += "\n".join(
-                        options
-                        + (["-"] if f"|{CONST.DEFAULT_NAN_ANS}" in regex else [])
-                    )
+                    m += "\n".join(options + (["-"] if allow_null_option else []))
                     m += "\n\n"
                 m += newline_dedent(f"""Q: {question}\nA:\n""")
             prompt = m._current_prompt()
@@ -111,6 +108,7 @@ class MapProgram(Program):
 
             with guidance.assistant():
                 m += make_predictions(values=values, gen_f=gen_f)
+            print(prompt)
             return ([m[value] for value in values], prompt)
         else:
             # Use the 'old' style of prompting when we have a remote model
@@ -122,9 +120,12 @@ class MapProgram(Program):
                 f"""
                     The answer should be a list separated by '{sep}', and have {len(values)} items in total.
                     When you have given all {len(values)} answers, stop responding.
-                    If a given value has no appropriate answer, give '-' as a response.
                     """
             )
+            if allow_null_option:
+                prompt += newline_dedent(
+                    """If a given value has no appropriate answer, give '-' as a response."""
+                )
             prompt += newline_dedent(
                 """
             ---
@@ -161,6 +162,12 @@ class MapProgram(Program):
                 prompt += newline_dedent(
                     f"The following values come from the column '{colname}', in a table titled '{table_title}'."
                 )
+            if list_options_in_prompt and options:
+                prompt += (
+                    f"Your responses should select from one of the following values:\n"
+                )
+                prompt += "\n".join(options + (["-"] if allow_null_option else []))
+                prompt += "\n\n"
             prompt += newline_dedent(f"""Q: {question}\nValues:\n""")
             for value in values:
                 prompt += f"`{value}`\n"
