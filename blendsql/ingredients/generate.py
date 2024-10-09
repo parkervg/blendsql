@@ -47,11 +47,12 @@ def generate_anthropic(
     **kwargs,
 ):
     client = model.model_obj.engine.anthropic
+
     return (
         client.messages.create(
             model=model.model_obj.engine.model_name,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens or 5000,
+            max_tokens=max_tokens or 4000,
             # stop_sequences=stop_at
             **model.load_model_kwargs,
         )
@@ -67,11 +68,11 @@ def generate_ollama(
     """Helper function to work with Ollama models,
     since they're not recognized natively in the guidance ecosystem.
     """
-    if options:
-        raise NotImplementedError(
-            "Cannot use choice generation with an Ollama model"
-            + "due to the limitations of the Ollama API."
-        )
+    # if options:
+    #     raise NotImplementedError(
+    #         "Cannot use choice generation with an Ollama model"
+    #         + "due to the limitations of the Ollama API."
+    #     )
     from ollama import Options
 
     # Turn outlines kwargs into Ollama
