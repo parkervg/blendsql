@@ -1,4 +1,3 @@
-import re
 from attr import attrs, attrib
 from abc import abstractmethod
 import pandas as pd
@@ -18,7 +17,6 @@ from .. import utils
 from .._constants import (
     IngredientKwarg,
     IngredientType,
-    DEFAULT_NAN_ANS,
 )
 from ..db import Database
 from ..db.utils import select_all_from_table_query
@@ -91,10 +89,22 @@ class MapIngredient(Ingredient):
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
 
     model: Model = attrib(default=None)
+    allow_null_option: bool = attrib(default=True)
+    list_options_in_prompt: bool = attrib(default=True)
 
     @classmethod
-    def from_args(cls, model: Model):
-        return partialclass(cls, model=model)
+    def from_args(
+        cls,
+        model: Model = None,
+        allow_null_option: bool = True,
+        list_options_in_prompt: bool = True,
+    ):
+        return partialclass(
+            cls,
+            model=model,
+            allow_null_option=allow_null_option,
+            list_options_in_prompt=list_options_in_prompt,
+        )
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
@@ -171,19 +181,27 @@ class MapIngredient(Ingredient):
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
 
+        unpacked_options = None
         if options is not None:
             # Override any pattern with our new unpacked options
-            unpacked_options = unpack_options(
-                options=options, aliases_to_tablenames=aliases_to_tablenames, db=self.db
+            unpacked_options = list(
+                unpack_options(
+                    options=options,
+                    aliases_to_tablenames=aliases_to_tablenames,
+                    db=self.db,
+                )
             )
-            kwargs[
-                IngredientKwarg.REGEX
-            ] = f"({'|'.join([re.escape(option) for option in unpacked_options])}|{DEFAULT_NAN_ANS})"
         else:
             kwargs[IngredientKwarg.REGEX] = regex
         kwargs[IngredientKwarg.VALUES] = values
         kwargs[IngredientKwarg.QUESTION] = question
-        mapped_values: Collection[Any] = self._run(*args, **kwargs)
+        mapped_values: Collection[Any] = self._run(
+            *args,
+            **kwargs,
+            options=unpacked_options,
+            list_options_in_prompt=self.list_options_in_prompt,
+            allow_null_option=self.allow_null_option,
+        )
         self.num_values_passed += len(mapped_values)
         df_as_dict: Dict[str, list] = {colname: [], new_arg_column: []}
         for value, mapped_value in zip(values, mapped_values):

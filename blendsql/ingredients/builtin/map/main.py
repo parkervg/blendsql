@@ -1,6 +1,7 @@
 import logging
 from typing import Union, Iterable, Any, Dict, Optional, List, Callable, Tuple
 
+import re
 import json
 import pandas as pd
 from colorama import Fore
@@ -25,9 +26,12 @@ class MapProgram(Program):
         question: str,
         values: List[str],
         sep: str,
+        options: List[str] = None,
+        allow_null_option: bool = True,
+        list_options_in_prompt: bool = True,
         include_tf_disclaimer: bool = False,
         max_tokens: Optional[int] = None,
-        regex: Optional[Callable[[int], str]] = None,
+        regex: Optional[str] = None,
         output_type: Optional[str] = None,
         example_outputs: Optional[str] = None,
         table_title: Optional[str] = None,
@@ -35,16 +39,26 @@ class MapProgram(Program):
         **kwargs,
     ) -> Tuple[str, str]:
         if isinstance(model, LocalModel):
+            if all(x is not None for x in [options, regex]):
+                raise IngredientException(
+                    "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
+                )
+            if options:
+                if allow_null_option:
+                    regex = f"({'|'.join([re.escape(option) for option in options])}|{CONST.DEFAULT_NAN_ANS})"
+                else:
+                    regex = f"({'|'.join([re.escape(option) for option in options])})"
             m: guidance.models.Model = model.model_obj
             with guidance.system():
                 m += """Given a set of values from a database, answer the question row-by-row, in order."""
                 if include_tf_disclaimer:
                     m += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-                m += newline_dedent(
-                    f"""
-                If a given value has no appropriate answer, give '-' as a response.
-                """
-                )
+                if regex and f"|{CONST.DEFAULT_NAN_ANS}" in regex:
+                    m += newline_dedent(
+                        f"""
+                    If a given value has no appropriate answer, give '-' as a response.
+                    """
+                    )
                 m += newline_dedent(
                     """
                 ---
@@ -75,6 +89,13 @@ class MapProgram(Program):
                         f"The following values come from the column '{colname}', in a table titled '{table_title}'."
                     )
             with guidance.user():
+                if list_options_in_prompt and options:
+                    m += f"Your responses should select from one of the following values:\n"
+                    m += "\n".join(
+                        options
+                        + (["-"] if f"|{CONST.DEFAULT_NAN_ANS}" in regex else [])
+                    )
+                    m += "\n\n"
                 m += newline_dedent(f"""Q: {question}\nA:\n""")
             prompt = m._current_prompt()
             if isinstance(model, LocalModel) and regex is not None:
@@ -170,6 +191,9 @@ class LLMMap(MapIngredient):
         model: Model,
         question: str,
         values: List[str],
+        options: List[str] = None,
+        allow_null_option: bool = None,
+        list_options_in_prompt: bool = None,
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
         output_type: Optional[str] = None,
@@ -238,6 +262,9 @@ class LLMMap(MapIngredient):
                 question=question,
                 sep=CONST.DEFAULT_ANS_SEP,
                 values=curr_batch_values,
+                options=options,
+                allow_null_option=allow_null_option,
+                list_options_in_prompt=list_options_in_prompt,
                 example_outputs=example_outputs,
                 output_type=output_type,
                 include_tf_disclaimer=include_tf_disclaimer,
