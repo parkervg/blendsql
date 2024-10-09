@@ -343,6 +343,12 @@ class SubqueryContextManager:
         for table_predicates in get_scope_nodes(
             nodetype=exp.Predicate, root=self.root, restrict_scope=True
         ):
+            # Unary operators like `NOT` get parsed as parents of predicate by sqlglot
+            # i.e. `SELECT * FROM w WHERE x IS NOT NULL` -> `SELECT * FROM w WHERE NOT x IS NULL`
+            # Since these impact the temporary table creation, we consider them parts of the predicate
+            #   and fetch them below.
+            if isinstance(table_predicates.parent, exp.Unary):
+                table_predicates = table_predicates.parent
             if check.in_subquery(table_predicates):
                 continue
             if disambiguate_multi_tables:
@@ -393,7 +399,7 @@ class SubqueryContextManager:
         ) -> Callable[[int], str]:
             """Helper function to create a regex lambda.
             These regex lambdas take an integer (num_repeats) and return
-            a regex regex which is restricted to repeat exclusively num_repeats times.
+            a regex which is restricted to repeat exclusively num_repeats times.
             """
             if output_type == "boolean":
                 base_regex = f"(t|f|{DEFAULT_NAN_ANS})"
