@@ -664,3 +664,28 @@ def test_join_with_multiple_ingredients(db, ingredients):
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+@pytest.mark.parametrize("db", databases)
+def test_null_negation(db, ingredients):
+    blendsql = """
+    SELECT DISTINCT Name FROM constituents
+    LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
+    WHERE account_history."Settlement Date" IS NOT NULL
+    AND {{starts_with('F', 'account_history::Account')}}
+    ORDER BY constituents.Name
+    """
+    sql = """
+    SELECT DISTINCT Name FROM constituents
+    LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
+    WHERE account_history."Settlement Date" IS NOT NULL
+    AND account_history.Account LIKE 'F%'
+    ORDER BY constituents.Name
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)

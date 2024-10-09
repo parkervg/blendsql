@@ -43,7 +43,7 @@ def extract_multi_table_predicates(
     if isinstance(node, exp.Table):
         if node.name != tablename:
             return None
-    if isinstance(node, exp.Predicate):
+    if isinstance(node, (exp.Predicate, exp.Unary)):
         # Search for child table, in current view
         # This below ensures we don't go into subqueries
         child_table = find_in_scope(node, exp.Table)
