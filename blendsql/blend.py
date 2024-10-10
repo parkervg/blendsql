@@ -459,6 +459,7 @@ def _blend(
     # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
     function_call_to_res: Dict[str, str] = {}
     session_modified_tables = set()
+    scm = None
     # TODO: Currently, as we traverse upwards from deepest subquery,
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
