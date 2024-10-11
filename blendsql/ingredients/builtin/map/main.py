@@ -44,21 +44,12 @@ class MapProgram(Program):
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
                 )
             if options:
-                if allow_null_option:
-                    regex = f"({'|'.join([re.escape(option) for option in options])}|{CONST.DEFAULT_NAN_ANS})"
-                else:
-                    regex = f"({'|'.join([re.escape(option) for option in options])})"
+                regex = f"({'|'.join([re.escape(option) for option in options])})"
             m: guidance.models.Model = model.model_obj
             with guidance.system():
                 m += """Given a set of values from a database, answer the question row-by-row, in order."""
                 if include_tf_disclaimer:
                     m += " If the question can be answered with 'true' or 'false', select `t` for 'true' or `f` for 'false'."
-                if allow_null_option:
-                    m += newline_dedent(
-                        f"""
-                    If a given value has no appropriate answer, give '-' as a response.
-                    """
-                    )
                 m += newline_dedent(
                     """
                 ---
@@ -91,7 +82,7 @@ class MapProgram(Program):
             with guidance.user():
                 if list_options_in_prompt and options:
                     m += f"Your responses should select from one of the following values:\n"
-                    m += "\n".join(options + (["-"] if allow_null_option else []))
+                    m += "\n".join(options)
                     m += "\n\n"
                 m += newline_dedent(f"""Q: {question}\nA:\n""")
             prompt = m._current_prompt()
@@ -122,10 +113,6 @@ class MapProgram(Program):
                     When you have given all {len(values)} answers, stop responding.
                     """
             )
-            if allow_null_option:
-                prompt += newline_dedent(
-                    """If a given value has no appropriate answer, give '-' as a response."""
-                )
             prompt += newline_dedent(
                 """
             ---
@@ -166,7 +153,7 @@ class MapProgram(Program):
                 prompt += (
                     f"Your responses should select from one of the following values:\n"
                 )
-                prompt += "\n".join(options + (["-"] if allow_null_option else []))
+                prompt += "\n".join(options)
                 prompt += "\n\n"
             prompt += newline_dedent(f"""Q: {question}\nValues:\n""")
             for value in values:

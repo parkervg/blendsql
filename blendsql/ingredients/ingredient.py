@@ -89,14 +89,14 @@ class MapIngredient(Ingredient):
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
 
     model: Model = attrib(default=None)
-    allow_null_option: bool = attrib(default=True)
+    allow_null_option: bool = attrib(default=False)
     list_options_in_prompt: bool = attrib(default=True)
 
     @classmethod
     def from_args(
         cls,
         model: Model = None,
-        allow_null_option: bool = True,
+        allow_null_option: bool = False,
         list_options_in_prompt: bool = True,
     ):
         return partialclass(
