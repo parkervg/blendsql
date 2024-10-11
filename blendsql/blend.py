@@ -442,6 +442,9 @@ def _blend(
                     default_model.completion_tokens if default_model is not None else 0
                 ),
                 prompts=default_model.prompts if default_model is not None else [],
+                raw_prompts=default_model.raw_prompts
+                if default_model is not None
+                else [],
                 ingredients=[],
                 query=original_query,
                 db_url=str(db.db_url),
@@ -893,6 +896,7 @@ def _blend(
             if default_model is not None
             else 0,
             prompts=default_model.prompts if default_model is not None else [],
+            raw_prompts=default_model.raw_prompts if default_model is not None else [],
             ingredients=ingredients,
             query=original_query,
             db_url=str(db.db_url),

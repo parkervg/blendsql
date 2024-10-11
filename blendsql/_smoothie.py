@@ -21,6 +21,7 @@ class SmoothieMeta:
     prompt_tokens: int
     completion_tokens: int
     prompts: List[dict]  # Log of prompts submitted to model
+    raw_prompts: List[str]
     ingredients: Iterable[Type[Ingredient]]
     query: str
     db_url: str
