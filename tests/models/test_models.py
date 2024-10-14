@@ -4,9 +4,7 @@ from blendsql import blend, LLMQA, LLMMap, LLMJoin
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
-from blendsql.models import TransformersLLM, AnthropicLLM, OpenaiLLM
-
-TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M"
+from blendsql.models import AnthropicLLM, OpenaiLLM
 
 
 @pytest.fixture(scope="session")
@@ -19,11 +17,6 @@ def db() -> SQLite:
 @pytest.fixture(scope="session")
 def ingredients() -> set:
     return {LLMQA, LLMMap, LLMJoin}
-
-
-@pytest.fixture(scope="session")
-def model() -> TransformersLLM:
-    return TransformersLLM(TEST_TRANSFORMERS_LLM, caching=False)
 
 
 @pytest.mark.long
@@ -80,6 +73,8 @@ def test_llmjoin(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
+    if isinstance(model, (AnthropicLLM, OpenaiLLM)):
+        assert res.df["rival"].unique().tolist() == ["nsw waratahs"]
 
 
 @pytest.mark.long
@@ -132,7 +127,8 @@ def test_unconstrained_llmqa(db, model, ingredients):
         {{
           LLMQA(
             "In 5 words, what's this table about?",
-            (SELECT * FROM w LIMIT 1)      
+            (SELECT * FROM w LIMIT 1),
+            options='sports;food;politics'
           )
         }}
         """,
@@ -142,4 +138,4 @@ def test_unconstrained_llmqa(db, model, ingredients):
     )
     assert isinstance(res, Smoothie)
     if isinstance(model, (AnthropicLLM, OpenaiLLM)):
-        assert "rugby" in res.df.values[0][0].lower()
+        assert "sports" in res.df.values[0][0].lower()
