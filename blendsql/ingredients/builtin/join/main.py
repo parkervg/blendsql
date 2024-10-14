@@ -1,76 +1,65 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
+import json
+from colorama import Fore
 import guidance
 
 from blendsql.models import Model, LocalModel
 from blendsql._program import Program
-from blendsql import _constants as CONST
+from blendsql._logger import logger
 from blendsql.ingredients.ingredient import JoinIngredient
-from blendsql.utils import newline_dedent
-from blendsql.ingredients.generate import generate
+from blendsql.ingredients.generate import generate, user, assistant
+from blendsql.ingredients.few_shot import AnnotatedJoinExample, JoinExample
+
+DEFAULT_JOIN_FEW_SHOT: List[AnnotatedJoinExample] = [
+    AnnotatedJoinExample(
+        **{
+            "join_criteria": "Join to same topics.",
+            "left_values": ["joshua fields", "bob brown", "ron ryan"],
+            "right_values": [
+                "ron ryan",
+                "colby mules",
+                "bob brown (ice hockey)",
+                "josh fields (pitcher)",
+            ],
+            "mapping": {
+                "joshua fields": "josh fields (pitcher)",
+                "bob brown": "bob brown (ice hockey)",
+                "ron ryan": "ron ryan",
+            },
+        }
+    )
+]
+
+MAIN_INSTRUCTION = "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user.f\nIf a given left value has no corresponding right value, give '-' as a response. Stop responding as soon as all left values have been accounted for in the JSON mapping.\n"
 
 
 class JoinProgram(Program):
     def __call__(
         self,
         model: Model,
-        join_criteria: str,
-        left_values: List[str],
-        right_values: List[str],
-        sep: str,
+        current_example: JoinExample,
+        few_shot_examples: List[JoinExample] = None,
         **kwargs,
-    ) -> Tuple[str, str]:
+    ) -> Tuple[Dict[str, str], str]:
+        if few_shot_examples is None:
+            few_shot_examples = DEFAULT_JOIN_FEW_SHOT
         if isinstance(model, LocalModel):
-            m: guidance.models.Model = model.model_obj
-            with guidance.system():
-                m += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
-                m += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
-                m += newline_dedent(
-                    """
-                Criteria: Join to same topics.
-                
-                Left Values:
-                joshua fields
-                bob brown
-                ron ryan
-        
-                Right Values:
-                ron ryan
-                colby mules
-                bob brown (ice hockey)
-                josh fields (pitcher)
-        
-                Output:
-                {
-                    "joshua fields": "josh fields (pitcher)",
-                    "bob brown": "bob brown (ice hockey)",
-                    "ron ryan": "ron ryan"
-                }
-        
-                ---
-                """
-                )
+            lm: guidance.models.Model = model.model_obj
             with guidance.user():
-                m += newline_dedent(
-                    """
-                    Criteria: {}
-        
-                    Left Values:
-                    {}
-        
-                    Right Values:
-                    {}
-                    
-                    Output:
-                    
-                    """.format(
-                        join_criteria, "\n".join(left_values), "\n".join(right_values)
-                    )
-                )
-            prompt = m._current_prompt()
+                lm += MAIN_INSTRUCTION
+            # Add few-shot examples
+            for example in few_shot_examples:
+                with guidance.user():
+                    lm += example.to_string()
+                with guidance.assistant():
+                    lm += "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
+            with guidance.user():
+                lm += current_example.to_string()
+            prompt = lm._current_prompt()
 
             @guidance(stateless=True, dedent=False)
             def make_predictions(lm, left_values, right_values):
-                lm += "{"
+                lm += "```json\n{"
                 gen_f = guidance.select(options=right_values)
                 for idx, value in enumerate(left_values):
                     lm += (
@@ -78,80 +67,44 @@ class JoinProgram(Program):
                         + guidance.capture(gen_f, name=value)
                         + ("," if idx + 1 != len(right_values) else "")
                     )
+                lm += "```"
                 return lm
 
             with guidance.assistant():
-                m += make_predictions(
-                    left_values=left_values, right_values=right_values
+                lm += make_predictions(
+                    left_values=current_example.left_values,
+                    right_values=current_example.right_values,
                 )
-            return (m._variables, prompt)
+            return (lm._variables, prompt)
         else:
             # Use 'old' style prompt for remote models
-            prompt = ""
-            prompt += "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user."
-            prompt += f"\nThe left and right value alignment should be separated by '{sep}', with each new `JOIN` alignment goin on a newline. If a given left value has no corresponding right value, give '-' as a response."
-            prompt += newline_dedent(
-                """
-            Criteria: Join to same topics.
-
-            Left Values:
-            joshua fields
-            bob brown
-            ron ryan
-
-            Right Values:
-            ron ryan
-            colby mules
-            bob brown (ice hockey)
-            josh fields (pitcher)
-
-            Output:
-            joshua fields;josh fields (pitcher)
-            bob brown;bob brown (ice hockey)
-            ron ryan;ron ryan
-
-            ---
-            """
-            )
-            prompt += newline_dedent(
-                """
-                Criteria: {}
-
-                Left Values:
-                {}
-
-                Right Values:
-                {}
-
-                Output:
-                """.format(
-                    join_criteria, "\n".join(left_values), "\n".join(right_values)
-                )
-            )
-            max_tokens = (
-                len(
-                    model.tokenizer.encode(
-                        "".join(left_values)
-                        + "".join(right_values)
-                        + (CONST.DEFAULT_ANS_SEP * len(left_values)),
+            messages = []
+            messages.append(user(MAIN_INSTRUCTION))
+            # Add few-shot examples
+            for example in few_shot_examples:
+                messages.append(user(example.to_string()))
+                messages.append(
+                    assistant(
+                        "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
                     )
                 )
-                if model.tokenizer is not None
-                else None
-            )
-            response = generate(
-                model, prompt=prompt, max_tokens=max_tokens, stop_at=["---"]
+            messages.append(user(current_example.to_string()))
+            prompt = "".join([i["content"] for i in messages])
+            response = (
+                generate(model, messages=messages)
+                .removeprefix("```json")
+                .removesuffix("```")
             )
             # Post-process language model response
-            _result = response.split("\n")
-            mapping: dict = {}
-            for item in _result:
-                if CONST.DEFAULT_ANS_SEP in item:
-                    k, v = item.rsplit(CONST.DEFAULT_ANS_SEP, 1)
-                    if any(pred == CONST.DEFAULT_NAN_ANS for pred in {k, v}):
-                        continue
-                    mapping[k] = v
-            return (mapping, prompt)
+            try:
+                mapping: dict = json.loads(response)
+            except json.decoder.JSONDecodeError:
+                mapping = {}
+                logger.debug(
+                    Fore.RED
+                    + f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
+                )
+        return (mapping, prompt)
 
 
 class LLMJoin(JoinIngredient):
@@ -172,10 +125,13 @@ class LLMJoin(JoinIngredient):
             question = "Join to same topics."
         mapping = model.predict(
             program=JoinProgram,
-            sep=CONST.DEFAULT_ANS_SEP,
-            left_values=left_values,
-            right_values=right_values,
-            join_criteria=question,
+            current_example=JoinExample(
+                **{
+                    "join_criteria": question,
+                    "left_values": left_values,
+                    "right_values": right_values,
+                }
+            ),
             **kwargs,
         )
-        return {k: v for k, v in mapping.items() if v != CONST.DEFAULT_NAN_ANS}
+        return {k: v for k, v in mapping.items() if v != "-"}
