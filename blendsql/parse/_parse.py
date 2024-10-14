@@ -18,7 +18,7 @@ from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
 from ..utils import recover_blendsql
-from .._constants import DEFAULT_ANS_SEP, DEFAULT_NAN_ANS, IngredientKwarg
+from .._constants import IngredientKwarg
 from ._dialect import _parse_one, FTS5SQLite
 from . import _checks as check
 from . import _transforms as transform
@@ -402,13 +402,13 @@ class SubqueryContextManager:
             a regex which is restricted to repeat exclusively num_repeats times.
             """
             if output_type == "boolean":
-                base_regex = f"(t|f|{DEFAULT_NAN_ANS})"
+                base_regex = f"(t|f)"
             elif output_type == "integer":
                 # SQLite max is 18446744073709551615
                 # This is 20 digits long, so to be safe, cap the generation at 19
-                base_regex = r"(\d{1,18}" + f"|{DEFAULT_NAN_ANS})"
+                base_regex = r"(\d{1,18})"
             elif output_type == "float":
-                base_regex = r"(\d(\d|\.)*" + f"|{DEFAULT_NAN_ANS})"
+                base_regex = r"(\d(\d|\.)*)"
             else:
                 raise ValueError(f"Unknown output_type {output_type}")
             return base_regex
@@ -455,14 +455,9 @@ class SubqueryContextManager:
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
                 added_kwargs["output_type"] = "string"
-                if len(predicate_literals) > 1:
-                    added_kwargs["example_outputs"] = DEFAULT_ANS_SEP.join(
-                        predicate_literals
-                    )
-                else:
-                    added_kwargs[
-                        "example_outputs"
-                    ] = f"{predicate_literals[0]}{DEFAULT_ANS_SEP}{DEFAULT_NAN_ANS}"
+                if len(predicate_literals) == 1:
+                    predicate_literals = predicate_literals + [predicate_literals[0]]
+                added_kwargs["example_outputs"] = predicate_literals
                 return added_kwargs
         elif isinstance(
             ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
