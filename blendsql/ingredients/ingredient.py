@@ -9,7 +9,7 @@ from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
 from typeguard import check_type
-from functools import partialmethod
+from functools import partialmethod, partial
 
 from .._exceptions import IngredientException
 from .._logger import logger
@@ -22,7 +22,12 @@ from ..db import Database
 from ..db.utils import select_all_from_table_query
 from ..models import Model
 from .utils import unpack_options
-from .few_shot import AnnotatedQAExample, AnnotatedMapExample, AnnotatedJoinExample
+from .few_shot import (
+    Example,
+    AnnotatedQAExample,
+    AnnotatedMapExample,
+    AnnotatedJoinExample,
+)
 
 
 def unpack_default_kwargs(**kwargs):
@@ -30,6 +35,24 @@ def unpack_default_kwargs(**kwargs):
         kwargs.get("tablename"),
         kwargs.get("colname"),
     )
+
+
+def initialize_retriever(
+    examples: Example, k: int = None
+) -> Callable[[str], List[Example]]:
+    if k is None:
+        # Just return all the examples everytime this is called
+        return lambda *_: examples
+    assert k < len(
+        examples
+    ), f"The `k` argument to an ingredient must be less than `len(few_shot_examples)`!\n`k` is {k}, `len(few_shot_examples)` is {len(examples)}"
+    from .retriever import Retriever
+
+    logger.debug(Fore.YELLOW + "Processing documents with haystack..." + Fore.RESET)
+    retriever = Retriever(
+        documents=[example.to_string() for example in examples], return_objs=examples
+    )
+    return partial(retriever.retrieve_top_k, k=k)
 
 
 def partialclass(cls, *args, **kwds):
@@ -48,7 +71,7 @@ class Ingredient:
     db: Database = attrib()
     session_uuid: str = attrib()
 
-    few_shot_examples: List = attrib(default=None)
+    few_shot_retriever: Callable[[str], List[Example]] = attrib(default=None)
     list_options_in_prompt: bool = attrib(default=True)
 
     ingredient_type: str = attrib(init=False)
@@ -104,6 +127,7 @@ class MapIngredient(Ingredient):
         few_shot_examples: Optional[List[dict]] = None,
         list_options_in_prompt: bool = True,
         batch_size: Optional[int] = None,
+        k: Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -137,17 +161,21 @@ class MapIngredient(Ingredient):
                     ```
             list_options_in_prompt (bool): Whether to list options in the prompt. Defaults to True.
             batch_size (Optional[int]): The batch size for processing. Defaults to None.
+            k (Optional[int]): Determines number of few-shot examples to use for each ingredient call.
+                Default is None, which will use all few-shot examples on all calls.
+                If specified, will initialize a haystack-based DPR retriever to filter examples.
 
         Returns:
             Type[MapIngredient]: A partial class of MapIngredient with predefined arguments.
         """
         if few_shot_examples:
             few_shot_examples = [AnnotatedMapExample(**d) for d in few_shot_examples]
+        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
         return partialclass(
             cls,
             model=model,
+            few_shot_retriever=few_shot_retriever,
             list_options_in_prompt=list_options_in_prompt,
-            few_shot_examples=few_shot_examples,
             batch_size=batch_size,
         )
 
@@ -244,8 +272,8 @@ class MapIngredient(Ingredient):
             *args,
             **kwargs,
             options=unpacked_options,
+            few_shot_retriever=self.few_shot_retriever,
             list_options_in_prompt=self.list_options_in_prompt,
-            few_shot_examples=self.few_shot_examples,
             batch_size=self.batch_size,
         )
         self.num_values_passed += len(mapped_values)
@@ -294,6 +322,7 @@ class JoinIngredient(Ingredient):
         cls,
         few_shot_examples: List[dict] = None,
         use_skrub_joiner: bool = True,
+        k: Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -326,8 +355,11 @@ class JoinIngredient(Ingredient):
         """
         if few_shot_examples:
             few_shot_examples = [AnnotatedJoinExample(**d) for d in few_shot_examples]
+        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
         return partialclass(
-            cls, few_shot_examples=few_shot_examples, use_skrub_joiner=use_skrub_joiner
+            cls,
+            few_shot_retriever=few_shot_retriever,
+            use_skrub_joiner=use_skrub_joiner,
         )
 
     def __call__(
@@ -443,7 +475,7 @@ class JoinIngredient(Ingredient):
 
             kwargs[IngredientKwarg.QUESTION] = question
             _predicted_mapping: Dict[str, str] = self._run(
-                *args, **kwargs, few_shot_examples=self.few_shot_examples
+                *args, **kwargs, few_shot_retriever=self.few_shot_retriever
             )
             mapping = mapping | _predicted_mapping
         # Using mapped left/right values, create intermediary mapping table
@@ -487,6 +519,7 @@ class QAIngredient(Ingredient):
         context_formatter: Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
             index=False
         ),
+        k: Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -513,9 +546,10 @@ class QAIngredient(Ingredient):
         """
         if few_shot_examples:
             few_shot_examples = [AnnotatedQAExample(**d) for d in few_shot_examples]
+        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
         return partialclass(
             cls,
-            few_shot_examples=few_shot_examples,
+            few_shot_retriever=few_shot_retriever,
             context_formatter=context_formatter,
         )
 
@@ -565,7 +599,7 @@ class QAIngredient(Ingredient):
         response: Union[str, int, float] = self._run(
             *args,
             **kwargs,
-            few_shot_examples=self.few_shot_examples,
+            few_shot_retriever=self.few_shot_retriever,
             context_formatter=self.context_formatter,
         )
         return response
