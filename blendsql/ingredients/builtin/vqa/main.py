@@ -1,9 +1,11 @@
 from typing import List, Tuple
+from attr import attrs, attrib
 
 from blendsql.models import Model
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._exceptions import IngredientException
+from blendsql.ingredients.utils import partialclass
 
 
 class ImageCaptionProgram(Program):
@@ -21,11 +23,17 @@ class ImageCaptionProgram(Program):
         return ([output[0]["generated_text"].strip() for output in model_output], "")
 
 
+@attrs
 class ImageCaption(MapIngredient):
     DESCRIPTION = """
     If we need to generate a caption for an image stored in the database, we can use the scalar function to map to a new column:
         `{{ImageCaption('table::column')}}`
     """
+    model: Model = attrib(default=None)
+
+    @classmethod
+    def from_args(cls, model: Model = None):
+        return partialclass(cls, model=model)
 
     def run(self, model: Model, values: List[bytes], **kwargs):
         """Generates a caption for all byte images passed to it."""
