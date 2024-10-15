@@ -9,7 +9,6 @@ from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
 from typeguard import check_type
-from functools import partialmethod, partial
 
 from .._exceptions import IngredientException
 from .._logger import logger
@@ -20,14 +19,9 @@ from .._constants import (
 )
 from ..db import Database
 from ..db.utils import select_all_from_table_query
-from ..models import Model
 from .utils import unpack_options
-from .few_shot import (
-    Example,
-    AnnotatedQAExample,
-    AnnotatedMapExample,
-    AnnotatedJoinExample,
-)
+from .few_shot import Example
+from .utils import partialclass
 
 
 def unpack_default_kwargs(**kwargs):
@@ -35,35 +29,6 @@ def unpack_default_kwargs(**kwargs):
         kwargs.get("tablename"),
         kwargs.get("colname"),
     )
-
-
-def initialize_retriever(
-    examples: Example, k: int = None, **to_string_args
-) -> Callable[[str], List[Example]]:
-    """Initializes a DPR retriever over the few-shot examples provided."""
-    if k is None or k == len(examples):
-        # Just return all the examples everytime this is called
-        return lambda *_: examples
-    assert k <= len(
-        examples
-    ), f"The `k` argument to an ingredient must be less than `len(few_shot_examples)`!\n`k` is {k}, `len(few_shot_examples)` is {len(examples)}"
-    from .retriever import Retriever
-
-    logger.debug(Fore.YELLOW + "Processing documents with haystack..." + Fore.RESET)
-    retriever = Retriever(
-        documents=[example.to_string(**to_string_args) for example in examples],
-        return_objs=examples,
-    )
-    return partial(retriever.retrieve_top_k, k=k)
-
-
-def partialclass(cls, *args, **kwds):
-    # https://stackoverflow.com/a/38911383
-    class NewCls(cls):
-        __init__ = partialmethod(cls.__init__, *args, **kwds)
-
-    NewCls.__name__ = cls.__name__
-    return NewCls
 
 
 @attrs
@@ -115,76 +80,8 @@ class MapIngredient(Ingredient):
     """For a given table/column pair, maps an external function
     to each of the given values, creating a new column."""
 
-    batch_size: int = attrib(default=None)
-
     ingredient_type: str = IngredientType.MAP.value
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
-
-    model: Model = attrib(default=None)
-
-    @classmethod
-    def from_args(
-        cls,
-        model: Optional[Model] = None,
-        few_shot_examples: Optional[List[dict]] = None,
-        list_options_in_prompt: bool = True,
-        batch_size: Optional[int] = None,
-        k: Optional[int] = None,
-    ):
-        """Creates a partial class with predefined arguments.
-
-        Args:
-            model (Optional[Model]): The model to be used. Defaults to None.
-            few_shot_examples (Optional[List["MapExample"]]): A list of dictionary MapExample few-shot examples.
-                If not specified, will use the below as default:
-                    ```python
-                    DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
-                        {
-                            "question": "Total penalty count?",
-                            "column_name": "Penalties (P+P+S+S)",
-                            "table_name": "Biathlon World Championships 2013",
-                            "output_type": "integer",
-                            "example_outputs": ["12", "3"],
-                            "examples": {
-                                "1 (0+0+0+1)": "1",
-                                "10 (5+3+2+0)": "10",
-                                "6 (2+2+2+0)": "6",
-                            },
-                        },
-                        {
-                            "question": "Is the time less than a week?",
-                            "column_name": "Length of use",
-                            "table_name": "Crest Whitestrips",
-                            "output_type": "boolean",
-                            "example_outputs": ["t", "f"],
-                            "examples": {"14 days": "f", "10 days": "f", "daily": "t", "2 hours": "t"},
-                        },
-                    ]
-                    ```
-            list_options_in_prompt (bool): Whether to list options in the prompt. Defaults to True.
-            batch_size (Optional[int]): The batch size for processing. Defaults to None.
-            k (Optional[int]): Determines number of few-shot examples to use for each ingredient call.
-                Default is None, which will use all few-shot examples on all calls.
-                If specified, will initialize a haystack-based DPR retriever to filter examples.
-
-        Returns:
-            Type[MapIngredient]: A partial class of MapIngredient with predefined arguments.
-        """
-        if few_shot_examples:
-            few_shot_examples = [
-                AnnotatedMapExample(**d) if isinstance(d, dict) else d
-                for d in few_shot_examples
-            ]
-        few_shot_retriever = initialize_retriever(
-            examples=few_shot_examples, k=k, include_values=True
-        )
-        return partialclass(
-            cls,
-            model=model,
-            few_shot_retriever=few_shot_retriever,
-            list_options_in_prompt=list_options_in_prompt,
-            batch_size=batch_size,
-        )
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
@@ -275,14 +172,8 @@ class MapIngredient(Ingredient):
             kwargs[IngredientKwarg.REGEX] = regex
         kwargs[IngredientKwarg.VALUES] = values
         kwargs[IngredientKwarg.QUESTION] = question
-        mapped_values: Collection[Any] = self._run(
-            *args,
-            **kwargs,
-            options=unpacked_options,
-            few_shot_retriever=self.few_shot_retriever,
-            list_options_in_prompt=self.list_options_in_prompt,
-            batch_size=self.batch_size,
-        )
+        kwargs[IngredientKwarg.OPTIONS] = unpacked_options
+        mapped_values: Collection[Any] = self._run(*args, **self.__dict__ | kwargs)
         self.num_values_passed += len(mapped_values)
         df_as_dict: Dict[str, list] = {colname: [], new_arg_column: []}
         for value, mapped_value in zip(values, mapped_values):
@@ -325,55 +216,8 @@ class JoinIngredient(Ingredient):
     allowed_output_types: Tuple[Type] = (dict,)
 
     @classmethod
-    def from_args(
-        cls,
-        few_shot_examples: List[dict] = None,
-        use_skrub_joiner: bool = True,
-        k: Optional[int] = None,
-    ):
-        """Creates a partial class with predefined arguments.
-
-        Args:
-            few_shot_examples (List[AnnotatedJoinExamples]): A list of AnnotatedJoinExamples dictionaries for few-shot learning.
-                If not specified, will use the below as default:
-                    ```python
-                    DEFAULT_JOIN_FEW_SHOT: List[AnnotatedJoinExample] = [
-                        {
-                            "join_criteria": "Join to same topics.",
-                            "left_values": ["joshua fields", "bob brown", "ron ryan"],
-                            "right_values": [
-                                "ron ryan",
-                                "colby mules",
-                                "bob brown (ice hockey)",
-                                "josh fields (pitcher)",
-                            ],
-                            "mapping": {
-                                "joshua fields": "josh fields (pitcher)",
-                                "bob brown": "bob brown (ice hockey)",
-                                "ron ryan": "ron ryan",
-                            },
-                        }
-                    ]
-                    ```
-            use_skrub_joiner (bool): Whether to use the skrub joiner. Defaults to True.
-             k (Optional[int]): Determines number of few-shot examples to use for each ingredient call.
-                Default is None, which will use all few-shot examples on all calls.
-                If specified, will initialize a haystack-based DPR retriever to filter examples.
-
-        Returns:
-            Type[JoinIngredient]: A partial class of JoinIngredient with predefined arguments.
-        """
-        if few_shot_examples:
-            few_shot_examples = [
-                AnnotatedJoinExample(**d) if isinstance(d, dict) else d
-                for d in few_shot_examples
-            ]
-        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
-        return partialclass(
-            cls,
-            few_shot_retriever=few_shot_retriever,
-            use_skrub_joiner=use_skrub_joiner,
-        )
+    def from_args(cls, use_skrub_joiner: bool = True):
+        return partialclass(cls, use_skrub_joiner=use_skrub_joiner)
 
     def __call__(
         self,
@@ -488,7 +332,7 @@ class JoinIngredient(Ingredient):
 
             kwargs[IngredientKwarg.QUESTION] = question
             _predicted_mapping: Dict[str, str] = self._run(
-                *args, **kwargs, few_shot_retriever=self.few_shot_retriever
+                *args, **self.__dict__ | kwargs
             )
             mapping = mapping | _predicted_mapping
         # Using mapped left/right values, create intermediary mapping table
@@ -518,64 +362,8 @@ class JoinIngredient(Ingredient):
 
 @attrs
 class QAIngredient(Ingredient):
-    context_formatter: Callable[[pd.DataFrame], str] = attrib(
-        default=lambda df: df.to_markdown(index=False)
-    )
-
     ingredient_type: str = IngredientType.QA.value
     allowed_output_types: Tuple[Type] = (Union[str, int, float],)
-
-    @classmethod
-    def from_args(
-        cls,
-        few_shot_examples: Optional[List[dict]] = None,
-        context_formatter: Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
-            index=False
-        ),
-        k: Optional[int] = None,
-    ):
-        """Creates a partial class with predefined arguments.
-
-        Args:
-            few_shot_examples (List[AnnotatedQAExample]): A list of AnnotatedQAExample dictionaries for few-shot learning.
-                If not specified, will use the below as default:
-                    ```python
-                    DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
-                        {
-                            "question": "Who is the oldest?",
-                            "context": pd.DataFrame(
-                                data=[["Parker", 26], ["Andrew", 22], ["Paul", 18]], columns=["Name", "Age"]
-                            ),
-                            "options": ["Parker", "Andrew", "Paul"],
-                            "answer": "Parker",
-                        }
-                    ]
-                    ```
-            context_formatter (Callable[[pd.DataFrame], str]): A callable that formats a pandas DataFrame into a string.
-                Defaults to a lambda function that converts the DataFrame to markdown without index.
-             k (Optional[int]): Determines number of few-shot examples to use for each ingredient call.
-                Default is None, which will use all few-shot examples on all calls.
-                If specified, will initialize a haystack-based DPR retriever to filter examples.
-
-        Returns:
-            Type[QAIngredient]: A partial class of QAIngredient with predefined arguments.
-        """
-        if few_shot_examples:
-            few_shot_examples = [
-                AnnotatedQAExample(**d) if isinstance(d, dict) else d
-                for d in few_shot_examples
-            ]
-        few_shot_retriever = initialize_retriever(
-            examples=few_shot_examples,
-            k=k,
-            context_formatter=context_formatter,
-            include_answer=True,
-        )
-        return partialclass(
-            cls,
-            few_shot_retriever=few_shot_retriever,
-            context_formatter=context_formatter,
-        )
 
     def __call__(
         self,
@@ -620,12 +408,7 @@ class QAIngredient(Ingredient):
         self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[IngredientKwarg.CONTEXT] = subtable
         kwargs[IngredientKwarg.QUESTION] = question
-        response: Union[str, int, float] = self._run(
-            *args,
-            **kwargs,
-            few_shot_retriever=self.few_shot_retriever,
-            context_formatter=self.context_formatter,
-        )
+        response: Union[str, int, float] = self._run(*args, **self.__dict__ | kwargs)
         return response
 
     @abstractmethod
