@@ -64,10 +64,23 @@ class TransformersLLM(LocalModel):
         from guidance.models import Transformers
         import torch
 
+        device_map = self.load_model_kwargs.pop("device_map", None)
+        if device_map is None:
+            # cuda -> mps -> cpu
+            if torch.cuda.is_available():
+                device_map = "cuda"
+            else:
+                has_mps = (
+                    hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+                )
+                if has_mps:
+                    device_map = "mps"
+                else:
+                    device_map = "cpu"
         lm = Transformers(
             self.model_name_or_path,
             echo=False,
-            device_map="cuda" if torch.cuda.is_available() else "cpu",
+            device_map=device_map,
             **self.load_model_kwargs,
         )
         # Try to infer if we're in chat mode

@@ -51,6 +51,7 @@ class Model:
 
     model_obj: Generic[ModelObj] = attrib(init=False)
     prompts: List[dict] = attrib(init=False)
+    raw_prompts: List[str] = attrib(init=False)
     prompt_tokens: int = attrib(init=False)
     completion_tokens: int = attrib(init=False)
     num_calls: int = attrib(init=False)
@@ -66,6 +67,7 @@ class Model:
         if self.load_model_kwargs is None:
             self.load_model_kwargs = {}
         self.prompts: List[dict] = []
+        self.raw_prompts: List[str] = []
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.num_calls = 0
@@ -114,12 +116,14 @@ class Model:
                 logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
                 response: str = self.cache.get(key)  # type: ignore
                 self.prompts.insert(-1, self.format_prompt(response, **kwargs))
+                self.raw_prompts.insert(-1, "")
                 return response
         # Modify fields used for tracking Model usage
         response: Union[str, List[str]]
         prompt: str
         response, prompt = program(model=self, **kwargs)
         self.prompts.insert(-1, self.format_prompt(response, **kwargs))
+        self.raw_prompts.insert(-1, prompt)
         self.num_calls += 1
         if self.tokenizer is not None:
             self.prompt_tokens += len(self.tokenizer.encode(prompt))

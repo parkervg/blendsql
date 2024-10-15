@@ -6,6 +6,16 @@ hide:
 ![ingredients](../../img/
 /LLMQA.jpg)
 
+## Usage 
+### `LLMQA`
+::: blendsql.ingredients.builtin.map.main.LLMMap
+    handler: python
+    options:
+      show_source: false
+      show_root_heading: false    
+      members:
+      - from_args
+
 ## Description
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
 
@@ -125,16 +135,3 @@ Or, from our running example:
 ```
 
 The above BlendSQL will yield the result `AIG`, since it appears in the `Symbol` column from `account_history`.
-
-### `QAProgram`
-::: blendsql.ingredients.builtin.qa.main.QAProgram
-    handler: python
-    show_source: true
-
-### `LLMQA`
-::: blendsql.ingredients.builtin.qa.main.LLMQA
-    handler: python
-    show_source: true
-    options:
-      members:
-      - run

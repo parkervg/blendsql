@@ -4,12 +4,11 @@ import pandas as pd
 from sqlglot import exp
 import json
 from skrub import Joiner
-from typing import Any, Union, Dict, Tuple, Callable, Set, Optional, Type
+from typing import Any, Union, Dict, Tuple, Callable, Set, Optional, Type, List
 from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
 from typeguard import check_type
-from functools import partialmethod
 
 from .._exceptions import IngredientException
 from .._logger import logger
@@ -20,8 +19,9 @@ from .._constants import (
 )
 from ..db import Database
 from ..db.utils import select_all_from_table_query
-from ..models import Model
 from .utils import unpack_options
+from .few_shot import Example
+from .utils import partialclass
 
 
 def unpack_default_kwargs(**kwargs):
@@ -31,15 +31,6 @@ def unpack_default_kwargs(**kwargs):
     )
 
 
-def partialclass(cls, *args, **kwds):
-    # https://stackoverflow.com/a/38911383
-    class NewCls(cls):
-        __init__ = partialmethod(cls.__init__, *args, **kwds)
-
-    NewCls.__name__ = cls.__name__
-    return NewCls
-
-
 @attrs
 class Ingredient:
     name: str = attrib()
@@ -47,8 +38,12 @@ class Ingredient:
     db: Database = attrib()
     session_uuid: str = attrib()
 
+    few_shot_retriever: Callable[[str], List[Example]] = attrib(default=None)
+    list_options_in_prompt: bool = attrib(default=True)
+
     ingredient_type: str = attrib(init=False)
     allowed_output_types: Tuple[Type] = attrib(init=False)
+
     num_values_passed: int = 0
 
     def __repr__(self):
@@ -87,24 +82,6 @@ class MapIngredient(Ingredient):
 
     ingredient_type: str = IngredientType.MAP.value
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
-
-    model: Model = attrib(default=None)
-    allow_null_option: bool = attrib(default=True)
-    list_options_in_prompt: bool = attrib(default=True)
-
-    @classmethod
-    def from_args(
-        cls,
-        model: Model = None,
-        allow_null_option: bool = True,
-        list_options_in_prompt: bool = True,
-    ):
-        return partialclass(
-            cls,
-            model=model,
-            allow_null_option=allow_null_option,
-            list_options_in_prompt=list_options_in_prompt,
-        )
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
@@ -195,13 +172,8 @@ class MapIngredient(Ingredient):
             kwargs[IngredientKwarg.REGEX] = regex
         kwargs[IngredientKwarg.VALUES] = values
         kwargs[IngredientKwarg.QUESTION] = question
-        mapped_values: Collection[Any] = self._run(
-            *args,
-            **kwargs,
-            options=unpacked_options,
-            list_options_in_prompt=self.list_options_in_prompt,
-            allow_null_option=self.allow_null_option,
-        )
+        kwargs[IngredientKwarg.OPTIONS] = unpacked_options
+        mapped_values: Collection[Any] = self._run(*args, **self.__dict__ | kwargs)
         self.num_values_passed += len(mapped_values)
         df_as_dict: Dict[str, list] = {colname: [], new_arg_column: []}
         for value, mapped_value in zip(values, mapped_values):
@@ -359,7 +331,9 @@ class JoinIngredient(Ingredient):
             )
 
             kwargs[IngredientKwarg.QUESTION] = question
-            _predicted_mapping: Dict[str, str] = self._run(*args, **kwargs)
+            _predicted_mapping: Dict[str, str] = self._run(
+                *args, **self.__dict__ | kwargs
+            )
             mapping = mapping | _predicted_mapping
         # Using mapped left/right values, create intermediary mapping table
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
@@ -434,7 +408,7 @@ class QAIngredient(Ingredient):
         self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[IngredientKwarg.CONTEXT] = subtable
         kwargs[IngredientKwarg.QUESTION] = question
-        response: Union[str, int, float] = self._run(*args, **kwargs)
+        response: Union[str, int, float] = self._run(*args, **self.__dict__ | kwargs)
         return response
 
     @abstractmethod

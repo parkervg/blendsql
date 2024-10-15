@@ -2,21 +2,24 @@ from functools import singledispatch
 import logging
 from colorama import Fore
 from typing import Optional, List
-from collections.abc import Collection
 
 from .._logger import logger
 from ..models import Model, OllamaLLM, OpenaiLLM, AnthropicLLM
 
+system = lambda x: {"role": "system", "content": x}
+assistant = lambda x: {"role": "assistant", "content": x}
+user = lambda x: {"role": "user", "content": x}
+
 
 @singledispatch
-def generate(model: Model, *args, **kwargs) -> str:
+def generate(model: Model, messages: List[dict], *args, **kwargs) -> str:
     pass
 
 
 @generate.register(OpenaiLLM)
 def generate_openai(
     model: OpenaiLLM,
-    prompt,
+    messages: List[dict],
     max_tokens: Optional[int] = None,
     stop_at: Optional[List[str]] = None,
     **kwargs,
@@ -28,7 +31,7 @@ def generate_openai(
     return (
         client.chat.completions.create(
             model=model.model_obj.engine.model_name,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             max_tokens=max_tokens,
             stop=stop_at,
             **model.load_model_kwargs,
@@ -41,17 +44,18 @@ def generate_openai(
 @generate.register(AnthropicLLM)
 def generate_anthropic(
     model: AnthropicLLM,
-    prompt,
+    messages: List[dict],
     max_tokens: Optional[int] = None,
     stop_at: Optional[List[str]] = None,
     **kwargs,
 ):
     client = model.model_obj.engine.anthropic
+
     return (
         client.messages.create(
             model=model.model_obj.engine.model_name,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens or 5000,
+            messages=messages,
+            max_tokens=max_tokens or 4000,
             # stop_sequences=stop_at
             **model.load_model_kwargs,
         )
@@ -61,17 +65,15 @@ def generate_anthropic(
 
 
 @generate.register(OllamaLLM)
-def generate_ollama(
-    model: OllamaLLM, prompt, options: Optional[Collection[str]] = None, **kwargs
-) -> str:
+def generate_ollama(model: OllamaLLM, messages: List[dict], **kwargs) -> str:
     """Helper function to work with Ollama models,
     since they're not recognized natively in the guidance ecosystem.
     """
-    if options:
-        raise NotImplementedError(
-            "Cannot use choice generation with an Ollama model"
-            + "due to the limitations of the Ollama API."
-        )
+    # if options:
+    #     raise NotImplementedError(
+    #         "Cannot use choice generation with an Ollama model"
+    #         + "due to the limitations of the Ollama API."
+    #     )
     from ollama import Options
 
     # Turn outlines kwargs into Ollama
@@ -85,7 +87,7 @@ def generate_ollama(
         options["temperature"] = 0.0
     stream = logger.level <= logging.DEBUG
     response = model.model_obj(
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
         options=options,
         stream=stream,
     )  # type: ignore

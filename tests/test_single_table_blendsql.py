@@ -22,7 +22,7 @@ databases = [
 
 
 @pytest.fixture
-def ingredients() -> set:
+def dummy_ingredients() -> set:
     return {
         starts_with,
         get_length,
@@ -33,20 +33,20 @@ def ingredients() -> set:
 
 
 @pytest.mark.parametrize("db", databases)
-def test_simple_exec(db, ingredients):
+def test_simple_exec(db, dummy_ingredients):
     blendsql = """
     SELECT * FROM transactions;
     """
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     assert not smoothie.df.empty
 
 
 @pytest.mark.parametrize("db", databases)
-def test_nested_exec(db, ingredients):
+def test_nested_exec(db, dummy_ingredients):
     blendsql = """
     SELECT DISTINCT merchant FROM transactions WHERE
         merchant in (
@@ -57,13 +57,13 @@ def test_nested_exec(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     assert not smoothie.df.empty
 
 
 @pytest.mark.parametrize("db", databases)
-def test_simple_ingredient_exec(db, ingredients):
+def test_simple_ingredient_exec(db, dummy_ingredients):
     blendsql = """
     SELECT * FROM transactions WHERE {{starts_with('Z', 'transactions::merchant')}} = 1;
     """
@@ -73,14 +73,14 @@ def test_simple_ingredient_exec(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
 
 
 @pytest.mark.parametrize("db", databases)
-def test_simple_ingredient_exec_at_end(db, ingredients):
+def test_simple_ingredient_exec_at_end(db, dummy_ingredients):
     blendsql = """
     SELECT * FROM transactions WHERE {{starts_with('Z', 'transactions::merchant')}}
     """
@@ -90,14 +90,14 @@ def test_simple_ingredient_exec_at_end(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
 
 
 @pytest.mark.parametrize("db", databases)
-def test_simple_ingredient_exec_in_select(db, ingredients):
+def test_simple_ingredient_exec_in_select(db, dummy_ingredients):
     blendsql = """
     SELECT {{get_length('Z', 'transactions::merchant')}} FROM transactions WHERE parent_category = 'Auto & Transport' 
     """
@@ -107,7 +107,7 @@ def test_simple_ingredient_exec_in_select(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
@@ -121,7 +121,7 @@ def test_simple_ingredient_exec_in_select(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_nested_ingredient_exec(db, ingredients):
+def test_nested_ingredient_exec(db, dummy_ingredients):
     blendsql = """
     SELECT DISTINCT merchant FROM transactions WHERE
         merchant in (
@@ -141,7 +141,7 @@ def test_nested_ingredient_exec(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
@@ -155,7 +155,7 @@ def test_nested_ingredient_exec(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_nonexistent_column_exec(db, ingredients):
+def test_nonexistent_column_exec(db, dummy_ingredients):
     """
     NOTE: Converting to CNF would break this one
     since we would get:
@@ -184,7 +184,7 @@ def test_nonexistent_column_exec(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["Z"])
@@ -198,7 +198,7 @@ def test_nonexistent_column_exec(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_nested_and_exec(db, ingredients):
+def test_nested_and_exec(db, dummy_ingredients):
     blendsql = """
     SELECT DISTINCT merchant, child_category FROM transactions WHERE
        (
@@ -220,7 +220,7 @@ def test_nested_and_exec(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["O"])
@@ -234,7 +234,7 @@ def test_nested_and_exec(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_multiple_nested_ingredients(db, ingredients):
+def test_multiple_nested_ingredients(db, dummy_ingredients):
     blendsql = """
     SELECT DISTINCT child_category, merchant FROM transactions WHERE
         (
@@ -258,7 +258,7 @@ def test_multiple_nested_ingredients(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A", "T"])
@@ -272,7 +272,7 @@ def test_multiple_nested_ingredients(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_length_ingredient(db, ingredients):
+def test_length_ingredient(db, dummy_ingredients):
     blendsql = """
     SELECT {{get_length('length', 'transactions::merchant')}}, merchant
         FROM transactions
@@ -286,7 +286,7 @@ def test_length_ingredient(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -300,7 +300,7 @@ def test_length_ingredient(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_max_length(db, ingredients):
+def test_max_length(db, dummy_ingredients):
     """In DuckDB, this causes
     `Binder Error: aggregate function calls cannot be nested`
     """
@@ -319,7 +319,7 @@ def test_max_length(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -333,7 +333,7 @@ def test_max_length(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_limit(db, ingredients):
+def test_limit(db, dummy_ingredients):
     blendsql = """
     SELECT DISTINCT merchant, child_category FROM transactions WHERE
        {{starts_with('P', 'transactions::merchant')}} = 1
@@ -351,7 +351,7 @@ def test_limit(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -365,7 +365,7 @@ def test_limit(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_select(db, ingredients):
+def test_select(db, dummy_ingredients):
     blendsql = """
     SELECT DISTINCT merchant, child_category FROM transactions WHERE
        merchant = {{select_first_sorted(options='transactions::merchant')}}
@@ -377,14 +377,14 @@ def test_select(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
 @pytest.mark.parametrize("db", databases)
-def test_ingredient_in_select_stmt(db, ingredients):
+def test_ingredient_in_select_stmt(db, dummy_ingredients):
     blendsql = """
     SELECT MAX({{get_length('length', 'transactions::merchant')}}) as l FROM transactions 
     """
@@ -394,7 +394,7 @@ def test_ingredient_in_select_stmt(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -408,7 +408,7 @@ def test_ingredient_in_select_stmt(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_ingredient_in_select_stmt_with_filter(db, ingredients):
+def test_ingredient_in_select_stmt_with_filter(db, dummy_ingredients):
     # commit de4a7bc
     blendsql = """
     SELECT MAX({{get_length('length', 'transactions::merchant')}}) as l FROM transactions WHERE child_category = 'Restaurants & Dining'
@@ -419,7 +419,7 @@ def test_ingredient_in_select_stmt_with_filter(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -433,7 +433,7 @@ def test_ingredient_in_select_stmt_with_filter(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_nested_duplicate_map_calls(db, ingredients):
+def test_nested_duplicate_map_calls(db, dummy_ingredients):
     blendsql = """
     SELECT merchant FROM transactions WHERE {{get_length('length', 'transactions::merchant')}} > (SELECT {{get_length('length', 'transactions::merchant')}} FROM transactions WHERE merchant = 'Paypal')
     """
@@ -443,7 +443,7 @@ def test_nested_duplicate_map_calls(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -457,7 +457,7 @@ def test_nested_duplicate_map_calls(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_many_duplicate_map_calls(db, ingredients):
+def test_many_duplicate_map_calls(db, dummy_ingredients):
     blendsql = """
     SELECT 
         {{get_length('length', 'transactions::merchant')}} AS l1,
@@ -477,7 +477,7 @@ def test_many_duplicate_map_calls(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -495,7 +495,7 @@ def test_many_duplicate_map_calls(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_exists_isolated_qa_call(db, ingredients):
+def test_exists_isolated_qa_call(db, dummy_ingredients):
     # commit 7a19e39
     blendsql = """
     SELECT NOT EXISTS (
@@ -517,7 +517,7 @@ def test_exists_isolated_qa_call(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -531,7 +531,7 @@ def test_exists_isolated_qa_call(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_query_options_arg(db, ingredients):
+def test_query_options_arg(db, dummy_ingredients):
     # commit 5ffa26d
     blendsql = """
     {{
@@ -545,14 +545,14 @@ def test_query_options_arg(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     assert len(smoothie.df) == 1
     assert smoothie.df.values.flat[0] == "Paypal"
 
 
 @pytest.mark.parametrize("db", databases)
-def test_apply_limit(db, ingredients):
+def test_apply_limit(db, dummy_ingredients):
     # commit 335c67a
     blendsql = """
     SELECT {{get_length('length', 'transactions::merchant')}} FROM transactions ORDER BY merchant LIMIT 1
@@ -560,13 +560,13 @@ def test_apply_limit(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     assert smoothie.meta.num_values_passed == 1
 
 
 @pytest.mark.parametrize("db", databases)
-def test_apply_limit_with_predicate(db, ingredients):
+def test_apply_limit_with_predicate(db, dummy_ingredients):
     # commit 335c67a
     blendsql = """
     SELECT {{get_length('length', 'transactions::merchant')}} 
@@ -583,7 +583,7 @@ def test_apply_limit_with_predicate(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -599,7 +599,7 @@ def test_apply_limit_with_predicate(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_where_with_true(db, ingredients):
+def test_where_with_true(db, dummy_ingredients):
     """Makes sure we don't ignore `{column} = TRUE` SQL clauses."""
     blendsql = """
     WITH a AS (
@@ -616,7 +616,7 @@ def test_where_with_true(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -630,7 +630,7 @@ def test_where_with_true(db, ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
-def test_where_in_clause(db, ingredients):
+def test_where_in_clause(db, dummy_ingredients):
     """Makes sure we don't ignore `{column} = TRUE` SQL clauses."""
     blendsql = """
     SELECT merchant FROM transactions WHERE merchant IN (SELECT merchant FROM transactions WHERE {{starts_with('Z', 'transactions::merchant')}})
@@ -641,14 +641,14 @@ def test_where_in_clause(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
 @pytest.mark.parametrize("db", databases)
-def test_group_by_with_ingredient_alias(db, ingredients):
+def test_group_by_with_ingredient_alias(db, dummy_ingredients):
     """b28a129"""
     blendsql = """
     SELECT SUM(amount) AS "total amount", 
@@ -667,14 +667,14 @@ def test_group_by_with_ingredient_alias(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
 @pytest.mark.parametrize("db", databases)
-def test_null_negation(db, ingredients):
+def test_null_negation(db, dummy_ingredients):
     """ee3b0c4"""
     blendsql = """
     SELECT merchant FROM transactions
@@ -689,7 +689,7 @@ def test_null_negation(db, ingredients):
     smoothie = blend(
         query=blendsql,
         db=db,
-        ingredients=ingredients,
+        ingredients=dummy_ingredients,
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)

@@ -6,6 +6,16 @@ hide:
 ![ingredients](../../img/
 /LLMJoin.jpg)
 
+## Usage 
+### `LLMJoin`
+::: blendsql.ingredients.builtin.join.main.LLMJoin
+    handler: python
+    options:
+      show_source: false
+      show_root_heading: false    
+      members:
+      - from_args
+
 ## Description
 This ingredient handles the logic of semantic `JOIN` clauses between tables. 
 
@@ -27,16 +37,3 @@ The above example hints at a database schema that would make [E.F Codd](https://
 BlendSQL was built to interact with tables "in-the-wild", and many (such as those on Wikipedia) do not have these convenient properties of well-designed relational models.
 
 For this reason, we can leverage the internal knowledge of a pre-trained LLM to do the `JOIN` operation for us.
-
-### `JoinProgram`
-::: blendsql.ingredients.builtin.join.main.JoinProgram
-    handler: python
-    show_source: true
-
-### `LLMJoin`
-::: blendsql.ingredients.builtin.join.main.LLMJoin
-    handler: python
-    show_source: true
-    options:
-      members:
-      - run

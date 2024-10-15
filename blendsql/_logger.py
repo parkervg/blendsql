@@ -1,7 +1,5 @@
 import logging
 
-logging.basicConfig()
-
 
 def msg_box(msg, indent=1, width=None, title=None):
     """Print message-box with optional title."""
@@ -77,4 +75,7 @@ class Logger(logging.Logger):
         return child
 
 
-logger = Logger("blendsql", logging.DEBUG)
+# logging.setLoggerClass(Logger)
+logging.basicConfig()
+logger = Logger("blendsql")
+# logger = logging.getLogger("blendsql")

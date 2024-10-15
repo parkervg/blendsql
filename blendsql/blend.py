@@ -91,15 +91,15 @@ class Kitchen(list):
                 name not in self.name_to_ingredient
             ), f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{name}"
             # Initialize the ingredient, going from `Type[Ingredient]` to `Ingredient`
-            initialied_ingredient: Ingredient = ingredient(
+            initialized_ingredient: Ingredient = ingredient(
                 name=name,
                 # Add db and session_uuid as default kwargs
                 # This way, ingredients are able to interact with data
                 db=self.db,
                 session_uuid=self.session_uuid,
             )
-            self.name_to_ingredient[name] = initialied_ingredient
-            self.append(initialied_ingredient)
+            self.name_to_ingredient[name] = initialized_ingredient
+            self.append(initialized_ingredient)
 
 
 def autowrap_query(
@@ -442,6 +442,9 @@ def _blend(
                     default_model.completion_tokens if default_model is not None else 0
                 ),
                 prompts=default_model.prompts if default_model is not None else [],
+                raw_prompts=default_model.raw_prompts
+                if default_model is not None
+                else [],
                 ingredients=[],
                 query=original_query,
                 db_url=str(db.db_url),
@@ -459,6 +462,7 @@ def _blend(
     # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
     function_call_to_res: Dict[str, str] = {}
     session_modified_tables = set()
+    scm = None
     # TODO: Currently, as we traverse upwards from deepest subquery,
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
@@ -892,6 +896,7 @@ def _blend(
             if default_model is not None
             else 0,
             prompts=default_model.prompts if default_model is not None else [],
+            raw_prompts=default_model.raw_prompts if default_model is not None else [],
             ingredients=ingredients,
             query=original_query,
             db_url=str(db.db_url),
@@ -1009,8 +1014,8 @@ def blend(
     '''
     if verbose:
         logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.ERROR)
+        for handler in logger.handlers:
+            handler.setLevel(logging.DEBUG)
     start = time.time()
     try:
         smoothie = _blend(

@@ -237,6 +237,127 @@ print(smoothie.meta.prompts)
 }
 ```
 
+### Few-Shot Prompting 
+For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples and dynamically retrieve those top-`k` most relevant examples at runtime, given the current inference example.
+#### `LLMMap`
+- [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/map/examples.py)
+
+```python
+from blendsql import blend, LLMMap
+from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
+
+ingredients = {
+    LLMMap.from_args(
+        few_shot_examples=[
+            *DEFAULT_MAP_FEW_SHOT,
+            {
+                "question": "Is this a sport?",
+                "mapping": {
+                    "Soccer": "t",
+                    "Chair": "f",
+                    "Banana": "f",
+                    "Golf": "t"
+                },
+                # Below are optional
+                "column_name": "Items",
+                "table_name": "Table",
+                "example_outputs": ["t", "f"],
+                "options": ["t", "f"],
+                "output_type": "boolean"
+            }
+        ],
+        # Will fetch `k` most relevant few-shot examples using embedding-based retriever
+        k=2,
+        # How many inference values to pass to model at once
+        batch_size=5,
+    )
+}
+smoothie = blend(
+    query=blendsql,
+    db=db,
+    ingredients=ingredients,
+    default_model=model,
+)
+```
+
+#### `LLMQA`
+- [Default examples](./blendsql/ingredients/builtin/qa/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/qa/examples.py)
+
+```python
+from blendsql import blend, LLMQA
+from blendsql.ingredients.builtin import DEFAULT_QA_FEW_SHOT
+
+ingredients = {
+    LLMQA.from_args(
+        few_shot_examples=[
+            *DEFAULT_QA_FEW_SHOT,
+            {
+                "question": "Which weighs the most?",
+                "context": {
+                    {
+                        "Animal": ["Dog", "Gorilla", "Hamster"],
+                        "Weight": ["20 pounds", "350 lbs", "100 grams"]
+                    }
+                },
+                "answer": "Gorilla",
+                # Below are optional
+                "options": ["Dog", "Gorilla", "Hamster"]
+            }
+        ],
+        # Will fetch `k` most relevant few-shot examples using embedding-based retriever
+        k=2,
+        # Lambda to turn the pd.DataFrame to a serialized string
+        context_formatter=lambda df: df.to_markdown(
+            index=False
+        )
+    )
+}
+smoothie = blend(
+    query=blendsql,
+    db=db,
+    ingredients=ingredients,
+    default_model=model,
+)
+```
+
+#### `LLMJoin`
+- [Default examples](./blendsql/ingredients/builtin/join/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/join/examples.py)
+
+```python
+from blendsql import blend, LLMJoin
+from blendsql.ingredients.builtin import DEFAULT_JOIN_FEW_SHOT
+
+ingredients = {
+    LLMJoin.from_args(
+        few_shot_examples=[
+            *DEFAULT_JOIN_FEW_SHOT,
+            {
+                "join_criteria": "Join the state to its capital.",
+                "left_values": ["California", "Massachusetts", "North Carolina"],
+                "right_values": ["Sacramento", "Boston", "Chicago"],
+                "mapping": {
+                    "California": "Sacramento",
+                    "Massachusetts": "Boston",
+                    "North Carolina": "-"
+                }
+            }
+        ],
+        # Will fetch `k` most relevant few-shot examples using embedding-based retriever
+        k=2
+    )
+}
+smoothie = blend(
+    query=blendsql,
+    db=db,
+    ingredients=ingredients,
+    default_model=model,
+)
+```
+
+
 ### Acknowledgements
 Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
 

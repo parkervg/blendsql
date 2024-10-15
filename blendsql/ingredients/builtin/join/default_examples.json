@@ -1,0 +1,27 @@
+[
+    {
+        "join_criteria": "Join to same topics.",
+        "left_values": ["joshua fields", "bob brown", "ron ryan"],
+        "right_values": [
+            "ron ryan",
+            "colby mules",
+            "bob brown (ice hockey)",
+            "josh fields (pitcher)"
+        ],
+        "mapping": {
+            "joshua fields": "josh fields (pitcher)",
+            "bob brown": "bob brown (ice hockey)",
+            "ron ryan": "ron ryan"
+        }
+    },
+    {
+        "join_criteria": "Join the fruit to its color",
+        "left_values": ["banana", "apple", "orange"],
+        "right_values": ["yellow", "red"],
+        "mapping": {
+            "banana": "yellow",
+            "apple": "red",
+            "orange": "-"
+        }
+    }
+]

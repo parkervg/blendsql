@@ -6,6 +6,16 @@ hide:
 ![ingredients](../../img/
 /LLMMap.jpg)
 
+## Usage 
+### `LLMMap`
+::: blendsql.ingredients.builtin.map.main.LLMMap
+    handler: python
+    options:
+      show_source: false
+      show_root_heading: false    
+      members:
+      - from_args
+
 ## Description
 This type of ingredient applies a function on a given column to create a new column containing the function's output.
 
@@ -13,7 +23,7 @@ In more formal terms, it is a unary scalar function, much like [`LENGTH`](https:
 
 For example, take the following query.
 
-```sql 
+```sql
 SELECT merchant FROM transactions
     WHERE {{LLMMap('Is this a pizza shop?', 'transactions::merchant')}} = TRUE
 ```
@@ -28,15 +38,3 @@ SELECT merchant FROM transactions
 
 The temporary table shown above is then combined with the original "transactions" table with an `INNER JOIN` on the "merchant" column.
 
-### `MapProgram`
-::: blendsql.ingredients.builtin.map.main.MapProgram
-    handler: python
-    show_source: true
-
-### `LLMMap`
-::: blendsql.ingredients.builtin.map.main.LLMMap
-    handler: python
-    show_source: true
-    options:
-      members:
-      - run
