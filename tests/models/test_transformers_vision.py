@@ -18,12 +18,16 @@ def db() -> SQLite:
 
 @pytest.fixture(scope="session")
 def vision_model() -> TransformersVisionModel:
-    return TransformersVisionModel(TEST_TRANSFORMERS_VISION_LLM, caching=False)
+    return TransformersVisionModel(
+        TEST_TRANSFORMERS_VISION_LLM, caching=False, config={"device_map": "cpu"}
+    )
 
 
 @pytest.fixture(scope="session")
 def text_model() -> TransformersLLM:
-    return TransformersLLM(TEST_TRANSFORMERS_LLM, caching=False)
+    return TransformersLLM(
+        TEST_TRANSFORMERS_LLM, caching=False, config={"device_map": "cpu"}
+    )
 
 
 @pytest.mark.long
