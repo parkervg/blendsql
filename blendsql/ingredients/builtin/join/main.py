@@ -1,6 +1,8 @@
 from typing import List, Optional, Tuple, Dict, Callable
 import json
 from colorama import Fore
+from pathlib import Path
+from attr import attrs, attrib
 import guidance
 
 from blendsql.models import Model, LocalModel
@@ -8,28 +10,16 @@ from blendsql._program import Program
 from blendsql._logger import logger
 from blendsql.ingredients.ingredient import JoinIngredient
 from blendsql.ingredients.generate import generate, user, assistant
-from blendsql.ingredients.few_shot import AnnotatedJoinExample, JoinExample
+from blendsql.ingredients.utils import initialize_retriever, partialclass
+
+from .examples import AnnotatedJoinExample, JoinExample
 
 DEFAULT_JOIN_FEW_SHOT: List[AnnotatedJoinExample] = [
-    AnnotatedJoinExample(
-        **{
-            "join_criteria": "Join to same topics.",
-            "left_values": ["joshua fields", "bob brown", "ron ryan"],
-            "right_values": [
-                "ron ryan",
-                "colby mules",
-                "bob brown (ice hockey)",
-                "josh fields (pitcher)",
-            ],
-            "mapping": {
-                "joshua fields": "josh fields (pitcher)",
-                "bob brown": "bob brown (ice hockey)",
-                "ron ryan": "ron ryan",
-            },
-        }
+    AnnotatedJoinExample(**d)
+    for d in json.loads(
+        open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-
 MAIN_INSTRUCTION = "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user.f\nIf a given left value has no corresponding right value, give '-' as a response. Stop responding as soon as all left values have been accounted for in the JSON mapping.\n"
 
 
@@ -38,11 +28,9 @@ class JoinProgram(Program):
         self,
         model: Model,
         current_example: JoinExample,
-        few_shot_examples: List[JoinExample] = None,
+        few_shot_examples: List[JoinExample],
         **kwargs,
     ) -> Tuple[Dict[str, str], str]:
-        if few_shot_examples is None:
-            few_shot_examples = DEFAULT_JOIN_FEW_SHOT
         if isinstance(model, LocalModel):
             lm: guidance.models.Model = model.model_obj
             with guidance.user():
@@ -107,11 +95,82 @@ class JoinProgram(Program):
         return (mapping, prompt)
 
 
+@attrs
 class LLMJoin(JoinIngredient):
     DESCRIPTION = """
     If we need to do a `join` operation where there is imperfect alignment between table values, use the new function:
         `{{LLMJoin(left_on='table::column', right_on='table::column')}}`
     """
+    model: Model = attrib(default=None)
+    few_shot_retriever: Callable[[str], List[AnnotatedJoinExample]] = attrib(
+        default=None
+    )
+
+    @classmethod
+    def from_args(
+        cls,
+        model: Model = None,
+        use_skrub_joiner: bool = True,
+        few_shot_examples: List[dict] = None,
+        k: Optional[int] = None,
+    ):
+        """Creates a partial class with predefined arguments.
+
+        Args:
+            few_shot_examples: A list of AnnotatedJoinExamples dictionaries for few-shot learning.
+                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/ingredients/builtin/join/default_examples.json) as default.
+            use_skrub_joiner: Whether to use the skrub joiner. Defaults to True.
+            k: Determines number of few-shot examples to use for each ingredient call.
+                Default is None, which will use all few-shot examples on all calls.
+                If specified, will initialize a haystack-based DPR retriever to filter examples.
+
+        Returns:
+            Type[JoinIngredient]: A partial class of JoinIngredient with predefined arguments.
+
+        Examples:
+            ```python
+            from blendsql import blend, LLMJoin
+            from blendsql.ingredients.builtin import DEFAULT_JOIN_FEW_SHOT
+
+            ingredients = {
+                LLMJoin.from_args(
+                    few_shot_examples=[
+                        *DEFAULT_JOIN_FEW_SHOT,
+                        {
+                            "join_criteria": "Join the state to its capital.",
+                            "left_values": ["California", "Massachusetts", "North Carolina"],
+                            "right_values": ["Sacramento", "Boston", "Chicago"],
+                            "mapping": {
+                                "California": "Sacramento",
+                                "Massachusetts": "Boston",
+                                "North Carolina": "-"
+                            }
+                        }
+                    ]
+                )
+            }
+            smoothie = blend(
+                query=blendsql,
+                db=db,
+                ingredients=ingredients,
+                default_model=model,
+            )
+            ```
+        """
+        if few_shot_examples is None:
+            few_shot_examples = DEFAULT_JOIN_FEW_SHOT
+        else:
+            few_shot_examples = [
+                AnnotatedJoinExample(**d) if isinstance(d, dict) else d
+                for d in few_shot_examples
+            ]
+        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
+        return partialclass(
+            cls,
+            model=model,
+            few_shot_retriever=few_shot_retriever,
+            use_skrub_joiner=use_skrub_joiner,
+        )
 
     def run(
         self,

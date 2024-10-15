@@ -1,11 +1,12 @@
 import logging
 from typing import Union, Iterable, Any, Dict, Optional, List, Callable, Tuple
-
+from pathlib import Path
 import re
 import json
 import pandas as pd
 from colorama import Fore
 from tqdm import tqdm
+from attr import attrs, attrib
 import guidance
 
 from blendsql._logger import logger
@@ -16,33 +17,14 @@ from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._program import Program
 from blendsql._exceptions import IngredientException
 from blendsql.ingredients.generate import generate, user, assistant
-from blendsql.ingredients.few_shot import AnnotatedMapExample, MapExample
+from blendsql.ingredients.utils import initialize_retriever, partialclass
+from .examples import AnnotatedMapExample, MapExample
 
 DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
-    AnnotatedMapExample(
-        **{
-            "question": "Total penalty count?",
-            "column_name": "Penalties (P+P+S+S)",
-            "table_name": "Biathlon World Championships 2013",
-            "output_type": "integer",
-            "example_outputs": ["12", "3"],
-            "examples": {
-                "1 (0+0+0+1)": "1",
-                "10 (5+3+2+0)": "10",
-                "6 (2+2+2+0)": "6",
-            },
-        }
-    ),
-    AnnotatedMapExample(
-        **{
-            "question": "Is the time less than a week?",
-            "column_name": "Length of use",
-            "table_name": "Crest Whitestrips",
-            "output_type": "boolean",
-            "options": ["t", "f"],
-            "examples": {"14 days": "f", "10 days": "f", "daily": "t", "2 hours": "t"},
-        }
-    ),
+    AnnotatedMapExample(**d)
+    for d in json.loads(
+        open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
+    )
 ]
 MAIN_INSTRUCTION = f"Given a set of values from a database, answer the question row-by-row, in order.\nYour outputs should be seperated by ';'."
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
@@ -53,14 +35,12 @@ class MapProgram(Program):
         self,
         model: Model,
         current_example: MapExample,
-        few_shot_examples: List[AnnotatedMapExample] = None,
+        few_shot_examples: List[AnnotatedMapExample],
         list_options_in_prompt: bool = True,
         max_tokens: Optional[int] = None,
         regex: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
-        if few_shot_examples is None:
-            few_shot_examples = DEFAULT_MAP_FEW_SHOT
         if isinstance(model, LocalModel):
             options = current_example.options
             if all(x is not None for x in [options, regex]):
@@ -75,7 +55,7 @@ class MapProgram(Program):
                 lm += "\n\nExamples:"
                 for example in few_shot_examples:
                     lm += example.to_string(include_values=False)
-                    for k, v in example.examples.items():
+                    for k, v in example.mapping.items():
                         lm += f"\n{k} -> {v}"
                     lm += "\n\n---"
                 lm += current_example.to_string(include_values=False)
@@ -104,7 +84,7 @@ class MapProgram(Program):
             for example in few_shot_examples:
                 messages.append(user(example.to_string()))
                 messages.append(
-                    assistant(CONST.DEFAULT_ANS_SEP.join(example.examples.values()))
+                    assistant(CONST.DEFAULT_ANS_SEP.join(example.mapping.values()))
                 )
             # Add the current question + context for inference
             messages.append(user(current_example.to_string()))
@@ -120,11 +100,96 @@ class MapProgram(Program):
         return mapped_values, prompt
 
 
+@attrs
 class LLMMap(MapIngredient):
     DESCRIPTION = """
     If question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column using the scalar function:
         `{{LLMMap('question', 'table::column')}}`
     """
+    model: Model = attrib(default=None)
+    few_shot_retriever: Callable[[str], List[AnnotatedMapExample]] = attrib(
+        default=None
+    )
+    list_options_in_prompt: bool = attrib(default=True)
+    batch_size: int = attrib(default=5)
+
+    @classmethod
+    def from_args(
+        cls,
+        model: Optional[Model] = None,
+        few_shot_examples: Optional[List[dict]] = None,
+        list_options_in_prompt: bool = True,
+        batch_size: Optional[int] = None,
+        k: Optional[int] = None,
+    ):
+        """Creates a partial class with predefined arguments.
+
+        Args:
+            model: The model to be used. Defaults to None.
+            few_shot_examples: A list of dictionary MapExample few-shot examples.
+               If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/ingredients/builtin/map/default_examples.json) as default.
+            list_options_in_prompt: Whether to list options in the prompt. Defaults to True.
+            batch_size: The batch size for processing. Defaults to None.
+            k: Determines number of few-shot examples to use for each ingredient call.
+               Default is None, which will use all few-shot examples on all calls.
+               If specified, will initialize a haystack-based embedding retriever to filter examples.
+
+        Returns:
+            Type[MapIngredient]: A partial class of MapIngredient with predefined arguments.
+
+        Examples:
+            ```python
+            from blendsql import blend, LLMMap
+            from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
+
+            ingredients = {
+                LLMMap.from_args(
+                    few_shot_examples=[
+                        *DEFAULT_MAP_FEW_SHOT,
+                        {
+                            "question": "Is this a sport?",
+                            "mapping": {
+                                "Soccer": "t",
+                                "Chair": "f",
+                                "Banana": "f",
+                                "Golf": "t"
+                            },
+                            # Below are optional
+                            "column_name": "Items",
+                            "table_name": "Table",
+                            "example_outputs": ["t", "f"],
+                            "options": ["t", "f"],
+                            "output_type": "boolean"
+                        }
+                    ],
+                    k=2,
+                    batch_size=5,
+
+                )
+            }
+            smoothie = blend(
+                query=blendsql,
+                db=db,
+                ingredients=ingredients,
+                default_model=model,
+            )
+            ```
+        """
+        if few_shot_examples is None:
+            few_shot_examples = DEFAULT_MAP_FEW_SHOT
+        else:
+            few_shot_examples = [
+                AnnotatedMapExample(**d) if isinstance(d, dict) else d
+                for d in few_shot_examples
+            ]
+        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
+        return partialclass(
+            cls,
+            model=model,
+            few_shot_retriever=few_shot_retriever,
+            list_options_in_prompt=list_options_in_prompt,
+            batch_size=batch_size,
+        )
 
     def run(
         self,
