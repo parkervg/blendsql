@@ -238,9 +238,11 @@ print(smoothie.meta.prompts)
 ```
 
 ### Few-Shot Prompting 
-For a full detail of what keys each few shot example dict can take, see [few_shot.py](./blendsql/ingredients/few_shot.py).
 
 #### `LLMMap`
+- [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/map/examples.py)
+
 ```python
 LLMMap.from_args(
     few_shot_examples=[
@@ -268,7 +270,7 @@ LLMMap.from_args(
             }
         },
     ],
-    # Will fetch `k` most relevant few-shot examples using DPR retriever
+    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
     k=1
     # How many inference values to pass to model at once
     batch_size=3,
@@ -276,6 +278,9 @@ LLMMap.from_args(
 ```
 
 #### `LLMQA`
+- [Default examples](./blendsql/ingredients/builtin/qa/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/qa/examples.py)
+
 ```python
 LLMQA.from_args(
     few_shot_examples=[
@@ -296,12 +301,15 @@ LLMQA.from_args(
             "answer": "2",
         }
     ],
-    # Will fetch `k` most relevant few-shot examples using DPR retriever
+    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
     k=1
 ),
 ```
 
 #### `LLMJoin`
+- [Default examples](./blendsql/ingredients/builtin/join/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/join/examples.py)
+
 ```python
 LLMJoin.from_args(
     few_shot_examples=[
@@ -331,7 +339,7 @@ LLMJoin.from_args(
             },
         }
     ],
-    # Will fetch `k` most relevant few-shot examples using DPR retriever
+    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
     k=2
 )
 ```
