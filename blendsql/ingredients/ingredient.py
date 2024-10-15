@@ -38,19 +38,21 @@ def unpack_default_kwargs(**kwargs):
 
 
 def initialize_retriever(
-    examples: Example, k: int = None
+    examples: Example, k: int = None, **to_string_args
 ) -> Callable[[str], List[Example]]:
-    if k is None:
+    """Initializes a DPR retriever over the few-shot examples provided."""
+    if k is None or k == len(examples):
         # Just return all the examples everytime this is called
         return lambda *_: examples
-    assert k < len(
+    assert k <= len(
         examples
     ), f"The `k` argument to an ingredient must be less than `len(few_shot_examples)`!\n`k` is {k}, `len(few_shot_examples)` is {len(examples)}"
     from .retriever import Retriever
 
     logger.debug(Fore.YELLOW + "Processing documents with haystack..." + Fore.RESET)
     retriever = Retriever(
-        documents=[example.to_string() for example in examples], return_objs=examples
+        documents=[example.to_string(**to_string_args) for example in examples],
+        return_objs=examples,
     )
     return partial(retriever.retrieve_top_k, k=k)
 
@@ -169,8 +171,13 @@ class MapIngredient(Ingredient):
             Type[MapIngredient]: A partial class of MapIngredient with predefined arguments.
         """
         if few_shot_examples:
-            few_shot_examples = [AnnotatedMapExample(**d) for d in few_shot_examples]
-        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
+            few_shot_examples = [
+                AnnotatedMapExample(**d) if isinstance(d, dict) else d
+                for d in few_shot_examples
+            ]
+        few_shot_retriever = initialize_retriever(
+            examples=few_shot_examples, k=k, include_values=True
+        )
         return partialclass(
             cls,
             model=model,
@@ -349,12 +356,18 @@ class JoinIngredient(Ingredient):
                     ]
                     ```
             use_skrub_joiner (bool): Whether to use the skrub joiner. Defaults to True.
+             k (Optional[int]): Determines number of few-shot examples to use for each ingredient call.
+                Default is None, which will use all few-shot examples on all calls.
+                If specified, will initialize a haystack-based DPR retriever to filter examples.
 
         Returns:
             Type[JoinIngredient]: A partial class of JoinIngredient with predefined arguments.
         """
         if few_shot_examples:
-            few_shot_examples = [AnnotatedJoinExample(**d) for d in few_shot_examples]
+            few_shot_examples = [
+                AnnotatedJoinExample(**d) if isinstance(d, dict) else d
+                for d in few_shot_examples
+            ]
         few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
         return partialclass(
             cls,
@@ -540,13 +553,24 @@ class QAIngredient(Ingredient):
                     ```
             context_formatter (Callable[[pd.DataFrame], str]): A callable that formats a pandas DataFrame into a string.
                 Defaults to a lambda function that converts the DataFrame to markdown without index.
+             k (Optional[int]): Determines number of few-shot examples to use for each ingredient call.
+                Default is None, which will use all few-shot examples on all calls.
+                If specified, will initialize a haystack-based DPR retriever to filter examples.
 
         Returns:
             Type[QAIngredient]: A partial class of QAIngredient with predefined arguments.
         """
         if few_shot_examples:
-            few_shot_examples = [AnnotatedQAExample(**d) for d in few_shot_examples]
-        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
+            few_shot_examples = [
+                AnnotatedQAExample(**d) if isinstance(d, dict) else d
+                for d in few_shot_examples
+            ]
+        few_shot_retriever = initialize_retriever(
+            examples=few_shot_examples,
+            k=k,
+            context_formatter=context_formatter,
+            include_answer=True,
+        )
         return partialclass(
             cls,
             few_shot_retriever=few_shot_retriever,

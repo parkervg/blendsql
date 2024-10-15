@@ -26,7 +26,17 @@ DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
             "options": ["Parker", "Andrew", "Paul"],
             "answer": "Parker",
         }
-    )
+    ),
+    AnnotatedQAExample(
+        **{
+            "question": "How many consecutive purchases?",
+            "context": pd.DataFrame(
+                data=[["AAPL", "01/22/22"], ["AAPL", "01/23/22"], ["AAPL", "02/01/22"]],
+                columns=["Stock", "Purchase Date"],
+            ),
+            "answer": "2",
+        }
+    ),
 ]
 
 
@@ -152,9 +162,9 @@ class LLMQA(QAIngredient):
         model: Model,
         question: str,
         context_formatter: Callable[[pd.DataFrame], str],
+        few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = None,
         options: Optional[Set[str]] = None,
         context: Optional[pd.DataFrame] = None,
-        few_shot_examples: List[QAExample] = None,
         value_limit: Optional[int] = None,
         table_to_title: Optional[Dict[str, str]] = None,
         long_answer: bool = False,
@@ -164,18 +174,24 @@ class LLMQA(QAIngredient):
             raise IngredientException(
                 "LLMQA requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
+        if few_shot_retriever is None:
+            few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
+        current_example = QAExample(
+            **{
+                "question": question,
+                "context": context,
+                "options": options,
+            }
+        )
+        few_shot_examples: List[AnnotatedQAExample] = few_shot_retriever(
+            current_example.to_string(context_formatter)
+        )
         result = model.predict(
             program=QAProgram,
-            current_example=QAExample(
-                **{
-                    "question": question,
-                    "context": context,
-                    "options": options,
-                }
-            ),
+            current_example=current_example,
             context_formatter=context_formatter,
             few_shot_examples=few_shot_examples,
             long_answer=long_answer,

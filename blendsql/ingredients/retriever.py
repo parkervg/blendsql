@@ -15,7 +15,7 @@ if not _has_sentence_transformers:
         "Please install sentence_transformers with `pip install sentence_transformers`!"
     ) from None
 import os
-from attr import attrs, attrib
+from attr import attrs, attrib, Factory
 from typing import List, Dict, TypeVar, Union
 import haystack.document_stores.types
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -36,16 +36,22 @@ class Retriever:
     documents: List[str] = attrib()
     return_objs: List[ReturnObj] = attrib(default=None)
     document_store: haystack.document_stores.types.DocumentStore = attrib(
-        default=InMemoryDocumentStore(embedding_similarity_function="dot_product")
+        default=Factory(
+            lambda: InMemoryDocumentStore(embedding_similarity_function="dot_product")
+        )
     )
     document_embedder: SentenceTransformersDocumentEmbedder = attrib(
-        default=SentenceTransformersDocumentEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2", progress_bar=False
+        default=Factory(
+            lambda: SentenceTransformersDocumentEmbedder(
+                model="sentence-transformers/all-mpnet-base-v2", progress_bar=False
+            )
         )
     )
     text_embedder: SentenceTransformersTextEmbedder = attrib(
-        default=SentenceTransformersTextEmbedder(
-            model="sentence-transformers/all-mpnet-base-v2", progress_bar=False
+        default=Factory(
+            lambda: SentenceTransformersTextEmbedder(
+                model="sentence-transformers/all-mpnet-base-v2", progress_bar=False
+            )
         )
     )
 

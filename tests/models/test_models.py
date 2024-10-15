@@ -1,6 +1,6 @@
 import pytest
 
-from blendsql import blend, LLMQA, LLMMap, LLMJoin
+from blendsql import blend
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
@@ -12,11 +12,6 @@ def db() -> SQLite:
     return SQLite(
         fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
     )
-
-
-@pytest.fixture(scope="session")
-def ingredients() -> set:
-    return {LLMQA, LLMMap, LLMJoin}
 
 
 @pytest.mark.long

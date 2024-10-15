@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, Callable
 import json
 from colorama import Fore
 import guidance
@@ -119,10 +119,23 @@ class LLMJoin(JoinIngredient):
         left_values: List[str],
         right_values: List[str],
         question: Optional[str] = None,
+        few_shot_retriever: Callable[[str], List[AnnotatedJoinExample]] = None,
         **kwargs,
     ) -> dict:
         if question is None:
             question = "Join to same topics."
+        if few_shot_retriever is None:
+            few_shot_retriever = lambda *_: DEFAULT_JOIN_FEW_SHOT
+        current_example = JoinExample(
+            **{
+                "join_criteria": question,
+                "left_values": left_values,
+                "right_values": right_values,
+            }
+        )
+        few_shot_examples: List[AnnotatedJoinExample] = few_shot_retriever(
+            current_example.to_string()
+        )
         mapping = model.predict(
             program=JoinProgram,
             current_example=JoinExample(
@@ -132,6 +145,7 @@ class LLMJoin(JoinIngredient):
                     "right_values": right_values,
                 }
             ),
+            few_shot_examples=few_shot_examples,
             **kwargs,
         )
         return {k: v for k, v in mapping.items() if v != "-"}

@@ -39,7 +39,7 @@ DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
             "column_name": "Length of use",
             "table_name": "Crest Whitestrips",
             "output_type": "boolean",
-            "example_outputs": ["t", "f"],
+            "options": ["t", "f"],
             "examples": {"14 days": "f", "10 days": "f", "daily": "t", "2 hours": "t"},
         }
     ),
@@ -131,7 +131,7 @@ class LLMMap(MapIngredient):
         model: Model,
         question: str,
         values: List[str],
-        few_shot_examples: List[AnnotatedMapExample] = None,
+        few_shot_retriever: Callable[[str], List[AnnotatedMapExample]] = None,
         options: List[str] = None,
         list_options_in_prompt: bool = None,
         value_limit: Union[int, None] = None,
@@ -163,6 +163,8 @@ class LLMMap(MapIngredient):
             )
         if batch_size is None:
             batch_size = CONST.MAP_BATCH_SIZE
+        if few_shot_retriever is None:
+            few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
         # Unpack default kwargs
         table_name, column_name = self.unpack_default_kwargs(**kwargs)
         # Remote endpoints can't use patterns
@@ -187,19 +189,22 @@ class LLMMap(MapIngredient):
             answer_length = len(values[i : i + batch_size])
             max_tokens = answer_length * 15
             curr_batch_values = values[i : i + batch_size]
-
+            current_example = MapExample(
+                **{
+                    "question": question,
+                    "column_name": column_name,
+                    "table_name": table_name,
+                    "output_type": output_type,
+                    "example_outputs": example_outputs,
+                    "values": curr_batch_values,
+                }
+            )
+            few_shot_examples: List[AnnotatedMapExample] = few_shot_retriever(
+                current_example.to_string()
+            )
             mapped_values: List[str] = model.predict(
                 program=MapProgram,
-                current_example=MapExample(
-                    **{
-                        "question": question,
-                        "column_name": column_name,
-                        "table_name": table_name,
-                        "output_type": output_type,
-                        "example_outputs": example_outputs,
-                        "values": curr_batch_values,
-                    }
-                ),
+                current_example=current_example,
                 question=question,
                 few_shot_examples=few_shot_examples,
                 options=options,

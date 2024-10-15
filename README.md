@@ -237,6 +237,105 @@ print(smoothie.meta.prompts)
 }
 ```
 
+### Few-Shot Prompting 
+
+#### `LLMMap`
+```python
+LLMMap.from_args(
+    few_shot_examples=[
+        {
+            "question": "Basketball team?",
+            "column_name": "team",
+            "table_name": "NBA Teams",
+            "output_type": "boolean",
+            "options": ["t", "f"],
+            "examples": {
+                "Lakers": "t",
+                "Nuggets": "t",
+                "Dodgers": "f",
+                "Mets": "f"
+            }
+        },
+        {
+            "question": "Full month name?",
+            "example_outputs": ["June", "July"],
+            "examples": {
+                "12 jun": "June",
+                "4 may": "May",
+                "12 apr": "April",
+                "29 feb": "February"
+            }
+        },
+    ],
+    # Will fetch `k` most relevant few-shot examples using DPR retriever
+    k=1
+    # How many inference values to pass to model at once
+    batch_size=3,
+),
+```
+
+#### `LLMQA`
+```python
+LLMQA.from_args(
+    few_shot_examples=[
+        {
+            "question": "Who is the oldest?",
+            "context": pd.DataFrame(
+                data=[["Parker", 26], ["Andrew", 22], ["Paul", 18]],
+                columns=["Name", "Age"],
+            ),
+            "options": ["Parker", "Andrew", "Paul"],
+            "answer": "Parker",
+        }, 
+        {
+            "question": "How many consecutive purchases?",
+            "context": pd.DataFrame(
+                data=[["AAPL", '01/22/22'], ["AAPL", '01/23/22'], ["AAPL", '02/01/22']], columns=["Stock", "Purchase Date"]
+            ),
+            "answer": "2",
+        }
+    ],
+    # Will fetch `k` most relevant few-shot examples using DPR retriever
+    k=1
+),
+```
+
+#### `LLMJoin`
+```python
+LLMJoin.from_args(
+    few_shot_examples=[
+        {
+            "join_criteria": "Join the fruit to its color",
+            "left_values": ["banana", "apple", "orange"],
+            "right_values": ["yellow", "red"],
+            "mapping": {
+                "banana": "yellow",
+                "apple": "red",
+                "orange": "-"
+            }
+        },
+        {
+            "join_criteria": "Join to same topics.",
+            "left_values": ["joshua fields", "bob brown", "ron ryan"],
+            "right_values": [
+                "ron ryan",
+                "colby mules",
+                "bob brown (ice hockey)",
+                "josh fields (pitcher)",
+            ],
+            "mapping": {
+                "joshua fields": "josh fields (pitcher)",
+                "bob brown": "bob brown (ice hockey)",
+                "ron ryan": "ron ryan",
+            },
+        }
+    ],
+    # Will fetch `k` most relevant few-shot examples using DPR retriever
+    k=2
+)
+```
+
+
 ### Acknowledgements
 Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
 

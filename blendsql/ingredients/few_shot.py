@@ -33,6 +33,16 @@ class QAExample(Example):
 class AnnotatedQAExample(QAExample):
     answer: str = attrib()
 
+    def to_string(
+        self,
+        context_formatter: Callable[[pd.DataFrame], str],
+        include_answer: bool = False,
+    ):
+        s = super().to_string(context_formatter=context_formatter)
+        if include_answer:
+            s += self.answer
+        return s
+
 
 # LLMMap
 @attrs(kw_only=True)

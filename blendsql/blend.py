@@ -91,15 +91,15 @@ class Kitchen(list):
                 name not in self.name_to_ingredient
             ), f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{name}"
             # Initialize the ingredient, going from `Type[Ingredient]` to `Ingredient`
-            initialied_ingredient: Ingredient = ingredient(
+            initialized_ingredient: Ingredient = ingredient(
                 name=name,
                 # Add db and session_uuid as default kwargs
                 # This way, ingredients are able to interact with data
                 db=self.db,
                 session_uuid=self.session_uuid,
             )
-            self.name_to_ingredient[name] = initialied_ingredient
-            self.append(initialied_ingredient)
+            self.name_to_ingredient[name] = initialized_ingredient
+            self.append(initialized_ingredient)
 
 
 def autowrap_query(
@@ -1014,8 +1014,8 @@ def blend(
     '''
     if verbose:
         logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.ERROR)
+        for handler in logger.handlers:
+            handler.setLevel(logging.DEBUG)
     start = time.time()
     try:
         smoothie = _blend(
