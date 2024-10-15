@@ -196,7 +196,13 @@ class LLMQA(QAIngredient):
                             # Below are optional
                             "options": ["Dog", "Gorilla", "Hamster"]
                         }
-                    ]
+                    ],
+                    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
+                    k=2,
+                    # Lambda to turn the pd.DataFrame to a serialized string
+                    context_formatter=lambda df: df.to_markdown(
+                        index=False
+                    )
                 )
             }
             smoothie = blend(

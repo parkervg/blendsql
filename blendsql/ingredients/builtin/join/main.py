@@ -146,7 +146,9 @@ class LLMJoin(JoinIngredient):
                                 "North Carolina": "-"
                             }
                         }
-                    ]
+                    ],
+                    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
+                    k=2
                 )
             }
             smoothie = blend(

@@ -162,9 +162,10 @@ class LLMMap(MapIngredient):
                             "output_type": "boolean"
                         }
                     ],
+                    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
                     k=2,
+                    # How many inference values to pass to model at once
                     batch_size=5,
-
                 )
             }
             smoothie = blend(
