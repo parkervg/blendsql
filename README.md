@@ -238,7 +238,7 @@ print(smoothie.meta.prompts)
 ```
 
 ### Few-Shot Prompting 
-
+For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples and dynamically retrieve those top-`k` most relevant examples at runtime, given the current inference example.
 #### `LLMMap`
 - [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
 - [All possible fields](./blendsql/ingredients/builtin/map/examples.py)
