@@ -36,6 +36,9 @@ dependencies = [
     "skrub==0.2.0",
     "scikit-learn==1.4.2",
     "duckdb<1",
+    "rapidfuzz",
+    "haystack-ai>2.0.0",
+    "sentence_transformers",
     "huggingface_hub",
     "datasets",
     "platformdirs",
@@ -44,7 +47,6 @@ dependencies = [
     "colorama",
     "tabulate>=0.9.0",
     "typeguard",
-    "rapidfuzz",
     "httpx",
     "setuptools",  # For python 3.12
 ]
@@ -59,6 +61,8 @@ blendsql = "blendsql.blend_cli:main"
 [tool.setuptools.packages.find]
 exclude=["examples*", "research*", "img*"]
 
+[tool.setuptools.package-data]
+'*' = ['*.json']
 
 [tool.black]
 line-length = 88
