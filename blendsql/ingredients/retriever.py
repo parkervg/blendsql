@@ -43,14 +43,14 @@ class Retriever:
     document_embedder: SentenceTransformersDocumentEmbedder = attrib(
         default=Factory(
             lambda: SentenceTransformersDocumentEmbedder(
-                model="sentence-transformers/all-mpnet-base-v2", progress_bar=False
+                model="TaylorAI/gte-tiny", progress_bar=False
             )
         )
     )
     text_embedder: SentenceTransformersTextEmbedder = attrib(
         default=Factory(
             lambda: SentenceTransformersTextEmbedder(
-                model="sentence-transformers/all-mpnet-base-v2", progress_bar=False
+                model="TaylorAI/gte-tiny", progress_bar=False
             )
         )
     )
