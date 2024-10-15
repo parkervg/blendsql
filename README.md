@@ -356,7 +356,6 @@ smoothie = blend(
     default_model=model,
 )
 ```
-```
 
 
 ### Acknowledgements
