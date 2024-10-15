@@ -1,0 +1,19 @@
+[
+  {
+      "question": "Who is the oldest?",
+      "context": {
+          "Name": ["Joseph", "Andrew", "Paul"],
+          "Age": [26, 22, 18]
+      },
+      "options": ["Joseph", "Andrew", "Paul"],
+      "answer": "Joseph"
+  },
+   {
+      "question": "How many consecutive purchases?",
+      "context": {
+          "Stock": ["AAPL", "AAPL", "AAPL"],
+          "Purchase Date": ["01/22/22", "01/23/22", "02/01/22"]
+      },
+      "answer": "2"
+  }
+]
