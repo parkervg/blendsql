@@ -238,6 +238,7 @@ print(smoothie.meta.prompts)
 ```
 
 ### Few-Shot Prompting 
+For a full detail of what keys each few shot example dict can take, see [few_shot.py](./blendsql/ingredients/few_shot.py).
 
 #### `LLMMap`
 ```python
