@@ -1,4 +1,4 @@
-from attr import attrs, attrib, validators
+from attr import attrs, attrib
 import pandas as pd
 from typing import Optional, List, Callable
 
@@ -8,9 +8,9 @@ from blendsql.ingredients.few_shot import Example
 @attrs(kw_only=True)
 class QAExample(Example):
     question: str = attrib()
-    context: pd.DataFrame = attrib(
+    context: Optional[pd.DataFrame] = attrib(
         converter=lambda d: pd.DataFrame.from_dict(d) if isinstance(d, dict) else d,
-        validator=validators.instance_of(pd.DataFrame),
+        default=None,
     )
     options: Optional[List[str]] = attrib(default=None)
 
@@ -19,7 +19,8 @@ class QAExample(Example):
         s += f"\n\nQuestion: {self.question}\n"
         if self.options is not None:
             s += f"Options: {', '.join(self.options)}\n"
-        s += f"Context:\n{context_formatter(self.context)}"
+        if self.context is not None:
+            s += f"Context:\n{context_formatter(self.context)}"
         s += "\nAnswer: "
         return s
 
