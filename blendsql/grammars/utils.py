@@ -7,7 +7,6 @@ from colorama import Fore
 from .._logger import logger
 from ..ingredients import Ingredient
 from .._constants import IngredientType
-from .minEarley.parser import EarleyParser
 
 
 def format_ingredient_names_to_lark(names: List[str]) -> str:
@@ -22,9 +21,9 @@ def format_ingredient_names_to_lark(names: List[str]) -> str:
     return "(" + " | ".join([f'"{n}("i' for n in names]) + ")"
 
 
-def load_cfg_parser(
+def load_lark_grammar(
     ingredients: Optional[Collection[Type[Ingredient]]] = None,
-) -> EarleyParser:
+) -> str:
     """Loads BlendSQL CFG parser.
     Dynamically modifies grammar string to include only valid ingredients.
     """
@@ -62,16 +61,11 @@ def load_cfg_parser(
             blendsql_scalar_functions
         ),
     )
-    return EarleyParser(
-        grammar=cfg_grammar_str,
-        start="start",
-        keep_all_tokens=True,
-    )
+    return cfg_grammar_str
 
 
 if __name__ == "__main__":
     from blendsql import LLMMap, LLMJoin, LLMValidate
 
-    parser = load_cfg_parser({LLMMap, LLMJoin, LLMValidate})
-    parser.parse("{{LLMQA('what is the answer', (select * from w))}}")
-    print()
+    grammar_str = load_lark_grammar({LLMMap, LLMJoin, LLMValidate})
+    print(grammar_str)

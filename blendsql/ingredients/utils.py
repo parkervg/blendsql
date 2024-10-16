@@ -37,6 +37,9 @@ def initialize_retriever(
     if k is None or k == len(examples):
         # Just return all the examples everytime this is called
         return lambda *_: examples
+    elif k == 0:
+        # Effectively doing zero-shot inference
+        return lambda *_: []
     assert k <= len(
         examples
     ), f"The `k` argument to an ingredient must be less than `len(few_shot_examples)`!\n`k` is {k}, `len(few_shot_examples)` is {len(examples)}"
