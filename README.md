@@ -157,9 +157,10 @@ import pandas as pd
 
 from blendsql import blend, LLMMap, LLMQA, LLMJoin
 from blendsql.db import Pandas
-from blendsql.models import TransformersLLM
+from blendsql.models import TransformersLLM, OpenaiLLM
 
 # Load model
+# model = OpenaiLLM("gpt-4o") # If you have a .env present with OpenAI API keys
 model = TransformersLLM('Qwen/Qwen1.5-0.5B')
 
 # Prepare our local database
