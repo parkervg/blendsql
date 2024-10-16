@@ -24,6 +24,11 @@
 pip install blendsql
 ```
 
+### ✨ News
+- (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info 
+- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent syntax updates!  
+
+
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
 
 As a result, we can *Blend* together...
@@ -31,7 +36,6 @@ As a result, we can *Blend* together...
 - 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
 - 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
 
-It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
 
 **Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
 
@@ -237,7 +241,7 @@ print(smoothie.meta.prompts)
 }
 ```
 
-### Few-Shot Prompting 
+### Few-Shot Prompting
 For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples and dynamically retrieve those top-`k` most relevant examples at runtime, given the current inference example.
 #### `LLMMap`
 - [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
