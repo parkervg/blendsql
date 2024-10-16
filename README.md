@@ -26,7 +26,7 @@ pip install blendsql
 
 ### ✨ News
 - (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info 
-- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent syntax updates!  
+- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!  
 
 
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
