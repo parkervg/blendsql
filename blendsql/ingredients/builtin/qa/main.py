@@ -165,7 +165,7 @@ class LLMQA(QAIngredient):
 
         Args:
             few_shot_examples: A list of Example dictionaries for few-shot learning.
-                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/ingredients/builtin/qa/default_examples.json) as default.
+                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/qa/default_examples.json) as default.
             context_formatter: A callable that formats a pandas DataFrame into a string.
                 Defaults to a lambda function that converts the DataFrame to markdown without index.
              k: Determines number of few-shot examples to use for each ingredient call.

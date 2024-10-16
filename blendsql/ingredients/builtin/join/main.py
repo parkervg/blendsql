@@ -118,7 +118,7 @@ class LLMJoin(JoinIngredient):
 
         Args:
             few_shot_examples: A list of AnnotatedJoinExamples dictionaries for few-shot learning.
-                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/ingredients/builtin/join/default_examples.json) as default.
+                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/join/default_examples.json) as default.
             use_skrub_joiner: Whether to use the skrub joiner. Defaults to True.
             k: Determines number of few-shot examples to use for each ingredient call.
                 Default is None, which will use all few-shot examples on all calls.

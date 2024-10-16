@@ -127,7 +127,7 @@ class LLMMap(MapIngredient):
         Args:
             model: The model to be used. Defaults to None.
             few_shot_examples: A list of dictionary MapExample few-shot examples.
-               If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/ingredients/builtin/map/default_examples.json) as default.
+               If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/map/default_examples.json) as default.
             list_options_in_prompt: Whether to list options in the prompt. Defaults to True.
             batch_size: The batch size for processing. Defaults to None.
             k: Determines number of few-shot examples to use for each ingredient call.
