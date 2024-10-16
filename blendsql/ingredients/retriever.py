@@ -1,19 +1,3 @@
-import importlib.util
-
-_has_haystack = importlib.util.find_spec("haystack") is not None
-_has_sentence_transformers = (
-    importlib.util.find_spec("sentence_transformers") is not None
-)
-
-if not _has_haystack:
-    raise ImportError(
-        'Please install haystack with `pip install "haystack-ai>2.0.0"`!'
-    ) from None
-
-if not _has_sentence_transformers:
-    raise ImportError(
-        "Please install sentence_transformers with `pip install sentence_transformers`!"
-    ) from None
 import os
 from attr import attrs, attrib, Factory
 from typing import List, Dict, TypeVar, Union
