@@ -119,7 +119,7 @@ class LLMMap(MapIngredient):
         model: Optional[Model] = None,
         few_shot_examples: Optional[List[dict]] = None,
         list_options_in_prompt: bool = True,
-        batch_size: Optional[int] = None,
+        batch_size: Optional[int] = 5,
         k: Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -129,7 +129,7 @@ class LLMMap(MapIngredient):
             few_shot_examples: A list of dictionary MapExample few-shot examples.
                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/map/default_examples.json) as default.
             list_options_in_prompt: Whether to list options in the prompt. Defaults to True.
-            batch_size: The batch size for processing. Defaults to None.
+            batch_size: The batch size for processing. Defaults to 5.
             k: Determines number of few-shot examples to use for each ingredient call.
                Default is None, which will use all few-shot examples on all calls.
                If specified, will initialize a haystack-based embedding retriever to filter examples.
