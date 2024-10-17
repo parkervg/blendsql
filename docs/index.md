@@ -25,6 +25,24 @@ pip install blendsql
 ```
 </div>
 </center>
+
+### ✨ News
+- (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info 
+- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!  
+
+### Features
+- Supports many DBMS 💾
+  - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
+- Supports many models ✨
+  - Transformers, OpenAI, Anthropic, Ollama
+- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
+- Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+  - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+
+
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs.
 
 As a result, we can *Blend* together...
@@ -124,18 +142,6 @@ SELECT COUNT(*) FROM parks
 Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
 
 For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
-
-### Features
-
-- Supports many DBMS 💾
-  - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
-- Supports many models ✨
-  - Transformers, OpenAI, Anthropic, Ollama
-- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
-- Smart parsing optimizes what is passed to external functions 🧠
-  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
 <hr>
 
