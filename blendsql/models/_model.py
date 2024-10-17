@@ -120,17 +120,20 @@ class Model:
                 self.raw_prompts.insert(-1, "")
                 return response
         # Modify fields used for tracking Model usage
-        response: Union[str, List[str]]
-        prompt: str
-        response, prompt = program(model=self, **kwargs)
-        self.prompts.insert(-1, self.format_prompt(response, **kwargs))
-        self.raw_prompts.insert(-1, prompt)
-        self.num_calls += 1
-        if self.tokenizer is not None:
-            self.prompt_tokens += len(self.tokenizer.encode(prompt))
-            self.completion_tokens += sum(
-                [len(self.tokenizer.encode(r)) for r in " ".join(response)]
-            )
+        response: Any
+        prompts: Union[str, List[str]]
+        response, prompts = program(model=self, **kwargs)
+        if not isinstance(prompts, list):
+            prompts = [prompts]
+        for prompt in prompts:
+            self.prompts.insert(-1, self.format_prompt(response, **kwargs))
+            self.raw_prompts.insert(-1, prompt)
+            self.num_calls += 1
+            if self.tokenizer is not None:
+                self.prompt_tokens += len(self.tokenizer.encode(prompt))
+                # self.completion_tokens += sum(
+                #     [len(self.tokenizer.encode(r)) for r in " ".join(response)]
+                # )
         if self.caching:
             self.cache[key] = response  # type: ignore
         return response
