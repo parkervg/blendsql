@@ -121,9 +121,9 @@ class QAProgram(Program):
                 )
             response = generate(
                 model,
-                messages=messages,
+                messages_list=[messages],
                 max_tokens=max_tokens,
-            ).strip()
+            )[0].strip()
             prompt = "".join([i["content"] for i in messages])
         # Map from modified options to original, as they appear in DB
         response: str = options_alias_to_original.get(response, response)

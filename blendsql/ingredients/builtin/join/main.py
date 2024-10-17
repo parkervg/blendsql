@@ -79,7 +79,7 @@ class JoinProgram(Program):
             messages.append(user(current_example.to_string()))
             prompt = "".join([i["content"] for i in messages])
             response = (
-                generate(model, messages=messages)
+                generate(model, messages_list=[messages])[0]
                 .removeprefix("```json")
                 .removesuffix("```")
             )
