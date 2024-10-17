@@ -63,8 +63,6 @@ class AnthropicLLM(RemoteModel):
         )
 
     def _load_model(self) -> ModelObj:
-        from guidance.models import Anthropic
+        from anthropic import AsyncAnthropic
 
-        return Anthropic(
-            self.model_name_or_path, echo=False, api_key=os.getenv("ANTHROPIC_API_KEY")
-        )
+        return AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))

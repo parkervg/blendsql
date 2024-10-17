@@ -169,11 +169,9 @@ class OpenaiLLM(RemoteModel):
         )
 
     def _load_model(self) -> ModelObj:
-        from guidance.models import OpenAI
+        from openai import AsyncClient
 
-        return OpenAI(
-            self.model_name_or_path, echo=False, api_key=os.getenv("OPENAI_API_KEY")
-        )
+        return AsyncClient(api_key=os.getenv("OPENAI_API_KEY"))
 
     def _setup(self, **kwargs) -> None:
         openai_setup()
