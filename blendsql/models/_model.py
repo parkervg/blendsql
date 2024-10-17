@@ -16,6 +16,7 @@ from .._logger import logger
 from .._program import Program, program_to_str
 from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
+from ..db._database import Database
 
 CONTEXT_TRUNCATION_LIMIT = 100
 ModelObj = TypeVar("ModelObj")
@@ -147,9 +148,11 @@ class Model:
         options_str = str(
             sorted(
                 [
-                    (k, sorted(v) if isinstance(v, set) else v)
+                    (k, str(sorted(v) if isinstance(v, set) else v))
                     for k, v in kwargs.items()
                     if not callable(v)
+                    and not isinstance(v, Database)
+                    and "uuid" not in k
                 ]
             )
         )
