@@ -45,7 +45,7 @@ class _MapExample(Example):
 
 @attrs(kw_only=True)
 class MapExample(_MapExample):
-    values: List[str] = attrib()
+    values: List[str] = attrib(default=None)
 
 
 @attrs(kw_only=True)
