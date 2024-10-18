@@ -12,6 +12,12 @@ class Database(ABC):
     db_url: Union[URL, str] = attrib()
     lazy_tables: LazyTables = LazyTables()
 
+    def __str__(self):
+        return f"{self.__class__} @ {self.db_url}"
+
+    def __repr__(self):
+        return f"{self.__class__} @ {self.db_url}"
+
     @abstractmethod
     def _reset_connection(self) -> None:
         """Reset connection, so that temp tables are cleared."""

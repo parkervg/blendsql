@@ -16,6 +16,7 @@ from .._logger import logger
 from .._program import Program, program_to_str
 from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
+from ..db._database import Database
 
 CONTEXT_TRUNCATION_LIMIT = 100
 ModelObj = TypeVar("ModelObj")
@@ -119,17 +120,20 @@ class Model:
                 self.raw_prompts.insert(-1, "")
                 return response
         # Modify fields used for tracking Model usage
-        response: Union[str, List[str]]
-        prompt: str
-        response, prompt = program(model=self, **kwargs)
-        self.prompts.insert(-1, self.format_prompt(response, **kwargs))
-        self.raw_prompts.insert(-1, prompt)
-        self.num_calls += 1
-        if self.tokenizer is not None:
-            self.prompt_tokens += len(self.tokenizer.encode(prompt))
-            self.completion_tokens += sum(
-                [len(self.tokenizer.encode(r)) for r in " ".join(response)]
-            )
+        response: Any
+        prompts: Union[str, List[str]]
+        response, prompts = program(model=self, **kwargs)
+        if not isinstance(prompts, list):
+            prompts = [prompts]
+        for prompt in prompts:
+            self.prompts.insert(-1, self.format_prompt(response, **kwargs))
+            self.raw_prompts.insert(-1, prompt)
+            self.num_calls += 1
+            if self.tokenizer is not None:
+                self.prompt_tokens += len(self.tokenizer.encode(prompt))
+                # self.completion_tokens += sum(
+                #     [len(self.tokenizer.encode(r)) for r in " ".join(response)]
+                # )
         if self.caching:
             self.cache[key] = response  # type: ignore
         return response
@@ -147,9 +151,11 @@ class Model:
         options_str = str(
             sorted(
                 [
-                    (k, sorted(v) if isinstance(v, set) else v)
+                    (k, str(sorted(v) if isinstance(v, set) else v))
                     for k, v in kwargs.items()
                     if not callable(v)
+                    and not isinstance(v, Database)
+                    and "uuid" not in k
                 ]
             )
         )

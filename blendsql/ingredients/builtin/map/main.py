@@ -1,3 +1,4 @@
+import copy
 import logging
 from typing import Union, Iterable, Any, Dict, Optional, List, Callable, Tuple
 from pathlib import Path
@@ -35,13 +36,27 @@ class MapProgram(Program):
         self,
         model: Model,
         current_example: MapExample,
+        values: List[str],
         few_shot_examples: List[AnnotatedMapExample],
+        batch_size: int,
         list_options_in_prompt: bool = True,
         max_tokens: Optional[int] = None,
         regex: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
+        # Only use tqdm if we're in debug mode
+        context_manager: Iterable = (
+            tqdm(
+                range(0, len(values), batch_size),
+                total=len(values) // batch_size,
+                desc=f"Making calls to Model with batch_size {batch_size}",
+                bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
+            )
+            if logger.level <= logging.DEBUG
+            else range(0, len(values), batch_size)
+        )
         if isinstance(model, LocalModel):
+            prompts = []
             options = current_example.options
             if all(x is not None for x in [options, regex]):
                 raise IngredientException(
@@ -58,8 +73,7 @@ class MapProgram(Program):
                     for k, v in example.mapping.items():
                         lm += f"\n{k} -> {v}"
                     lm += "\n\n---"
-                lm += current_example.to_string(include_values=False)
-            prompt = lm._current_prompt()
+
             if isinstance(model, LocalModel) and regex is not None:
                 gen_f = lambda: guidance.regex(pattern=regex)
             else:
@@ -74,30 +88,92 @@ class MapProgram(Program):
                         lm += guidance.capture(gen_f(), name=value)
                 return lm
 
-            lm += make_predictions(values=current_example.values, gen_f=gen_f)
-            mapped_values = [lm[value] for value in current_example.values]
+            mapped_values: List[str] = []
+            for i in context_manager:
+                curr_batch_values = values[i : i + batch_size]
+                current_batch_example = copy.deepcopy(current_example)
+                current_batch_example.values = curr_batch_values
+                with guidance.user():
+                    batch_lm = lm + current_example.to_string(include_values=False)
+                prompts.append(batch_lm._current_prompt())
+                with guidance.assistant():
+                    batch_lm += make_predictions(
+                        values=current_batch_example.values, gen_f=gen_f
+                    )
+                mapped_values.extend(
+                    [batch_lm[value] for value in current_batch_example.values]
+                )
         else:
-            # Use the 'old' style of prompting when we have a remote model
-            messages = []
-            messages.append(user(MAIN_INSTRUCTION))
-            # Add few-shot examples
-            for example in few_shot_examples:
-                messages.append(user(example.to_string()))
-                messages.append(
-                    assistant(CONST.DEFAULT_ANS_SEP.join(example.mapping.values()))
-                )
-            # Add the current question + context for inference
-            messages.append(user(current_example.to_string()))
-            response = generate(model, messages=messages, max_tokens=max_tokens or 1000)
+            messages_list: List[List[dict]] = []
+            batch_sizes: List[int] = []
+            for i in context_manager:
+                messages = []
+                curr_batch_values = values[i : i + batch_size]
+                batch_sizes.append(len(curr_batch_values))
+                current_batch_example = copy.deepcopy(current_example)
+                current_batch_example.values = curr_batch_values
+                messages.append(user(MAIN_INSTRUCTION))
+                # Add few-shot examples
+                for example in few_shot_examples:
+                    messages.append(user(example.to_string()))
+                    messages.append(
+                        assistant(CONST.DEFAULT_ANS_SEP.join(example.mapping.values()))
+                    )
+                # Add the current question + context for inference
+                messages.append(user(current_batch_example.to_string()))
+                messages_list.append(messages)
+
+            responses: List[str] = generate(
+                model, messages_list=messages_list, max_tokens=max_tokens or 1000
+            )
+
             # Post-process language model response
-            mapped_values = [
-                i.strip()
-                for i in response.strip(CONST.DEFAULT_ANS_SEP).split(
-                    CONST.DEFAULT_ANS_SEP
+            mapped_values: List[str] = []
+            total_missing_values = 0
+            for idx, r in enumerate(responses):
+                expected_len = batch_sizes[idx]
+                predictions = r.split(CONST.DEFAULT_ANS_SEP)
+                while len(predictions) < expected_len:
+                    total_missing_values += 1
+                    predictions.append(None)
+                mapped_values.extend(predictions)
+            if total_missing_values > 0:
+                logger.debug(
+                    Fore.RED
+                    + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values)-total_missing_values} out of {len(mapped_values)} values"
                 )
+            prompts = [
+                "".join([i["content"] for i in messages]) for messages in messages_list
             ]
-            prompt = "".join([i["content"] for i in messages])
-        return mapped_values, prompt
+        # Try to map to booleans and `None`
+        mapped_values = [
+            {
+                "t": True,
+                "f": False,
+                "true": True,
+                "false": False,
+                "y": True,
+                "n": False,
+                "yes": True,
+                "no": False,
+                CONST.DEFAULT_NAN_ANS: None,
+            }.get(i.lower(), i)
+            if isinstance(i, str)
+            else i
+            for i in mapped_values
+        ]
+        # Try to cast strings as numerics
+        for idx, value in enumerate(mapped_values):
+            if not isinstance(value, str):
+                continue
+            value = value.replace(",", "")
+            try:
+                casted_value = literal_eval(value)
+                assert isinstance(casted_value, (float, int, str))
+                mapped_values[idx] = casted_value
+            except (ValueError, SyntaxError, AssertionError):
+                continue
+        return mapped_values, prompts
 
 
 @attrs
@@ -238,88 +314,46 @@ class LLMMap(MapIngredient):
         if value_limit is not None:
             values = values[:value_limit]
         values = [value if not pd.isna(value) else "-" for value in values]
-        split_results: List[Union[str, None]] = []
-        # Only use tqdm if we're in debug mode
-        context_manager: Iterable = (
-            tqdm(
-                range(0, len(values), batch_size),
-                total=len(values) // batch_size,
-                desc=f"Making calls to Model with batch_size {batch_size}",
-                bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
-            )
-            if logger.level <= logging.DEBUG
-            else range(0, len(values), batch_size)
-        )
 
-        for i in context_manager:
-            answer_length = len(values[i : i + batch_size])
-            max_tokens = answer_length * 15
-            curr_batch_values = values[i : i + batch_size]
-            current_example = MapExample(
-                **{
-                    "question": question,
-                    "column_name": column_name,
-                    "table_name": table_name,
-                    "output_type": output_type,
-                    "example_outputs": example_outputs,
-                    "values": curr_batch_values,
-                }
-            )
-            few_shot_examples: List[AnnotatedMapExample] = few_shot_retriever(
-                current_example.to_string()
-            )
-            mapped_values: List[str] = model.predict(
-                program=MapProgram,
-                current_example=current_example,
-                question=question,
-                few_shot_examples=few_shot_examples,
-                options=options,
-                list_options_in_prompt=list_options_in_prompt,
-                example_outputs=example_outputs,
-                output_type=output_type,
-                table_name=table_name,
-                column_name=column_name,
-                regex=regex,
-                max_tokens=max_tokens,
-                **kwargs,
-            )
-            # Try to map to booleans and `None`
-            mapped_values = [
-                {
-                    "t": True,
-                    "f": False,
-                    "true": True,
-                    "false": False,
-                    "y": True,
-                    "n": False,
-                    "yes": True,
-                    "no": False,
-                    CONST.DEFAULT_NAN_ANS: None,
-                }.get(i.lower(), i)
-                for i in mapped_values
-            ]
-            expected_len = len(curr_batch_values)
-            if len(mapped_values) != expected_len:
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Mismatch between length of values and answers!\nvalues:{expected_len}, answers:{len(mapped_values)}"
-                    + Fore.RESET
-                )
-                logger.debug(mapped_values)
-            split_results.extend(mapped_values)
-        for idx, i in enumerate(split_results):
-            if i is None:
-                continue
-            if isinstance(i, str):
-                i = i.replace(",", "")
-            try:
-                split_results[idx] = literal_eval(i)
-                assert isinstance(i, (float, int, str))
-            except (ValueError, SyntaxError, AssertionError):
-                continue
+        # for i in context_manager:
+        #     answer_length = len(values[i : i + batch_size])
+        #     max_tokens = answer_length * 15
+        #     curr_batch_values = values[i : i + batch_size]
+        current_example = MapExample(
+            **{
+                "question": question,
+                "column_name": column_name,
+                "table_name": table_name,
+                "output_type": output_type,
+                "example_outputs": example_outputs,
+                # Random subset of values for few-shot example retrieval
+                # these will get replaced during batching later
+                "values": values[:10],
+            }
+        )
+        few_shot_examples: List[AnnotatedMapExample] = few_shot_retriever(
+            current_example.to_string()
+        )
+        mapped_values: List[str] = model.predict(
+            program=MapProgram,
+            current_example=current_example,
+            values=values,
+            question=question,
+            few_shot_examples=few_shot_examples,
+            batch_size=batch_size,
+            options=options,
+            list_options_in_prompt=list_options_in_prompt,
+            example_outputs=example_outputs,
+            output_type=output_type,
+            table_name=table_name,
+            column_name=column_name,
+            regex=regex,
+            # max_tokens=max_tokens,
+            **kwargs,
+        )
         logger.debug(
             Fore.YELLOW
-            + f"Finished LLMMap with values:\n{json.dumps(dict(zip(values[:10], split_results[:10])), indent=4)}"
+            + f"Finished LLMMap with values:\n{json.dumps(dict(zip(values[:10], mapped_values[:10])), indent=4)}"
             + Fore.RESET
         )
-        return split_results
+        return mapped_values

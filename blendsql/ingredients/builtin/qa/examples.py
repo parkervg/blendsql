@@ -10,7 +10,6 @@ class QAExample(Example):
     question: str = attrib()
     context: Optional[pd.DataFrame] = attrib(
         converter=lambda d: pd.DataFrame.from_dict(d) if isinstance(d, dict) else d,
-        # validator=validators.instance_of((pd.DataFrame, None)),
         default=None,
     )
     options: Optional[List[str]] = attrib(default=None)

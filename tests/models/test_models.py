@@ -95,7 +95,7 @@ def test_llmqa(db, model, ingredients):
 
 
 @pytest.mark.long
-def test_llmqa_with_string(db, model, ingredients):
+def test_llmmap_with_string(db, model, ingredients):
     res = blend(
         query="""
         SELECT COUNT(*) AS "June Count" FROM w
@@ -121,7 +121,7 @@ def test_unconstrained_llmqa(db, model, ingredients):
         query="""
         {{
           LLMQA(
-            "In 5 words, what's this table about?",
+            "What's this table about?",
             (SELECT * FROM w LIMIT 1),
             options='sports;food;politics'
           )

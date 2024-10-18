@@ -31,6 +31,7 @@ pip install blendsql
 - (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!  
 
 ### Features
+
 - Supports many DBMS 💾
   - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
 - Supports many models ✨
@@ -41,8 +42,7 @@ pip install blendsql
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
   - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
-
-
+- 
 BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs.
 
 As a result, we can *Blend* together...

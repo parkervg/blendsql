@@ -8,7 +8,6 @@ from blendsql.db import Database
 from blendsql.models import TransformersLLM, OllamaLLM, OpenaiLLM, AnthropicLLM, Model
 from blendsql import LLMQA, LLMMap, LLMJoin
 from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
-from blendsql.ingredients.builtin import DEFAULT_QA_FEW_SHOT
 
 load_dotenv()
 
@@ -56,13 +55,15 @@ def pytest_generate_tests(metafunc):
         ingredient_sets = [
             {LLMQA, LLMMap, LLMJoin},
             {
-                LLMQA.from_args(few_shot_examples=DEFAULT_QA_FEW_SHOT, k=1),
-                LLMMap.from_args(
+                LLMQA.from_args(
+                    k=1,
                     model=TransformersLLM(
                         "HuggingFaceTB/SmolLM-135M-Instruct",
                         caching=False,
                         config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
                     ),
+                ),
+                LLMMap.from_args(
                     few_shot_examples=[
                         *DEFAULT_MAP_FEW_SHOT,
                         {
@@ -73,6 +74,7 @@ def pytest_generate_tests(metafunc):
                             },
                         },
                     ],
+                    k=2,
                     batch_size=3,
                 ),
                 LLMJoin.from_args(
