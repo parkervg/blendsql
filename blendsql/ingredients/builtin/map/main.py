@@ -129,12 +129,19 @@ class MapProgram(Program):
 
             # Post-process language model response
             mapped_values: List[str] = []
+            total_missing_values = 0
             for idx, r in enumerate(responses):
                 expected_len = batch_sizes[idx]
                 predictions = r.split(CONST.DEFAULT_ANS_SEP)
                 while len(predictions) < expected_len:
+                    total_missing_values += 1
                     predictions.append(None)
                 mapped_values.extend(predictions)
+            if total_missing_values > 0:
+                logger.debug(
+                    Fore.RED
+                    + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values)-total_missing_values} out of {len(mapped_values)} values"
+                )
             prompts = [
                 "".join([i["content"] for i in messages]) for messages in messages_list
             ]
