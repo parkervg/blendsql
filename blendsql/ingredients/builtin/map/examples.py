@@ -1,5 +1,6 @@
 from attr import attrs, attrib, Factory
 from typing import Optional, List, Literal, Dict
+from collections.abc import Collection
 
 from blendsql.ingredients.few_shot import Example
 
@@ -12,7 +13,7 @@ class _MapExample(Example):
     output_type: Optional[Literal["boolean", "integer", "float", "string"]] = attrib(
         default=None
     )
-    options: Optional[List[str]] = attrib(default=None)
+    options: Optional[Collection[str]] = attrib(default=None)
     example_outputs: Optional[List[str]] = attrib(default=None)
 
     values: List[str] = None
@@ -30,7 +31,7 @@ class _MapExample(Example):
         if self.example_outputs is not None:
             s += f"Example outputs: {';'.join(self.example_outputs)}\n"
         if self.options is not None:
-            s += f"Options: {','.join(self.options)}"
+            s += f"Options: {','.join(sorted(self.options))}"
             s += "\n"
         if include_values:
             s += "\nValues:\n"
