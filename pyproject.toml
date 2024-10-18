@@ -50,7 +50,7 @@ dependencies = [
     "httpx",
     "setuptools",  # For python 3.12
 ]
-version = "0.0.27"
+version = "0.0.28"
 
 [project.urls]
 Documentation = "https://parkervg.github.io/blendsql/"
