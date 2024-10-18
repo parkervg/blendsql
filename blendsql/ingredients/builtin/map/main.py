@@ -29,6 +29,7 @@ DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
 ]
 MAIN_INSTRUCTION = f"Given a set of values from a database, answer the question row-by-row, in order.\nYour outputs should be separated by ';'."
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
+DEFAULT_MAP_BATCH_SIZE = 5
 
 
 class MapProgram(Program):
@@ -187,7 +188,7 @@ class LLMMap(MapIngredient):
         default=None
     )
     list_options_in_prompt: bool = attrib(default=True)
-    batch_size: int = attrib(default=5)
+    batch_size: int = attrib(default=DEFAULT_MAP_BATCH_SIZE)
 
     @classmethod
     def from_args(
@@ -195,7 +196,7 @@ class LLMMap(MapIngredient):
         model: Optional[Model] = None,
         few_shot_examples: Optional[List[dict]] = None,
         list_options_in_prompt: bool = True,
-        batch_size: Optional[int] = 5,
+        batch_size: Optional[int] = DEFAULT_MAP_BATCH_SIZE,
         k: Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -281,7 +282,7 @@ class LLMMap(MapIngredient):
         output_type: Optional[str] = None,
         regex: Optional[Callable[[int], str]] = None,
         table_to_title: Optional[Dict[str, str]] = None,
-        batch_size: int = None,
+        batch_size: int = DEFAULT_MAP_BATCH_SIZE,
         **kwargs,
     ) -> Iterable[Any]:
         """For each value in a given column, calls a Model and retrieves the output.
@@ -303,8 +304,6 @@ class LLMMap(MapIngredient):
             raise IngredientException(
                 "LLMMap requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
-        if batch_size is None:
-            batch_size = CONST.MAP_BATCH_SIZE
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
         # Unpack default kwargs
