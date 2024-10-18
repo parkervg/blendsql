@@ -155,9 +155,14 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
 ```python
 import pandas as pd
 
-from blendsql import blend, LLMMap, LLMQA, LLMJoin
+import blendsql
+from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
 from blendsql.db import Pandas
 from blendsql.models import TransformersLLM, OpenaiLLM
+
+# Optionally set how many async calls to allow concurrently
+# This depends on your OpenAI/Anthropic/etc. rate limits
+blendsql.config.set_async_limit(10)
 
 # Load model
 # model = OpenaiLLM("gpt-4o") # If you have a .env present with OpenAI API keys
@@ -190,7 +195,7 @@ db = Pandas(
 )
 
 # Write BlendSQL query
-blendsql = """
+query = """
 SELECT * FROM w
 WHERE city = {{
     LLMQA(
@@ -200,8 +205,8 @@ WHERE city = {{
     )
 }}
 """
-smoothie = blend(
-  query=blendsql,
+smoothie = blendsql.blend(
+  query=query,
   db=db,
   ingredients={LLMMap, LLMQA, LLMJoin},
   default_model=model,
