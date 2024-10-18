@@ -27,7 +27,7 @@ DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-MAIN_INSTRUCTION = f"Given a set of values from a database, answer the question row-by-row, in order.\nYour outputs should be seperated by ';'."
+MAIN_INSTRUCTION = f"Given a set of values from a database, answer the question row-by-row, in order.\nYour outputs should be separated by ';'."
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
 
 
