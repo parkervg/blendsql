@@ -1,3 +1,4 @@
+import os
 from functools import singledispatch
 import asyncio
 from asyncio import Semaphore
@@ -5,10 +6,9 @@ import logging
 from colorama import Fore
 from typing import Optional, List
 
+from blendsql._configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
 from .._logger import logger
 from ..models import Model, OllamaLLM, OpenaiLLM, AnthropicLLM
-
-sem = Semaphore(5)
 
 system = lambda x: {"role": "system", "content": x}
 assistant = lambda x: {"role": "assistant", "content": x}
@@ -27,6 +27,7 @@ async def run_openai_async_completions(
     stop_at: Optional[List[str]] = None,
     **kwargs,
 ):
+    sem = Semaphore(int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT)))
     client: "AsyncOpenAI" = model.model_obj
     async with sem:
         responses = [
@@ -61,6 +62,7 @@ async def run_anthropic_async_completions(
     stop_at: Optional[List[str]] = None,
     **kwargs,
 ):
+    sem = Semaphore(int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT)))
     client: "AsyncAnthropic" = model.model_obj
     async with sem:
         responses = [
