@@ -1,8 +1,7 @@
 from typing import Tuple, Type, Set
 
-from blendsql import LLMQA, LLMMap, LLMJoin
 from blendsql.utils import fetch_from_hub
-from blendsql.ingredients import Ingredient
+from blendsql.ingredients import Ingredient, LLMQA, LLMMap, LLMJoin
 from blendsql.db import Database, SQLite
 
 
