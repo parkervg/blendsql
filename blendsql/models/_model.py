@@ -17,6 +17,7 @@ from .._program import Program, program_to_str
 from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
 from ..db._database import Database
+from ..ingredients.few_shot import Example
 
 CONTEXT_TRUNCATION_LIMIT = 100
 ModelObj = TypeVar("ModelObj")
@@ -36,6 +37,21 @@ class TokenTimer(threading.Thread):
             time.sleep(self.refresh_interval_min * 60)
             print(Fore.YELLOW + "Refreshing the access tokens..." + Fore.RESET)
             self.init_fn()
+
+
+def serialize(v: Any) -> str:
+    if isinstance(v, set):
+        return sorted(v)
+    elif isinstance(v, Example):
+        return v.to_string(context_formatter=lambda df: df.to_markdown(index=False))
+    elif isinstance(v, list) and isinstance(v[0], Example):
+        return "\n".join(
+            [
+                _v.to_string(context_formatter=lambda df: df.to_markdown(index=False))
+                for _v in v
+            ]
+        )
+    return str(v)
 
 
 @attrs
@@ -151,7 +167,7 @@ class Model:
         options_str = str(
             sorted(
                 [
-                    (k, str(sorted(v) if isinstance(v, set) else v))
+                    (k, serialize(v))
                     for k, v in kwargs.items()
                     if not callable(v)
                     and not isinstance(v, Database)
