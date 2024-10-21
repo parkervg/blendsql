@@ -17,9 +17,8 @@ from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
-from ..utils import recover_blendsql
 from .._constants import IngredientKwarg
-from ._dialect import _parse_one, FTS5SQLite
+from ._dialect import _parse_one
 from . import _checks as check
 from . import _transforms as transform
 from ._constants import SUBQUERY_EXP
@@ -41,7 +40,7 @@ def get_predicate_literals(node) -> List[str]:
     if isinstance(node.parent, exp.Select):
         return []
     for child, _, _ in gen:
-        if child.find_ancestor(exp.Struct) or isinstance(child, exp.Struct):
+        if check.ingredient_node_in_ancestors(child) or check.is_ingredient_node(child):
             continue
         if isinstance(child, exp.Literal):
             literals.add(
@@ -52,7 +51,7 @@ def get_predicate_literals(node) -> List[str]:
             literals.add(child.args["this"])
             continue
         for i in child.find_all(exp.Literal):
-            if i.find_ancestor(exp.Struct):
+            if check.ingredient_node_in_ancestors(i):
                 continue
             literals.add(literal_eval(i.name) if not i.is_string else i.name)
     return list(literals)
@@ -110,18 +109,20 @@ class QueryContextManager:
         2) The string representation of the query
     """
 
+    dialect: sqlglot.Dialect = attrib()
+
     node: exp.Expression = attrib(default=None)
     _query: str = attrib(default=None)
     _last_to_string_node: exp.Expression = None
 
     def parse(self, query, schema: Optional[Union[dict, Schema]] = None):
         self._query = query
-        self.node = _parse_one(query, schema=schema)
+        self.node = _parse_one(query, dialect=self.dialect, schema=schema)
 
     def to_string(self):
-        # Only call `recover_blendsql` if we need to
+        # Only call `sql` if we need to
         if hash(self.node) != hash(self._last_to_string_node):
-            self._query = recover_blendsql(self.node.sql(dialect=FTS5SQLite))
+            self._query = self.node.sql(dialect=self.dialect)
             self.last_to_string_node = self.node
         return self._query
 
@@ -131,6 +132,7 @@ class QueryContextManager:
 
 @attrs
 class SubqueryContextManager:
+    dialect: sqlglot.Dialect = attrib()
     node: exp.Select = attrib()
     prev_subquery_has_ingredient: bool = attrib()
     tables_in_ingredients: set = attrib()
@@ -198,11 +200,10 @@ class SubqueryContextManager:
             and not check.ingredient_alias_in_query_body(self.node)
         ):
             abstracted_query = to_select_star(self.node).transform(
-                transform.set_structs_to_true
+                transform.set_ingredient_nodes_to_true
             )
-            abstracted_query_str = recover_blendsql(
-                abstracted_query.sql(dialect=FTS5SQLite)
-            )
+            abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
+
             for tablename in self.tables_in_ingredients:
                 yield (tablename, True, abstracted_query_str)
             return
@@ -226,7 +227,9 @@ class SubqueryContextManager:
                     transform.maybe_set_subqueries_to_true
                 )
             # Substitute all ingredients with 'TRUE'
-            abstracted_query = table_star_query.transform(transform.set_structs_to_true)
+            abstracted_query = table_star_query.transform(
+                transform.set_ingredient_nodes_to_true
+            )
             # Check here to see if we have no other predicates other than 'WHERE TRUE'
             # There's no point in creating a temporary table in this situation
             where_node = abstracted_query.find(exp.Where)
@@ -239,9 +242,8 @@ class SubqueryContextManager:
                     continue
             elif not where_node:
                 continue
-            abstracted_query_str = recover_blendsql(
-                abstracted_query.sql(dialect=FTS5SQLite)
-            )
+            abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
+
             yield (tablename, False, abstracted_query_str)
 
     def _table_star_queries(
@@ -324,7 +326,9 @@ class SubqueryContextManager:
             if table_conditions_str:
                 yield (
                     tablenode.name,
-                    _parse_one(base_select_str + table_conditions_str),
+                    _parse_one(
+                        base_select_str + table_conditions_str, dialect=self.dialect
+                    ),
                 )
 
     def get_table_predicates_str(
@@ -360,7 +364,7 @@ class SubqueryContextManager:
         if len(all_table_predicates) == 0:
             return ""
         table_conditions_str = " AND ".join(
-            [c.sql(dialect=FTS5SQLite) for c in all_table_predicates]
+            [c.sql(dialect=self.dialect) for c in all_table_predicates]
         )
         return table_conditions_str
 
@@ -414,7 +418,7 @@ class SubqueryContextManager:
             return base_regex
 
         added_kwargs: Dict[str, Any] = {}
-        ingredient_node = _parse_one(self.sql()[start:end])
+        ingredient_node = _parse_one(self.sql()[start:end], dialect=self.dialect)
         child = None
         for child, _, _ in self.node.walk():
             if child == ingredient_node:
@@ -468,5 +472,5 @@ class SubqueryContextManager:
             added_kwargs[IngredientKwarg.REGEX] = create_regex(output_type)
         return added_kwargs
 
-    def sql(self, dialect: sqlglot.dialects.Dialect = FTS5SQLite):
-        return recover_blendsql(self.node.sql(dialect=dialect))
+    def sql(self):
+        return self.node.sql(dialect=self.dialect)

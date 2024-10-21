@@ -15,6 +15,8 @@ from typing import (
     Type,
 )
 from collections.abc import Collection, Iterable
+
+import sqlglot
 from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
@@ -26,17 +28,16 @@ from .utils import (
     sub_tablename,
     get_temp_session_table,
     get_temp_subquery_table,
-    recover_blendsql,
     get_tablename_colname,
 )
 from ._exceptions import InvalidBlendSQL
 from .db import Database, DuckDB
 from .db.utils import double_quote_escape, select_all_from_table_query, LazyTable
 from .parse import (
+    get_dialect,
     QueryContextManager,
     SubqueryContextManager,
     _parse_one,
-    FTS5SQLite,
     transform,
     check,
     get_reversed_subqueries,
@@ -256,7 +257,7 @@ def preprocess_blendsql(query: str, default_model: Model) -> Tuple[str, dict, se
             }:
                 if arg is None:
                     continue
-                if not arg.upper().startswith(("SELECT", "WITH")):
+                if not check.is_blendsql_query(arg):
                     tablename, _ = get_tablename_colname(arg)
                     tables_in_ingredients.add(tablename)
             # We don't need raw kwargs anymore
@@ -283,7 +284,7 @@ def materialize_cte(
     ingredient_alias_to_parsed_dict: Dict[str, dict],
     **kwargs,
 ) -> pd.DataFrame:
-    str_subquery = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
+    str_subquery = subquery.sql(dialect=query_context.dialect)
     materialized_cte_df: pd.DataFrame = disambiguate_and_submit_blend(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         query=str_subquery,
@@ -396,7 +397,8 @@ def _blend(
     # The QueryContextManager class is used to track all manipulations done to
     # the original query, prior to the final execution on the underlying DBMS.
     original_query = copy.deepcopy(query)
-    query_context = QueryContextManager()
+    dialect: sqlglot.Dialect = get_dialect(db.__class__.__name__)
+    query_context = QueryContextManager(dialect)
     naive_execution = False
     session_uuid = str(uuid.uuid4())[:4]
     if ingredients is None:
@@ -487,10 +489,11 @@ def _blend(
                 i.name for i in subquery.find_ancestor(exp.Select).find_all(exp.Table)
             ]
             if len(parent_select_tablenames) == 1:
-                subquery_str = recover_blendsql(
+                subquery_str = (
                     f"SELECT * FROM {parent_select_tablenames[0]} WHERE "
-                    + get_first_child(subquery).sql(dialect=FTS5SQLite)
+                    + get_first_child(subquery).sql(dialect=dialect)
                 )
+
             else:
                 logger.debug(
                     Fore.YELLOW
@@ -498,12 +501,13 @@ def _blend(
                 )
                 continue
         else:
-            subquery_str = recover_blendsql(subquery.sql(dialect=FTS5SQLite))
+            subquery_str = subquery.sql(dialect=dialect)
 
         in_cte, table_alias_name = check.in_cte(subquery, return_name=True)
         scm = SubqueryContextManager(
+            dialect=dialect,
             node=_parse_one(
-                subquery_str
+                subquery_str, dialect=dialect
             ),  # Need to do this so we don't track parents into construct_abstracted_selects
             prev_subquery_has_ingredient=prev_subquery_has_ingredient,
             alias_to_subquery={table_alias_name: subquery} if in_cte else {},
@@ -681,8 +685,8 @@ def _blend(
                         )
                     ),
                 )
-                if isinstance(unpack_value, str) and unpack_value.upper().startswith(
-                    ("SELECT", "WITH")
+                if isinstance(unpack_value, str) and check.is_blendsql_query(
+                    unpack_value
                 ):
                     _smoothie = _blend(
                         query=unpack_value,
@@ -755,7 +759,7 @@ def _blend(
                 # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
                 join_node = query_context.node.find(exp.Join)
                 assert join_node is not None
-                num_ingredients_in_join = len(list(join_node.find_all(exp.Struct))) // 2
+                num_ingredients_in_join = check.get_ingredient_count(join_node)
                 if num_ingredients_in_join > 1:
                     # Case where we have
                     # `SELECT * FROM w0 JOIN w0 ON {{B()}} > 1 AND {{A()}} WHERE TRUE`
@@ -764,8 +768,8 @@ def _blend(
                     temp_uuid = str(uuid.uuid4())
                     _node = query_context.node.transform(
                         transform.replace_join_with_ingredient_multiple_ingredient,
-                        ingredient_name=parsed_results_dict["ingredient_aliasname"],
                         ingredient_alias=alias_function_str,
+                        dialect=dialect,
                         temp_uuid=temp_uuid,
                     ).transform(transform.prune_true_where)
                     query_context.parse(
@@ -782,7 +786,8 @@ def _blend(
                     #   Should probably modify in the future.
                     query_context.node = query_context.node.transform(
                         transform.replace_join_with_ingredient_single_ingredient,
-                        ingredient_name=parsed_results_dict["ingredient_aliasname"],
+                        dialect=dialect,
+                        # ingredient_name=parsed_results_dict["ingredient_aliasname"],
                         ingredient_alias=alias_function_str,
                     )
                 function_call_to_res[alias_function_str] = join_clause
@@ -856,7 +861,7 @@ def _blend(
     # Now insert the function outputs to the original query
     query = query_context.to_string()
     for function_str, res in function_call_to_res.items():
-        query = query.replace(function_str, str(res))
+        query = query.replace(function_str, f" {str(res)} ")
     for t in session_modified_tables:
         query = sub_tablename(
             t, f'"{double_quote_escape(_get_temp_session_table(t))}"', query

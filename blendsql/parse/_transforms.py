@@ -5,12 +5,14 @@ https://github.com/tobymao/sqlglot
 """
 
 from typing import Union
+
+import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.scope import find_in_scope
 
 from . import _checks as check
 from ._constants import SUBQUERY_EXP
-from ._dialect import _parse_one, FTS5SQLite
+from ._dialect import _parse_one
 
 
 def extract_multi_table_predicates(
@@ -161,7 +163,7 @@ def prune_true_where(node):
     return node
 
 
-def set_structs_to_true(node) -> Union[exp.Expression, None]:
+def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
     """Prunes all nodes with an exp.Struct parent.
 
     CASE 1
@@ -177,12 +179,12 @@ def set_structs_to_true(node) -> Union[exp.Expression, None]:
     Used with node.transform()
     """
     # Case 1: we have an exp.Struct in isolation
-    if isinstance(node, exp.Struct):
+    if check.is_ingredient_node(node):
         return exp.true()
     # Case 2: we have an exp.Struct within a predicate (=, <, >, etc.)
     if isinstance(node, exp.Predicate):
         if any(
-            isinstance(x, exp.Struct)
+            check.is_ingredient_node(x)
             for x in {node.args.get("this", None), node.args.get("expression", None)}
         ):
             return exp.true()
@@ -190,7 +192,7 @@ def set_structs_to_true(node) -> Union[exp.Expression, None]:
 
 
 def replace_join_with_ingredient_multiple_ingredient(
-    node: exp.Where, ingredient_name: str, ingredient_alias: str, temp_uuid: str
+    node: exp.Where, ingredient_alias: str, dialect: sqlglot.Dialect, temp_uuid: str
 ) -> Union[exp.Expression, None]:
     """
 
@@ -202,11 +204,13 @@ def replace_join_with_ingredient_multiple_ingredient(
     SELECT * FROM documents JOIN "w" ON w.film = {{A()}}  AND  {{B()}}  WHERE TRUE
     """
     if isinstance(node, exp.Join):
-        anon_child_nodes = node.find_all(exp.Anonymous)
+        child_ingredient_nodes = [
+            n for n in node.find_all(exp.Identifier) if check.is_ingredient_node(n)
+        ]
         to_return = []
         join_alias: str = ""
-        for anon_child_node in anon_child_nodes:
-            if anon_child_node.name == ingredient_name:
+        for anon_child_node in child_ingredient_nodes:
+            if anon_child_node.this == ingredient_alias:
                 join_alias = ingredient_alias
                 continue
             # Traverse and get the whole ingredient
@@ -215,7 +219,7 @@ def replace_join_with_ingredient_multiple_ingredient(
             for _ in range(2):
                 _parent = _parent.parent
                 assert isinstance(_parent, exp.Expression)
-            to_return.append(_parent.sql(dialect=FTS5SQLite))
+            to_return.append(_parent.sql(dialect=dialect))
         if len(to_return) == 0:
             return node
         if join_alias == "":
@@ -226,23 +230,28 @@ def replace_join_with_ingredient_multiple_ingredient(
             f' SELECT "{temp_uuid}", '
             + join_alias
             + " WHERE "
-            + " AND ".join(to_return)
+            + " AND ".join(to_return),
+            dialect=dialect,
         )
     return node
 
 
 def replace_join_with_ingredient_single_ingredient(
-    node: exp.Where, ingredient_name: str, ingredient_alias: str
+    node: exp.Where, dialect: sqlglot.Dialect, ingredient_alias: str
 ) -> Union[exp.Expression, None]:
     """
 
     Used with node.transform()
     """
     if isinstance(node, exp.Join):
-        anon_child_node = node.find(exp.Anonymous)
-        if anon_child_node is not None:
-            if anon_child_node.name == ingredient_name:
-                return _parse_one(f" {ingredient_alias}")
+        child_ingredient_nodes = [
+            n for n in node.find_all(exp.Identifier) if check.is_ingredient_node(n)
+        ]
+        if len(child_ingredient_nodes) > 0:
+            assert len(child_ingredient_nodes) == 1
+            child_ingredient_node = child_ingredient_nodes[0]
+            if child_ingredient_node.this == ingredient_alias:
+                return _parse_one(f" {ingredient_alias} ", dialect=dialect)
     return node
 
 

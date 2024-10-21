@@ -2,7 +2,7 @@ from pathlib import Path
 
 import blendsql
 from blendsql.models import OpenaiLLM
-from blendsql.ingredients import LLMQA, LLMMap
+from blendsql.ingredients import LLMQA, LLMMap, BingWebSearch
 from blendsql.db import SQLite
 
 
@@ -23,14 +23,22 @@ if __name__ == "__main__":
     7.95 seconds with 1
     4.7155 with 5
     """
-    blendsql.config.set_async_limit(5)
-    ingredients = {LLMQA, LLMMap.from_args(batch_size=2)}
+    ingredients = {LLMQA, LLMMap, BingWebSearch}
     db = load_tag_database("california_schools")
     blendsql_query = """
     SELECT s.Phone 
         FROM satscores ss 
         JOIN schools s ON ss.cds = s.CDSCode 
-        WHERE {{LLMMap('Is this county in Southern California?', 's::County')}} = TRUE
+        WHERE county IN {{
+            LLMQA(
+                'Which counties are in the Bay Area?', 
+                (
+                    {{
+                        BingWebSearch('Counties in the Bay Area')
+                    }}
+                )
+            )
+        }}
         ORDER BY ss.AvgScrRead ASC 
         LIMIT 1
     """

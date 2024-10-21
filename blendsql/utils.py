@@ -57,19 +57,6 @@ def sub_tablename(original_tablename: str, new_tablename: str, query: str) -> st
     )
 
 
-def recover_blendsql(select_sql: str):
-    """Given a SQL `SELECT` statement, recovers BlendSQL syntax from SQLGlot SQLiteDialect interpretation.
-    TODO: this is hack to convert sqlglot SQLite to BlendSQL.
-    Examples:
-        >>> recover_blendsql("STRUCT(STRUCT(QA('can i get my car fixed here?', 'transactions::merchant')))")
-        {{QA('can i get my car fixed here?', 'transactions::merchant')}}
-    """
-    recovered = re.sub(
-        r"(STRUCT\( ?STRUCT\()(.*?)(\){3})(,)?", r" {{\2)}}\4 ", select_sql
-    )
-    return recovered
-
-
 def get_temp_subquery_table(
     session_uuid: str, subquery_idx: int, tablename: str
 ) -> str:

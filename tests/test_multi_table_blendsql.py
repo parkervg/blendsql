@@ -554,6 +554,42 @@ def test_subquery_alias_with_join_multi_exec(db, dummy_ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
+def test_subquery_alias_with_join_multi_exec_and(db, dummy_ingredients):
+    """Same as before, but now we use an `AND` predicate to link the `JOIN` and `LIKE` clauses.
+    This will hit the `replace_join_with_ingredient_multiple_ingredient` transform.
+    """
+    blendsql = """
+    SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
+    JOIN {{
+        do_join(
+            left_on='geographic::Symbol',
+            right_on='w::Symbol'
+        )
+    }} AND {{starts_with('F', 'w::Symbol')}}
+    """
+
+    sql = """
+    SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
+    JOIN geographic ON w.Symbol = geographic.Symbol
+    AND w.Symbol LIKE 'F%'
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=dummy_ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) AND "Percent of Account" < 0.2 
+    """
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
+
+
+@pytest.mark.parametrize("db", databases)
 def test_materialize_ctes_multi_exec(db, dummy_ingredients):
     """We shouldn't create materialized CTE tables if they aren't used in an ingredient.
 
