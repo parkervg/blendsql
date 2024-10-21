@@ -212,8 +212,13 @@ class SubqueryContextManager:
             if (
                 len(
                     list(
-                        get_scope_nodes(
-                            root=self.root, nodetype=exp.Struct, restrict_scope=True
+                        filter(
+                            lambda node: check.is_ingredient_node(node),
+                            get_scope_nodes(
+                                root=self.root,
+                                nodetype=exp.Identifier,
+                                restrict_scope=True,
+                            ),
                         )
                     )
                 )

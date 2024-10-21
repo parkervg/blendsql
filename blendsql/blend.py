@@ -76,7 +76,7 @@ class Kitchen(list):
             ) from None
 
     def extend(self, ingredients: Iterable[Type[Ingredient]]) -> None:
-        """ "Initializes ingredients class with base attributes, for use in later operations."""
+        """Initializes ingredients class with base attributes, for use in later operations."""
         try:
             if not all(issubclass(x, Ingredient) for x in ingredients):
                 raise IngredientException(
@@ -861,7 +861,11 @@ def _blend(
     # Now insert the function outputs to the original query
     query = query_context.to_string()
     for function_str, res in function_call_to_res.items():
-        query = query.replace(function_str, f" {str(res)} ")
+        # The post-processing on the JoinIngredient will sometimes leave 'AS {{A()}}' sort of artifacts
+        # We remove them below
+        query = re.sub(
+            r"(AS )?{}".format(re.escape(function_str)), f" {str(res)} ", query
+        )
     for t in session_modified_tables:
         query = sub_tablename(
             t, f'"{double_quote_escape(_get_temp_session_table(t))}"', query

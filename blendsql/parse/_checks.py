@@ -23,8 +23,10 @@ def is_blendsql_query(s: str) -> bool:
 
 
 def is_ingredient_node(node: exp.Expression):
-    if not isinstance(node, exp.Identifier):
+    if not isinstance(node, (exp.Identifier, exp.Column)):
         return False
+    if isinstance(node, exp.Column):
+        node = node.find(exp.Identifier)
     return INGREDIENT_PATTERN.match(node.this) is not None
 
 
@@ -66,14 +68,15 @@ def ingredients_only_in_top_select(node: exp.Expression) -> bool:
     """
     select_exps = list(node.find_all(exp.Select))
     if len(select_exps) == 1:
-        # Check if the only `STRUCT` nodes are found in selects
+        # Check if the only ingredient nodes are found in top-level select expression
+        num_ingredients_in_select = sum(
+            [get_ingredient_count(i) for i in select_exps[0].expressions]
+        )
+        if num_ingredients_in_select == 0:
+            return False
         all_ingredient_count = get_ingredient_count(node)
-        if all_ingredient_count > 0:
-            num_select_ingredients = sum(
-                [get_ingredient_count(n) for n in select_exps[0].find_all(exp.Alias)]
-            )
-            if num_select_ingredients == all_ingredient_count:
-                return True
+        if num_ingredients_in_select == all_ingredient_count:
+            return True
     return False
 
 
@@ -94,7 +97,7 @@ def in_cte(node: exp.Expression, return_name: bool = False):
 
 
 def contains_ingredient(node: exp.Expression) -> bool:
-    for n in node.find_all(exp.Literal):
+    for n in node.find_all(exp.Identifier):
         if is_ingredient_node(n):
             return True
     return False

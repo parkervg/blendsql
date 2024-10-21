@@ -164,16 +164,16 @@ def prune_true_where(node):
 
 
 def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
-    """Prunes all nodes with an exp.Struct parent.
+    """Prunes all nodes with an ingredient parent.
 
     CASE 1
-    Turns the exp.Struct node itself to a TRUE.
+    Turns the ingredient node itself to a TRUE.
 
     CASE 2
     In the case below ('x = {{A()}}'):
         exp.Condition
              / \
-           x    exp.Struct
+           x    ingredient
     We need to set the whole exp.Condition clause to TRUE.
 
     Used with node.transform()
@@ -209,17 +209,11 @@ def replace_join_with_ingredient_multiple_ingredient(
         ]
         to_return = []
         join_alias: str = ""
-        for anon_child_node in child_ingredient_nodes:
-            if anon_child_node.this == ingredient_alias:
+        for child_ingredient_node in child_ingredient_nodes:
+            if child_ingredient_node.this == ingredient_alias:
                 join_alias = ingredient_alias
                 continue
-            # Traverse and get the whole ingredient
-            # We need to go up 2 parents
-            _parent = anon_child_node
-            for _ in range(2):
-                _parent = _parent.parent
-                assert isinstance(_parent, exp.Expression)
-            to_return.append(_parent.sql(dialect=dialect))
+            to_return.append(child_ingredient_node.sql(dialect=dialect))
         if len(to_return) == 0:
             return node
         if join_alias == "":

@@ -99,7 +99,7 @@ def test_simple_ingredient_exec_at_end(db, dummy_ingredients):
 @pytest.mark.parametrize("db", databases)
 def test_simple_ingredient_exec_in_select(db, dummy_ingredients):
     blendsql = """
-    SELECT {{get_length('Z', 'transactions::merchant')}} FROM transactions WHERE parent_category = 'Auto & Transport' 
+    SELECT {{get_length('Z', 'transactions::merchant')}} AS "LENGTH(merchant)" FROM transactions WHERE parent_category = 'Auto & Transport' 
     """
     sql = """
     SELECT LENGTH(merchant) FROM transactions WHERE parent_category = 'Auto & Transport'
