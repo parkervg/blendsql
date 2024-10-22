@@ -536,7 +536,6 @@ def test_query_options_arg(db, dummy_ingredients):
     blendsql = """
     {{
         select_first_option(
-            'I hope this test works',
             (SELECT * FROM transactions),
             options=(SELECT DISTINCT merchant FROM transactions WHERE merchant = 'Paypal')
         )
