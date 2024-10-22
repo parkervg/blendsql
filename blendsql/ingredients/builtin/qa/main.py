@@ -128,6 +128,7 @@ class QAProgram(Program):
             )[0].strip()
             prompt = "".join([i["content"] for i in messages])
         if isinstance(response, str):
+            # If we have specified a modifier, we try to parse it to a tuple
             if modifier:
                 try:
                     response = literal_eval(response)
