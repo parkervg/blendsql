@@ -50,7 +50,7 @@ def pytest_generate_tests(metafunc):
 
         # OpenAI check
         if os.getenv("OPENAI_API_KEY") is not None:
-            model_list.append(OpenaiLLM("gpt-3.5-turbo", caching=False))
+            model_list.append(OpenaiLLM("gpt-4o-mini-2024-07-18", caching=False))
 
         # Anthropic check
         if os.getenv("ANTHROPIC_API_KEY") is not None:
