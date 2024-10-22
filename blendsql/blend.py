@@ -148,8 +148,11 @@ def autowrap_query(
 
 
 def preprocess_blendsql(
-    query: str, kitchen: Kitchen, default_model: Model
-) -> Tuple[str, dict, set]:
+    query: str,
+    kitchen: Kitchen,
+    ingredients: Collection[Ingredient],
+    default_model: Model,
+) -> Tuple[str, dict, set, Kitchen, Set[Ingredient]]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
 
@@ -214,11 +217,16 @@ def preprocess_blendsql(
             parsed_results_dict = parse_results.as_dict()
             _ingredient = kitchen.get_from_name(parsed_results_dict["function"])
             if _ingredient.ingredient_type == IngredientType.ALIAS:
-                _original_ingredient_string, dependent_ingredients = _ingredient(
+                _original_ingredient_string, ingredient_dependencies = _ingredient(
                     *parsed_results_dict["args"],
                     **{x[0]: x[-1] for x in parsed_results_dict["kwargs"]},
                 )
-                kitchen.extend(dependent_ingredients, flag_duplicates=False)
+                kitchen.extend(ingredient_dependencies, flag_duplicates=False)
+                ingredients = set(ingredients)
+                existing_ingredients = set([i.__name__ for i in ingredients])
+                for ingredient in ingredient_dependencies:
+                    if ingredient.__name__ not in existing_ingredients:
+                        ingredients.add(ingredient)
                 parse_results = grammar.parseString(_original_ingredient_string)
                 parsed_results_dict = parse_results.as_dict()
                 logger.debug(
@@ -301,7 +309,13 @@ def preprocess_blendsql(
                 "kwargs_dict": kwargs_dict,
             }
         query = query[:start] + substituted_ingredient_alias + query[end:]
-    return (query.strip(), ingredient_alias_to_parsed_dict, tables_in_ingredients)
+    return (
+        query.strip(),
+        ingredient_alias_to_parsed_dict,
+        tables_in_ingredients,
+        kitchen,
+        ingredients,
+    )
 
 
 def materialize_cte(
@@ -442,7 +456,14 @@ def _blend(
         query,
         ingredient_alias_to_parsed_dict,
         tables_in_ingredients,
-    ) = preprocess_blendsql(query=query, kitchen=kitchen, default_model=default_model)
+        kitchen,
+        ingredients,
+    ) = preprocess_blendsql(
+        query=query,
+        kitchen=kitchen,
+        ingredients=ingredients,
+        default_model=default_model,
+    )
     query = autowrap_query(
         query=query,
         kitchen=kitchen,
