@@ -11,6 +11,7 @@ from tests.utils import (
     return_aapl,
     get_table_size,
     select_first_option,
+    return_aapl_alias,
 )
 
 databases = [
@@ -31,6 +32,7 @@ def dummy_ingredients() -> set:
         return_aapl,
         get_table_size,
         select_first_option,
+        return_aapl_alias,
     }
 
 
@@ -288,6 +290,32 @@ def test_qa_equals_multi_exec(db, dummy_ingredients):
         query=blendsql,
         db=db,
         ingredients=dummy_ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+@pytest.mark.parametrize("db", databases)
+def test_alias_ingredient_multi_exec(db):
+    """Tests the AliasIngredient class.
+    We don't inherit the dummy_ingredients fixture here,
+    since we want to be sure the 'return_aapl_alias' ingredient
+    is correctly injecting any dependent ingredients at runtime.
+
+    commit 6bac71f
+    """
+    blendsql = """
+    SELECT Action FROM account_history
+    WHERE Symbol = {{return_aapl_alias()}}
+    """
+    sql = """
+    SELECT Action FROM account_history
+    WHERE Symbol = 'AAPL'
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients={return_aapl_alias},
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
