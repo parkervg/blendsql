@@ -519,6 +519,7 @@ def _blend(
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
+    resync_query_context_before_execution = False
     for subquery_idx, subquery in enumerate(
         get_reversed_subqueries(query_context.node)
     ):
@@ -825,6 +826,7 @@ def _blend(
                     query_context.parse(
                         str(_node).replace(f'SELECT "{temp_uuid}", ', ""), schema=schema
                     )
+                    resync_query_context_before_execution = True
                 else:
                     # Case where we have
                     # `SELECT * FROM w0 JOIN w0 ON w0.x > 1 AND {{A()}} WHERE TRUE`
@@ -840,6 +842,7 @@ def _blend(
                         # ingredient_name=parsed_results_dict["ingredient_aliasname"],
                         ingredient_alias=alias_function_str,
                     )
+                    resync_query_context_before_execution = True
                 function_call_to_res[alias_function_str] = join_clause
             else:
                 raise ValueError(
@@ -909,7 +912,10 @@ def _blend(
                 session_modified_tables.add(tablename)
 
     # Now insert the function outputs to the original query
-    query = query_context.to_string()
+    if resync_query_context_before_execution:
+        # We need to re-sync if we did some operation on the underlying query,
+        #   like with a JoinIngredient
+        query = query_context.to_string()
     for function_str, res in function_call_to_res.items():
         # The post-processing on the JoinIngredient will sometimes leave 'AS {{A()}}' sort of artifacts
         # We remove them below
