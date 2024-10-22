@@ -19,7 +19,9 @@ class _MapExample(Example):
     values: List[str] = None
     mapping: Dict[str, str] = None
 
-    def to_string(self, include_values: bool = True, list_options: bool = True) -> str:
+    def to_string(
+        self, include_values: bool = True, list_options: bool = True, *args, **kwargs
+    ) -> str:
         s = "\n\n"
         s += f"\n\nQuestion: {self.question}\n"
         if self.table_name is not None:

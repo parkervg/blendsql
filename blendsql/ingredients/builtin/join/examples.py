@@ -11,7 +11,7 @@ class JoinExample(Example):
     left_values: List[str] = attrib()
     right_values: List[str] = attrib()
 
-    def to_string(self) -> str:
+    def to_string(self, *args, **kwargs) -> str:
         return newline_dedent(
             """
         Criteria: {}

@@ -31,6 +31,8 @@ class QAExample(Example):
         self,
         context_formatter: Callable[[pd.DataFrame], str],
         list_options: bool = True,
+        *args,
+        **kwargs,
     ) -> str:
         s = ""
         s += f"\n\nQuestion: {self.question}\n"
