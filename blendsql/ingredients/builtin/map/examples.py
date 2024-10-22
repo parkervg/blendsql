@@ -19,7 +19,7 @@ class _MapExample(Example):
     values: List[str] = None
     mapping: Dict[str, str] = None
 
-    def to_string(self, include_values: bool = True) -> str:
+    def to_string(self, include_values: bool = True, list_options: bool = True) -> str:
         s = "\n\n"
         s += f"\n\nQuestion: {self.question}\n"
         if self.table_name is not None:
@@ -30,9 +30,9 @@ class _MapExample(Example):
             s += f"Output datatype: {self.output_type}\n"
         if self.example_outputs is not None:
             s += f"Example outputs: {';'.join(self.example_outputs)}\n"
-        if self.options is not None:
-            s += f"Options: {','.join(sorted(self.options))}"
-            s += "\n"
+        if list_options:
+            if self.options is not None:
+                s += f"Options: {','.join(sorted(self.options))}\n"
         if include_values:
             s += "\nValues:\n"
             values = self.values

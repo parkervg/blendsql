@@ -98,7 +98,9 @@ class MapProgram(Program):
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = curr_batch_values
                 with guidance.user():
-                    batch_lm = lm + current_example.to_string(include_values=False)
+                    batch_lm = lm + current_example.to_string(
+                        include_values=False, list_options=list_options_in_prompt
+                    )
                 prompts.append(batch_lm._current_prompt())
                 with guidance.assistant():
                     batch_lm += make_predictions(
@@ -124,7 +126,13 @@ class MapProgram(Program):
                         assistant(CONST.DEFAULT_ANS_SEP.join(example.mapping.values()))
                     )
                 # Add the current question + context for inference
-                messages.append(user(current_batch_example.to_string()))
+                messages.append(
+                    user(
+                        current_batch_example.to_string(
+                            list_options=list_options_in_prompt
+                        )
+                    )
+                )
                 messages_list.append(messages)
 
             responses: List[str] = generate(

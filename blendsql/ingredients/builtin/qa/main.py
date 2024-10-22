@@ -84,7 +84,9 @@ class QAProgram(Program):
                 with guidance.assistant():
                     lm += example.answer
             with guidance.user():
-                lm += current_example.to_string(context_formatter)
+                lm += current_example.to_string(
+                    context_formatter, list_options=list_options_in_prompt
+                )
             prompt = lm._current_prompt()
             with guidance.assistant():
                 if options is not None:
@@ -120,7 +122,13 @@ class QAProgram(Program):
                 messages.append(user(example.to_string(context_formatter)))
                 messages.append(assistant(example.answer))
             # Add current question + context for inference
-            messages.append(user(current_example.to_string(context_formatter)))
+            messages.append(
+                user(
+                    current_example.to_string(
+                        context_formatter, list_options=list_options_in_prompt
+                    )
+                )
+            )
             response = generate(
                 model,
                 messages_list=[messages],
@@ -253,6 +261,7 @@ class LLMQA(QAIngredient):
             model=model,
             few_shot_retriever=few_shot_retriever,
             context_formatter=context_formatter,
+            list_options_in_prompt=list_options_in_prompt,
         )
 
     def run(

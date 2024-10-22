@@ -27,13 +27,18 @@ class QAExample(Example):
         ]
     ] = attrib(default=None)
 
-    def to_string(self, context_formatter: Callable[[pd.DataFrame], str]) -> str:
+    def to_string(
+        self,
+        context_formatter: Callable[[pd.DataFrame], str],
+        list_options: bool = True,
+    ) -> str:
         s = ""
         s += f"\n\nQuestion: {self.question}\n"
         if self.output_type is not None:
             s += f"Output datatype: {self.output_type}\n"
-        if self.options is not None:
-            s += f"Options: {', '.join(sorted(self.options))}\n"
+        if list_options:
+            if self.options is not None:
+                s += f"Options: {', '.join(sorted(self.options))}\n"
         if self.context is not None:
             s += f"Context:\n{context_formatter(self.context)}"
         s += "\nAnswer: "
