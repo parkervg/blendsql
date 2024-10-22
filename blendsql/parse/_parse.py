@@ -493,7 +493,9 @@ class SubqueryContextManager:
         ):
             output_type = "float"  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
         if output_type is not None:
-            added_kwargs["output_type"] = output_type
+            added_kwargs["output_type"] = (
+                output_type if modifier is None else f"List[{output_type}]"
+            )
             added_kwargs[IngredientKwarg.REGEX] = create_regex(output_type)
         added_kwargs["modifier"] = modifier
         return added_kwargs
