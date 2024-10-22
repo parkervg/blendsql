@@ -18,7 +18,7 @@ from .._constants import (
     IngredientType,
 )
 from ..db import Database
-from ..db.utils import select_all_from_table_query
+from ..db.utils import select_all_from_table_query, format_tuple
 from .utils import unpack_options
 from .few_shot import Example
 from .utils import partialclass
@@ -543,7 +543,7 @@ class QAIngredient(Ingredient):
     '''
 
     ingredient_type: str = IngredientType.QA.value
-    allowed_output_types: Tuple[Type] = (Union[str, int, float],)
+    allowed_output_types: Tuple[Type] = (Union[str, int, float, tuple],)
 
     def __call__(
         self,
@@ -588,7 +588,11 @@ class QAIngredient(Ingredient):
         self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[IngredientKwarg.CONTEXT] = subtable
         kwargs[IngredientKwarg.QUESTION] = question
-        response: Union[str, int, float] = self._run(*args, **self.__dict__ | kwargs)
+        response: Union[str, int, float, tuple] = self._run(
+            *args, **self.__dict__ | kwargs
+        )
+        if isinstance(response, tuple):
+            response = format_tuple(response)
         return response
 
     @abstractmethod

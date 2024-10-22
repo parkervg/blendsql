@@ -47,6 +47,10 @@ def escape(s):
     return single_quote_escape(double_quote_escape(s))
 
 
+def format_tuple(value: tuple):
+    return "(" + ",".join(repr(v) for v in value) + ")"
+
+
 def select_all_from_table_query(tablename: str) -> str:
     return f'SELECT * FROM "{double_quote_escape(tablename)}";'
 
