@@ -185,7 +185,11 @@ def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
     if isinstance(node, exp.Predicate):
         if any(
             check.is_ingredient_node(x)
-            for x in {node.args.get("this", None), node.args.get("expression", None)}
+            for x in {
+                node.args.get("this", None),
+                node.args.get("expression", None),
+                node.args.get("field", None),
+            }
         ):
             return exp.true()
     return node
