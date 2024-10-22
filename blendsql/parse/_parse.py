@@ -424,8 +424,10 @@ class SubqueryContextManager:
 
         added_kwargs: Dict[str, Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end], dialect=self.dialect)
+        if isinstance(ingredient_node, exp.Column):
+            ingredient_node = ingredient_node.find(exp.Identifier)
         child = None
-        for child, _, _ in self.node.walk():
+        for child in self.node.find_all(exp.Identifier):
             if child == ingredient_node:
                 break
         if child is None:
@@ -438,11 +440,12 @@ class SubqueryContextManager:
             start_node = start_node.parent
         output_type: Literal["boolean", "integer", "float"] = None
         predicate_literals: List[str] = []
+        modifier: Literal["*", "+", None] = None
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
             # Check for instances like `{column} = {QAIngredient}`
             # where we can infer the space of possible options for QAIngredient
-            if isinstance(start_node, exp.EQ):
+            if isinstance(start_node, (exp.EQ, exp.In)):
                 if isinstance(start_node.args["this"], exp.Column):
                     if "table" not in start_node.args["this"].args:
                         logger.debug(
@@ -454,27 +457,33 @@ class SubqueryContextManager:
                         added_kwargs[
                             "options"
                         ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
+                if isinstance(start_node, exp.In):
+                    modifier = "*"
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
-                output_type = "boolean"
+                output_type = "boolean" if modifier is None else "List[boolean]"
             elif all(isinstance(x, float) for x in predicate_literals):
-                output_type = "float"
+                output_type = "float" if modifier is None else "List[float]"
             elif all(isinstance(x, int) for x in predicate_literals):
-                output_type = "integer"
+                output_type = "integer" if modifier is None else "List[integer]"
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
-                added_kwargs["output_type"] = "string"
+                added_kwargs["output_type"] = (
+                    "string" if modifier is None else "List[string]"
+                )
                 if len(predicate_literals) == 1:
                     predicate_literals = predicate_literals + [predicate_literals[0]]
                 added_kwargs["example_outputs"] = predicate_literals
                 return added_kwargs
         elif isinstance(
-            ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
+            start_node.parent,
+            (exp.Order, exp.Ordered, exp.AggFunc, exp.GT, exp.GTE, exp.LT, exp.LTE),
         ):
             output_type = "float"  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
         if output_type is not None:
             added_kwargs["output_type"] = output_type
             added_kwargs[IngredientKwarg.REGEX] = create_regex(output_type)
+        added_kwargs["modifier"] = modifier
         return added_kwargs
 
     def sql(self):
