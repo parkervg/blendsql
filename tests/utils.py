@@ -1,6 +1,13 @@
 import pandas as pd
-from typing import Iterable, List, Union
-from blendsql.ingredients import MapIngredient, QAIngredient, JoinIngredient
+from typing import Iterable, List, Union, Tuple
+from collections.abc import Collection
+from blendsql.ingredients import (
+    Ingredient,
+    MapIngredient,
+    QAIngredient,
+    JoinIngredient,
+    AliasIngredient,
+)
 from blendsql.db.utils import single_quote_escape
 
 
@@ -51,6 +58,11 @@ class select_first_option(QAIngredient):
     ) -> Union[str, int, float]:
         """Returns the first item in the (ordered) options set"""
         return f"'{single_quote_escape(sorted(list(filter(lambda x: x, options)))[0])}'"
+
+
+class return_aapl_alias(AliasIngredient):
+    def run(self, *args, **kwargs) -> Tuple[str, Collection[Ingredient]]:
+        return "{{select_first_option(options='AAPL;AMZN;TYL')}}", {select_first_option}
 
 
 class do_join(JoinIngredient):
