@@ -22,7 +22,21 @@ def is_blendsql_query(s: str) -> bool:
     return s.upper().startswith(("SELECT", "WITH", "{{"))
 
 
-def is_ingredient_node(node: exp.Expression):
+def is_ingredient_node(node: exp.Expression) -> bool:
+    """Checks to see if a given node is pointing to an ingredient.
+
+    We need to handle both exp.Identifier and exp.Column types below,
+    since sqlglot will interpret the exp.Function type different depending
+    on context.
+
+    For example:
+    > SELECT {{B()}} FROM table WHERE a IN {{A()}}
+
+    {{B()}} will get parsed as (COLUMN this:
+    (IDENTIFIER this: {{B()}}, quoted: False))
+
+    But {{A()}} will get parsed as (IDENTIFIER this: {{A()}}, quoted: False)
+    """
     if not isinstance(node, (exp.Identifier, exp.Column)):
         return False
     if isinstance(node, exp.Column):
