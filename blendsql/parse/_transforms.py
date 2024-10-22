@@ -181,7 +181,7 @@ def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
     # Case 1: we have an Ingredient in isolation
     if check.is_ingredient_node(node):
         return exp.true()
-    # Case 2: we have an Ingredient within a predicate (=, <, >, etc.)
+    # Case 2: we have an Ingredient within a predicate (=, <, >, IN, etc.)
     if isinstance(node, exp.Predicate):
         if any(
             check.is_ingredient_node(x)
