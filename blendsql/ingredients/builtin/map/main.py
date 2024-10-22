@@ -309,6 +309,7 @@ class LLMMap(MapIngredient):
                 "table_name": table_name,
                 "output_type": output_type,
                 "example_outputs": example_outputs,
+                "options": options,
                 # Random subset of values for few-shot example retrieval
                 # these will get replaced during batching later
                 "values": values[:10],
