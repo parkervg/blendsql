@@ -4,7 +4,7 @@ from blendsql import blend
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
-from blendsql.models import AnthropicLLM, OpenaiLLM
+from blendsql.models import AnthropicLLM, OpenaiLLM, AzurePhiModel
 
 
 @pytest.fixture(scope="session")
@@ -68,7 +68,7 @@ def test_llmjoin(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(model, (AnthropicLLM, OpenaiLLM)):
+    if isinstance(model, (AnthropicLLM, OpenaiLLM, AzurePhiModel)):
         assert res.df["rival"].unique().tolist() == ["nsw waratahs"]
 
 
@@ -132,5 +132,5 @@ def test_unconstrained_llmqa(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(model, (AnthropicLLM, OpenaiLLM)):
+    if isinstance(model, (AnthropicLLM, OpenaiLLM, AzurePhiModel)):
         assert "sports" in res.df.values[0][0].lower()
