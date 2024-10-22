@@ -1,10 +1,12 @@
 from typing import Union, List, Set, Dict, Callable
 from functools import partialmethod, partial
+from ast import literal_eval
 from colorama import Fore
 
 from ..utils import get_tablename_colname
 from ..db import Database
 from .few_shot import Example
+from blendsql._constants import DEFAULT_NAN_ANS
 from .._logger import logger
 
 
@@ -48,6 +50,37 @@ def initialize_retriever(
         return_objs=examples,
     )
     return partial(retriever.retrieve_top_k, k=k)
+
+
+def cast_responses_to_datatypes(responses: List[str]) -> List[Union[float, int, str]]:
+    responses = [
+        {
+            "t": True,
+            "f": False,
+            "true": True,
+            "false": False,
+            "y": True,
+            "n": False,
+            "yes": True,
+            "no": False,
+            DEFAULT_NAN_ANS: None,
+        }.get(i.lower(), i)
+        if isinstance(i, str)
+        else i
+        for i in responses
+    ]
+    # Try to cast strings as numerics
+    for idx, value in enumerate(responses):
+        if not isinstance(value, str):
+            continue
+        value = value.replace(",", "")
+        try:
+            casted_value = literal_eval(value)
+            assert isinstance(casted_value, (float, int, str))
+            responses[idx] = casted_value
+        except (ValueError, SyntaxError, AssertionError):
+            continue
+    return responses
 
 
 def partialclass(cls, *args, **kwds):

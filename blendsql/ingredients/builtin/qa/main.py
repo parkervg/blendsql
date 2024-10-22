@@ -1,6 +1,7 @@
 import copy
+from ast import literal_eval
 from pathlib import Path
-from typing import Dict, Union, Optional, Set, Tuple, Callable, List
+from typing import Dict, Union, Optional, Set, Tuple, Callable, List, Literal
 import pandas as pd
 import json
 from colorama import Fore
@@ -13,7 +14,11 @@ from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 from blendsql._exceptions import IngredientException
-from blendsql.ingredients.utils import initialize_retriever, partialclass
+from blendsql.ingredients.utils import (
+    initialize_retriever,
+    cast_responses_to_datatypes,
+    partialclass,
+)
 from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the table context.\n"
@@ -34,8 +39,11 @@ class QAProgram(Program):
         current_example: QAExample,
         context_formatter: Callable[[pd.DataFrame], str],
         few_shot_examples: List[QAExample],
+        list_options_in_prompt: bool = True,
+        modifier: Optional[Literal["*", "+"]] = None,
         long_answer: Optional[bool] = False,
         max_tokens: Optional[int] = None,
+        regex: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
         if isinstance(model, LocalModel):
@@ -80,20 +88,25 @@ class QAProgram(Program):
             prompt = lm._current_prompt()
             with guidance.assistant():
                 if options is not None:
-                    response = (
-                        lm
-                        + guidance.capture(
-                            guidance.select(options=options_with_aliases),
-                            name="response",
-                        )
-                    )._variables["response"]
+                    core_f = guidance.select(
+                        options=options_with_aliases,
+                        list_append=bool(modifier is not None),
+                        name="response",
+                    )
                 else:
-                    response = (
-                        lm
-                        + guidance.capture(
-                            guidance.gen(max_tokens=max_tokens or 50), name="response"
-                        )
-                    )._variables["response"]
+                    core_f = guidance.gen(
+                        max_tokens=max_tokens or 10,
+                        regex=regex,
+                        list_append=bool(modifier is not None),
+                        name="response",
+                    )
+                if modifier == "*":
+                    core_f = guidance.zero_or_more(core_f)
+                elif modifier == "+":
+                    core_f = guidance.one_or_more(core_f)
+                response = (lm + guidance.capture(core_f, name="response"))._variables[
+                    "response"
+                ]
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
@@ -108,31 +121,40 @@ class QAProgram(Program):
                 messages.append(assistant(example.answer))
             # Add current question + context for inference
             messages.append(user(current_example.to_string(context_formatter)))
-            if model.tokenizer is not None:
-                max_tokens = (
-                    max(
-                        [
-                            len(model.tokenizer.encode(alias))
-                            for alias in options_alias_to_original
-                        ]
-                    )
-                    if options
-                    else max_tokens
-                )
             response = generate(
                 model,
                 messages_list=[messages],
                 max_tokens=max_tokens,
             )[0].strip()
             prompt = "".join([i["content"] for i in messages])
+        if isinstance(response, str):
+            if modifier:
+                try:
+                    response = literal_eval(response)
+                    assert isinstance(response, list)
+                    response = tuple(response)
+                except (ValueError, SyntaxError, AssertionError):
+                    response = [i.strip() for i in response.split(",")]
+                    response = tuple(
+                        [
+                            "'{}'".format(single_quote_escape(val.strip()))
+                            if isinstance(val, str)
+                            else val
+                            for val in cast_responses_to_datatypes(response)
+                        ]
+                    )
+            else:
+                response = cast_responses_to_datatypes([response])[0]
         # Map from modified options to original, as they appear in DB
-        response: str = options_alias_to_original.get(response, response)
-        if options and response not in options:
-            print(
-                Fore.RED
-                + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
-                + Fore.RESET
-            )
+        if isinstance(response, str):
+            response: str = options_alias_to_original.get(response, response)
+            if options and response not in options:
+                print(
+                    Fore.RED
+                    + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
+                    + Fore.RESET
+                )
+            response = f"'{response}'"
         return (response, prompt)
 
 
@@ -148,6 +170,7 @@ class LLMQA(QAIngredient):
     context_formatter: Callable[[pd.DataFrame], str] = attrib(
         default=lambda df: df.to_markdown(index=False)
     )
+    list_options_in_prompt: bool = attrib(default=True)
     few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = attrib(default=None)
     k: Optional[int] = attrib(default=None)
 
@@ -159,6 +182,7 @@ class LLMQA(QAIngredient):
         context_formatter: Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
             index=False
         ),
+        list_options_in_prompt: bool = True,
         k: Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -237,6 +261,10 @@ class LLMQA(QAIngredient):
         context_formatter: Callable[[pd.DataFrame], str],
         few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = None,
         options: Optional[Set[str]] = None,
+        list_options_in_prompt: bool = None,
+        modifier: Optional[Literal["*", "+"]] = None,
+        output_type: Optional[str] = None,
+        regex: Optional[str] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
         table_to_title: Optional[Dict[str, str]] = None,
@@ -257,6 +285,7 @@ class LLMQA(QAIngredient):
                 "question": question,
                 "context": context,
                 "options": options,
+                "output_type": "list" if modifier and not output_type else output_type,
             }
         )
         few_shot_examples: List[AnnotatedQAExample] = few_shot_retriever(
@@ -267,8 +296,10 @@ class LLMQA(QAIngredient):
             current_example=current_example,
             context_formatter=context_formatter,
             few_shot_examples=few_shot_examples,
+            list_options_in_prompt=list_options_in_prompt,
+            modifier=modifier,
             long_answer=long_answer,
+            regex=regex,
             **kwargs,
         )
-        # Post-process language model response
-        return "'{}'".format(single_quote_escape(result.strip()))
+        return result

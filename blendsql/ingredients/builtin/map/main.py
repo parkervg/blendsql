@@ -12,13 +12,16 @@ import guidance
 
 from blendsql._logger import logger
 from blendsql.models import Model, LocalModel, RemoteModel
-from ast import literal_eval
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._program import Program
 from blendsql._exceptions import IngredientException
 from blendsql.ingredients.generate import generate, user, assistant
-from blendsql.ingredients.utils import initialize_retriever, partialclass
+from blendsql.ingredients.utils import (
+    initialize_retriever,
+    cast_responses_to_datatypes,
+    partialclass,
+)
 from .examples import AnnotatedMapExample, MapExample
 
 DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
@@ -146,34 +149,8 @@ class MapProgram(Program):
             prompts = [
                 "".join([i["content"] for i in messages]) for messages in messages_list
             ]
-        # Try to map to booleans and `None`
-        mapped_values = [
-            {
-                "t": True,
-                "f": False,
-                "true": True,
-                "false": False,
-                "y": True,
-                "n": False,
-                "yes": True,
-                "no": False,
-                CONST.DEFAULT_NAN_ANS: None,
-            }.get(i.lower(), i)
-            if isinstance(i, str)
-            else i
-            for i in mapped_values
-        ]
-        # Try to cast strings as numerics
-        for idx, value in enumerate(mapped_values):
-            if not isinstance(value, str):
-                continue
-            value = value.replace(",", "")
-            try:
-                casted_value = literal_eval(value)
-                assert isinstance(casted_value, (float, int, str))
-                mapped_values[idx] = casted_value
-            except (ValueError, SyntaxError, AssertionError):
-                continue
+        # Try to map to booleans, `None`, and numeric datatypes
+        mapped_values = cast_responses_to_datatypes(mapped_values)
         return mapped_values, prompts
 
 
@@ -340,7 +317,6 @@ class LLMMap(MapIngredient):
             question=question,
             few_shot_examples=few_shot_examples,
             batch_size=batch_size,
-            options=options,
             list_options_in_prompt=list_options_in_prompt,
             example_outputs=example_outputs,
             output_type=output_type,

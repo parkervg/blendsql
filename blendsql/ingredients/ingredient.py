@@ -363,7 +363,7 @@ class JoinIngredient(Ingredient):
 @attrs
 class QAIngredient(Ingredient):
     ingredient_type: str = IngredientType.QA.value
-    allowed_output_types: Tuple[Type] = (Union[str, int, float],)
+    allowed_output_types: Tuple[Type] = (Union[str, int, float, tuple],)
 
     def __call__(
         self,

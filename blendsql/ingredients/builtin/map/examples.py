@@ -27,7 +27,7 @@ class _MapExample(Example):
         if self.column_name is not None:
             s += f"Source column: {self.column_name}\n"
         if self.output_type is not None:
-            s += f"Output type: {self.output_type}\n"
+            s += f"Output datatype: {self.output_type}\n"
         if self.example_outputs is not None:
             s += f"Example outputs: {';'.join(self.example_outputs)}\n"
         if self.options is not None:

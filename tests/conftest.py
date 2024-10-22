@@ -57,11 +57,6 @@ def pytest_generate_tests(metafunc):
             {
                 LLMQA.from_args(
                     k=1,
-                    model=TransformersLLM(
-                        "HuggingFaceTB/SmolLM-135M-Instruct",
-                        caching=False,
-                        config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
-                    ),
                 ),
                 LLMMap.from_args(
                     few_shot_examples=[
@@ -79,6 +74,11 @@ def pytest_generate_tests(metafunc):
                 ),
                 LLMJoin.from_args(
                     k=2,
+                    model=TransformersLLM(
+                        "HuggingFaceTB/SmolLM-135M-Instruct",
+                        caching=False,
+                        config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
+                    ),
                 ),
             },
         ]
