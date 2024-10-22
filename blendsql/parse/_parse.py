@@ -432,8 +432,11 @@ class SubqueryContextManager:
                 break
         if child is None:
             raise ValueError
-        ingredient_node_in_context = child
-        start_node = ingredient_node_in_context.parent
+        if isinstance(child, exp.Identifier):
+            _parent = child.parent
+            if isinstance(_parent, exp.Column):
+                child = _parent
+        start_node = child.parent
         # Below handles when we're in a function
         # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
         while isinstance(start_node, exp.Func) and start_node is not None:
@@ -441,24 +444,24 @@ class SubqueryContextManager:
         output_type: Literal["boolean", "integer", "float"] = None
         predicate_literals: List[str] = []
         modifier: Literal["*", "+", None] = None
+        # Check for instances like `{column} = {QAIngredient}`
+        # where we can infer the space of possible options for QAIngredient
+        if isinstance(start_node, (exp.EQ, exp.In)):
+            if isinstance(start_node.args["this"], exp.Column):
+                if "table" not in start_node.args["this"].args:
+                    logger.debug(
+                        "When inferring `options` in infer_gen_kwargs, encountered a column node with "
+                        "no table specified!\nShould probably mark `schema_qualify` arg as True"
+                    )
+                else:
+                    # This is valid for a default `options` set
+                    added_kwargs[
+                        "options"
+                    ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
+            if isinstance(start_node, exp.In):
+                modifier = "*"
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
-            # Check for instances like `{column} = {QAIngredient}`
-            # where we can infer the space of possible options for QAIngredient
-            if isinstance(start_node, (exp.EQ, exp.In)):
-                if isinstance(start_node.args["this"], exp.Column):
-                    if "table" not in start_node.args["this"].args:
-                        logger.debug(
-                            "When inferring `options` in infer_gen_kwargs, encountered a column node with "
-                            "no table specified!\nShould probably mark `schema_qualify` arg as True"
-                        )
-                    else:
-                        # This is valid for a default `options` set
-                        added_kwargs[
-                            "options"
-                        ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
-                if isinstance(start_node, exp.In):
-                    modifier = "*"
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
                 output_type = "boolean" if modifier is None else "List[boolean]"
