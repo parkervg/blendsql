@@ -439,8 +439,8 @@ class SubqueryContextManager:
         start_node = child.parent
         # Below handles when we're in a function
         # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
-        while isinstance(start_node, exp.Func) and start_node is not None:
-            start_node = start_node.parent
+        # while isinstance(start_node, exp.Func) and start_node is not None:
+        #     start_node = start_node.parent
         output_type: Literal["boolean", "integer", "float"] = None
         predicate_literals: List[str] = []
         modifier: Literal["*", "+", None] = None
@@ -479,8 +479,17 @@ class SubqueryContextManager:
                 added_kwargs["example_outputs"] = predicate_literals
                 return added_kwargs
         elif isinstance(
-            start_node.parent,
-            (exp.Order, exp.Ordered, exp.AggFunc, exp.GT, exp.GTE, exp.LT, exp.LTE),
+            start_node,
+            (
+                exp.Order,
+                exp.Ordered,
+                exp.AggFunc,
+                exp.GT,
+                exp.GTE,
+                exp.LT,
+                exp.LTE,
+                exp.Sum,
+            ),
         ):
             output_type = "float"  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
         if output_type is not None:
