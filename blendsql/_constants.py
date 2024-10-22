@@ -18,6 +18,7 @@ class IngredientType(str, Enum, metaclass=StrInMeta):
     STRING = "STRING"
     QA = "QA"
     JOIN = "JOIN"
+    ALIAS = "ALIAS"
 
 
 @dataclass

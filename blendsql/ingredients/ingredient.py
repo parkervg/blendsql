@@ -76,6 +76,20 @@ class Ingredient:
 
 
 @attrs
+class AliasIngredient(Ingredient):
+    """This ingredient performs no other function than to act as a stand-in for
+    complex chainings of other ingredients. This allows us (or our lms) to write less verbose
+    BlendSQL queries, while maximizing the information we embed.
+    """
+
+    ingredient_type: str = IngredientType.ALIAS.value
+    allowed_output_types: Tuple[Type] = Tuple[str, Collection[Ingredient]]
+
+    def __call__(self, *args, **kwargs):
+        return self._run(*args, **kwargs)
+
+
+@attrs
 class MapIngredient(Ingredient):
     """For a given table/column pair, maps an external function
     to each of the given values, creating a new column."""

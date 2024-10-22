@@ -67,7 +67,7 @@ class Kitchen(list):
     def names(self):
         return [i.name for i in self]
 
-    def get_from_name(self, name: str):
+    def get_from_name(self, name: str, flag_duplicates: bool = True):
         try:
             return self.name_to_ingredient[name.upper()]
         except KeyError:
@@ -75,7 +75,9 @@ class Kitchen(list):
                 f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
             ) from None
 
-    def extend(self, ingredients: Iterable[Type[Ingredient]]) -> None:
+    def extend(
+        self, ingredients: Iterable[Type[Ingredient]], flag_duplicates: bool = True
+    ) -> None:
         """Initializes ingredients class with base attributes, for use in later operations."""
         try:
             if not all(issubclass(x, Ingredient) for x in ingredients):
@@ -88,9 +90,12 @@ class Kitchen(list):
             ) from None
         for ingredient in ingredients:
             name = ingredient.__name__.upper()
-            assert (
-                name not in self.name_to_ingredient
-            ), f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{name}"
+            if name in self.name_to_ingredient:
+                if flag_duplicates:
+                    raise IngredientException(
+                        f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{name}"
+                    )
+                return
             # Initialize the ingredient, going from `Type[Ingredient]` to `Ingredient`
             initialized_ingredient: Ingredient = ingredient(
                 name=name,
@@ -142,7 +147,9 @@ def autowrap_query(
     return query
 
 
-def preprocess_blendsql(query: str, default_model: Model) -> Tuple[str, dict, set]:
+def preprocess_blendsql(
+    query: str, kitchen: Kitchen, default_model: Model
+) -> Tuple[str, dict, set]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
 
@@ -205,6 +212,28 @@ def preprocess_blendsql(query: str, default_model: Model) -> Tuple[str, dict, se
             ]
         else:
             parsed_results_dict = parse_results.as_dict()
+            _ingredient = kitchen.get_from_name(parsed_results_dict["function"])
+            if _ingredient.ingredient_type == IngredientType.ALIAS:
+                _original_ingredient_string, dependent_ingredients = _ingredient(
+                    *parsed_results_dict["args"],
+                    **{x[0]: x[-1] for x in parsed_results_dict["kwargs"]},
+                )
+                kitchen.extend(dependent_ingredients, flag_duplicates=False)
+                parse_results = grammar.parseString(_original_ingredient_string)
+                parsed_results_dict = parse_results.as_dict()
+                logger.debug(
+                    Fore.CYAN
+                    + "Unpacked alias `"
+                    + Fore.LIGHTCYAN_EX
+                    + original_ingredient_string
+                    + Fore.CYAN
+                    + "` to `"
+                    + Fore.LIGHTCYAN_EX
+                    + _original_ingredient_string
+                    + "`"
+                    + Fore.RESET
+                )
+                original_ingredient_string = _original_ingredient_string
             ingredient_aliasname = string.ascii_uppercase[idx]
             parsed_results_dict["ingredient_aliasname"] = ingredient_aliasname
             substituted_ingredient_alias = "{{" + f"{ingredient_aliasname}()" + "}}"
@@ -413,7 +442,7 @@ def _blend(
         query,
         ingredient_alias_to_parsed_dict,
         tables_in_ingredients,
-    ) = preprocess_blendsql(query=query, default_model=default_model)
+    ) = preprocess_blendsql(query=query, kitchen=kitchen, default_model=default_model)
     query = autowrap_query(
         query=query,
         kitchen=kitchen,
