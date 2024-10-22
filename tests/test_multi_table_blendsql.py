@@ -12,6 +12,7 @@ from tests.utils import (
     get_table_size,
     select_first_option,
     return_aapl_alias,
+    return_stocks_tuple_alias,
 )
 
 databases = [
@@ -319,6 +320,39 @@ def test_alias_ingredient_multi_exec(db):
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+@pytest.mark.parametrize("db", databases)
+def test_alias_tuple_ingredient_multi_exec(db):
+    """
+    commit d795a00
+    """
+    blendsql = """
+    SELECT Symbol FROM portfolio AS w
+        WHERE {{starts_with('A', 'w::Symbol')}} = TRUE
+        AND Symbol IN {{return_stocks_tuple_alias()}}
+        AND LENGTH(w.Symbol) > 3
+    """
+    sql = """
+    SELECT Symbol FROM portfolio AS w
+        WHERE w.Symbol LIKE 'A%'
+        AND Symbol IN ('AAPL', 'AMZN', 'TYL')
+        AND LENGTH(w.Symbol) > 3
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients={starts_with, return_stocks_tuple_alias},
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3
+    """
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 @pytest.mark.parametrize("db", databases)
