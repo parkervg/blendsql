@@ -5,7 +5,14 @@ from guidance.chat import ChatMLTemplate
 from dotenv import load_dotenv
 
 from blendsql.db import Database
-from blendsql.models import TransformersLLM, OllamaLLM, OpenaiLLM, AnthropicLLM, Model
+from blendsql.models import (
+    TransformersLLM,
+    OllamaLLM,
+    OpenaiLLM,
+    AnthropicLLM,
+    AzurePhiModel,
+    Model,
+)
 from blendsql import LLMQA, LLMMap, LLMJoin
 from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
 
@@ -48,6 +55,10 @@ def pytest_generate_tests(metafunc):
         # Anthropic check
         if os.getenv("ANTHROPIC_API_KEY") is not None:
             model_list.append(AnthropicLLM("claude-3-haiku-20240307", caching=False))
+
+        # Azure Phi check
+        if all(os.getenv(k) is not None for k in ["AZURE_PHI_KEY", "AZURE_PHI_URL"]):
+            model_list.append(AzurePhiModel(caching=False))
 
         metafunc.parametrize("model", model_list)
 
