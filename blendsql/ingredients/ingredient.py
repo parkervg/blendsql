@@ -82,7 +82,7 @@ class AliasIngredient(Ingredient):
     BlendSQL queries, while maximizing the information we embed.
 
     The `run()` function should return a tuple containing both the query text that should get subbed in,
-    and any dependent ingredient classes we need to load to execute the aliased query.
+    and any ingredient classes which are dependencies for executing the aliased query.
 
     Examples:
         ```python
@@ -101,8 +101,8 @@ class AliasIngredient(Ingredient):
                     )
                 }}}}
                 """)
-                dependent_ingredients = {LLMQA}
-                return (new_query, dependent_ingredients)
+                ingredient_dependencies = {LLMQA}
+                return (new_query, ingredient_dependencies)
 
         # Now, we can use the ingredient like below
         blendsql_query = """
