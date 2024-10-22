@@ -97,7 +97,7 @@ class MapProgram(Program):
             for i in context_manager:
                 curr_batch_values = values[i : i + batch_size]
                 current_batch_example = copy.deepcopy(current_example)
-                current_batch_example.values = curr_batch_values
+                current_batch_example.values = [str(i) for i in curr_batch_values]
                 with guidance.user():
                     batch_lm = lm + current_example.to_string(
                         include_values=False, list_options=list_options_in_prompt
