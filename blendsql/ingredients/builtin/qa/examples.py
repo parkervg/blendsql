@@ -1,6 +1,6 @@
 from attr import attrs, attrib
 import pandas as pd
-from typing import Optional, Callable
+from typing import Optional, Callable, Literal
 from collections.abc import Collection
 
 from blendsql.ingredients.few_shot import Example
@@ -14,10 +14,24 @@ class QAExample(Example):
         default=None,
     )
     options: Optional[Collection[str]] = attrib(default=None)
+    output_type: Optional[
+        Literal[
+            "boolean",
+            "integer",
+            "float",
+            "string",
+            "List[boolean]",
+            "List[integer]",
+            "List[float]",
+            "List[string",
+        ]
+    ] = attrib(default=None)
 
     def to_string(self, context_formatter: Callable[[pd.DataFrame], str]) -> str:
         s = ""
         s += f"\n\nQuestion: {self.question}\n"
+        if self.output_type is not None:
+            s += f"Output datatype: {self.output_type}\n"
         if self.options is not None:
             s += f"Options: {', '.join(sorted(self.options))}\n"
         if self.context is not None:
