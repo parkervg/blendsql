@@ -581,6 +581,7 @@ def _blend(
                 # For example, `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w WHERE w...`
                 # We can't assign `abstracted_query` for non-existent `w`
                 #   until we set `w` to `SELECT DISTINCT Symbol FROM portfolio`
+                resync_query_context_before_execution = True
                 db.lazy_tables.add(
                     LazyTable(
                         tablename,
@@ -645,6 +646,7 @@ def _blend(
                     naive_execution = True
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
+            resync_query_context_before_execution = True
             db.lazy_tables.add(
                 LazyTable(
                     aliasname,

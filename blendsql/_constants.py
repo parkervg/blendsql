@@ -1,3 +1,4 @@
+from typing import NewType, Literal, Union
 from enum import Enum, EnumMeta
 from dataclasses import dataclass
 
@@ -11,6 +12,10 @@ class StrInMeta(EnumMeta):
 
 DEFAULT_ANS_SEP = ";"
 DEFAULT_NAN_ANS = "-"
+
+# The 'modifier' arg can be either '*' or '+',
+#   or any string matching '{\d+}'
+ModifierType = NewType("modifier", Union[Literal["*", "+"], str, None])
 
 
 class IngredientType(str, Enum, metaclass=StrInMeta):

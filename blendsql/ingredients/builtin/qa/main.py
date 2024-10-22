@@ -1,4 +1,5 @@
 import copy
+import re
 from ast import literal_eval
 from pathlib import Path
 from typing import Union, Optional, Tuple, Callable, List, Literal
@@ -20,6 +21,7 @@ from blendsql.ingredients.utils import (
     cast_responses_to_datatypes,
     partialclass,
 )
+from blendsql._constants import ModifierType
 from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the table context.\n"
@@ -33,10 +35,6 @@ DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
 ]
 
 
-def format_tuple(value):
-    return "(" + ",".join(repr(v) for v in value) + ")"
-
-
 class QAProgram(Program):
     def __call__(
         self,
@@ -45,7 +43,7 @@ class QAProgram(Program):
         context_formatter: Callable[[pd.DataFrame], str],
         few_shot_examples: List[QAExample],
         list_options_in_prompt: bool = True,
-        modifier: Optional[Literal["*", "+"]] = None,
+        modifier: ModifierType = None,
         long_answer: Optional[bool] = False,
         max_tokens: Optional[int] = None,
         regex: Optional[str] = None,
@@ -106,10 +104,27 @@ class QAProgram(Program):
                     list_append=bool(modifier is not None),
                     name="response",
                 )
-            if modifier == "*":
-                gen_f = guidance.zero_or_more(gen_f)
-            elif modifier == "+":
-                gen_f = guidance.one_or_more(gen_f)
+            # Parse the modifier arg
+            if modifier is not None:
+                if modifier == "*":
+                    gen_f = guidance.zero_or_more(gen_f)
+                elif modifier == "+":
+                    gen_f = guidance.one_or_more(gen_f)
+                elif re.match("{\d+}", modifier):
+                    repeats = [
+                        int(i)
+                        for i in modifier.replace("}", "").replace("{", "").split(",")
+                    ]
+                    if len(repeats) == 1:
+                        repeats = repeats * 2
+                    min_length, max_length = repeats
+                    gen_f = guidance.sequence(
+                        gen_f, min_length=min_length, max_length=max_length
+                    )
+                else:
+                    raise IngredientException(
+                        f"Invalid modifier arg {modifier}\dValid values are '+', '*', or any string matching the '{{\d+}}' pattern"
+                    )
 
             @guidance(stateless=True, dedent=False)
             def make_predictions(lm, gen_f) -> guidance.models.Model:
@@ -177,7 +192,7 @@ class QAProgram(Program):
                 )
             response = f"'{response}'"
         else:
-            response = format_tuple(tuple(response))
+            response = tuple(response)
         return (response, prompt)
 
 
@@ -286,7 +301,7 @@ class LLMQA(QAIngredient):
         few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = None,
         options: Optional[Collection[str]] = None,
         list_options_in_prompt: bool = None,
-        modifier: Optional[Literal["*", "+"]] = None,
+        modifier: ModifierType = None,
         output_type: Optional[
             Literal[
                 "integer",

@@ -17,7 +17,7 @@ from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
-from .._constants import IngredientKwarg
+from .._constants import IngredientKwarg, ModifierType
 from ._dialect import _parse_one
 from . import _checks as check
 from . import _transforms as transform
@@ -443,7 +443,7 @@ class SubqueryContextManager:
         #     start_node = start_node.parent
         output_type: Literal["boolean", "integer", "float"] = None
         predicate_literals: List[str] = []
-        modifier: Literal["*", "+", None] = None
+        modifier: ModifierType = None
         # Check for instances like `{column} = {QAIngredient}`
         # where we can infer the space of possible options for QAIngredient
         if isinstance(start_node, (exp.EQ, exp.In)):
