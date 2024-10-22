@@ -5,6 +5,7 @@ from textwrap import dedent
 from blendsql.db.utils import double_quote_escape
 from blendsql.ingredients.ingredient import AliasIngredient, Ingredient
 from blendsql.ingredients.builtin.web_search import BingWebSearch
+from blendsql.ingredients.builtin.qa import LLMQA
 from blendsql._exceptions import IngredientException
 
 
@@ -54,4 +55,4 @@ class RAGQA(AliasIngredient):
         }}}}
         """
         )
-        return (new_query, {rag_ingredient})
+        return (new_query, {LLMQA, rag_ingredient})
