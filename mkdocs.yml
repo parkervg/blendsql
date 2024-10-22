@@ -81,6 +81,7 @@ nav:
               - LLMMap: reference/ingredients/LLMMap.md
               - LLMQA: reference/ingredients/LLMQA.md
               - LLMJoin: reference/ingredients/LLMJoin.md
+              - RAGQA: reference/ingredients/RAGQA.md
       - Blenders:
           - reference/blenders/blenders.md
           - OpenAI: reference/blenders/openai.md

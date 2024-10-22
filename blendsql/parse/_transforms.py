@@ -178,10 +178,10 @@ def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
 
     Used with node.transform()
     """
-    # Case 1: we have an exp.Struct in isolation
+    # Case 1: we have an Ingredient in isolation
     if check.is_ingredient_node(node):
         return exp.true()
-    # Case 2: we have an exp.Struct within a predicate (=, <, >, etc.)
+    # Case 2: we have an Ingredient within a predicate (=, <, >, etc.)
     if isinstance(node, exp.Predicate):
         if any(
             check.is_ingredient_node(x)

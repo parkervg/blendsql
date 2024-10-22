@@ -1,7 +1,8 @@
 import copy
 from ast import literal_eval
 from pathlib import Path
-from typing import Dict, Union, Optional, Set, Tuple, Callable, List, Literal
+from typing import Union, Optional, Tuple, Callable, List, Literal
+from collections.abc import Collection
 import pandas as pd
 import json
 from colorama import Fore
@@ -270,17 +271,48 @@ class LLMQA(QAIngredient):
         question: str,
         context_formatter: Callable[[pd.DataFrame], str],
         few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = None,
-        options: Optional[Set[str]] = None,
+        options: Optional[Collection[str]] = None,
         list_options_in_prompt: bool = None,
         modifier: Optional[Literal["*", "+"]] = None,
-        output_type: Optional[str] = None,
+        output_type: Optional[
+            Literal[
+                "integer",
+                "float",
+                "string",
+                "boolean",
+                "List[integer]",
+                "List[float]",
+                "List[string]",
+                "List[boolean]",
+            ]
+        ] = None,
         regex: Optional[str] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
-        table_to_title: Optional[Dict[str, str]] = None,
         long_answer: bool = False,
         **kwargs,
-    ) -> Union[str, int, float]:
+    ) -> Union[str, int, float, tuple]:
+        """
+        Args:
+            question: The question to map onto the values. Will also be the new column name
+            context: Table subset to use as context in answering question
+            model: The Model (blender) we will make calls to.
+            context_formatter: Callable defining how we want to serialize table context.
+            few_shot_retriever: Callable which takes a string, and returns n most similar few-shot examples
+            options: Optional collection with which we try to constrain generation.
+            list_options_in_prompt: Defines whether we include options in the prompt for the current inference example
+            modifier: If we expect an array of scalars, this defines the regex we want to apply.
+                Used directly for constrained decoding at inference time if we have a guidance model.
+            output_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
+            regex: Optional regex to constrain answer generation.
+            value_limit: Optional limit on how many rows from context we use
+            long_answer: If true, we more closely mimic long-form end-to-end question answering.
+                If false, we just give the answer with no explanation or context
+
+        Returns:
+            Union[str, int, float, tuple] containing the response from the model.
+                Response will only be a tuple if `modifier` is not None.
+        """
         if model is None:
             raise IngredientException(
                 "LLMQA requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"

@@ -8,13 +8,14 @@ hide:
 
 ## Usage 
 ### `LLMQA`
-::: blendsql.ingredients.builtin.map.main.LLMMap
+::: blendsql.ingredients.builtin.qa.main.LLMQA
     handler: python
     options:
       show_source: false
       show_root_heading: false    
       members:
       - from_args
+      - run
 
 ## Description
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.

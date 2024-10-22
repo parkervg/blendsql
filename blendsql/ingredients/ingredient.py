@@ -77,10 +77,39 @@ class Ingredient:
 
 @attrs
 class AliasIngredient(Ingredient):
-    """This ingredient performs no other function than to act as a stand-in for
+    '''This ingredient performs no other function than to act as a stand-in for
     complex chainings of other ingredients. This allows us (or our lms) to write less verbose
     BlendSQL queries, while maximizing the information we embed.
-    """
+
+    The `run()` function should return a tuple containing both the query text that should get subbed in,
+    and any dependent ingredient classes we need to load to execute the aliased query.
+
+    Examples:
+        ```python
+        from textwrap import dedent
+        from typing import Tuple, Collection
+
+        from blendsql.ingredients import AliasIngredient, LLMQA
+
+        class FetchDefinition(AliasIngredient):
+            def run(self, term: str, *args, **kwargs) -> Tuple[str, Collection[Ingredient]]:
+                new_query = dedent(
+                f"""
+                {{{{
+                    LLMQA(
+                        "What does {term} mean?"
+                    )
+                }}}}
+                """)
+                dependent_ingredients = {LLMQA}
+                return (new_query, dependent_ingredients)
+
+        # Now, we can use the ingredient like below
+        blendsql_query = """
+        SELECT {{FetchDefinition('delve')}} AS "Definition"
+        """
+        ```
+    '''
 
     ingredient_type: str = IngredientType.ALIAS.value
     allowed_output_types: Tuple[Type] = Tuple[str, Collection[Ingredient]]
@@ -91,8 +120,50 @@ class AliasIngredient(Ingredient):
 
 @attrs
 class MapIngredient(Ingredient):
-    """For a given table/column pair, maps an external function
-    to each of the given values, creating a new column."""
+    '''For a given table/column pair, maps an external function
+    to each of the given values, creating a new column.
+
+    Examples:
+        ```python
+        from typing import List
+        from blendsql.ingredients import MapIngredient
+        import requests
+
+
+        class GetQRCode(MapIngredient):
+            """Calls API to generate QR code for a given URL.
+            Saves bytes to file in qr_codes/ and returns list of paths.
+            https://goqr.me/api/doc/create-qr-code/"""
+
+
+            def run(self, values: List[str], **kwargs) -> List[str]:
+                imgs_as_bytes = []
+                for value in values:
+                    qr_code_bytes = requests.get(
+                        "https://api.qrserver.com/v1/create-qr-code/?data=https://{}/&size=100x100".format(value)
+                    ).content
+                    imgs_as_bytes.append(qr_code_bytes)
+                return imgs_as_bytes
+
+
+            if __name__ == "__main__":
+                from blendsql import blend
+                from blendsql.db import SQLite
+                from blendsql.utils import fetch_from_hub
+
+                blendsql = "SELECT genre, url, {{GetQRCode('QR Code as Bytes:', 'w::url')}} FROM w WHERE genre = 'social'"
+
+                smoothie = blend(
+                    query=blendsql,
+                    default_model=None,
+                    db=SQLite(fetch_from_hub("urls.db")),
+                    ingredients={GetQRCode}
+                )
+                # | genre  | url           | QR Code as Bytes:      |
+                # |--------|---------------|-----------------------|
+                # | social | facebook.com  | b'...'                |
+        ```
+    '''
 
     ingredient_type: str = IngredientType.MAP.value
     allowed_output_types: Tuple[Type] = (Iterable[Any],)
@@ -218,11 +289,33 @@ class MapIngredient(Ingredient):
 
 @attrs
 class JoinIngredient(Ingredient):
-    """Executes an `INNER JOIN` using dict mapping.
-    Example:
-        'Join on color of food'
-        {"tomato": "red", "broccoli": "green", "lemon": "yellow"}
-    """
+    '''Executes an `INNER JOIN` using dict mapping.
+    'Join on color of food'
+    {"tomato": "red", "broccoli": "green", "lemon": "yellow"}
+
+    Examples:
+        ```python
+        from blendsql.ingredients import JoinIngredient
+
+        class do_join(JoinIngredient):
+            """A very silly, overcomplicated way to do a traditional SQL join.
+            But useful for testing.
+            """
+
+            def run(self, left_values: List[str], right_values: List[str], **kwargs) -> dict:
+                return {left_value: left_value for left_value in left_values}
+
+        blendsql_query = """
+        SELECT Account, Quantity FROM returns
+        JOIN {{
+            do_join(
+                left_on='account_history::Symbol',
+                right_on='returns::Symbol'
+            )
+        }}
+        """
+        ```
+    '''
 
     use_skrub_joiner: bool = attrib(default=True)
 
@@ -376,6 +469,79 @@ class JoinIngredient(Ingredient):
 
 @attrs
 class QAIngredient(Ingredient):
+    '''
+    Given a table subset in the form of a pd.DataFrame 'context',
+    returns a scalar or array of scalars (in the form of a tuple).
+
+    Useful for end-to-end question answering tasks.
+
+    Examples:
+        ```python
+        import pandas as pd
+        import guidance
+
+        from blendsql.models import Model, LocalModel, RemoteModel
+        from blendsql.ingredients import QAIngredient
+        from blendsql.ingredients.generate import generate
+        from blendsql._program import Program
+
+
+        class SummaryProgram(Program):
+            """Program to call Model and return summary of the passed table.
+            """
+
+            def __call__(self, model: Model, serialized_db: str):
+                prompt = f"Summarize the table. {serialized_db}"
+                if isinstance(model, LocalModel):
+                    # Below we follow the guidance pattern for unconstrained text generation
+                    # https://github.com/guidance-ai/guidance
+                    response = (model.model_obj + guidance.gen(max_tokens=20, name="response"))._variables["response"]
+                else:
+                    response = generate(
+                        model.model_obj,
+                        messages_list=[[{"role": "user", "content": prompt}]],
+                        max_tokens=20
+                    )[0]
+                # Finally, return (response, prompt) tuple
+                # Returning the prompt here allows the underlying BlendSQL classes to track token usage
+                return (response, prompt)
+
+
+            class TableSummary(QAIngredient):
+                def run(self, model: Model, context: pd.DataFrame, **kwargs) -> str:
+                    result = model.predict(program=SummaryProgram, serialized_db=context.to_string())
+                    return f"'{result}'"
+
+
+            if __name__ == "__main__":
+                from blendsql import blend
+                from blendsql.db import SQLite
+                from blendsql.utils import fetch_from_hub
+                from blendsql.models import OpenaiLLM
+
+                blendsql = """
+                SELECT {{
+                    TableSummary(
+                        context=(SELECT * FROM transactions LIMIT 10)
+                    )
+                }} AS "Summary"
+                """
+
+                smoothie = blend(
+                    query=blendsql,
+                    default_model=OpenaiLLM("gpt-4o-mini"),
+                    db=SQLite(fetch_from_hub("single_table.db")),
+                    ingredients={TableSummary}
+                )
+                # Now, we can get results
+                print(smoothie.df)
+                # 'The table summarizes a series of cash flow transactions made through Zelle'
+                # ...and token usage
+                print(smoothie.meta.prompt_tokens)
+                print(smoothie.meta.completion_tokens)
+        ```
+    '''
+
     ingredient_type: str = IngredientType.QA.value
     allowed_output_types: Tuple[Type] = (Union[str, int, float, tuple],)
 

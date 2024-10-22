@@ -15,6 +15,7 @@ hide:
       show_root_heading: false    
       members:
       - from_args
+      - run
 
 ## Description
 This ingredient handles the logic of semantic `JOIN` clauses between tables. 

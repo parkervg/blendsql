@@ -1,6 +1,7 @@
 import copy
 import logging
-from typing import Union, Iterable, Any, Dict, Optional, List, Callable, Tuple
+from typing import Union, Iterable, Any, Optional, List, Callable, Tuple, Literal
+from collections.abc import Collection
 from pathlib import Path
 import re
 import json
@@ -260,13 +261,12 @@ class LLMMap(MapIngredient):
         question: str,
         values: List[str],
         few_shot_retriever: Callable[[str], List[AnnotatedMapExample]] = None,
-        options: List[str] = None,
+        options: Collection[str] = None,
         list_options_in_prompt: bool = None,
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
-        output_type: Optional[str] = None,
-        regex: Optional[Callable[[int], str]] = None,
-        table_to_title: Optional[Dict[str, str]] = None,
+        output_type: Optional[Literal["integer", "float", "string", "boolean"]] = None,
+        regex: Optional[str] = None,
         batch_size: int = DEFAULT_MAP_BATCH_SIZE,
         **kwargs,
     ) -> Iterable[Any]:
@@ -277,10 +277,9 @@ class LLMMap(MapIngredient):
             model: The Model (blender) we will make calls to.
             values: The list of values to apply question to.
             value_limit: Optional limit on the number of values to pass to the Model
-            example_outputs: If binary == False, this gives the Model an example of the output we expect.
-            output_type: One of 'numeric', 'string', 'bool'
+            example_outputs: This gives the Model an example of the output we expect.
+            output_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
             regex: Optional regex to constrain answer generation.
-            table_to_title: Mapping from tablename to a title providing some more context.
 
         Returns:
             Iterable[Any] containing the output of the Model for each value.
