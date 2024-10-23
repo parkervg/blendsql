@@ -17,7 +17,7 @@ from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
-from .._constants import IngredientKwarg, ModifierType
+from .._constants import IngredientKwarg, ModifierType, RegexPatterns
 from ._dialect import _parse_one
 from . import _checks as check
 from . import _transforms as transform
@@ -411,13 +411,13 @@ class SubqueryContextManager:
             a regex which is restricted to repeat exclusively num_repeats times.
             """
             if output_type == "boolean":
-                base_regex = f"(t|f)"
+                base_regex = RegexPatterns.BOOLEAN
             elif output_type == "integer":
                 # SQLite max is 18446744073709551615
                 # This is 20 digits long, so to be safe, cap the generation at 19
-                base_regex = r"(\d{1,18})"
+                base_regex = RegexPatterns.INTEGER
             elif output_type == "float":
-                base_regex = r"(\d(\d|\.)*)"
+                base_regex = RegexPatterns.FLOAT
             else:
                 raise ValueError(f"Unknown output_type {output_type}")
             return base_regex
