@@ -4,6 +4,7 @@ from typing import Optional, Callable, Literal
 from collections.abc import Collection
 
 from blendsql.ingredients.few_shot import Example
+from blendsql._constants import ModifierType
 
 
 @attrs(kw_only=True)
@@ -26,6 +27,7 @@ class QAExample(Example):
             "List[string",
         ]
     ] = attrib(default=None)
+    modifier: ModifierType = attrib(default=None)
 
     def to_string(
         self,
@@ -41,6 +43,23 @@ class QAExample(Example):
         if list_options:
             if self.options is not None:
                 s += f"Options: {', '.join(sorted(self.options))}\n"
+        if self.modifier is not None:
+            if self.modifier == "*":
+                s += "You may generate zero or more responses in your list.\n"
+            elif self.modifier == "+":
+                s += "You may generate one or more responses in your list.\n"
+            else:
+                repeats = [
+                    int(i)
+                    for i in self.modifier.replace("}", "").replace("{", "").split(",")
+                ]
+                if len(repeats) == 1:
+                    repeats = repeats * 2
+                min_length, max_length = repeats
+                if min_length == max_length:
+                    s += f"You may generate {min_length} responses in your list.\n"
+                else:
+                    s += f"You may generate between {min_length} and {max_length} responses in your list.\n"
         if self.context is not None:
             s += f"Context:\n{context_formatter(self.context)}"
         s += "\nAnswer: "
