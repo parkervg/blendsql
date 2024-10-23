@@ -54,6 +54,11 @@ class QAProgram(Program):
         context_formatter(
             current_example.context
         ) if current_example.context is not None else ""
+        is_list_output = (
+            modifier is not None
+            or current_example.output_type is not None
+            and "list" in current_example.output_type.lower()
+        )
         options_alias_to_original = {}
         options = current_example.options
         if options is not None:
@@ -67,9 +72,19 @@ class QAProgram(Program):
                 add_first_word = True
             for option in options:
                 option = str(option)
-                for option_alias in [option.title(), option.upper()]:
+                for option_alias in [option.title(), option.lower(), option.upper()]:
                     options_with_aliases.add(option_alias)
                     options_alias_to_original[option_alias] = option
+                if is_list_output:
+                    for option_alias in [
+                        f"'{option}'",
+                        f"'{option}', ",
+                        f"{option}, ",
+                        f"'{option}']",
+                        f"{option}]",
+                    ]:
+                        options_with_aliases.add(option_alias)
+                        options_alias_to_original[option_alias] = option
                 if add_first_word:
                     option_alias = option.split(" ")[0]
                     options_alias_to_original[option_alias] = option
@@ -103,6 +118,7 @@ class QAProgram(Program):
                     regex=regex,
                     list_append=bool(modifier is not None),
                     name="response",
+                    stop=["]", "\n"] if is_list_output else ["\n"],
                 )
             # Parse the modifier arg
             if modifier is not None:
@@ -125,14 +141,9 @@ class QAProgram(Program):
                     raise IngredientException(
                         f"Invalid modifier arg {modifier}\dValid values are '+', '*', or any string matching the '{{\d+}}' pattern"
                     )
-
-            @guidance(stateless=True, dedent=False)
-            def make_predictions(lm, gen_f) -> guidance.models.Model:
-                with guidance.assistant():
-                    lm += guidance.capture(gen_f, name="response")
-                return lm
-
-            response = (lm + make_predictions(gen_f))["response"]
+            with guidance.assistant():
+                answer_prefix = "[" if is_list_output else ""
+                response = (lm + answer_prefix + gen_f)["response"]
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
@@ -161,10 +172,10 @@ class QAProgram(Program):
             prompt = "".join([i["content"] for i in messages])
         if isinstance(response, str):
             # If we have specified a modifier, we try to parse it to a tuple
-            if modifier:
+            if is_list_output:
                 try:
                     response = literal_eval(response)
-                    assert isinstance(response, list)
+                    assert isinstance(response, (list, tuple))
                     response = tuple(response)
                 except (ValueError, SyntaxError, AssertionError):
                     response = [i.strip() for i in response.split(",")]
@@ -182,7 +193,7 @@ class QAProgram(Program):
         if isinstance(response, str):
             response = [response]
         response: List[str] = [options_alias_to_original.get(r, r) for r in response]
-        if len(response) == 1 and not modifier:
+        if len(response) == 1 and not is_list_output:
             response = response[0]
             if options and response not in options:
                 print(
@@ -364,6 +375,7 @@ class LLMQA(QAIngredient):
                 "context": context,
                 "options": options,
                 "output_type": resolved_output_type,
+                "modifier": modifier,
             }
         )
         few_shot_examples: List[AnnotatedQAExample] = few_shot_retriever(
