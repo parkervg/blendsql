@@ -65,7 +65,11 @@ def gen_list(
         single_item = guidance.select(options, list_append=True, name="response")
     else:
         single_item = guidance.gen(
-            max_tokens=20, regex=regex or "[^],]", list_append=True, name="response"
+            max_tokens=20,
+            # If not regex is passed, default to all characters except these specific to list-syntax
+            regex=regex or "[^],]",
+            list_append=True,
+            name="response",
         )
     if add_quotes:
         single_item = "'" + single_item + "'"
