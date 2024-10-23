@@ -1,7 +1,8 @@
-from typing import Literal, Tuple
+from typing import Literal, Tuple, Optional
 from collections.abc import Collection
 from textwrap import dedent
 
+from blendsql._constants import ModifierType
 from blendsql.db.utils import double_quote_escape
 from blendsql.ingredients.ingredient import AliasIngredient, Ingredient
 from blendsql.ingredients.builtin.web_search import BingWebSearch
@@ -11,7 +12,14 @@ from blendsql._exceptions import IngredientException
 
 class RAGQA(AliasIngredient):
     def run(
-        self, question: str, source: Literal["bing"] = "bing", *args, **kwargs
+        self,
+        question: str,
+        source: Literal["bing"] = "bing",
+        options: Optional[Collection[str]] = None,
+        modifier: ModifierType = None,
+        output_type: Optional[str] = None,
+        *args,
+        **kwargs,
     ) -> Tuple[str, Collection[Ingredient]]:
         '''Returns a subquery which first fetches relevant context from a source,
         and returns a retrieval-augmented LM generation.
@@ -41,6 +49,16 @@ class RAGQA(AliasIngredient):
             raise IngredientException(
                 f"RAGQA not setup to handle source '{source}' yet"
             )
+        llmqa_args = []
+        llmqa_args_str = ""
+        if options is not None:
+            llmqa_args.append(f"options='{options}'")
+        if modifier is not None:
+            llmqa_args.append(f"modifier='{modifier}'")
+        if output_type is not None:
+            llmqa_args.append(f"output_type='{output_type}'")
+        if len(llmqa_args) > 0:
+            llmqa_args_str = ", " + ",".join(llmqa_args)
         new_query = dedent(
             f"""
         {{{{
@@ -50,7 +68,7 @@ class RAGQA(AliasIngredient):
                     SELECT {{{{
                         {rag_ingredient.__name__}("{double_quote_escape(question)}")
                     }}}} AS "Search Results"
-                )
+                ){llmqa_args_str}
             )
         }}}}
         """
