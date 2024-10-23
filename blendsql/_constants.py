@@ -34,3 +34,12 @@ class IngredientKwarg:
     OPTIONS: str = "options"
     REGEX: str = "regex"
     MODEL: str = "model"
+
+
+@dataclass
+class RegexPatterns:
+    BOOLEAN = "(t|f)"
+    # SQLite max is 18446744073709551615
+    # This is 20 digits long, so to be safe, cap the generation at 18
+    INTEGER = "(\d{1,18})"
+    FLOAT = "(\d(\d|\.)*)"
