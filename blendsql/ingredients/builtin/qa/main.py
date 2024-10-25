@@ -124,6 +124,7 @@ class QAProgram(Program):
         is_list_output = "list" in current_example.output_type.name.lower()
         regex = current_example.output_type.regex
         options = current_example.options
+        modifier = current_example.output_type.modifier
         options_with_aliases, options_alias_to_original = get_option_aliases(
             options, is_list_output=is_list_output
         )
@@ -155,13 +156,10 @@ class QAProgram(Program):
             prompt = lm._current_prompt()
             if is_list_output:
                 lm += gen_list(
-                    force_quotes=bool(
-                        current_example.output_type
-                        and "str" in current_example.output_type.name
-                    ),
+                    force_quotes=bool("str" in current_example.output_type.name),
                     regex=regex,
                     options=options_with_aliases,
-                    modifier=current_example.output_type.modifier,
+                    modifier=modifier,
                 )
             else:
                 if options:
@@ -174,7 +172,10 @@ class QAProgram(Program):
                         name="response",
                         stop=["\n"],
                     )
-            response = lm["response"]
+            if is_list_output and modifier == "*":
+                response = lm.get("response", [])
+            else:
+                response = lm["response"]
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
@@ -234,7 +235,7 @@ class QAProgram(Program):
                     + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
                     + Fore.RESET
                 )
-            response = f"'{response}'"
+            response = f"'{single_quote_escape(response)}'"
         else:
             response = tuple(response)
         return (response, prompt)
