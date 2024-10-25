@@ -432,8 +432,18 @@ class SubqueryContextManager:
                         IngredientKwarg.OPTIONS
                     ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
         if isinstance(start_node, (exp.In, exp.Tuple, exp.Values)):
-            # Default the list to be zero or more generation
-            modifier = "*"
+            # If the ingredient is in the 2nd arg place
+            # E.g. not `{{LLMMap()}} IN ('a', 'b')`
+            # Only `column IN {{LLMQA()}}`
+            field_val = start_node.args.get("field", None)
+            if field_val is not None:
+                if child == field_val:
+                    modifier = "*"
+            expressions_val = start_node.args.get("expressions")
+            if expressions_val is not None:
+                if len(expressions_val) > 0:
+                    if child == expressions_val[0]:
+                        modifier = "*"
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
         # Try to infer output type given the literals we've been given
