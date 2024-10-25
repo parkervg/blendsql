@@ -1,5 +1,6 @@
 import copy
 import logging
+import os
 from typing import Union, Iterable, Any, Optional, List, Callable, Tuple
 from collections.abc import Collection
 from pathlib import Path
@@ -23,6 +24,7 @@ from blendsql.ingredients.utils import (
     prepare_datatype,
     partialclass,
 )
+from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
 from blendsql._constants import DataType
 from .examples import AnnotatedMapExample, MapExample
 
@@ -60,12 +62,22 @@ class MapProgram(Program):
             if logger.level <= logging.DEBUG
             else range(0, len(values), batch_size)
         )
+
         regex = None
         if current_example.output_type is not None:
             regex = current_example.output_type.regex
+        options = current_example.options
+        if options is not None and list_options_in_prompt:
+            if len(options) > os.getenv(
+                MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+            ):
+                logger.debug(
+                    Fore.YELLOW
+                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                )
+                list_options_in_prompt = False
         if isinstance(model, LocalModel):
             prompts = []
-            options = current_example.options
             if all(x is not None for x in [options, regex]):
                 raise IngredientException(
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."

@@ -1,3 +1,4 @@
+import os
 import copy
 import re
 from ast import literal_eval
@@ -10,6 +11,7 @@ from colorama import Fore
 from attr import attrs, attrib
 import guidance
 
+from blendsql._logger import logger
 from blendsql.models import Model, LocalModel
 from blendsql.ingredients.generate import generate, user, assistant
 from blendsql._program import Program
@@ -22,6 +24,7 @@ from blendsql.ingredients.utils import (
     prepare_datatype,
     partialclass,
 )
+from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
 from blendsql._constants import ModifierType, DataType
 from .examples import QAExample, AnnotatedQAExample
 
@@ -124,6 +127,15 @@ class QAProgram(Program):
         options_with_aliases, options_alias_to_original = get_option_aliases(
             options, is_list_output=is_list_output
         )
+        if options is not None and list_options_in_prompt:
+            if len(options) > os.getenv(
+                MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+            ):
+                logger.debug(
+                    Fore.YELLOW
+                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                )
+                list_options_in_prompt = False
         if isinstance(model, LocalModel):
             with guidance.user():
                 lm += MAIN_INSTRUCTION
