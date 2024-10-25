@@ -749,12 +749,13 @@ def _blend(
                     _prev_passed_values = _smoothie.meta.num_values_passed
                     subtable = _smoothie.df
                     if unpack_kwarg == IngredientKwarg.OPTIONS:
-                        if len(subtable.columns) != 1:
+                        if len(subtable.columns) == 1 or len(subtable) == 1:
+                            # Here, we need to format as a flat set
+                            kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
+                        else:
                             raise InvalidBlendSQL(
-                                f"Invalid subquery passed to `options`!\nNeeds to return exactly one column, got {len(subtable.columns)} instead"
+                                f"Invalid subquery passed to `options`!\nNeeds to return exactly one column or row, got {len(subtable.columns)} columns and {len(subtable)} rows instead"
                             )
-                        # Here, we need to format as a flat set
-                        kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
                     else:
                         kwargs_dict[unpack_kwarg] = subtable
                         # Below, we can remove the optional `context` arg we passed in args
