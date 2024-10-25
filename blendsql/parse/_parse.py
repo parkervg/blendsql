@@ -6,18 +6,16 @@ from typing import (
     List,
     Tuple,
     Union,
-    Callable,
     Type,
     Optional,
     Dict,
     Any,
-    Literal,
 )
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
-from .._constants import IngredientKwarg, ModifierType, RegexPatterns
+from .._constants import IngredientKwarg, ModifierType, DataTypes
 from ._dialect import _parse_one
 from . import _checks as check
 from . import _transforms as transform
@@ -402,26 +400,6 @@ class SubqueryContextManager:
                 - options: Optional str default to pass to `options` argument in a QAIngredient
                     - Will have the form '{table}::{column}'
         """
-
-        def create_regex(
-            output_type: Literal["boolean", "integer", "float"]
-        ) -> Callable[[int], str]:
-            """Helper function to create a regex lambda.
-            These regex lambdas take an integer (num_repeats) and return
-            a regex which is restricted to repeat exclusively num_repeats times.
-            """
-            if output_type == "boolean":
-                base_regex = RegexPatterns.BOOLEAN
-            elif output_type == "integer":
-                # SQLite max is 18446744073709551615
-                # This is 20 digits long, so to be safe, cap the generation at 19
-                base_regex = RegexPatterns.INTEGER
-            elif output_type == "float":
-                base_regex = RegexPatterns.FLOAT
-            else:
-                raise ValueError(f"Unknown output_type {output_type}")
-            return base_regex
-
         added_kwargs: Dict[str, Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end], dialect=self.dialect)
         if isinstance(ingredient_node, exp.Column):
@@ -437,11 +415,6 @@ class SubqueryContextManager:
             if isinstance(_parent, exp.Column):
                 child = _parent
         start_node = child.parent
-        # Below handles when we're in a function
-        # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
-        # while isinstance(start_node, exp.Func) and start_node is not None:
-        #     start_node = start_node.parent
-        output_type: Literal["boolean", "integer", "float"] = None
         predicate_literals: List[str] = []
         modifier: ModifierType = None
         # Check for instances like `{column} = {QAIngredient}`
@@ -456,29 +429,30 @@ class SubqueryContextManager:
                 else:
                     # This is valid for a default `options` set
                     added_kwargs[
-                        "options"
+                        IngredientKwarg.OPTIONS
                     ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
-            if isinstance(start_node, exp.In):
-                modifier = "*"
+        if isinstance(start_node, (exp.In, exp.Tuple, exp.Values)):
+            # Default the list to be zero or more generation
+            modifier = "*"
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
+        # Try to infer output type given the literals we've been given
+        # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
-                output_type = "boolean" if modifier is None else "List[boolean]"
+                output_type = DataTypes.BOOL(modifier)
             elif all(isinstance(x, float) for x in predicate_literals):
-                output_type = "float" if modifier is None else "List[float]"
+                output_type = DataTypes.FLOAT(modifier)
             elif all(isinstance(x, int) for x in predicate_literals):
-                output_type = "integer" if modifier is None else "List[integer]"
+                output_type = DataTypes.INT(modifier)
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
-                added_kwargs["output_type"] = (
-                    "string" if modifier is None else "List[string]"
-                )
+                added_kwargs[IngredientKwarg.OUTPUT_TYPE] = DataTypes.STR(modifier)
                 if len(predicate_literals) == 1:
                     predicate_literals = predicate_literals + [predicate_literals[0]]
-                added_kwargs["example_outputs"] = predicate_literals
+                added_kwargs[IngredientKwarg.EXAMPLE_OUTPUTS] = predicate_literals
                 return added_kwargs
-        elif isinstance(
+        elif len(predicate_literals) == 0 and isinstance(
             start_node,
             (
                 exp.Order,
@@ -491,13 +465,15 @@ class SubqueryContextManager:
                 exp.Sum,
             ),
         ):
-            output_type = "float"  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
-        if output_type is not None:
-            added_kwargs["output_type"] = (
-                output_type if modifier is None else f"List[{output_type}]"
-            )
-            added_kwargs[IngredientKwarg.REGEX] = create_regex(output_type)
-        added_kwargs["modifier"] = modifier
+            output_type = DataTypes.FLOAT(
+                modifier
+            )  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
+        elif modifier:
+            # Fallback to a generic list datatype
+            output_type = DataTypes.LIST(modifier)
+        else:
+            output_type = None
+        added_kwargs[IngredientKwarg.OUTPUT_TYPE] = output_type
         return added_kwargs
 
     def sql(self):
