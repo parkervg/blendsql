@@ -712,12 +712,7 @@ def _blend(
                     )
                     | kwargs_dict
                 )
-            if kwargs_dict.get(IngredientKwarg.REGEX, None) is not None:
-                logger.debug(
-                    Fore.LIGHTBLACK_EX
-                    + f"Using regex '{kwargs_dict[IngredientKwarg.REGEX]}'"
-                    + Fore.RESET
-                )
+
             if table_to_title is not None:
                 kwargs_dict["table_to_title"] = table_to_title
 
