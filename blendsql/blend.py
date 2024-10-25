@@ -478,6 +478,10 @@ def _blend(
 
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
+        # Check to see if there is a table we haven't materialized yet
+        for tablename in [i.name for i in query_context.node.find_all(exp.Table)]:
+            if tablename not in db.tables():
+                db.lazy_tables.pop(tablename).collect()
         logger.debug(
             Fore.YELLOW + f"No BlendSQL ingredients found in query:" + Fore.RESET
         )
