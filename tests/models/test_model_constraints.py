@@ -1,5 +1,4 @@
 import pytest
-
 import pandas as pd
 
 import blendsql
@@ -43,35 +42,26 @@ def db() -> Pandas:
 def test_alphabet(db, model, ingredients):
     if not isinstance(model, AzurePhiModel):
         pytest.skip()
-    blendsql_query = """
-    SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?')}} )
-    """
-    smoothie = blendsql.blend(
-        query=blendsql_query,
+    blend = lambda query: blendsql.blend(
+        query=query,
         default_model=model,
         ingredients=ingredients,
         db=db,
     )
+    blendsql_query = """
+    SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?')}} )
+    """
+    smoothie = blend(blendsql_query)
     assert "A" in smoothie.df.values.tolist()[0]
 
     blendsql_query = """
         SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', modifier="{3}")}} )
         """
-    smoothie = blendsql.blend(
-        query=blendsql_query,
-        default_model=model,
-        ingredients=ingredients,
-        db=db,
-    )
+    smoothie = blend(blendsql_query)
     assert smoothie.df.values.tolist()[0] == ["A", "B", "C"]
 
     blendsql_query = """
     SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options='α;β;γ;δ', modifier="{3}")}} )
     """
-    smoothie = blendsql.blend(
-        query=blendsql_query,
-        default_model=model,
-        ingredients=ingredients,
-        db=db,
-    )
+    smoothie = blend(blendsql_query)
     assert smoothie.df.values.tolist()[0] == ["α", "β", "γ"]
