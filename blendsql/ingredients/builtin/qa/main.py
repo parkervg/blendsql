@@ -19,9 +19,10 @@ from blendsql._exceptions import IngredientException
 from blendsql.ingredients.utils import (
     initialize_retriever,
     cast_responses_to_datatypes,
+    prepare_datatype,
     partialclass,
 )
-from blendsql._constants import ModifierType, DataType, STR_TO_DATATYPE
+from blendsql._constants import ModifierType, DataType
 from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the table context.\n"
@@ -333,8 +334,7 @@ class LLMQA(QAIngredient):
         options: Optional[Collection[str]] = None,
         list_options_in_prompt: bool = None,
         modifier: ModifierType = None,
-        output_type: DataType = None,
-        regex: Optional[str] = None,
+        output_type: Optional[Union[DataType, str]] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
         long_answer: bool = False,
@@ -370,19 +370,9 @@ class LLMQA(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
-        if isinstance(output_type, str):
-            # The user has passed us an output type in the BlendSQL query
-            # That should take precedence
-            if output_type not in STR_TO_DATATYPE:
-                raise IngredientException(
-                    f"{output_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
-                )
-            output_type = STR_TO_DATATYPE.get(output_type)
-            if modifier:  # User passed modifier takes precedence
-                output_type.modifier = modifier
-        elif modifier:
-            # The user has passed us a modifier that should take precedence
-            output_type.modifier = modifier
+        output_type: DataType = prepare_datatype(
+            output_type=output_type, options=options, modifier=modifier
+        )
         current_example = QAExample(
             **{
                 "question": question,

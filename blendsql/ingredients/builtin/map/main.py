@@ -1,9 +1,8 @@
 import copy
 import logging
-from typing import Union, Iterable, Any, Optional, List, Callable, Tuple, Literal
+from typing import Union, Iterable, Any, Optional, List, Callable, Tuple
 from collections.abc import Collection
 from pathlib import Path
-import re
 import json
 import pandas as pd
 from colorama import Fore
@@ -12,7 +11,7 @@ from attr import attrs, attrib
 import guidance
 
 from blendsql._logger import logger
-from blendsql.models import Model, LocalModel, RemoteModel
+from blendsql.models import Model, LocalModel
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._program import Program
@@ -21,8 +20,10 @@ from blendsql.ingredients.generate import generate, user, assistant
 from blendsql.ingredients.utils import (
     initialize_retriever,
     cast_responses_to_datatypes,
+    prepare_datatype,
     partialclass,
 )
+from blendsql._constants import DataType
 from .examples import AnnotatedMapExample, MapExample
 
 DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
@@ -46,7 +47,6 @@ class MapProgram(Program):
         batch_size: int,
         list_options_in_prompt: bool = True,
         max_tokens: Optional[int] = None,
-        regex: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
         # Only use tqdm if we're in debug mode
@@ -60,6 +60,9 @@ class MapProgram(Program):
             if logger.level <= logging.DEBUG
             else range(0, len(values), batch_size)
         )
+        regex = None
+        if current_example.output_type is not None:
+            regex = current_example.output_type.regex
         if isinstance(model, LocalModel):
             prompts = []
             options = current_example.options
@@ -67,8 +70,7 @@ class MapProgram(Program):
                 raise IngredientException(
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
                 )
-            if options:
-                regex = f"({'|'.join([re.escape(option) for option in options])})"
+
             lm: guidance.models.Model = model.model_obj
             with guidance.user():
                 lm += MAIN_INSTRUCTION
@@ -79,10 +81,12 @@ class MapProgram(Program):
                         lm += f"\n{k} -> {v}"
                     lm += "\n\n---"
 
-            if isinstance(model, LocalModel) and regex is not None:
+            if options is not None:
+                gen_f = lambda: guidance.select(options=options)
+            elif regex is not None:
                 gen_f = lambda: guidance.regex(pattern=regex)
             else:
-                gen_f = lambda: guidance.gen(max_tokens=max_tokens or 20)
+                gen_f = lambda: guidance.gen(max_tokens=max_tokens or 20, stop=["\n"])
 
             @guidance(stateless=True, dedent=False)
             def make_predictions(lm, values, gen_f) -> guidance.models.Model:
@@ -265,8 +269,7 @@ class LLMMap(MapIngredient):
         list_options_in_prompt: bool = None,
         value_limit: Union[int, None] = None,
         example_outputs: Optional[str] = None,
-        output_type: Optional[Literal["integer", "float", "string", "boolean"]] = None,
-        regex: Optional[str] = None,
+        output_type: Optional[Union[DataType, str]] = None,
         batch_size: int = DEFAULT_MAP_BATCH_SIZE,
         **kwargs,
     ) -> Iterable[Any]:
@@ -292,16 +295,12 @@ class LLMMap(MapIngredient):
             few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
         # Unpack default kwargs
         table_name, column_name = self.unpack_default_kwargs(**kwargs)
-        # Remote endpoints can't use patterns
-        regex = None if isinstance(model, RemoteModel) else regex
         if value_limit is not None:
             values = values[:value_limit]
         values = [value if not pd.isna(value) else "-" for value in values]
-
-        # for i in context_manager:
-        #     answer_length = len(values[i : i + batch_size])
-        #     max_tokens = answer_length * 15
-        #     curr_batch_values = values[i : i + batch_size]
+        output_type: DataType = prepare_datatype(
+            output_type=output_type, options=options, modifier=None
+        )
         current_example = MapExample(
             **{
                 "question": question,
@@ -330,8 +329,6 @@ class LLMMap(MapIngredient):
             output_type=output_type,
             table_name=table_name,
             column_name=column_name,
-            regex=regex,
-            # max_tokens=max_tokens,
             **kwargs,
         )
         logger.debug(
