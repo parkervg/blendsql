@@ -438,12 +438,12 @@ class SubqueryContextManager:
             field_val = start_node.args.get("field", None)
             if field_val is not None:
                 if child == field_val:
-                    modifier = "*"
+                    modifier = "+"
             expressions_val = start_node.args.get("expressions")
             if expressions_val is not None:
                 if len(expressions_val) > 0:
                     if child == expressions_val[0]:
-                        modifier = "*"
+                        modifier = "+"
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
         # Try to infer output type given the literals we've been given
