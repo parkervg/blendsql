@@ -694,5 +694,28 @@ def test_null_negation(db, dummy_ingredients):
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
+@pytest.mark.parametrize("db", databases)
+def test_cte_with_ingredient(db, dummy_ingredients):
+    """c3ec1eb"""
+    blendsql = """
+    WITH a AS (
+        SELECT {{
+            get_table_size('Table size?', (select * from transactions where amount < 500))
+        }} AS "size"
+    ) SELECT {{
+        get_table_size(
+            'Table size?', (select * from a where a.size > 0)
+        )
+    }}
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=dummy_ingredients,
+    )
+    # sql_df = db.execute_to_df(sql)
+    # assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
 if __name__ == "__main__":
     pytest.main()
