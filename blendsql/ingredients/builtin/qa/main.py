@@ -2,7 +2,7 @@ import copy
 import re
 from ast import literal_eval
 from pathlib import Path
-from typing import Union, Optional, Tuple, Callable, List, Literal
+from typing import Union, Optional, Tuple, Callable, List
 from collections.abc import Collection
 import pandas as pd
 import json
@@ -21,7 +21,7 @@ from blendsql.ingredients.utils import (
     cast_responses_to_datatypes,
     partialclass,
 )
-from blendsql._constants import ModifierType, RegexPatterns
+from blendsql._constants import ModifierType, DataType, STR_TO_DATATYPE
 from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the table context.\n"
@@ -59,20 +59,22 @@ def get_modifier_wrapper(
 
 @guidance(stateless=True)
 def gen_list(
-    lm, add_quotes: bool, modifier=None, options: List[str] = None, regex=None
+    lm, force_quotes: bool, modifier=None, options: List[str] = None, regex: str = None
 ):
     if options:
         single_item = guidance.select(options, list_append=True, name="response")
     else:
         single_item = guidance.gen(
-            max_tokens=20,
+            max_tokens=100,
             # If not regex is passed, default to all characters except these specific to list-syntax
-            regex=regex or "[^],]",
+            regex=regex or "[^],']+",
             list_append=True,
             name="response",
         )
-    if add_quotes:
-        single_item = "'" + single_item + "'"
+    quote = "'"
+    if not force_quotes:
+        quote = guidance.optional(quote)
+    single_item = quote + single_item + quote
     single_item += guidance.optional(", ")
     return lm + "[" + get_modifier_wrapper(modifier)(single_item) + "]"
 
@@ -109,27 +111,14 @@ class QAProgram(Program):
         context_formatter: Callable[[pd.DataFrame], str],
         few_shot_examples: List[QAExample],
         list_options_in_prompt: bool = True,
-        modifier: ModifierType = None,
         long_answer: Optional[bool] = False,
         max_tokens: Optional[int] = None,
-        regex: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, str]:
         if isinstance(model, LocalModel):
             lm: guidance.models.Model = model.model_obj
-        is_list_output = (
-            modifier is not None
-            or current_example.output_type is not None
-            and "list" in current_example.output_type.lower()
-        )
-        # Resolve regex, if we haven't been passed one
-        if regex is None and current_example.output_type:
-            if "integer" in current_example.output_type:
-                regex = RegexPatterns.INTEGER
-            elif "boolean" in current_example.output_type:
-                regex = RegexPatterns.BOOLEAN
-            elif "float" in current_example.output_type:
-                regex = RegexPatterns.FLOAT
+        is_list_output = "list" in current_example.output_type.name.lower()
+        regex = current_example.output_type.regex
         options = current_example.options
         options_with_aliases, options_alias_to_original = get_option_aliases(
             options, is_list_output=is_list_output
@@ -153,12 +142,13 @@ class QAProgram(Program):
             prompt = lm._current_prompt()
             if is_list_output:
                 lm += gen_list(
-                    add_quotes=bool(
+                    force_quotes=bool(
                         current_example.output_type
-                        and "str" in current_example.output_type
+                        and "str" in current_example.output_type.name
                     ),
+                    regex=regex,
                     options=options_with_aliases,
-                    modifier=modifier,
+                    modifier=current_example.output_type.modifier,
                 )
             else:
                 if options:
@@ -167,7 +157,7 @@ class QAProgram(Program):
                     lm += guidance.gen(
                         max_tokens=max_tokens or 200,
                         regex=regex,
-                        list_append=bool(modifier is not None),
+                        # list_append=bool(modifier is not None),
                         name="response",
                         stop=["\n"],
                     )
@@ -343,18 +333,7 @@ class LLMQA(QAIngredient):
         options: Optional[Collection[str]] = None,
         list_options_in_prompt: bool = None,
         modifier: ModifierType = None,
-        output_type: Optional[
-            Literal[
-                "integer",
-                "float",
-                "string",
-                "boolean",
-                "List[integer]",
-                "List[float]",
-                "List[string]",
-                "List[boolean]",
-            ]
-        ] = None,
+        output_type: DataType = None,
         regex: Optional[str] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
@@ -391,21 +370,25 @@ class LLMQA(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
-        resolved_output_type = None
-        if modifier and output_type:
-            if not output_type.startswith("List"):
-                resolved_output_type = f"List[{output_type}]"
+        if isinstance(output_type, str):
+            # The user has passed us an output type in the BlendSQL query
+            # That should take precedence
+            if output_type not in STR_TO_DATATYPE:
+                raise IngredientException(
+                    f"{output_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
+                )
+            output_type = STR_TO_DATATYPE.get(output_type)
+            if modifier:  # User passed modifier takes precedence
+                output_type.modifier = modifier
         elif modifier:
-            resolved_output_type = "list"
-        else:
-            resolved_output_type = output_type
+            # The user has passed us a modifier that should take precedence
+            output_type.modifier = modifier
         current_example = QAExample(
             **{
                 "question": question,
                 "context": context,
                 "options": options,
-                "output_type": resolved_output_type,
-                "modifier": modifier,
+                "output_type": output_type,
             }
         )
         few_shot_examples: List[AnnotatedQAExample] = few_shot_retriever(
@@ -417,9 +400,7 @@ class LLMQA(QAIngredient):
             context_formatter=context_formatter,
             few_shot_examples=few_shot_examples,
             list_options_in_prompt=list_options_in_prompt,
-            modifier=modifier,
             long_answer=long_answer,
-            regex=regex,
             **kwargs,
         )
         return result
