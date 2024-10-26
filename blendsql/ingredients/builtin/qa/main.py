@@ -175,7 +175,7 @@ class QAProgram(Program):
             if is_list_output and modifier == "*":
                 response = lm.get("response", [])
             else:
-                response = lm["response"].strip(" ")
+                response = lm["response"]
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
@@ -236,7 +236,8 @@ class QAProgram(Program):
                     + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
                     + Fore.RESET
                 )
-            response = f"'{single_quote_escape(response)}'"
+            if isinstance(response, str):
+                response = f"'{single_quote_escape(response)}'"
         else:
             response = tuple(response)
         return (response, prompt)

@@ -21,7 +21,7 @@
 <br/>
 
 ```
-pip install blendsql
+pip install blendsql --prerelease=allow
 ```
 
 ### ✨ News

@@ -115,7 +115,7 @@ class MapProgram(Program):
         else:
             messages_list: List[List[dict]] = []
             batch_sizes: List[int] = []
-            for i in context_manager:
+            for i in range(0, len(values), batch_size):
                 messages = []
                 curr_batch_values = values[i : i + batch_size]
                 batch_sizes.append(len(curr_batch_values))

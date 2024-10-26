@@ -21,7 +21,7 @@ hide:
 
 <div class="index-pre-code">
 ```bash
-pip install blendsql
+pip install blendsql --prerelease=allow
 ```
 </div>
 </center>
