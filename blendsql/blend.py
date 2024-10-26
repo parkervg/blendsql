@@ -523,7 +523,6 @@ def _blend(
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
-    resync_query_context_before_execution = False
     for subquery_idx, subquery in enumerate(
         get_reversed_subqueries(query_context.node)
     ):
@@ -585,7 +584,6 @@ def _blend(
                 # For example, `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w WHERE w...`
                 # We can't assign `abstracted_query` for non-existent `w`
                 #   until we set `w` to `SELECT DISTINCT Symbol FROM portfolio`
-                resync_query_context_before_execution = True
                 db.lazy_tables.add(
                     LazyTable(
                         tablename,
@@ -650,7 +648,6 @@ def _blend(
                     naive_execution = True
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
-            resync_query_context_before_execution = True
             db.lazy_tables.add(
                 LazyTable(
                     aliasname,
@@ -674,250 +671,253 @@ def _blend(
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(transform.maybe_set_subqueries_to_true))
 
-        # lazy_limit: Union[int, None] = scm.get_lazy_limit()
-        # After above processing of AST, sync back to string repr
-        subquery_str = scm.sql()
-        # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
-        # 2) Track when we've created a new table from a MapIngredient call
-        #   only at the end of parsing a subquery, we can merge to the original session_uuid table
-        tablename_to_map_out: Dict[str, List[pd.DataFrame]] = {}
-        for (
-            start,
-            end,
-            alias_function_str,
-            parsed_results_dict,
-            ingredient,
-        ) in get_sorted_grammar_matches(
-            q=subquery_str,
-            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-            kitchen=kitchen,
-        ):
-            prev_subquery_has_ingredient = True
-            if alias_function_str in executed_subquery_ingredients:
-                # Don't execute same ingredient twice
-                continue
-            executed_subquery_ingredients.add(alias_function_str)
-            kwargs_dict = parsed_results_dict["kwargs_dict"]
-            logger.debug(
-                Fore.CYAN
-                + "Executing "
-                + Fore.LIGHTCYAN_EX
-                + f" `{parsed_results_dict['raw']}`..."
-                + Fore.RESET
-            )
-            if infer_gen_constraints:
-                # Latter is the winner.
-                # So if we already define something in kwargs_dict,
-                #   It's not overriden here
-                kwargs_dict = (
-                    scm.infer_gen_constraints(
-                        start=start,
-                        end=end,
-                    )
-                    | kwargs_dict
-                )
-
-            if table_to_title is not None:
-                kwargs_dict["table_to_title"] = table_to_title
-
-            # Optionally, recursively call blend() again to get subtable from args
-            # This applies to `context` and `options`
-            for i, unpack_kwarg in enumerate(
-                [IngredientKwarg.CONTEXT, IngredientKwarg.OPTIONS]
+        if not in_cte:
+            # lazy_limit: Union[int, None] = scm.get_lazy_limit()
+            # After above processing of AST, sync back to string repr
+            subquery_str = scm.sql()
+            # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
+            # 2) Track when we've created a new table from a MapIngredient call
+            #   only at the end of parsing a subquery, we can merge to the original session_uuid table
+            tablename_to_map_out: Dict[str, List[pd.DataFrame]] = {}
+            for (
+                start,
+                end,
+                alias_function_str,
+                parsed_results_dict,
+                ingredient,
+            ) in get_sorted_grammar_matches(
+                q=subquery_str,
+                ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                kitchen=kitchen,
             ):
-                unpack_value = kwargs_dict.get(
-                    unpack_kwarg,
-                    (
-                        parsed_results_dict["args"][i + 1]
-                        if len(parsed_results_dict["args"]) > i + 1
-                        else (
-                            parsed_results_dict["args"][i]
-                            if len(parsed_results_dict["args"]) > i
-                            else ""
-                        )
-                    ),
-                )
-                if isinstance(unpack_value, str) and check.is_blendsql_query(
-                    unpack_value
-                ):
-                    _smoothie = _blend(
-                        query=unpack_value,
-                        db=db,
-                        default_model=default_model,
-                        ingredients=ingredients,
-                        infer_gen_constraints=infer_gen_constraints,
-                        table_to_title=table_to_title,
-                        verbose=verbose,
-                        _prev_passed_values=_prev_passed_values,
-                    )
-                    _prev_passed_values = _smoothie.meta.num_values_passed
-                    subtable = _smoothie.df
-                    if unpack_kwarg == IngredientKwarg.OPTIONS:
-                        if len(subtable.columns) == 1 or len(subtable) == 1:
-                            # Here, we need to format as a flat set
-                            kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
-                        else:
-                            raise InvalidBlendSQL(
-                                f"Invalid subquery passed to `options`!\nNeeds to return exactly one column or row, got {len(subtable.columns)} columns and {len(subtable)} rows instead"
-                            )
-                    else:
-                        kwargs_dict[unpack_kwarg] = subtable
-                        # Below, we can remove the optional `context` arg we passed in args
-                        parsed_results_dict["args"] = parsed_results_dict["args"][:1]
-            if getattr(ingredient, "model", None) is not None:
-                kwargs_dict["model"] = ingredient.model
-            # Execute our ingredient function
-            function_out = ingredient(
-                *parsed_results_dict["args"],
-                **kwargs_dict
-                | {
-                    "get_temp_subquery_table": _get_temp_subquery_table,
-                    "get_temp_session_table": _get_temp_session_table,
-                    "aliases_to_tablenames": scm.alias_to_tablename,
-                    "prev_subquery_map_columns": prev_subquery_map_columns,
-                },
-            )
-            # Check how to handle output, depending on ingredient type
-            if ingredient.ingredient_type == IngredientType.MAP:
-                # Parse so we replace this function in blendsql with 1st arg
-                #   (new_col, which is the question we asked)
-                #  But also update our underlying table, so we can execute correctly at the end
-                (new_col, tablename, colname, new_table) = function_out
-                prev_subquery_map_columns.add(new_col)
-                new_table[new_table[new_col].notnull()]
-                if tablename in tablename_to_map_out:
-                    tablename_to_map_out[tablename].append(new_table)
-                else:
-                    tablename_to_map_out[tablename] = [new_table]
-                session_modified_tables.add(tablename)
-                function_call_to_res[
-                    alias_function_str
-                ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
-            elif ingredient.ingredient_type in (
-                IngredientType.STRING,
-                IngredientType.QA,
-            ):
-                # Here, we can simply insert the function's output
-                function_call_to_res[alias_function_str] = function_out
-            elif ingredient.ingredient_type == IngredientType.JOIN:
-                # 1) Get the `JOIN` clause containing function
-                # 2) Replace with just the function alias
-                # 3) Assign `function_out` to `alias_function_str`
-                (
-                    left_tablename,
-                    right_tablename,
-                    join_clause,
-                    temp_join_tablename,
-                ) = function_out
-                # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
-                join_node = query_context.node.find(exp.Join)
-                assert join_node is not None
-                num_ingredients_in_join = check.get_ingredient_count(join_node)
-                if num_ingredients_in_join > 1:
-                    # Case where we have
-                    # `SELECT * FROM w0 JOIN w0 ON {{B()}} > 1 AND {{A()}} WHERE TRUE`
-                    # Since we haven't executed and saved `{{B()}}` to temp table yet,
-                    #   we need to keep. So we get:
-                    temp_uuid = str(uuid.uuid4())
-                    _node = query_context.node.transform(
-                        transform.replace_join_with_ingredient_multiple_ingredient,
-                        ingredient_alias=alias_function_str,
-                        dialect=dialect,
-                        temp_uuid=temp_uuid,
-                    ).transform(transform.prune_true_where)
-                    query_context.parse(
-                        str(_node).replace(f'SELECT "{temp_uuid}", ', ""), schema=schema
-                    )
-                    resync_query_context_before_execution = True
-                else:
-                    # Case where we have
-                    # `SELECT * FROM w0 JOIN w0 ON w0.x > 1 AND {{A()}} WHERE TRUE`
-                    # Since we've already applied SQL operation `w0.x > 1` and set to temp table
-                    # we can remove this. So below we transform to:
-                    # `SELECT * FROM w0 {{A()}}  WHERE TRUE`
-                    # This way, `{{A()}}` can get replaced with our new join
-                    # TODO: since we're not removing predicates in other areas, probably not best to do it here.
-                    #   Should probably modify in the future.
-                    query_context.node = query_context.node.transform(
-                        transform.replace_join_with_ingredient_single_ingredient,
-                        dialect=dialect,
-                        # ingredient_name=parsed_results_dict["ingredient_aliasname"],
-                        ingredient_alias=alias_function_str,
-                    )
-                    resync_query_context_before_execution = True
-                function_call_to_res[alias_function_str] = join_clause
-            else:
-                raise ValueError(
-                    f"Not sure what to do with ingredient_type '{ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
-                )
-            if naive_execution:
-                break
-        # Combine all the retrieved ingredient outputs
-        for tablename, ingredient_outputs in tablename_to_map_out.items():
-            if len(ingredient_outputs) > 0:
+                prev_subquery_has_ingredient = True
+                if alias_function_str in executed_subquery_ingredients:
+                    # Don't execute same ingredient twice
+                    continue
+                executed_subquery_ingredients.add(alias_function_str)
+                kwargs_dict = parsed_results_dict["kwargs_dict"]
                 logger.debug(
                     Fore.CYAN
-                    + f"Combining {len(ingredient_outputs)} outputs for table `{tablename}`"
+                    + "Executing "
+                    + Fore.LIGHTCYAN_EX
+                    + f" `{parsed_results_dict['raw']}`..."
                     + Fore.RESET
                 )
-                # Once we finish parsing this subquery, write to our session_uuid table
-                # Below, we differ from Binder, which seems to replace the old table
-                # On their left join merge command: https://github.com/HKUNLP/Binder/blob/9eede69186ef3f621d2a50572e1696bc418c0e77/nsql/database.py#L196
-                # We create a new temp table to avoid a potentially self-destructive operation
-                base_tablename = tablename
-                _base_table: pd.DataFrame = db.execute_to_df(
-                    select_all_from_table_query(base_tablename)
+                if infer_gen_constraints:
+                    # Latter is the winner.
+                    # So if we already define something in kwargs_dict,
+                    #   It's not overriden here
+                    kwargs_dict = (
+                        scm.infer_gen_constraints(
+                            start=start,
+                            end=end,
+                        )
+                        | kwargs_dict
+                    )
+
+                if table_to_title is not None:
+                    kwargs_dict["table_to_title"] = table_to_title
+
+                # Optionally, recursively call blend() again to get subtable from args
+                # This applies to `context` and `options`
+                for i, unpack_kwarg in enumerate(
+                    [IngredientKwarg.CONTEXT, IngredientKwarg.OPTIONS]
+                ):
+                    unpack_value = kwargs_dict.get(
+                        unpack_kwarg,
+                        (
+                            parsed_results_dict["args"][i + 1]
+                            if len(parsed_results_dict["args"]) > i + 1
+                            else (
+                                parsed_results_dict["args"][i]
+                                if len(parsed_results_dict["args"]) > i
+                                else ""
+                            )
+                        ),
+                    )
+                    if isinstance(unpack_value, str) and check.is_blendsql_query(
+                        unpack_value
+                    ):
+                        _smoothie = _blend(
+                            query=unpack_value,
+                            db=db,
+                            default_model=default_model,
+                            ingredients=ingredients,
+                            infer_gen_constraints=infer_gen_constraints,
+                            table_to_title=table_to_title,
+                            verbose=verbose,
+                            _prev_passed_values=_prev_passed_values,
+                        )
+                        _prev_passed_values = _smoothie.meta.num_values_passed
+                        subtable = _smoothie.df
+                        if unpack_kwarg == IngredientKwarg.OPTIONS:
+                            if len(subtable.columns) == 1 or len(subtable) == 1:
+                                # Here, we need to format as a flat set
+                                kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
+                            else:
+                                raise InvalidBlendSQL(
+                                    f"Invalid subquery passed to `options`!\nNeeds to return exactly one column or row, got {len(subtable.columns)} columns and {len(subtable)} rows instead"
+                                )
+                        else:
+                            kwargs_dict[unpack_kwarg] = subtable
+                            # Below, we can remove the optional `context` arg we passed in args
+                            parsed_results_dict["args"] = parsed_results_dict["args"][
+                                :1
+                            ]
+                if getattr(ingredient, "model", None) is not None:
+                    kwargs_dict["model"] = ingredient.model
+                # Execute our ingredient function
+                function_out = ingredient(
+                    *parsed_results_dict["args"],
+                    **kwargs_dict
+                    | {
+                        "get_temp_subquery_table": _get_temp_subquery_table,
+                        "get_temp_session_table": _get_temp_session_table,
+                        "aliases_to_tablenames": scm.alias_to_tablename,
+                        "prev_subquery_map_columns": prev_subquery_map_columns,
+                    },
                 )
-                base_table = _base_table
-                if db.has_temp_table(_get_temp_session_table(tablename)):
-                    base_tablename = _get_temp_session_table(tablename)
-                    base_table: pd.DataFrame = db.execute_to_df(
+                # Check how to handle output, depending on ingredient type
+                if ingredient.ingredient_type == IngredientType.MAP:
+                    # Parse so we replace this function in blendsql with 1st arg
+                    #   (new_col, which is the question we asked)
+                    #  But also update our underlying table, so we can execute correctly at the end
+                    (new_col, tablename, colname, new_table) = function_out
+                    prev_subquery_map_columns.add(new_col)
+                    new_table[new_table[new_col].notnull()]
+                    if tablename in tablename_to_map_out:
+                        tablename_to_map_out[tablename].append(new_table)
+                    else:
+                        tablename_to_map_out[tablename] = [new_table]
+                    session_modified_tables.add(tablename)
+                    function_call_to_res[
+                        alias_function_str
+                    ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
+                elif ingredient.ingredient_type in (
+                    IngredientType.STRING,
+                    IngredientType.QA,
+                ):
+                    # Here, we can simply insert the function's output
+                    function_call_to_res[alias_function_str] = function_out
+                elif ingredient.ingredient_type == IngredientType.JOIN:
+                    # 1) Get the `JOIN` clause containing function
+                    # 2) Replace with just the function alias
+                    # 3) Assign `function_out` to `alias_function_str`
+                    (
+                        left_tablename,
+                        right_tablename,
+                        join_clause,
+                        temp_join_tablename,
+                    ) = function_out
+                    # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
+                    join_node = query_context.node.find(exp.Join)
+                    assert join_node is not None
+                    num_ingredients_in_join = check.get_ingredient_count(join_node)
+                    if num_ingredients_in_join > 1:
+                        # Case where we have
+                        # `SELECT * FROM w0 JOIN w0 ON {{B()}} > 1 AND {{A()}} WHERE TRUE`
+                        # Since we haven't executed and saved `{{B()}}` to temp table yet,
+                        #   we need to keep. So we get:
+                        temp_uuid = str(uuid.uuid4())
+                        _node = query_context.node.transform(
+                            transform.replace_join_with_ingredient_multiple_ingredient,
+                            ingredient_alias=alias_function_str,
+                            dialect=dialect,
+                            temp_uuid=temp_uuid,
+                        ).transform(transform.prune_true_where)
+                        query_context.parse(
+                            str(_node).replace(f'SELECT "{temp_uuid}", ', ""),
+                            schema=schema,
+                        )
+                    else:
+                        # Case where we have
+                        # `SELECT * FROM w0 JOIN w0 ON w0.x > 1 AND {{A()}} WHERE TRUE`
+                        # Since we've already applied SQL operation `w0.x > 1` and set to temp table
+                        # we can remove this. So below we transform to:
+                        # `SELECT * FROM w0 {{A()}}  WHERE TRUE`
+                        # This way, `{{A()}}` can get replaced with our new join
+                        # TODO: since we're not removing predicates in other areas, probably not best to do it here.
+                        #   Should probably modify in the future.
+                        query_context.node = query_context.node.transform(
+                            transform.replace_join_with_ingredient_single_ingredient,
+                            dialect=dialect,
+                            # ingredient_name=parsed_results_dict["ingredient_aliasname"],
+                            ingredient_alias=alias_function_str,
+                        )
+                    function_call_to_res[alias_function_str] = join_clause
+                else:
+                    raise ValueError(
+                        f"Not sure what to do with ingredient_type '{ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
+                    )
+                if naive_execution:
+                    break
+            # Combine all the retrieved ingredient outputs
+            for tablename, ingredient_outputs in tablename_to_map_out.items():
+                if len(ingredient_outputs) > 0:
+                    logger.debug(
+                        Fore.CYAN
+                        + f"Combining {len(ingredient_outputs)} outputs for table `{tablename}`"
+                        + Fore.RESET
+                    )
+                    # Once we finish parsing this subquery, write to our session_uuid table
+                    # Below, we differ from Binder, which seems to replace the old table
+                    # On their left join merge command: https://github.com/HKUNLP/Binder/blob/9eede69186ef3f621d2a50572e1696bc418c0e77/nsql/database.py#L196
+                    # We create a new temp table to avoid a potentially self-destructive operation
+                    base_tablename = tablename
+                    _base_table: pd.DataFrame = db.execute_to_df(
                         select_all_from_table_query(base_tablename)
                     )
-                previously_added_columns = base_table.columns.difference(
-                    _base_table.columns
-                )
-                assert len(set([len(x) for x in ingredient_outputs])) == 1
-                llm_out_df = pd.concat(ingredient_outputs, axis=1)
-                llm_out_df = llm_out_df.loc[:, ~llm_out_df.columns.duplicated()]
-                # Handle duplicate columns, e.g. in test_nested_duplicate_ingredient_calls()
-                for column in previously_added_columns:
-                    if all(
-                        column in x for x in [llm_out_df.columns, base_table.columns]
-                    ):
-                        # Fill nan in llm_out_df with those values in base_table
-                        try:
-                            pd.testing.assert_index_equal(
-                                base_table.index, llm_out_df.index
-                            )
-                        except AssertionError:
-                            logger.debug(
-                                Fore.RED + "pd.testing.assert_index_equal error"
-                            )
-                        llm_out_df[column] = llm_out_df[column].fillna(
-                            base_table[column]
+                    base_table = _base_table
+                    if db.has_temp_table(_get_temp_session_table(tablename)):
+                        base_tablename = _get_temp_session_table(tablename)
+                        base_table: pd.DataFrame = db.execute_to_df(
+                            select_all_from_table_query(base_tablename)
                         )
-                        base_table = base_table.drop(columns=column)
-                llm_out_df = llm_out_df[
-                    llm_out_df.columns.difference(base_table.columns)
-                ]
-                try:
-                    pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
-                except AssertionError:
-                    logger.debug(Fore.RED + "pd.testing.assert_index_equal error")
-                merged = base_table.merge(
-                    llm_out_df, how="left", right_index=True, left_index=True
-                )
-                db.to_temp_table(
-                    df=merged, tablename=_get_temp_session_table(tablename)
-                )
-                session_modified_tables.add(tablename)
-
+                    previously_added_columns = base_table.columns.difference(
+                        _base_table.columns
+                    )
+                    assert len(set([len(x) for x in ingredient_outputs])) == 1
+                    llm_out_df = pd.concat(ingredient_outputs, axis=1)
+                    llm_out_df = llm_out_df.loc[:, ~llm_out_df.columns.duplicated()]
+                    # Handle duplicate columns, e.g. in test_nested_duplicate_ingredient_calls()
+                    for column in previously_added_columns:
+                        if all(
+                            column in x
+                            for x in [llm_out_df.columns, base_table.columns]
+                        ):
+                            # Fill nan in llm_out_df with those values in base_table
+                            try:
+                                pd.testing.assert_index_equal(
+                                    base_table.index, llm_out_df.index
+                                )
+                            except AssertionError:
+                                logger.debug(
+                                    Fore.RED + "pd.testing.assert_index_equal error"
+                                )
+                            llm_out_df[column] = llm_out_df[column].fillna(
+                                base_table[column]
+                            )
+                            base_table = base_table.drop(columns=column)
+                    llm_out_df = llm_out_df[
+                        llm_out_df.columns.difference(base_table.columns)
+                    ]
+                    try:
+                        pd.testing.assert_index_equal(
+                            base_table.index, llm_out_df.index
+                        )
+                    except AssertionError:
+                        logger.debug(Fore.RED + "pd.testing.assert_index_equal error")
+                    merged = base_table.merge(
+                        llm_out_df, how="left", right_index=True, left_index=True
+                    )
+                    db.to_temp_table(
+                        df=merged, tablename=_get_temp_session_table(tablename)
+                    )
+                    session_modified_tables.add(tablename)
     # Now insert the function outputs to the original query
-    if resync_query_context_before_execution:
-        # We need to re-sync if we did some operation on the underlying query,
-        #   like with a JoinIngredient
-        query = query_context.to_string()
+    # We need to re-sync if we did some operation on the underlying query,
+    #   like with a JoinIngredient
+    query = query_context.to_string()
     for function_str, res in function_call_to_res.items():
         # The post-processing on the JoinIngredient will sometimes leave 'AS {{A()}}' sort of artifacts
         # We remove them below
