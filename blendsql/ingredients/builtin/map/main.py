@@ -1,5 +1,4 @@
 import copy
-import logging
 import os
 from typing import Union, Iterable, Any, Optional, List, Callable, Tuple
 from collections.abc import Collection
@@ -7,7 +6,6 @@ from pathlib import Path
 import json
 import pandas as pd
 from colorama import Fore
-from tqdm import tqdm
 from attr import attrs, attrib
 import guidance
 
@@ -51,18 +49,6 @@ class MapProgram(Program):
         max_tokens: Optional[int] = None,
         **kwargs,
     ) -> Tuple[str, str]:
-        # Only use tqdm if we're in debug mode
-        context_manager: Iterable = (
-            tqdm(
-                range(0, len(values), batch_size),
-                total=len(values) // batch_size,
-                desc=f"Making calls to Model with batch_size {batch_size}",
-                bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.CYAN, Fore.RESET),
-            )
-            if logger.level <= logging.DEBUG
-            else range(0, len(values), batch_size)
-        )
-
         regex = None
         if current_example.output_type is not None:
             regex = current_example.output_type.regex
@@ -110,7 +96,7 @@ class MapProgram(Program):
                 return lm
 
             mapped_values: List[str] = []
-            for i in context_manager:
+            for i in range(0, len(values), batch_size):
                 curr_batch_values = values[i : i + batch_size]
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = [str(i) for i in curr_batch_values]
