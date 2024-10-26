@@ -170,12 +170,12 @@ class QAProgram(Program):
                         regex=regex,
                         # list_append=bool(modifier is not None),
                         name="response",
-                        stop=["\n"],
+                        stop=["\n", "Question:"],
                     )
             if is_list_output and modifier == "*":
                 response = lm.get("response", [])
             else:
-                response = lm["response"]
+                response = lm["response"].strip(" ")
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
