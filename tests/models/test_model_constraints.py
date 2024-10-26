@@ -52,16 +52,39 @@ def test_alphabet(db, model, ingredients):
     SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?')}} )
     """
     smoothie = blend(blendsql_query)
-    assert "A" in smoothie.df.values.tolist()[0]
+    assert "A" in list(smoothie.df.values.flat)
 
     blendsql_query = """
         SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', modifier="{3}")}} )
         """
     smoothie = blend(blendsql_query)
-    assert smoothie.df.values.tolist()[0] == ["A", "B", "C"]
+    assert list(smoothie.df.values.flat) == ["A", "B", "C"]
 
     blendsql_query = """
     SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options='α;β;γ;δ', modifier="{3}")}} )
     """
     smoothie = blend(blendsql_query)
-    assert smoothie.df.values.tolist()[0] == ["α", "β", "γ"]
+    assert list(smoothie.df.values.flat) == ["α", "β", "γ"]
+
+    blendsql_query = """
+    SELECT {{
+        LLMQA(
+            'What is the first letter of the alphabet?',
+            options=(SELECT * FROM (VALUES {{LLMQA('List some greek letters')}}))
+        )
+    }} AS 'response'
+    """
+    smoothie = blend(blendsql_query)
+    assert list(smoothie.df.values.flat)[0].lower() == "alpha"
+
+    blendsql_query = """
+    WITH greek_letters AS (
+        SELECT * FROM (VALUES {{LLMQA('List some greek letters')}})
+    ) SELECT {{
+        LLMQA(
+            'What is the first letter of the alphabet?', 
+            options=(SELECT * FROM greek_letters)
+        )}}
+    """
+    smoothie = blend(blendsql_query)
+    assert list(smoothie.df.values.flat)[0].lower() == "alpha"
