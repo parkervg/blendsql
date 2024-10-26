@@ -8,6 +8,30 @@ _has_transformers = importlib.util.find_spec("transformers") is not None
 
 
 class AzurePhiModel(LocalModel):
+    """Class for Azure Phi model with guidance serverside integration.
+
+    https://github.com/guidance-ai/guidance?tab=readme-ov-file#azure-ai
+
+    Args:
+        env: Path to directory of .env file, or to the file itself to load as a dotfile.
+            Should either contain `AZURE_PHI_KEY` and `AZURE_PHI_URL`
+        caching: Bool determining whether we access the model's cache
+
+    Examples:
+        Given the following `.env` file in the directory above current:
+        ```text
+        AZURE_PHI_KEY=...
+        AZURE_PHI_URL=...
+        ```
+        ```python
+        from blendsql.models import AzurePhiModel
+
+        model = AzurePhiModel(
+            env="..",
+        )
+        ```
+    """
+
     def __init__(
         self,
         config: Optional[dict] = None,

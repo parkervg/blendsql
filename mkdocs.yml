@@ -69,6 +69,7 @@ nav:
       - Quickstart: quickstart.md
       - Some Cool Things by Example: by-example.md
       - Examples:
+          - BlendSQL by Example: reference/examples/blendsql-by-example.ipynb
           - Custom VQA Ingredient with LLaVA: reference/examples/vqa-ingredient.ipynb
           - Teaching BlendSQL via In-Context Learning: reference/examples/teaching-blendsql-via-in-context-learning.ipynb
   - Documentation:
@@ -88,6 +89,7 @@ nav:
           - Anthropic: reference/models/anthropic.md
           - Transformers: reference/models/transformers.md
           - Ollama: reference/models/ollama.md
+          - Azure Phi: reference/models/azurephi.md
       - Databases:
           - reference/databases/databases.md
           - DuckDB: reference/databases/duckdb.md
@@ -98,8 +100,3 @@ nav:
           - reference/smoothie.md
       - Programs:
           - reference/programs.md
-      - Natural Language to BlendSQL:
-          - reference/nl_to_blendsql/nl-to-blendsql.md
-      - Technical Walkthrough:
-          - reference/technical_walkthrough.md
-          - Query Optimization: reference/query_optimization.md

@@ -2,9 +2,7 @@
 hide:
   - toc
 ---
-# Blenders
-
-We use the term "blender" to describe the model which receives the prompts used to perform each ingredient function within a BlendSQL script.
+# Models
 
 We enable integration with many existing LLMs by building on top of [`guidance` models](https://github.com/guidance-ai/guidance).
 
