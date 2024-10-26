@@ -134,6 +134,17 @@ SELECT COUNT(*) FROM parks
 |       1 |
 <hr>
 
+_Give me some info about the park in the state that Sarah Palin was governor of._
+```sql
+SELECT "Name", "Location", "Description" FROM parks
+  WHERE Location = {{RAGQA('Which state was Sarah Palin governor of?')}}
+```
+| Name       | Location   | Description                                                                                                                         |
+|:-----------|:-----------|:------------------------------------------------------------------------------------------------------------------------------------|
+| Everglades | Alaska     | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.         |
+| Katmai     | Alaska     | This park on the Alaska Peninsula protects the Valley of Ten Thousand Smokes, an ash flow formed by the 1912 eruption of Novarupta. |
+<hr>
+
 _What's the difference in visitors for those parks with a superlative in their description vs. those without?_
 ```sql
 SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors", 

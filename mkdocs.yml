@@ -81,12 +81,13 @@ nav:
               - LLMMap: reference/ingredients/LLMMap.md
               - LLMQA: reference/ingredients/LLMQA.md
               - LLMJoin: reference/ingredients/LLMJoin.md
-      - Blenders:
-          - reference/blenders/blenders.md
-          - OpenAI: reference/blenders/openai.md
-          - Anthropic: reference/blenders/anthropic.md
-          - Transformers: reference/blenders/transformers.md
-          - Ollama: reference/blenders/ollama.md
+              - RAGQA: reference/ingredients/RAGQA.md
+      - Language Models:
+          - reference/models/models.md
+          - OpenAI: reference/models/openai.md
+          - Anthropic: reference/models/anthropic.md
+          - Transformers: reference/models/transformers.md
+          - Ollama: reference/models/ollama.md
       - Databases:
           - reference/databases/databases.md
           - DuckDB: reference/databases/duckdb.md

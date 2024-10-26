@@ -14,6 +14,7 @@
           "Stock": ["AAPL", "AAPL", "AAPL"],
           "Purchase Date": ["01/22/22", "01/23/22", "02/01/22"]
       },
+      "output_type": "int",
       "answer": "2"
   }
 ]

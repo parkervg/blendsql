@@ -2,7 +2,7 @@ from pathlib import Path
 
 import blendsql
 from blendsql.models import OpenaiLLM
-from blendsql.ingredients import LLMQA, LLMMap
+from blendsql.ingredients import LLMQA, LLMMap, BingWebSearch, RAGQA
 from blendsql.db import SQLite
 
 
@@ -23,20 +23,38 @@ if __name__ == "__main__":
     7.95 seconds with 1
     4.7155 with 5
     """
-    blendsql.config.set_async_limit(5)
-    ingredients = {LLMQA, LLMMap.from_args(batch_size=2)}
+    ingredients = {LLMQA, LLMMap, BingWebSearch, RAGQA}
     db = load_tag_database("california_schools")
+
+    # blendsql_query = """
+    # SELECT s.Phone
+    #     FROM satscores ss
+    #     JOIN schools s ON ss.cds = s.CDSCode
+    #     WHERE county IN {{
+    #         LLMQA(
+    #             'Which counties are in the Bay Area?',
+    #             (
+    #                 SELECT {{
+    #                     BingWebSearch('Counties in the Bay Area')
+    #                 }} AS "Search Results"
+    #             )
+    #         )
+    #     }}
+    #     ORDER BY ss.AvgScrRead ASC
+    #     LIMIT 1
+    # """
+    # Among the schools with the average score in Math over 560 in the SAT test, how many schools are in the bay area?
     blendsql_query = """
-    SELECT s.Phone 
-        FROM satscores ss 
-        JOIN schools s ON ss.cds = s.CDSCode 
-        WHERE {{LLMMap('Is this county in Southern California?', 's::County')}} = TRUE
-        ORDER BY ss.AvgScrRead ASC 
-        LIMIT 1
+    SELECT COUNT(DISTINCT s.CDSCode) 
+        FROM schools s 
+        JOIN satscores sa ON s.CDSCode = sa.cds 
+        WHERE sa.AvgScrMath > 560 
+        AND s.County IN {{RAGQA('Which counties are in the Bay Area?')}}
     """
     smoothie = blendsql.blend(
         query=blendsql_query,
         default_model=OpenaiLLM("gpt-4o-mini", caching=False),
+        # default_model=AzurePhiModel(),
         ingredients=ingredients,
         db=db,
         verbose=True,

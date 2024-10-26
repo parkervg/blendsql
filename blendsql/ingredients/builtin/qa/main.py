@@ -1,19 +1,31 @@
+import os
 import copy
+import re
+from ast import literal_eval
 from pathlib import Path
-from typing import Dict, Union, Optional, Set, Tuple, Callable, List
+from typing import Union, Optional, Tuple, Callable, List
+from collections.abc import Collection
 import pandas as pd
 import json
 from colorama import Fore
 from attr import attrs, attrib
 import guidance
 
+from blendsql._logger import logger
 from blendsql.models import Model, LocalModel
 from blendsql.ingredients.generate import generate, user, assistant
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 from blendsql._exceptions import IngredientException
-from blendsql.ingredients.utils import initialize_retriever, partialclass
+from blendsql.ingredients.utils import (
+    initialize_retriever,
+    cast_responses_to_datatypes,
+    prepare_datatype,
+    partialclass,
+)
+from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+from blendsql._constants import ModifierType, DataType
 from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the table context.\n"
@@ -27,6 +39,74 @@ DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
 ]
 
 
+def get_modifier_wrapper(
+    modifier: ModifierType,
+) -> Callable[[guidance.models.Model], guidance.models.Model]:
+    modifier_wrapper = lambda x: x
+    if modifier is not None:
+        if modifier == "*":
+            modifier_wrapper = guidance.zero_or_more
+        elif modifier == "+":
+            modifier_wrapper = guidance.one_or_more
+        elif re.match("{\d+}", modifier):
+            repeats = [
+                int(i) for i in modifier.replace("}", "").replace("{", "").split(",")
+            ]
+            if len(repeats) == 1:
+                repeats = repeats * 2
+            min_length, max_length = repeats
+            modifier_wrapper = lambda f: guidance.sequence(
+                f, min_length=min_length, max_length=max_length
+            )
+    return modifier_wrapper
+
+
+@guidance(stateless=True)
+def gen_list(
+    lm, force_quotes: bool, modifier=None, options: List[str] = None, regex: str = None
+):
+    if options:
+        single_item = guidance.select(options, list_append=True, name="response")
+    else:
+        single_item = guidance.gen(
+            max_tokens=100,
+            # If not regex is passed, default to all characters except these specific to list-syntax
+            regex=regex or "[^],']+",
+            list_append=True,
+            name="response",
+        )
+    quote = "'"
+    if not force_quotes:
+        quote = guidance.optional(quote)
+    single_item = quote + single_item + quote
+    single_item += guidance.optional(", ")
+    return lm + "[" + get_modifier_wrapper(modifier)(single_item) + "]"
+
+
+def get_option_aliases(options: Optional[List[str]], is_list_output: bool):
+    options_alias_to_original = {}
+    options_with_aliases = None
+    if options is not None:
+        # Since 'options' is a mutable list, create a copy to retain the originals
+        options_with_aliases = copy.deepcopy(options)
+        # Below we check to see if our options have a unique first word
+        # sometimes, the model will generate 'Frank' instead of 'Frank Smith'
+        # We still want to align that, in this case
+        add_first_word = False
+        if len(set([i.split(" ")[0] for i in options])) == len(options):
+            add_first_word = True
+        for option in options:
+            option = str(option)
+            for option_alias in [option.title(), option.lower(), option.upper()]:
+                options_with_aliases.add(option_alias)
+                options_alias_to_original[option_alias] = option
+            if add_first_word:
+                option_alias = option.split(" ")[0]
+                options_alias_to_original[option_alias] = option
+                options_with_aliases.add(option_alias)
+    return options_with_aliases or options, options_alias_to_original
+
+
 class QAProgram(Program):
     def __call__(
         self,
@@ -34,35 +114,29 @@ class QAProgram(Program):
         current_example: QAExample,
         context_formatter: Callable[[pd.DataFrame], str],
         few_shot_examples: List[QAExample],
+        list_options_in_prompt: bool = True,
         long_answer: Optional[bool] = False,
         max_tokens: Optional[int] = None,
         **kwargs,
     ) -> Tuple[str, str]:
         if isinstance(model, LocalModel):
             lm: guidance.models.Model = model.model_obj
-        context_formatter(
-            current_example.context
-        ) if current_example.context is not None else ""
-        options_alias_to_original = {}
+        is_list_output = "list" in current_example.output_type.name.lower()
+        regex = current_example.output_type.regex
         options = current_example.options
-        if options is not None:
-            # Since 'options' is a mutable list, create a copy to retain the originals
-            options_with_aliases = copy.deepcopy(options)
-            # Below we check to see if our options have a unique first word
-            # sometimes, the model will generate 'Frank' instead of 'Frank Smith'
-            # We still want to align that, in this case
-            add_first_word = False
-            if len(set([i.split(" ")[0] for i in options])) == len(options):
-                add_first_word = True
-            for option in options:
-                option = str(option)
-                for option_alias in [option.title(), option.upper()]:
-                    options_with_aliases.add(option_alias)
-                    options_alias_to_original[option_alias] = option
-                if add_first_word:
-                    option_alias = option.split(" ")[0]
-                    options_alias_to_original[option_alias] = option
-                    options_with_aliases.add(option_alias)
+        modifier = current_example.output_type.modifier
+        options_with_aliases, options_alias_to_original = get_option_aliases(
+            options, is_list_output=is_list_output
+        )
+        if options is not None and list_options_in_prompt:
+            if len(options) > os.getenv(
+                MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+            ):
+                logger.debug(
+                    Fore.YELLOW
+                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                )
+                list_options_in_prompt = False
         if isinstance(model, LocalModel):
             with guidance.user():
                 lm += MAIN_INSTRUCTION
@@ -76,24 +150,32 @@ class QAProgram(Program):
                 with guidance.assistant():
                     lm += example.answer
             with guidance.user():
-                lm += current_example.to_string(context_formatter)
+                lm += current_example.to_string(
+                    context_formatter, list_options=list_options_in_prompt
+                )
             prompt = lm._current_prompt()
-            with guidance.assistant():
-                if options is not None:
-                    response = (
-                        lm
-                        + guidance.capture(
-                            guidance.select(options=options_with_aliases),
-                            name="response",
-                        )
-                    )._variables["response"]
+            if is_list_output:
+                lm += gen_list(
+                    force_quotes=bool("str" in current_example.output_type.name),
+                    regex=regex,
+                    options=options_with_aliases,
+                    modifier=modifier,
+                )
+            else:
+                if options:
+                    lm += guidance.select(options=options, name="response")
                 else:
-                    response = (
-                        lm
-                        + guidance.capture(
-                            guidance.gen(max_tokens=max_tokens or 50), name="response"
-                        )
-                    )._variables["response"]
+                    lm += guidance.gen(
+                        max_tokens=max_tokens or 200,
+                        regex=regex,
+                        # list_append=bool(modifier is not None),
+                        name="response",
+                        stop=["\n", "Question:"],
+                    )
+            if is_list_output and modifier == "*":
+                response = lm.get("response", [])
+            else:
+                response = lm["response"].strip(" ")
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
@@ -107,32 +189,56 @@ class QAProgram(Program):
                 messages.append(user(example.to_string(context_formatter)))
                 messages.append(assistant(example.answer))
             # Add current question + context for inference
-            messages.append(user(current_example.to_string(context_formatter)))
-            if model.tokenizer is not None:
-                max_tokens = (
-                    max(
-                        [
-                            len(model.tokenizer.encode(alias))
-                            for alias in options_alias_to_original
-                        ]
+            messages.append(
+                user(
+                    current_example.to_string(
+                        context_formatter, list_options=list_options_in_prompt
                     )
-                    if options
-                    else max_tokens
                 )
+            )
             response = generate(
                 model,
                 messages_list=[messages],
                 max_tokens=max_tokens,
             )[0].strip()
             prompt = "".join([i["content"] for i in messages])
+        if isinstance(response, str):
+            # If we have specified a modifier, we try to parse it to a tuple
+            if is_list_output:
+                try:
+                    response = response.strip("'")
+                    response = literal_eval(response)
+                    assert isinstance(response, (list, tuple))
+                    response = tuple(response)
+                except (ValueError, SyntaxError, AssertionError):
+                    response = [i.strip() for i in response.split(",")]
+                    response = tuple(
+                        [
+                            "'{}'".format(single_quote_escape(val.strip()))
+                            if isinstance(val, str)
+                            else val
+                            for val in cast_responses_to_datatypes(response)
+                        ]
+                    )
+            else:
+                response = cast_responses_to_datatypes([response])[0]
         # Map from modified options to original, as they appear in DB
-        response: str = options_alias_to_original.get(response, response)
-        if options and response not in options:
-            print(
-                Fore.RED
-                + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
-                + Fore.RESET
-            )
+        if not isinstance(response, (list, tuple, set)):
+            response = [response]
+        response: List[str] = [
+            options_alias_to_original.get(str(r), r) for r in response
+        ]
+        if len(response) == 1 and not is_list_output:
+            response = response[0]
+            if options and response not in options:
+                print(
+                    Fore.RED
+                    + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
+                    + Fore.RESET
+                )
+            response = f"'{single_quote_escape(response)}'"
+        else:
+            response = tuple(response)
         return (response, prompt)
 
 
@@ -148,6 +254,7 @@ class LLMQA(QAIngredient):
     context_formatter: Callable[[pd.DataFrame], str] = attrib(
         default=lambda df: df.to_markdown(index=False)
     )
+    list_options_in_prompt: bool = attrib(default=True)
     few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = attrib(default=None)
     k: Optional[int] = attrib(default=None)
 
@@ -159,6 +266,7 @@ class LLMQA(QAIngredient):
         context_formatter: Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
             index=False
         ),
+        list_options_in_prompt: bool = True,
         k: Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -228,6 +336,7 @@ class LLMQA(QAIngredient):
             model=model,
             few_shot_retriever=few_shot_retriever,
             context_formatter=context_formatter,
+            list_options_in_prompt=list_options_in_prompt,
         )
 
     def run(
@@ -236,13 +345,36 @@ class LLMQA(QAIngredient):
         question: str,
         context_formatter: Callable[[pd.DataFrame], str],
         few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = None,
-        options: Optional[Set[str]] = None,
+        options: Optional[Collection[str]] = None,
+        list_options_in_prompt: bool = None,
+        modifier: ModifierType = None,
+        output_type: Optional[Union[DataType, str]] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
-        table_to_title: Optional[Dict[str, str]] = None,
         long_answer: bool = False,
         **kwargs,
     ) -> Union[str, int, float]:
+        """
+        Args:
+            question: The question to map onto the values. Will also be the new column name
+            context: Table subset to use as context in answering question
+            model: The Model (blender) we will make calls to.
+            context_formatter: Callable defining how we want to serialize table context.
+            few_shot_retriever: Callable which takes a string, and returns n most similar few-shot examples
+            options: Optional collection with which we try to constrain generation.
+            list_options_in_prompt: Defines whether we include options in the prompt for the current inference example
+            modifier: If we expect an array of scalars, this defines the regex we want to apply.
+                Used directly for constrained decoding at inference time if we have a guidance model.
+            output_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
+            regex: Optional regex to constrain answer generation.
+            value_limit: Optional limit on how many rows from context we use
+            long_answer: If true, we more closely mimic long-form end-to-end question answering.
+                If false, we just give the answer with no explanation or context
+
+        Returns:
+            Union[str, int, float, tuple] containing the response from the model.
+                Response will only be a tuple if `modifier` is not None.
+        """
         if model is None:
             raise IngredientException(
                 "LLMQA requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
@@ -252,11 +384,15 @@ class LLMQA(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
+        output_type: DataType = prepare_datatype(
+            output_type=output_type, options=options, modifier=modifier
+        )
         current_example = QAExample(
             **{
                 "question": question,
                 "context": context,
                 "options": options,
+                "output_type": output_type,
             }
         )
         few_shot_examples: List[AnnotatedQAExample] = few_shot_retriever(
@@ -267,8 +403,8 @@ class LLMQA(QAIngredient):
             current_example=current_example,
             context_formatter=context_formatter,
             few_shot_examples=few_shot_examples,
+            list_options_in_prompt=list_options_in_prompt,
             long_answer=long_answer,
             **kwargs,
         )
-        # Post-process language model response
-        return "'{}'".format(single_quote_escape(result.strip()))
+        return result

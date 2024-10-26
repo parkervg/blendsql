@@ -11,6 +11,8 @@ from tests.utils import (
     return_aapl,
     get_table_size,
     select_first_option,
+    return_aapl_alias,
+    return_stocks_tuple_alias,
 )
 
 databases = [
@@ -31,6 +33,7 @@ def dummy_ingredients() -> set:
         return_aapl,
         get_table_size,
         select_first_option,
+        return_aapl_alias,
     }
 
 
@@ -294,6 +297,65 @@ def test_qa_equals_multi_exec(db, dummy_ingredients):
 
 
 @pytest.mark.parametrize("db", databases)
+def test_alias_ingredient_multi_exec(db):
+    """Tests the AliasIngredient class.
+    We don't inherit the dummy_ingredients fixture here,
+    since we want to be sure the 'return_aapl_alias' ingredient
+    is correctly injecting any dependent ingredients at runtime.
+
+    commit 6bac71f
+    """
+    blendsql = """
+    SELECT Action FROM account_history
+    WHERE Symbol = {{return_aapl_alias()}}
+    """
+    sql = """
+    SELECT Action FROM account_history
+    WHERE Symbol = 'AAPL'
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients={return_aapl_alias},
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+@pytest.mark.parametrize("db", databases)
+def test_alias_tuple_ingredient_multi_exec(db):
+    """
+    commit d795a00
+    """
+    blendsql = """
+    SELECT Symbol FROM portfolio AS w
+        WHERE {{starts_with('A', 'w::Symbol')}} = TRUE
+        AND Symbol IN {{return_stocks_tuple_alias()}}
+        AND LENGTH(w.Symbol) > 3
+    """
+    sql = """
+    SELECT Symbol FROM portfolio AS w
+        WHERE w.Symbol LIKE 'A%'
+        AND Symbol IN ('AAPL', 'AMZN', 'TYL')
+        AND LENGTH(w.Symbol) > 3
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients={starts_with, return_stocks_tuple_alias},
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3
+    """
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
+
+
+@pytest.mark.parametrize("db", databases)
 def test_table_alias_multi_exec(db, dummy_ingredients):
     blendsql = """
     SELECT Symbol FROM portfolio AS w
@@ -548,6 +610,42 @@ def test_subquery_alias_with_join_multi_exec(db, dummy_ingredients):
     passed_to_ingredient = db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) AND "Percent of Account" < 0.2 
+    """
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
+
+
+@pytest.mark.parametrize("db", databases)
+def test_subquery_alias_with_join_multi_exec_and(db, dummy_ingredients):
+    """Same as before, but now we use an `AND` predicate to link the `JOIN` and `LIKE` clauses.
+    This will hit the `replace_join_with_ingredient_multiple_ingredient` transform.
+    """
+    blendsql = """
+    SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
+    JOIN {{
+        do_join(
+            left_on='geographic::Symbol',
+            right_on='w::Symbol'
+        )
+    }} AND {{starts_with('F', 'w::Symbol')}}
+    """
+
+    sql = """
+    SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
+    JOIN geographic ON w.Symbol = geographic.Symbol
+    AND w.Symbol LIKE 'F%'
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=dummy_ingredients,
+    )
+    sql_df = db.execute_to_df(sql)
+    assert_equality(smoothie=smoothie, sql_df=sql_df, args=["F"])
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) 
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient

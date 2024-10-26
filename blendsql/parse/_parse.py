@@ -6,20 +6,17 @@ from typing import (
     List,
     Tuple,
     Union,
-    Callable,
     Type,
     Optional,
     Dict,
     Any,
-    Literal,
 )
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
-from ..utils import recover_blendsql
-from .._constants import IngredientKwarg
-from ._dialect import _parse_one, FTS5SQLite
+from .._constants import IngredientKwarg, ModifierType, DataTypes
+from ._dialect import _parse_one
 from . import _checks as check
 from . import _transforms as transform
 from ._constants import SUBQUERY_EXP
@@ -41,7 +38,7 @@ def get_predicate_literals(node) -> List[str]:
     if isinstance(node.parent, exp.Select):
         return []
     for child, _, _ in gen:
-        if child.find_ancestor(exp.Struct) or isinstance(child, exp.Struct):
+        if check.ingredient_node_in_ancestors(child) or check.is_ingredient_node(child):
             continue
         if isinstance(child, exp.Literal):
             literals.add(
@@ -52,7 +49,7 @@ def get_predicate_literals(node) -> List[str]:
             literals.add(child.args["this"])
             continue
         for i in child.find_all(exp.Literal):
-            if i.find_ancestor(exp.Struct):
+            if check.ingredient_node_in_ancestors(i):
                 continue
             literals.add(literal_eval(i.name) if not i.is_string else i.name)
     return list(literals)
@@ -110,18 +107,20 @@ class QueryContextManager:
         2) The string representation of the query
     """
 
+    dialect: sqlglot.Dialect = attrib()
+
     node: exp.Expression = attrib(default=None)
     _query: str = attrib(default=None)
     _last_to_string_node: exp.Expression = None
 
     def parse(self, query, schema: Optional[Union[dict, Schema]] = None):
         self._query = query
-        self.node = _parse_one(query, schema=schema)
+        self.node = _parse_one(query, dialect=self.dialect, schema=schema)
 
     def to_string(self):
-        # Only call `recover_blendsql` if we need to
+        # Only call `sql` if we need to
         if hash(self.node) != hash(self._last_to_string_node):
-            self._query = recover_blendsql(self.node.sql(dialect=FTS5SQLite))
+            self._query = self.node.sql(dialect=self.dialect)
             self.last_to_string_node = self.node
         return self._query
 
@@ -131,6 +130,7 @@ class QueryContextManager:
 
 @attrs
 class SubqueryContextManager:
+    dialect: sqlglot.Dialect = attrib()
     node: exp.Select = attrib()
     prev_subquery_has_ingredient: bool = attrib()
     tables_in_ingredients: set = attrib()
@@ -198,11 +198,10 @@ class SubqueryContextManager:
             and not check.ingredient_alias_in_query_body(self.node)
         ):
             abstracted_query = to_select_star(self.node).transform(
-                transform.set_structs_to_true
+                transform.set_ingredient_nodes_to_true
             )
-            abstracted_query_str = recover_blendsql(
-                abstracted_query.sql(dialect=FTS5SQLite)
-            )
+            abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
+
             for tablename in self.tables_in_ingredients:
                 yield (tablename, True, abstracted_query_str)
             return
@@ -211,8 +210,13 @@ class SubqueryContextManager:
             if (
                 len(
                     list(
-                        get_scope_nodes(
-                            root=self.root, nodetype=exp.Struct, restrict_scope=True
+                        filter(
+                            lambda node: check.is_ingredient_node(node),
+                            get_scope_nodes(
+                                root=self.root,
+                                nodetype=exp.Identifier,
+                                restrict_scope=True,
+                            ),
                         )
                     )
                 )
@@ -226,7 +230,9 @@ class SubqueryContextManager:
                     transform.maybe_set_subqueries_to_true
                 )
             # Substitute all ingredients with 'TRUE'
-            abstracted_query = table_star_query.transform(transform.set_structs_to_true)
+            abstracted_query = table_star_query.transform(
+                transform.set_ingredient_nodes_to_true
+            )
             # Check here to see if we have no other predicates other than 'WHERE TRUE'
             # There's no point in creating a temporary table in this situation
             where_node = abstracted_query.find(exp.Where)
@@ -239,9 +245,8 @@ class SubqueryContextManager:
                     continue
             elif not where_node:
                 continue
-            abstracted_query_str = recover_blendsql(
-                abstracted_query.sql(dialect=FTS5SQLite)
-            )
+            abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
+
             yield (tablename, False, abstracted_query_str)
 
     def _table_star_queries(
@@ -324,7 +329,9 @@ class SubqueryContextManager:
             if table_conditions_str:
                 yield (
                     tablenode.name,
-                    _parse_one(base_select_str + table_conditions_str),
+                    _parse_one(
+                        base_select_str + table_conditions_str, dialect=self.dialect
+                    ),
                 )
 
     def get_table_predicates_str(
@@ -360,7 +367,7 @@ class SubqueryContextManager:
         if len(all_table_predicates) == 0:
             return ""
         table_conditions_str = " AND ".join(
-            [c.sql(dialect=FTS5SQLite) for c in all_table_predicates]
+            [c.sql(dialect=self.dialect) for c in all_table_predicates]
         )
         return table_conditions_str
 
@@ -393,80 +400,93 @@ class SubqueryContextManager:
                 - options: Optional str default to pass to `options` argument in a QAIngredient
                     - Will have the form '{table}::{column}'
         """
-
-        def create_regex(
-            output_type: Literal["boolean", "integer", "float"]
-        ) -> Callable[[int], str]:
-            """Helper function to create a regex lambda.
-            These regex lambdas take an integer (num_repeats) and return
-            a regex which is restricted to repeat exclusively num_repeats times.
-            """
-            if output_type == "boolean":
-                base_regex = f"(t|f)"
-            elif output_type == "integer":
-                # SQLite max is 18446744073709551615
-                # This is 20 digits long, so to be safe, cap the generation at 19
-                base_regex = r"(\d{1,18})"
-            elif output_type == "float":
-                base_regex = r"(\d(\d|\.)*)"
-            else:
-                raise ValueError(f"Unknown output_type {output_type}")
-            return base_regex
-
         added_kwargs: Dict[str, Any] = {}
-        ingredient_node = _parse_one(self.sql()[start:end])
+        ingredient_node = _parse_one(self.sql()[start:end], dialect=self.dialect)
+        if isinstance(ingredient_node, exp.Column):
+            ingredient_node = ingredient_node.find(exp.Identifier)
         child = None
-        for child, _, _ in self.node.walk():
+        for child in self.node.find_all(exp.Identifier):
             if child == ingredient_node:
                 break
         if child is None:
             raise ValueError
-        ingredient_node_in_context = child
-        start_node = ingredient_node_in_context.parent
-        # Below handles when we're in a function
-        # Example: CAST({{LLMMap('jump distance', 'w::notes')}} AS FLOAT)
-        while isinstance(start_node, exp.Func) and start_node is not None:
-            start_node = start_node.parent
-        output_type: Literal["boolean", "integer", "float"] = None
+        if isinstance(child, exp.Identifier):
+            _parent = child.parent
+            if isinstance(_parent, exp.Column):
+                child = _parent
+        start_node = child.parent
         predicate_literals: List[str] = []
+        modifier: ModifierType = None
+        # Check for instances like `{column} = {QAIngredient}`
+        # where we can infer the space of possible options for QAIngredient
+        if isinstance(start_node, (exp.EQ, exp.In)):
+            if isinstance(start_node.args["this"], exp.Column):
+                if "table" not in start_node.args["this"].args:
+                    logger.debug(
+                        "When inferring `options` in infer_gen_kwargs, encountered a column node with "
+                        "no table specified!\nShould probably mark `schema_qualify` arg as True"
+                    )
+                else:
+                    # This is valid for a default `options` set
+                    added_kwargs[
+                        IngredientKwarg.OPTIONS
+                    ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
+        if isinstance(start_node, (exp.In, exp.Tuple, exp.Values)):
+            if isinstance(start_node, (exp.Tuple, exp.Values)):
+                added_kwargs["wrap_tuple_in_parentheses"] = False
+            # If the ingredient is in the 2nd arg place
+            # E.g. not `{{LLMMap()}} IN ('a', 'b')`
+            # Only `column IN {{LLMQA()}}`
+            field_val = start_node.args.get("field", None)
+            if field_val is not None:
+                if child == field_val:
+                    modifier = "+"
+            expressions_val = start_node.args.get("expressions")
+            if expressions_val is not None:
+                if len(expressions_val) > 0:
+                    if child == expressions_val[0]:
+                        modifier = "+"
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
-            # Check for instances like `{column} = {QAIngredient}`
-            # where we can infer the space of possible options for QAIngredient
-            if isinstance(start_node, exp.EQ):
-                if isinstance(start_node.args["this"], exp.Column):
-                    if "table" not in start_node.args["this"].args:
-                        logger.debug(
-                            "When inferring `options` in infer_gen_kwargs, encountered a column node with "
-                            "no table specified!\nShould probably mark `schema_qualify` arg as True"
-                        )
-                    else:
-                        # This is valid for a default `options` set
-                        added_kwargs[
-                            "options"
-                        ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
+        # Try to infer output type given the literals we've been given
+        # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
-                output_type = "boolean"
+                output_type = DataTypes.BOOL(modifier)
             elif all(isinstance(x, float) for x in predicate_literals):
-                output_type = "float"
+                output_type = DataTypes.FLOAT(modifier)
             elif all(isinstance(x, int) for x in predicate_literals):
-                output_type = "integer"
+                output_type = DataTypes.INT(modifier)
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
-                added_kwargs["output_type"] = "string"
+                added_kwargs[IngredientKwarg.OUTPUT_TYPE] = DataTypes.STR(modifier)
                 if len(predicate_literals) == 1:
                     predicate_literals = predicate_literals + [predicate_literals[0]]
-                added_kwargs["example_outputs"] = predicate_literals
+                added_kwargs[IngredientKwarg.EXAMPLE_OUTPUTS] = predicate_literals
                 return added_kwargs
-        elif isinstance(
-            ingredient_node_in_context.parent, (exp.Order, exp.Ordered, exp.AggFunc)
+        elif len(predicate_literals) == 0 and isinstance(
+            start_node,
+            (
+                exp.Order,
+                exp.Ordered,
+                exp.AggFunc,
+                exp.GT,
+                exp.GTE,
+                exp.LT,
+                exp.LTE,
+                exp.Sum,
+            ),
         ):
-            output_type = "float"  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
-        if output_type is not None:
-            added_kwargs["output_type"] = output_type
-            added_kwargs[IngredientKwarg.REGEX] = create_regex(output_type)
+            output_type = DataTypes.FLOAT(
+                modifier
+            )  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
+        elif modifier:
+            # Fallback to a generic list datatype
+            output_type = DataTypes.LIST(modifier)
+        else:
+            output_type = None
+        added_kwargs[IngredientKwarg.OUTPUT_TYPE] = output_type
         return added_kwargs
 
-    def sql(self, dialect: sqlglot.dialects.Dialect = FTS5SQLite):
-        return recover_blendsql(self.node.sql(dialect=dialect))
+    def sql(self):
+        return self.node.sql(dialect=self.dialect)

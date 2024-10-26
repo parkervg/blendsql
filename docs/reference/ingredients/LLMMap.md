@@ -15,6 +15,7 @@ hide:
       show_root_heading: false    
       members:
       - from_args
+      - run
 
 ## Description
 This type of ingredient applies a function on a given column to create a new column containing the function's output.

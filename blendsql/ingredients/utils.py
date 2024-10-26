@@ -1,11 +1,21 @@
-from typing import Union, List, Set, Dict, Callable
+from typing import Union, List, Set, Dict, Callable, Optional, Union
+from collections.abc import Collection
 from functools import partialmethod, partial
+from ast import literal_eval
 from colorama import Fore
 
 from ..utils import get_tablename_colname
 from ..db import Database
 from .few_shot import Example
 from .._logger import logger
+from blendsql._exceptions import IngredientException
+from blendsql._constants import (
+    DEFAULT_NAN_ANS,
+    ModifierType,
+    DataType,
+    DataTypes,
+    STR_TO_DATATYPE,
+)
 
 
 def unpack_options(
@@ -48,6 +58,74 @@ def initialize_retriever(
         return_objs=examples,
     )
     return partial(retriever.retrieve_top_k, k=k)
+
+
+def prepare_datatype(
+    options: Optional[Collection[str]],
+    output_type: Optional[Union[str]] = None,
+    modifier: Optional[ModifierType] = None,
+) -> DataType:
+    if output_type is None:
+        output_type = DataTypes.ANY()
+    elif isinstance(output_type, str):
+        # The user has passed us an output type in the BlendSQL query
+        # That should take precedence
+        if output_type not in STR_TO_DATATYPE:
+            raise IngredientException(
+                f"{output_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
+            )
+        output_type = STR_TO_DATATYPE.get(output_type)
+        if modifier:  # User passed modifier takes precedence
+            output_type.modifier = modifier
+    if modifier:
+        # The user has passed us a modifier that should take precedence
+        output_type.modifier = modifier
+    if output_type.regex is not None:
+        if options is not None:
+            logger.debug(
+                Fore.LIGHTBLACK_EX
+                + f"Ignoring inferred regex '{output_type.regex}' and using options '{options}' instead"
+                + Fore.RESET
+            )
+            output_type.regex = None
+        else:
+            logger.debug(
+                Fore.LIGHTBLACK_EX + f"Using regex '{output_type.regex}'" + Fore.RESET
+            )
+    elif options:
+        logger.debug(Fore.LIGHTBLACK_EX + f"Using options '{options}'" + Fore.RESET)
+    return output_type
+
+
+def cast_responses_to_datatypes(responses: List[str]) -> List[Union[float, int, str]]:
+    responses = [
+        {
+            "t": True,
+            "f": False,
+            "true": True,
+            "false": False,
+            "y": True,
+            "n": False,
+            "yes": True,
+            "no": False,
+            DEFAULT_NAN_ANS: None,
+        }.get(i.lower(), i)
+        if isinstance(i, str)
+        else i
+        for i in responses
+    ]
+    # Try to cast strings as numerics
+    for idx, value in enumerate(responses):
+        if not isinstance(value, str):
+            continue
+        value = value.replace(",", "")
+        try:
+            casted_value = literal_eval(value)
+            assert isinstance(casted_value, (float, int, str))
+            responses[idx] = casted_value
+        except (ValueError, SyntaxError, AssertionError):
+            continue
+    return responses
 
 
 def partialclass(cls, *args, **kwds):

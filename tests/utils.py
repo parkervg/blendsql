@@ -1,6 +1,13 @@
 import pandas as pd
-from typing import Iterable, List, Union
-from blendsql.ingredients import MapIngredient, QAIngredient, JoinIngredient
+from typing import Iterable, List, Union, Tuple
+from collections.abc import Collection
+from blendsql.ingredients import (
+    Ingredient,
+    MapIngredient,
+    QAIngredient,
+    JoinIngredient,
+    AliasIngredient,
+)
 from blendsql.db.utils import single_quote_escape
 
 
@@ -25,7 +32,7 @@ class get_length(MapIngredient):
 
 
 class select_first_sorted(QAIngredient):
-    def run(self, options: set, **kwargs) -> Union[str, int, float]:
+    def run(self, options: set, **kwargs) -> Union[str, int, float, tuple]:
         """Simple test function, equivalent to the following in SQL:
         `ORDER BY {colname} LIMIT 1`
         """
@@ -34,13 +41,13 @@ class select_first_sorted(QAIngredient):
 
 
 class return_aapl(QAIngredient):
-    def run(self, **kwargs) -> Union[str, int, float]:
+    def run(self, **kwargs) -> Union[str, int, float, tuple]:
         """Executes to return the string 'AAPL'"""
         return "'AAPL'"
 
 
 class get_table_size(QAIngredient):
-    def run(self, context: pd.DataFrame, **kwargs) -> Union[str, int, float]:
+    def run(self, context: pd.DataFrame, **kwargs) -> Union[str, int, float, tuple]:
         """Returns the length of the context subtable passed to it."""
         return len(context)
 
@@ -48,9 +55,27 @@ class get_table_size(QAIngredient):
 class select_first_option(QAIngredient):
     def run(
         self, question: str, context: pd.DataFrame, options: set, **kwargs
-    ) -> Union[str, int, float]:
+    ) -> Union[str, int, float, tuple]:
         """Returns the first item in the (ordered) options set"""
         return f"'{single_quote_escape(sorted(list(filter(lambda x: x, options)))[0])}'"
+
+
+class return_aapl_alias(AliasIngredient):
+    def run(self, *args, **kwargs) -> Tuple[str, Collection[Ingredient]]:
+        return "{{select_first_option(options='AAPL;AMZN;TYL')}}", {select_first_option}
+
+
+class return_stocks_tuple(QAIngredient):
+    def run(
+        self, question: str, context: pd.DataFrame, options: set, **kwargs
+    ) -> Union[str, int, float, tuple]:
+        """Returns the first item in the (ordered) options set"""
+        return tuple(["AAPL", "AMZN", "TYL"])
+
+
+class return_stocks_tuple_alias(AliasIngredient):
+    def run(self, *args, **kwargs) -> Tuple[str, Collection[Ingredient]]:
+        return "{{return_stocks_tuple()}}", {return_stocks_tuple}
 
 
 class do_join(JoinIngredient):

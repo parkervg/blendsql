@@ -1,10 +1,17 @@
 import pytest
+import os
 
-from blendsql import blend, ImageCaption, LLMMap, LLMQA
+from blendsql import blend, ImageCaption, LLMMap, LLMQA, RAGQA
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
-from blendsql.models import TransformersVisionModel, TransformersLLM
+from blendsql.models import (
+    TransformersVisionModel,
+    TransformersLLM,
+    AzurePhiModel,
+    OpenaiLLM,
+    AnthropicLLM,
+)
 from blendsql._exceptions import IngredientException
 
 TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M"
@@ -161,3 +168,22 @@ def test_readme_example_3(db, text_model):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
+
+
+@pytest.mark.long
+def test_rag_qa(db, model):
+    if os.getenv("AZURE_SUBSCRIPTION_KEY") is None:
+        pytest.skip("AZURE_SUBSCRIPTION_KEY environment variable not set")
+    res = blend(
+        query="""
+        SELECT Name, Location, Description FROM parks
+        WHERE Location = {{RAGQA('Which state was Sarah Palin governor of?')}}
+        """,
+        db=db,
+        default_model=model,
+        # We expect the `blend()` call to fetch the appropriate ingredients for us
+        ingredients={RAGQA},
+    )
+    assert isinstance(res, Smoothie)
+    if isinstance(model, (AnthropicLLM, OpenaiLLM, AzurePhiModel)):
+        assert res.df["Location"].unique().tolist() == ["Alaska"]

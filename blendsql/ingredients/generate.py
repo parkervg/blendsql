@@ -10,6 +10,7 @@ from blendsql._configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
 from .._logger import logger
 from ..models import Model, OllamaLLM, OpenaiLLM, AnthropicLLM
 
+
 system = lambda x: {"role": "system", "content": x}
 assistant = lambda x: {"role": "assistant", "content": x}
 user = lambda x: {"role": "user", "content": x}

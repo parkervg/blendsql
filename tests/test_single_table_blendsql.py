@@ -99,7 +99,7 @@ def test_simple_ingredient_exec_at_end(db, dummy_ingredients):
 @pytest.mark.parametrize("db", databases)
 def test_simple_ingredient_exec_in_select(db, dummy_ingredients):
     blendsql = """
-    SELECT {{get_length('Z', 'transactions::merchant')}} FROM transactions WHERE parent_category = 'Auto & Transport' 
+    SELECT {{get_length('Z', 'transactions::merchant')}} AS "LENGTH(merchant)" FROM transactions WHERE parent_category = 'Auto & Transport' 
     """
     sql = """
     SELECT LENGTH(merchant) FROM transactions WHERE parent_category = 'Auto & Transport'
@@ -536,7 +536,6 @@ def test_query_options_arg(db, dummy_ingredients):
     blendsql = """
     {{
         select_first_option(
-            'I hope this test works',
             (SELECT * FROM transactions),
             options=(SELECT DISTINCT merchant FROM transactions WHERE merchant = 'Paypal')
         )
@@ -693,6 +692,29 @@ def test_null_negation(db, dummy_ingredients):
     )
     sql_df = db.execute_to_df(sql)
     assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+@pytest.mark.parametrize("db", databases)
+def test_cte_with_ingredient(db, dummy_ingredients):
+    """c3ec1eb"""
+    blendsql = """
+    WITH a AS (
+        SELECT {{
+            get_table_size('Table size?', (select * from transactions where amount < 500))
+        }} AS "size"
+    ) SELECT {{
+        get_table_size(
+            'Table size?', (select * from a where a.size > 0)
+        )
+    }}
+    """
+    smoothie = blend(
+        query=blendsql,
+        db=db,
+        ingredients=dummy_ingredients,
+    )
+    # sql_df = db.execute_to_df(sql)
+    # assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
 if __name__ == "__main__":
