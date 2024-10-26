@@ -16,10 +16,5 @@
       },
       "output_type": "int",
       "answer": "2"
-  },
-  {
-    "question": "Who were the first 3 U.S. Presidents, in order?",
-    "output_type": "List[str]",
-    "answer": "['George Washington', 'John Adams', 'Thomas Jefferson']"
   }
 ]
