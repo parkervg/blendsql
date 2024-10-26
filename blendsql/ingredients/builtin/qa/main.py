@@ -206,6 +206,7 @@ class QAProgram(Program):
             # If we have specified a modifier, we try to parse it to a tuple
             if is_list_output:
                 try:
+                    response = response.strip("'")
                     response = literal_eval(response)
                     assert isinstance(response, (list, tuple))
                     response = tuple(response)
