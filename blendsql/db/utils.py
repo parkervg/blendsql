@@ -1,6 +1,6 @@
 import re
 import pandas as pd
-from typing import Callable
+from typing import Callable, Optional
 from attr import attrs, attrib
 
 
@@ -47,8 +47,11 @@ def escape(s):
     return single_quote_escape(double_quote_escape(s))
 
 
-def format_tuple(value: tuple):
-    return "(" + ",".join(repr(v) for v in value) + ")"
+def format_tuple(value: tuple, wrap_in_parentheses: Optional[bool] = True):
+    formatted = ",".join(repr(v) for v in value)
+    if wrap_in_parentheses:
+        formatted = "(" + formatted + ")"
+    return formatted
 
 
 def select_all_from_table_query(tablename: str) -> str:

@@ -432,6 +432,8 @@ class SubqueryContextManager:
                         IngredientKwarg.OPTIONS
                     ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
         if isinstance(start_node, (exp.In, exp.Tuple, exp.Values)):
+            if isinstance(start_node, (exp.Tuple, exp.Values)):
+                added_kwargs["wrap_tuple_in_parentheses"] = False
             # If the ingredient is in the 2nd arg place
             # E.g. not `{{LLMMap()}} IN ('a', 'b')`
             # Only `column IN {{LLMQA()}}`

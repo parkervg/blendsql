@@ -175,7 +175,7 @@ class MapIngredient(Ingredient):
         self,
         question: Optional[str] = None,
         context: Optional[str] = None,
-        regex: Optional[Callable] = None,
+        # regex: Optional[Callable] = None,
         options: Optional[Union[list, str]] = None,
         *args,
         **kwargs,
@@ -253,8 +253,8 @@ class MapIngredient(Ingredient):
                     db=self.db,
                 )
             )
-        else:
-            kwargs[IngredientKwarg.REGEX] = regex
+        # else:
+        #     kwargs[IngredientKwarg.REGEX] = regex
         kwargs[IngredientKwarg.VALUES] = values
         kwargs[IngredientKwarg.QUESTION] = question
         kwargs[IngredientKwarg.OPTIONS] = unpacked_options
@@ -592,7 +592,9 @@ class QAIngredient(Ingredient):
             *args, **self.__dict__ | kwargs
         )
         if isinstance(response, tuple):
-            response = format_tuple(response)
+            response = format_tuple(
+                response, kwargs.get("wrap_tuple_in_parentheses", True)
+            )
         return response
 
     @abstractmethod
