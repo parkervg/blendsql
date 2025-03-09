@@ -8,7 +8,7 @@ from typing import Optional, List
 
 from blendsql._configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
 from .._logger import logger
-from ..models import Model, OllamaLLM, OpenaiLLM, AnthropicLLM
+from ..models import Model, OllamaLLM, OpenaiLLM, AnthropicLLM, GeminiLLM
 
 
 system = lambda x: {"role": "system", "content": x}
@@ -78,6 +78,48 @@ async def run_anthropic_async_completions(
         ]
     return [m.content[0].text for m in await asyncio.gather(*responses)]
 
+@generate.register(GeminiLLM)
+def generate_gemini(model: GeminiLLM, messages_list: List[List[dict]], **kwargs) -> str:
+    """Helper function to work with Gemini models."""
+    responses = []
+    for messages in messages_list:
+        response = asyncio.get_event_loop().run_until_complete(
+            run_gemini_async_completions(model, messages, **kwargs)
+        )
+        responses.append(response)
+    return responses
+
+async def run_gemini_async_completions(
+    model: GeminiLLM,
+    messages_list: List[List[dict]],
+    max_tokens: Optional[int] = None,
+    stop_at: Optional[List[str]] = None,
+    **kwargs,
+):
+    sem = Semaphore(int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT)))
+    client: "AsyncGemini" = model.model_obj
+    async with sem:
+        responses = [
+            client.messages.create(
+                model=model.model_name_or_path,
+                messages=messages,
+                max_tokens=max_tokens or 4000,
+                # stop_sequences=stop_at
+                **model.load_model_kwargs,
+            )
+            for messages in messages_list
+        ]
+    return [m.content[0].text for m in await asyncio.gather(*responses)]
+
+async def run_gemini_async_completions(model, messages, **kwargs):
+    client = model.model_obj
+    
+    # Convert messages to Gemini format
+    prompt = "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
+    
+    # Generate content
+    response = await client.generate_content_async(prompt)
+    return response.text
 
 @generate.register(AnthropicLLM)
 def generate_anthropic(
