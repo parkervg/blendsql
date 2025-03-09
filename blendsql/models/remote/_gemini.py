@@ -18,7 +18,7 @@ class GeminiLLM(RemoteModel):
     
     Args:
         model_name_or_path: Name of the Gemini model (e.g., "gemini-pro")
-        env: Path to directory of .env file containing GOOGLE_API_KEYS
+        env: Path to directory of .env file containing GEMINI_API_KEYS
         config: Optional configuration for generation
         caching: Whether to cache responses
     """
@@ -41,10 +41,10 @@ class GeminiLLM(RemoteModel):
         try:
             with open(os.path.join(env, '.env'), 'r') as f:
                 for line in f:
-                    if line.startswith('GOOGLE_API_KEY='):
+                    if line.startswith('GEMINI_API_KEY='):
                         self.api_keys.append(line.split('=')[1].strip())
             if not self.api_keys:
-                raise ValueError("No GOOGLE_API_KEY found in .env file")
+                raise ValueError("No GEMINI_API_KEY found in .env file")
         except FileNotFoundError:
             raise ValueError(f"Could not find .env file in {env}")
         except Exception as e:
@@ -81,5 +81,5 @@ class GeminiLLM(RemoteModel):
         if not self.api_keys:
             raise ValueError(
                 "Error authenticating with Google Gemini API\n"
-                "You need to provide at least one GOOGLE_API_KEY in your .env file"
+                "You need to provide at least one GEMINI_API_KEY in your .env file"
             )
