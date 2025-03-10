@@ -35,23 +35,7 @@ class GeminiLLM(RemoteModel):
             raise ImportError(
                 "Please install the Google Generative AI package with: pip install google-generativeai"
             )
-
         
-        self.api_keys = []
-        try:
-            with open(os.path.join(env, '.env'), 'r') as f:
-                for line in f:
-                    if line.startswith('GEMINI_API_KEY='):
-                        self.api_keys.append(line.split('=')[1].strip())
-            if not self.api_keys:
-                raise ValueError("No GEMINI_API_KEY found in .env file")
-        except FileNotFoundError:
-            raise ValueError(f"Could not find .env file in {env}")
-        except Exception as e:
-            raise ValueError(f"Error reading .env file: {str(e)}")
-
-        self.api_key_cycle = cycle(self.api_keys)
-
         if config is None:
             config = {}
             
@@ -70,16 +54,14 @@ class GeminiLLM(RemoteModel):
         import google.generativeai as genai
         
         
-        api_key = next(self.api_key_cycle)
-        genai.configure(api_key=api_key)
+        
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "Please provide a GEMINI_API_KEY in your .env file"
+            )
+        genai.configure(api_key=self.api_key)
         
         
         model = genai.GenerativeModel(self.model_name_or_path)
         return model
-
-    def _setup(self, **kwargs) -> None:
-        if not self.api_keys:
-            raise ValueError(
-                "Error authenticating with Google Gemini API\n"
-                "You need to provide at least one GEMINI_API_KEY in your .env file"
-            )
