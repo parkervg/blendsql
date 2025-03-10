@@ -88,29 +88,7 @@ def generate_gemini(model: GeminiLLM, messages_list: List[List[dict]], **kwargs)
         )
         responses.append(response)
     return responses
-
-async def run_gemini_async_completions(
-    model: GeminiLLM,
-    messages_list: List[List[dict]],
-    max_tokens: Optional[int] = None,
-    stop_at: Optional[List[str]] = None,
-    **kwargs,
-):
-    sem = Semaphore(int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT)))
-    client: "AsyncGemini" = model.model_obj
-    async with sem:
-        responses = [
-            client.messages.create(
-                model=model.model_name_or_path,
-                messages=messages,
-                max_tokens=max_tokens or 4000,
-                # stop_sequences=stop_at
-                **model.load_model_kwargs,
-            )
-            for messages in messages_list
-        ]
-    return [m.content[0].text for m in await asyncio.gather(*responses)]
-
+    
 async def run_gemini_async_completions(model, messages, **kwargs):
     client = model.model_obj
     
