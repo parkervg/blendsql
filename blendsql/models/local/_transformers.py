@@ -34,7 +34,7 @@ class TransformersLLM(LocalModel):
     ):
         if not _has_transformers and _has_torch:
             raise ImportError(
-                "Please install transformers with `pip install transformers`!"
+                "Please install transformers with `pip install transformers==4.48.2`!"
             ) from None
         elif not _has_torch and _has_transformers:
             raise ImportError(
@@ -42,7 +42,7 @@ class TransformersLLM(LocalModel):
             ) from None
         elif not _has_torch and not _has_transformers:
             raise ImportError(
-                "Please install transformers and pytorch with `pip install transformers torch`!"
+                "Please install transformers and pytorch with `pip install transformers==4.48.2 torch`!"
             ) from None
         import transformers
 
