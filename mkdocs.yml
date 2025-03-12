@@ -35,9 +35,6 @@ plugins:
       default_handler: python
       handlers:
         python:
-          docstring_options:
-            ignore_init_summary: true
-            merge_init_into_class: true
           options:
             show_submodules: true
             show_source: true
