@@ -38,6 +38,9 @@ class AzurePhiModel(LocalModel):
         caching: bool = True,
         **kwargs,
     ):
+        raise NotImplementedError(
+            "The Azure Phi guidance integration is currently down, and there is no update from guidance maintainers as to when it will be back up.\nhttps://github.com/guidance-ai/guidance/issues/1074"
+        )
         if not _has_transformers:
             raise ImportError(
                 "Please install transformers with `pip install transformers`!"
