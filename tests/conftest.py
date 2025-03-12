@@ -9,6 +9,7 @@ from blendsql.models import (
     OllamaLLM,
     OpenaiLLM,
     AnthropicLLM,
+    GeminiLLM,
     AzurePhiModel,
     Model,
 )
@@ -54,6 +55,10 @@ def pytest_generate_tests(metafunc):
         # Anthropic check
         if os.getenv("ANTHROPIC_API_KEY") is not None:
             model_list.append(AnthropicLLM("claude-3-haiku-20240307", caching=False))
+
+        # Gemini check
+        if os.getenv("GEMINI_API_KEY") is not None:
+            model_list.append(GeminiLLM("gemini-2.0-flash-exp", caching=False))
 
         # Azure Phi check
         if all(os.getenv(k) is not None for k in ["AZURE_PHI_KEY", "AZURE_PHI_URL"]):
