@@ -24,7 +24,7 @@ jobs:
           restore-keys: |
             mkdocs-material-
       - run: pip install mkdocs-material
-      - run: pip install mkdocstrings
+      - run: pip install mkdocstrings==0.26.2
       - run: pip install mkdocs-section-index
       - run: pip install mkdocstrings-python
       - run: pip install mkdocs-jupyter
