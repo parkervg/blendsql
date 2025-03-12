@@ -1,6 +1,5 @@
 import os
 
-import httpx
 from guidance.chat import ChatMLTemplate
 from dotenv import load_dotenv
 
@@ -45,7 +44,7 @@ def pytest_generate_tests(metafunc):
             model = OllamaLLM("qwen:0.5b", caching=False)
             model.model_obj(messages=[{"role": "user", "content": "hello"}])
             model_list.append(model)
-        except httpx.ConnectError:
+        except ConnectionError:
             print("Skipping OllamaLLM, as Ollama server is not running...")
 
         # OpenAI check
