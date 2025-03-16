@@ -10,7 +10,6 @@ from blendsql.models import (
     OpenaiLLM,
     AnthropicLLM,
     GeminiLLM,
-    AzurePhiModel,
     Model,
 )
 from blendsql import LLMQA, LLMMap, LLMJoin
@@ -61,8 +60,8 @@ def pytest_generate_tests(metafunc):
             model_list.append(GeminiLLM("gemini-2.0-flash-exp", caching=False))
 
         # Azure Phi check
-        if all(os.getenv(k) is not None for k in ["AZURE_PHI_KEY", "AZURE_PHI_URL"]):
-            model_list.append(AzurePhiModel(caching=False))
+        # if all(os.getenv(k) is not None for k in ["AZURE_PHI_KEY", "AZURE_PHI_URL"]):
+        #     model_list.append(AzurePhiModel(caching=False))
 
         metafunc.parametrize("model", model_list)
 
