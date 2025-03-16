@@ -110,7 +110,7 @@ class DuckDB(Database):
     def _reset_connection(self):
         """Reset connection, so that temp tables are cleared."""
         for tablename in self.temp_tables:
-            self.con.execute(f'DROP TABLE IF EXISTS "{tablename}"')
+            self.con.sql(f'DROP TABLE IF EXISTS "{tablename}"')
         self.temp_tables = set()
 
     def has_temp_table(self, tablename: str) -> bool:
@@ -130,7 +130,7 @@ class DuckDB(Database):
         schema: Dict[str, dict] = {}
         for tablename in self.tables():
             schema[f'"{double_quote_escape(tablename)}"'] = {}
-            for column_name, column_type in self.con.execute(
+            for column_name, column_type in self.con.sql(
                 f"SELECT column_name, column_type FROM (DESCRIBE {tablename})"
             ).fetchall():
                 schema[f'"{double_quote_escape(tablename)}"'][
@@ -142,7 +142,7 @@ class DuckDB(Database):
         return self.execute_to_list("SHOW TABLES;")
 
     def iter_columns(self, tablename: str) -> Generator[str, None, None]:
-        for row in self.con.execute(
+        for row in self.con.sql(
             f"SELECT column_name FROM (DESCRIBE {tablename})"
         ).fetchall():
             yield row[0]
@@ -171,6 +171,6 @@ class DuckDB(Database):
         self, query: str, to_type: Optional[Callable] = lambda x: x
     ) -> list:
         res = []
-        for row in self.con.execute(query).fetchall():
+        for row in self.con.sql(query).fetchall():
             res.append(to_type(row[0]))
         return res

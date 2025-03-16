@@ -27,6 +27,8 @@ classifiers = [
 ]
 dependencies = [
     "guidance==0.1.16",
+    "transformers==4.47.0",
+    "accelerate==1.5.2",
     "pyparsing==3.1.1",
     "pandas>=2.0.0",
     "bottleneck>=1.3.6",
@@ -35,12 +37,11 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "skrub==0.2.0",
     "scikit-learn==1.4.2",
-    "duckdb<1",
+    "duckdb==0.10.3",
     "rapidfuzz",
     "haystack-ai>2.0.0",
     "sentence_transformers",
     "huggingface_hub",
-    "datasets",
     "platformdirs",
     "attrs",
     "tqdm",
@@ -48,7 +49,8 @@ dependencies = [
     "tabulate>=0.9.0",
     "typeguard",
     "httpx",
-    "setuptools",  # For python 3.12
+    "setuptools",            # For python 3.12
+    "numpy<2",
 ]
 version = "0.0.31"
 
@@ -59,7 +61,7 @@ Documentation = "https://parkervg.github.io/blendsql/"
 blendsql = "blendsql.blend_cli:main"
 
 [tool.setuptools.packages.find]
-exclude=["examples*", "research*", "img*"]
+exclude = ["examples*", "research*", "img*"]
 
 [tool.setuptools.package-data]
 '*' = ['*.json']
@@ -76,7 +78,52 @@ select = ["B"]
 ignore = ["E501", "B032", "B028", "B005"]
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
-fixable = ["A", "B", "C", "D", "E", "F", "G", "I", "N", "Q", "S", "T", "W", "ANN", "ARG", "BLE", "COM", "DJ", "DTZ", "EM", "ERA", "EXE", "FBT", "ICN", "INP", "ISC", "NPY", "PD", "PGH", "PIE", "PL", "PT", "PTH", "PYI", "RET", "RSE", "RUF", "SIM", "SLF", "TCH", "TID", "TRY", "UP", "YTT"]
+fixable = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "I",
+    "N",
+    "Q",
+    "S",
+    "T",
+    "W",
+    "ANN",
+    "ARG",
+    "BLE",
+    "COM",
+    "DJ",
+    "DTZ",
+    "EM",
+    "ERA",
+    "EXE",
+    "FBT",
+    "ICN",
+    "INP",
+    "ISC",
+    "NPY",
+    "PD",
+    "PGH",
+    "PIE",
+    "PL",
+    "PT",
+    "PTH",
+    "PYI",
+    "RET",
+    "RSE",
+    "RUF",
+    "SIM",
+    "SLF",
+    "TCH",
+    "TID",
+    "TRY",
+    "UP",
+    "YTT",
+]
 unfixable = []
 
 # Exclude a variety of commonly ignored directories.
@@ -105,7 +152,7 @@ exclude = [
     # Added
     "third_party",
     "__init__.py", # Will remove dot imports if this isn't here
-    "README.md"
+    "README.md",
 ]
 
 # Same as Black.
