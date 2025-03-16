@@ -11,6 +11,23 @@ _has_transformers = importlib.util.find_spec("transformers") is not None
 _has_torch = importlib.util.find_spec("torch") is not None
 
 
+def resolve_device_map(device_map: Optional[str] = None):
+    # cuda -> mps -> cpu
+    import torch
+
+    if device_map is not None:
+        return device_map
+
+    if torch.cuda.is_available():
+        return "cuda"
+    else:
+        has_mps = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+        if has_mps:
+            return "mps"
+        else:
+            return "cpu"
+
+
 class TransformersLLM(LocalModel):
     """Class for Transformers local Model.
 
@@ -62,21 +79,9 @@ class TransformersLLM(LocalModel):
     def _load_model(self) -> ModelObj:
         # https://huggingface.co/blog/how-to-generate
         from guidance.models import Transformers
-        import torch
 
-        device_map = self.load_model_kwargs.pop("device_map", None)
-        if device_map is None:
-            # cuda -> mps -> cpu
-            if torch.cuda.is_available():
-                device_map = "cuda"
-            else:
-                has_mps = (
-                    hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
-                )
-                if has_mps:
-                    device_map = "mps"
-                else:
-                    device_map = "cpu"
+        device_map = resolve_device_map(self.load_model_kwargs.pop("device_map", None))
+
         lm = Transformers(
             self.model_name_or_path,
             echo=False,
@@ -99,4 +104,8 @@ class TransformersVisionModel(TransformersLLM):
     def _load_model(self):
         from transformers import pipeline
 
-        return pipeline("image-to-text", model=self.model_name_or_path)
+        device_map = resolve_device_map(self.load_model_kwargs.pop("device_map", None))
+
+        return pipeline(
+            "image-to-text", model=self.model_name_or_path, device_map=device_map
+        )
