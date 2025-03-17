@@ -44,7 +44,7 @@ class LiteLLM(RemoteModel):
             model_name_or_path=model_name_or_path,
             tokenizer=get_tokenizer(model_name_or_path),
             requires_config=False if model_name_or_path.startswith("ollama") else True,
-            load_model_kwargs=config | DEFAULT_CONFIG,
+            load_model_kwargs=DEFAULT_CONFIG | config,
             env=env,
             caching=caching,
             **kwargs,
