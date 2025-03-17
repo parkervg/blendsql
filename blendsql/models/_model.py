@@ -218,6 +218,10 @@ class Model:
         """
         ...
 
+    @abstractmethod
+    def generate(self, *args, **kwargs) -> List[str]:
+        ...
+
 
 class LocalModel(Model):
     pass

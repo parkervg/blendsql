@@ -3,10 +3,10 @@ import pandas as pd
 import guidance
 
 from blendsql.models import Model, LocalModel
+from blendsql.models._utils import user
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql._exceptions import IngredientException
-from blendsql.ingredients.generate import generate
 
 
 class ValidateProgram(Program):
@@ -34,7 +34,7 @@ class ValidateProgram(Program):
                 )["result"]
             )
         else:
-            response = generate(model, prompt=prompt, max_tokens=5)
+            response = model.generate(prompt=[[user(prompt)]], max_tokens=5)
         return (response, prompt)
 
 

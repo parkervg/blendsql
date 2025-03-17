@@ -1,0 +1,6 @@
+mkdocs
+mkdocs-material
+mkdocs-material[imaging]
+mkdocs-jupyter
+mkdocs-section-index
+mkdocstrings[python]

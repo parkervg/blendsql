@@ -11,11 +11,11 @@ import guidance
 
 from blendsql._logger import logger
 from blendsql.models import Model, LocalModel
+from blendsql.models._utils import user, assistant
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._program import Program
 from blendsql._exceptions import IngredientException
-from blendsql.ingredients.generate import generate, user, assistant
 from blendsql.ingredients.utils import (
     initialize_retriever,
     cast_responses_to_datatypes,
@@ -138,8 +138,8 @@ class MapProgram(Program):
                 )
                 messages_list.append(messages)
 
-            responses: List[str] = generate(
-                model, messages_list=messages_list, max_tokens=max_tokens or 1000
+            responses: List[str] = model.generate(
+                messages_list=messages_list, max_tokens=max_tokens or 1000
             )
 
             # Post-process language model response

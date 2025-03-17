@@ -5,13 +5,7 @@ from blendsql import blend, ImageCaption, LLMMap, LLMQA, RAGQA
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
-from blendsql.models import (
-    TransformersVisionModel,
-    TransformersLLM,
-    AzurePhiModel,
-    OpenaiLLM,
-    AnthropicLLM,
-)
+from blendsql.models import TransformersVisionModel, TransformersLLM, LiteLLM
 from blendsql._exceptions import IngredientException
 
 TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M"
@@ -185,5 +179,5 @@ def test_rag_qa(db, model):
         ingredients={RAGQA},
     )
     assert isinstance(res, Smoothie)
-    if isinstance(model, (AnthropicLLM, OpenaiLLM, AzurePhiModel)):
+    if isinstance(model, (LiteLLM)):
         assert res.df["Location"].unique().tolist() == ["Alaska"]

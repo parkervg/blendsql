@@ -13,7 +13,7 @@ import guidance
 
 from blendsql._logger import logger
 from blendsql.models import Model, LocalModel
-from blendsql.ingredients.generate import generate, user, assistant
+from blendsql.models._utils import user, assistant
 from blendsql._program import Program
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
@@ -196,8 +196,7 @@ class QAProgram(Program):
                     )
                 )
             )
-            response = generate(
-                model,
+            response = model.generate(
                 messages_list=[messages],
                 max_tokens=max_tokens,
             )[0].strip()

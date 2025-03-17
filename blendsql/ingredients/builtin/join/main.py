@@ -6,10 +6,10 @@ from attr import attrs, attrib
 import guidance
 
 from blendsql.models import Model, LocalModel
+from blendsql.models._utils import user, assistant
 from blendsql._program import Program
 from blendsql._logger import logger
 from blendsql.ingredients.ingredient import JoinIngredient
-from blendsql.ingredients.generate import generate, user, assistant
 from blendsql.ingredients.utils import initialize_retriever, partialclass
 
 from .examples import AnnotatedJoinExample, JoinExample
@@ -79,7 +79,7 @@ class JoinProgram(Program):
             messages.append(user(current_example.to_string()))
             prompt = "".join([i["content"] for i in messages])
             response = (
-                generate(model, messages_list=[messages])[0]
+                model.generate(messages_list=[messages])[0]
                 .removeprefix("```json")
                 .removesuffix("```")
             )

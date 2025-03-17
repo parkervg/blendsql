@@ -3,7 +3,6 @@ import pandas as pd
 
 import blendsql
 from blendsql.db import Pandas
-from blendsql.models import AzurePhiModel
 
 
 @pytest.fixture(scope="session")
@@ -40,8 +39,7 @@ def db() -> Pandas:
 
 
 def test_alphabet(db, model, ingredients):
-    if not isinstance(model, AzurePhiModel):
-        pytest.skip()
+    pytest.skip()  # Skip, until AzurePhi is up with guidance
     blend = lambda query: blendsql.blend(
         query=query,
         default_model=model,

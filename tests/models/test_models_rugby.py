@@ -4,7 +4,7 @@ from blendsql import blend
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
-from blendsql.models import AnthropicLLM, OpenaiLLM, AzurePhiModel
+from blendsql.models import LiteLLM
 
 
 @pytest.fixture(scope="session")
@@ -44,7 +44,7 @@ def test_llmmap(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(model, (AnthropicLLM, OpenaiLLM)):
+    if isinstance(model, LiteLLM):
         assert set(res.df["venue"].values.tolist()) == {
             "cricket ground",
             "parramatta ground",
@@ -68,7 +68,7 @@ def test_llmjoin(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(model, (AnthropicLLM, OpenaiLLM, AzurePhiModel)):
+    if isinstance(model, LiteLLM):
         assert res.df["rival"].unique().tolist() == ["nsw waratahs"]
 
 
@@ -90,7 +90,7 @@ def test_llmqa(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(model, (AnthropicLLM, OpenaiLLM)):
+    if isinstance(model, LiteLLM):
         assert res.df["city"].unique().tolist() == ["bathurst"]
 
 
@@ -111,7 +111,7 @@ def test_llmmap_with_string(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(model, (AnthropicLLM, OpenaiLLM)):
+    if isinstance(model, LiteLLM):
         assert res.df["June Count"].values[0] == 6
 
 
@@ -132,5 +132,5 @@ def test_unconstrained_llmqa(db, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(model, (AnthropicLLM, OpenaiLLM, AzurePhiModel)):
+    if isinstance(model, LiteLLM):
         assert "sports" in res.df.values[0][0].lower()
