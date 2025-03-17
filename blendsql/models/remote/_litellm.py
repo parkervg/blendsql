@@ -69,9 +69,11 @@ class LiteLLM(RemoteModel):
                 )
                 for messages in messages_list
             ]
-        return [m.choices[0].message.content for m in await asyncio.gather(*responses)]
+            return [
+                m.choices[0].message.content for m in await asyncio.gather(*responses)
+            ]
 
     def generate(self, *args, **kwargs) -> List[str]:
         return asyncio.get_event_loop().run_until_complete(
             self._generate(*args, **kwargs)
-        )
+        )  # type: ignore
