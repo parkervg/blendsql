@@ -43,7 +43,7 @@ class LiteLLM(RemoteModel):
         super().__init__(
             model_name_or_path=model_name_or_path,
             tokenizer=get_tokenizer(model_name_or_path),
-            requires_config=True,
+            requires_config=False if model_name_or_path.startswith("ollama") else True,
             load_model_kwargs=config | DEFAULT_CONFIG,
             env=env,
             caching=caching,
