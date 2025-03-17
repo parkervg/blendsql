@@ -27,6 +27,7 @@ pip install blendsql --prerelease=allow
 </center>
 
 ### ✨ News
+- (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
 - (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
 - (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now. 
   - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
