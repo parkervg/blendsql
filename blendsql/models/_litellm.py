@@ -2,11 +2,12 @@ import os
 from typing import Optional, List
 from asyncio import Semaphore
 import asyncio
-from litellm import acompletion
+from litellm import acompletion, ModelResponse
+from colorama import Fore
 
-from ..._configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
-from .._utils import get_tokenizer
-from .._model import RemoteModel
+from .._logger import logger
+from .._configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
+from ._model import RemoteModel
 
 DEFAULT_CONFIG = {"temperature": 0.0}
 
@@ -42,9 +43,8 @@ class LiteLLM(RemoteModel):
             config = {}
         super().__init__(
             model_name_or_path=model_name_or_path,
-            tokenizer=get_tokenizer(model_name_or_path),
             requires_config=False if model_name_or_path.startswith("ollama") else True,
-            load_model_kwargs=DEFAULT_CONFIG | config,
+            config=DEFAULT_CONFIG | config,
             env=env,
             caching=caching,
             **kwargs,
@@ -65,15 +65,26 @@ class LiteLLM(RemoteModel):
                     messages=messages,
                     max_tokens=max_tokens,
                     stop=stop_at,
-                    **self.load_model_kwargs,
+                    **self.config,
                 )
                 for messages in messages_list
             ]
-            return [
-                m.choices[0].message.content for m in await asyncio.gather(*responses)
-            ]
+            return [m for m in await asyncio.gather(*responses)]
 
     def generate(self, *args, **kwargs) -> List[str]:
-        return asyncio.get_event_loop().run_until_complete(
-            self._generate(*args, **kwargs)
-        )  # type: ignore
+        responses: List[ModelResponse] = None
+        if self.caching:
+            # First, check our cache
+            key: str = self._create_key(*args, **kwargs)
+            if key in self.cache:
+                logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
+                responses = self.cache.get(key)  # type: ignore
+        if responses is None:
+            responses = asyncio.get_event_loop().run_until_complete(
+                self._generate(*args, **kwargs)
+            )  # type: ignore
+        self.prompt_tokens += sum([r.usage.prompt_tokens for r in responses])
+        self.completion_tokens += sum([r.usage.completion_tokens for r in responses])
+        if self.caching:
+            self.cache[key] = responses
+        return [r.choices[0].message.content for r in responses]

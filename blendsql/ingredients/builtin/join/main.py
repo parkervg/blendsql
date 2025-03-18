@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Dict, Callable
+from typing import List, Optional, Callable
 import json
 from colorama import Fore
 from pathlib import Path
@@ -7,7 +7,6 @@ import guidance
 
 from blendsql.models import Model, LocalModel
 from blendsql.models._utils import user, assistant
-from blendsql._program import Program
 from blendsql._logger import logger
 from blendsql.ingredients.ingredient import JoinIngredient
 from blendsql.ingredients.utils import initialize_retriever, partialclass
@@ -21,78 +20,6 @@ DEFAULT_JOIN_FEW_SHOT: List[AnnotatedJoinExample] = [
     )
 ]
 MAIN_INSTRUCTION = "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user.f\nIf a given left value has no corresponding right value, give '-' as a response. Stop responding as soon as all left values have been accounted for in the JSON mapping.\n"
-
-
-class JoinProgram(Program):
-    def __call__(
-        self,
-        model: Model,
-        current_example: JoinExample,
-        few_shot_examples: List[JoinExample],
-        **kwargs,
-    ) -> Tuple[Dict[str, str], str]:
-        if isinstance(model, LocalModel):
-            lm: guidance.models.Model = model.model_obj
-            with guidance.user():
-                lm += MAIN_INSTRUCTION
-            # Add few-shot examples
-            for example in few_shot_examples:
-                with guidance.user():
-                    lm += example.to_string()
-                with guidance.assistant():
-                    lm += "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
-            with guidance.user():
-                lm += current_example.to_string()
-            prompt = lm._current_prompt()
-
-            @guidance(stateless=True, dedent=False)
-            def make_predictions(lm, left_values, right_values):
-                lm += "```json\n{"
-                gen_f = guidance.select(options=right_values)
-                for idx, value in enumerate(left_values):
-                    lm += (
-                        f'\n\t"{value}": '
-                        + guidance.capture(gen_f, name=value)
-                        + ("," if idx + 1 != len(right_values) else "")
-                    )
-                lm += "```"
-                return lm
-
-            with guidance.assistant():
-                lm += make_predictions(
-                    left_values=current_example.left_values,
-                    right_values=current_example.right_values,
-                )
-            return (lm._variables, prompt)
-        else:
-            # Use 'old' style prompt for remote models
-            messages = []
-            messages.append(user(MAIN_INSTRUCTION))
-            # Add few-shot examples
-            for example in few_shot_examples:
-                messages.append(user(example.to_string()))
-                messages.append(
-                    assistant(
-                        "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
-                    )
-                )
-            messages.append(user(current_example.to_string()))
-            prompt = "".join([i["content"] for i in messages])
-            response = (
-                model.generate(messages_list=[messages])[0]
-                .removeprefix("```json")
-                .removesuffix("```")
-            )
-            # Post-process language model response
-            try:
-                mapping: dict = json.loads(response)
-            except json.decoder.JSONDecodeError:
-                mapping = {}
-                logger.debug(
-                    Fore.RED
-                    + f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
-                )
-        return (mapping, prompt)
 
 
 @attrs
@@ -187,6 +114,7 @@ class LLMJoin(JoinIngredient):
             question = "Join to same topics."
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: DEFAULT_JOIN_FEW_SHOT
+
         current_example = JoinExample(
             **{
                 "join_criteria": question,
@@ -197,16 +125,64 @@ class LLMJoin(JoinIngredient):
         few_shot_examples: List[AnnotatedJoinExample] = few_shot_retriever(
             current_example.to_string()
         )
-        mapping = model.predict(
-            program=JoinProgram,
-            current_example=JoinExample(
-                **{
-                    "join_criteria": question,
-                    "left_values": left_values,
-                    "right_values": right_values,
-                }
-            ),
-            few_shot_examples=few_shot_examples,
-            **kwargs,
-        )
+
+        if isinstance(model, LocalModel):
+            lm: guidance.models.Model = model.model_obj
+            with guidance.user():
+                lm += MAIN_INSTRUCTION
+            # Add few-shot examples
+            for example in few_shot_examples:
+                with guidance.user():
+                    lm += example.to_string()
+                with guidance.assistant():
+                    lm += "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
+            with guidance.user():
+                lm += current_example.to_string()
+
+            @guidance(stateless=True, dedent=False)
+            def make_predictions(lm, left_values, right_values):
+                lm += "```json\n{"
+                gen_f = guidance.select(options=right_values)
+                for idx, value in enumerate(left_values):
+                    lm += (
+                        f'\n\t"{value}": '
+                        + guidance.capture(gen_f, name=value)
+                        + ("," if idx + 1 != len(right_values) else "")
+                    )
+                lm += "```"
+                return lm
+
+            with guidance.assistant():
+                lm += make_predictions(
+                    left_values=current_example.left_values,
+                    right_values=current_example.right_values,
+                )
+        else:
+            # Use 'old' style prompt for remote models
+            messages = []
+            messages.append(user(MAIN_INSTRUCTION))
+            # Add few-shot examples
+            for example in few_shot_examples:
+                messages.append(user(example.to_string()))
+                messages.append(
+                    assistant(
+                        "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
+                    )
+                )
+            messages.append(user(current_example.to_string()))
+            "".join([i["content"] for i in messages])
+            response = (
+                model.generate(messages_list=[messages])[0]
+                .removeprefix("```json")
+                .removesuffix("```")
+            )
+            # Post-process language model response
+            try:
+                mapping: dict = json.loads(response)
+            except json.decoder.JSONDecodeError:
+                mapping = {}
+                logger.debug(
+                    Fore.RED
+                    + f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
+                )
         return {k: v for k, v in mapping.items() if v != "-"}

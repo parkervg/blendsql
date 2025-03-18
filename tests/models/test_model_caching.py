@@ -2,7 +2,6 @@ import uuid
 from dataclasses import dataclass
 
 from blendsql.models import Model
-from blendsql._program import Program
 
 TEST_QUESTION = "The quick brown fox jumps over the lazy dog"
 

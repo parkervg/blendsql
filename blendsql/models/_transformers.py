@@ -1,9 +1,10 @@
 import importlib.util
 from typing import Optional
 from colorama import Fore
+from functools import cached_property
 
-from ..._logger import logger
-from .._model import LocalModel, ModelObj
+from .._logger import logger
+from ._model import LocalModel, ModelObj
 
 DEFAULT_KWARGS = {"do_sample": True, "temperature": 0.0, "top_p": 1.0}
 
@@ -75,6 +76,11 @@ class TransformersLLM(LocalModel):
             caching=caching,
             **kwargs,
         )
+
+    @cached_property
+    def model_obj(self) -> ModelObj:
+        """Allows for lazy loading of underlying model weights."""
+        return self._load_model()
 
     def _load_model(self) -> ModelObj:
         # https://huggingface.co/blog/how-to-generate
