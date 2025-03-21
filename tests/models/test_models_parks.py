@@ -9,7 +9,7 @@ from blendsql.models import TransformersVisionModel, TransformersLLM, LiteLLM
 from blendsql._exceptions import IngredientException
 
 TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M"
-TEST_TRANSFORMERS_VISION_LLM = "Mozilla/distilvit"
+TEST_TRANSFORMERS_VISION_LLM = "Salesforce/blip-image-captioning-base"
 
 
 @pytest.fixture(scope="session")
