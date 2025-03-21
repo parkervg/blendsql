@@ -200,6 +200,7 @@ class LLMMap(MapIngredient):
                     + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
                 )
                 list_options_in_prompt = False
+        sorted_values = sorted(values)  # Sort, to maximize cache hit rate
         if isinstance(model, ConstrainedModel):
             if all(x is not None for x in [options, regex]):
                 raise IngredientException(
@@ -233,8 +234,8 @@ class LLMMap(MapIngredient):
                     example_str += f"\n{k} -> {v}"
                 example_str += "\n\n---"
 
-            for i in range(0, len(values), batch_size):
-                curr_batch_values = values[i : i + batch_size]
+            for i in range(0, len(sorted_values), batch_size):
+                curr_batch_values = sorted_values[i : i + batch_size]
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = [str(i) for i in curr_batch_values]
                 current_example_str = current_example.to_string(
@@ -255,20 +256,19 @@ class LLMMap(MapIngredient):
                         lm._variables.update(responses)
                         in_cache = True
                 if not in_cache:
-                    if isinstance(lm, LMString):
-                        # Load our underlying guidance model, if we need to
-                        lm: guidance.models.Model = maybe_load_lm(model, lm)
-                        with guidance.user():
-                            lm += MAIN_INSTRUCTION
-                            lm += example_str
-                    with guidance.user():
-                        batch_lm = lm + current_example_str
+                    lm: guidance.models.Model = maybe_load_lm(model, lm)
+                with guidance.user():
+                    lm += MAIN_INSTRUCTION
+                    lm += example_str
+                with guidance.user():
+                    batch_lm = lm + current_example_str
 
-                    # TODO: since guidance does prefix caching, we don't actually reuse prompt tokens across batches
-                    model.prompt_tokens += len(
-                        model.tokenizer.encode(batch_lm._current_prompt())
-                    )
+                # TODO: since guidance does prefix caching, we don't actually reuse prompt tokens across batches
+                model.prompt_tokens += len(
+                    model.tokenizer.encode(batch_lm._current_prompt())
+                )
 
+                if not in_cache:
                     with guidance.assistant():
                         batch_lm += make_predictions(
                             values=current_batch_example.values, gen_f=gen_f
@@ -286,9 +286,9 @@ class LLMMap(MapIngredient):
         else:
             messages_list: List[List[dict]] = []
             batch_sizes: List[int] = []
-            for i in range(0, len(values), batch_size):
+            for i in range(0, len(sorted_values), batch_size):
                 messages = []
-                curr_batch_values = values[i : i + batch_size]
+                curr_batch_values = sorted_values[i : i + batch_size]
                 batch_sizes.append(len(curr_batch_values))
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = curr_batch_values
@@ -324,6 +324,10 @@ class LLMMap(MapIngredient):
                     predictions.append(None)
                 # Try to map to booleans, `None`, and numeric datatypes
                 mapped_values.extend(cast_responses_to_datatypes(predictions))
+
+            mapping = {k: v for k, v in zip(sorted_values, mapped_values)}
+            mapped_values = [mapping[value] for value in values]
+
             if total_missing_values > 0:
                 logger.debug(
                     Fore.RED

@@ -47,12 +47,6 @@ class TokenTimer(threading.Thread):
             self.init_fn()
 
 
-def serialize(v: Any) -> str:
-    if isinstance(v, (str, tuple, list)):
-        return str(sorted(v))
-    return str(v)
-
-
 @attrs
 class Model:
     """Parent class for all BlendSQL Models."""
@@ -73,7 +67,7 @@ class Model:
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
-    num_calls: int = 0
+    num_generation_calls: int = 0
 
     def __attrs_post_init__(self):
         if self.caching:
@@ -119,7 +113,7 @@ class Model:
         hasher = hashlib.md5()
         params_str = ""
         if len(kwargs) > 0:
-            params_str += str(sorted([(k, serialize(v)) for k, v in kwargs.items()]))
+            params_str += str(sorted([(k, str(v)) for k, v in kwargs.items()]))
         if len(args) > 0:
             params_str += str([arg for arg in args])
         if funcs:
@@ -132,14 +126,16 @@ class Model:
         return hasher.hexdigest()
 
     def check_cache(
-        self, *args, funcs: Sequence[Callable] = None, **kwargs
+        self, *args, funcs: Optional[Sequence[Callable]] = None, **kwargs
     ) -> Tuple[Any, str]:
-        responses: Dict[str, str] = None
+        response: Dict[str, str] = None  # type: ignore
         key: str = self._create_key(funcs=funcs, *args, **kwargs)
         if key in self.cache:
             logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
-            responses = self.cache.get(key)  # type: ignore
-        return (responses, key)
+            response = self.cache.get(key)  # type: ignore
+        else:
+            self.num_generation_calls += 1
+        return (response, key)
 
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
@@ -169,10 +165,6 @@ class Model:
         Will most likely be a guidance model object,
         but in some cases (like OllamaLLM) we make an exception.
         """
-        ...
-
-    @abstractmethod
-    def _generate(self, *args, **kwargs) -> List[str]:
         ...
 
 

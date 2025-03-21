@@ -2,40 +2,69 @@ import pytest
 import pandas as pd
 
 import blendsql
+from blendsql.models import TransformersLLM
 from blendsql.db import Pandas
+
+blendsql.config.set_async_limit(1)
 
 
 @pytest.fixture(scope="session")
 def db() -> Pandas:
     return Pandas(
         {
-            "w": pd.DataFrame(
+            "People": pd.DataFrame(
                 {
-                    "President": [
+                    "Name": [
                         "George Washington",
                         "John Quincy Adams",
                         "Thomas Jefferson",
                         "James Madison",
                         "James Monroe",
+                        "Alexander Hamilton",
+                        "Sabrina Carpenter",
+                        "Charli XCX",
+                        "Elon Musk",
+                        "Michelle Obama",
+                        "Elvis Presley",
                     ],
-                    "Party": [
-                        "Independent",
-                        "Federalist",
-                        "Democratic-Republican",
-                        "Democratic-Republican",
-                        "Democratic-Republican",
-                    ],
-                    "Key_Events": [
-                        "Established federal government, Whiskey Rebellion, farewell address warning against political parties",
-                        "XYZ Affair, Alien and Sedition Acts, avoided war with France",
-                        "Louisiana Purchase, Lewis and Clark Expedition, ended Barbary Wars",
-                        "War of 1812, Hartford Convention, chartered Second Bank of U.S.",
-                        "Monroe Doctrine, Missouri Compromise, Era of Good Feelings",
+                    "Known_For": [
+                        "Established federal government, First U.S. President",
+                        "XYZ Affair, Alien and Sedition Acts",
+                        "Louisiana Purchase, Declaration of Independence",
+                        "War of 1812, Constitution",
+                        "Monroe Doctrine, Missouri Compromise",
+                        "Created national bank, Federalist Papers",
+                        "Nonsense, Emails I Cant Send, Mean Girls musical",
+                        "Crash, How Im Feeling Now, Boom Clap",
+                        "Tesla, SpaceX, Twitter/X acquisition",
+                        "Lets Move campaign, Becoming memoir",
+                        "14 Grammys, King of Rock n Roll",
                     ],
                 }
-            )
+            ),
+            "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
         }
     )
+
+
+def test_singers(db, model, ingredients):
+    if isinstance(model, TransformersLLM):
+        pytest.skip()
+    res = blendsql.blend(
+        query="""
+        SELECT * FROM People p
+        WHERE {{LLMMap('Is a singer?', 'p::Name')}} = True
+        """,
+        default_model=model,
+        ingredients=ingredients,
+        db=db,
+    )
+    assert set(res.df["Name"].tolist()) == {
+        "Sabrina Carpenter",
+        "Charli XCX",
+        "Elvis Presley",
+    }
+    # assert len(set(res.df["Name"].tolist()).intersection({"Sabrina Carpenter", "Charli XCX", "Elvis Presley"})) >= 2
 
 
 def test_alphabet(db, model, ingredients):
@@ -47,13 +76,13 @@ def test_alphabet(db, model, ingredients):
         db=db,
     )
     blendsql_query = """
-    SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?')}} )
+    SELECT * FROM ( VALUES {{LLMQA('What are the first capital letters of the alphabet?')}} )
     """
     smoothie = blend(blendsql_query)
     assert "A" in list(smoothie.df.values.flat)
 
     blendsql_query = """
-        SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', modifier="{3}")}} )
+        SELECT * FROM ( VALUES {{LLMQA('What are the first capital letters of the alphabet?', modifier="{3}")}} )
         """
     smoothie = blend(blendsql_query)
     assert list(smoothie.df.values.flat) == ["A", "B", "C"]
@@ -80,7 +109,7 @@ def test_alphabet(db, model, ingredients):
         SELECT * FROM (VALUES {{LLMQA('List some greek letters')}})
     ) SELECT {{
         LLMQA(
-            'What is the first letter of the alphabet?', 
+            'What is the first letter of the alphabet?',
             options=(SELECT * FROM greek_letters)
         )}}
     """
