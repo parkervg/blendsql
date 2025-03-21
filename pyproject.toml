@@ -76,7 +76,7 @@ select = ["B"]
 # E501: Line length violations
 # B032: Possible unintentional type annotation
 # B028: No explicit stacklevel argument found
-ignore = ["E501", "B032", "B028", "B005"]
+ignore = ["E501", "B032", "B028", "B005", "B026"]
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
 fixable = [

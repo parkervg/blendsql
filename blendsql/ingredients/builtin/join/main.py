@@ -5,8 +5,9 @@ from pathlib import Path
 from attr import attrs, attrib
 import guidance
 
-from blendsql.models import Model, LocalModel
+from blendsql.models import Model, ConstrainedModel
 from blendsql.models._utils import user, assistant
+from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql._logger import logger
 from blendsql.ingredients.ingredient import JoinIngredient
 from blendsql.ingredients.utils import initialize_retriever, partialclass
@@ -126,18 +127,8 @@ class LLMJoin(JoinIngredient):
             current_example.to_string()
         )
 
-        if isinstance(model, LocalModel):
-            lm: guidance.models.Model = model.model_obj
-            with guidance.user():
-                lm += MAIN_INSTRUCTION
-            # Add few-shot examples
-            for example in few_shot_examples:
-                with guidance.user():
-                    lm += example.to_string()
-                with guidance.assistant():
-                    lm += "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
-            with guidance.user():
-                lm += current_example.to_string()
+        if isinstance(model, ConstrainedModel):
+            lm = LMString()
 
             @guidance(stateless=True, dedent=False)
             def make_predictions(lm, left_values, right_values):
@@ -152,11 +143,52 @@ class LLMJoin(JoinIngredient):
                 lm += "```"
                 return lm
 
-            with guidance.assistant():
-                lm += make_predictions(
-                    left_values=current_example.left_values,
-                    right_values=current_example.right_values,
+            curr_example_str = current_example.to_string()
+
+            # First check - do we need to load the model?
+            in_cache = False
+            if model.caching:
+                response, key = model.check_cache(
+                    MAIN_INSTRUCTION,
+                    curr_example_str,
+                    "\n".join(
+                        [
+                            (example.to_string(), example.mapping)
+                            for example in few_shot_examples
+                        ]
+                    ),
+                    current_example.left_values,
+                    current_example.right_values,
+                    funcs=[make_predictions],
                 )
+                if response is not None:
+                    in_cache = True
+            if not in_cache:
+                # Load our underlying guidance model, if we need to
+                lm: guidance.models.Model = maybe_load_lm(model, lm)
+                with guidance.user():
+                    lm += MAIN_INSTRUCTION
+                # Add few-shot examples
+                for example in few_shot_examples:
+                    with guidance.user():
+                        lm += example.to_string()
+                    with guidance.assistant():
+                        lm += (
+                            "```json\n"
+                            + json.dumps(example.mapping, indent=4)
+                            + "\n```"
+                        )
+                with guidance.user():
+                    lm += curr_example_str
+
+                with guidance.assistant():
+                    lm += make_predictions(
+                        left_values=current_example.left_values,
+                        right_values=current_example.right_values,
+                    )
+                mapping = lm._variables
+                if model.caching:
+                    model.cache[key] = mapping
         else:
             # Use 'old' style prompt for remote models
             messages = []

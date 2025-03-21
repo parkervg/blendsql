@@ -12,7 +12,8 @@ from attr import attrs, attrib
 import guidance
 
 from blendsql._logger import logger
-from blendsql.models import Model, LocalModel
+from blendsql.models import Model, ConstrainedModel
+from blendsql.models.constrained.utils import maybe_load_lm, LMString
 from blendsql.models._utils import user, assistant
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
@@ -279,44 +280,83 @@ class LLMQA(QAIngredient):
                     + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
                 )
                 list_options_in_prompt = False
-        if isinstance(model, LocalModel):
-            lm: guidance.models.Model = model.model_obj
-            with guidance.user():
-                lm += MAIN_INSTRUCTION
-                if long_answer:
-                    lm += LONG_ANSWER_INSTRUCTION
-                else:
-                    lm += SHORT_ANSWER_INSTRUCTION
-            for example in few_shot_examples:
-                with guidance.user():
-                    lm += example.to_string(context_formatter)
-                with guidance.assistant():
-                    lm += example.answer
-            with guidance.user():
-                lm += current_example.to_string(
-                    context_formatter, list_options=list_options_in_prompt
-                )
+        if isinstance(model, ConstrainedModel):
+            lm = LMString()
+
+            instruction_str = MAIN_INSTRUCTION
+            if long_answer:
+                instruction_str += LONG_ANSWER_INSTRUCTION
+            else:
+                instruction_str += SHORT_ANSWER_INSTRUCTION
+
+            curr_example_str = current_example.to_string(
+                context_formatter, list_options=list_options_in_prompt
+            )
+
             if is_list_output:
-                lm += gen_list(
-                    force_quotes=bool("str" in current_example.output_type.name),
-                    regex=regex,
-                    options=options_with_aliases,
-                    modifier=modifier,
-                )
+                gen_kwargs = {
+                    "force_quotes": bool("str" in current_example.output_type.name),
+                    "regex": regex,
+                    "options": options_with_aliases,
+                    "modifier": modifier,
+                }
+                gen_f = gen_list
             else:
                 if options:
-                    lm += guidance.select(options=options, name="response")
+                    gen_kwargs = {"options": options, "name": "response"}
+                    gen_f = guidance.select
                 else:
-                    lm += guidance.gen(
-                        max_tokens=kwargs.get("max_tokens", 200),
-                        regex=regex,
-                        name="response",
-                        stop=["\n", "Question:"],
-                    )
-            if is_list_output and modifier == "*":
-                response = lm.get("response", [])
-            else:
-                response = lm["response"]
+                    gen_kwargs = {
+                        "max_tokens": kwargs.get("max_tokens", 200),
+                        "regex": regex,
+                        "name": "response",
+                        "stop": ["\n", "Question:"],
+                    }
+                    gen_f = guidance.gen
+
+            # First check - do we need to load the model?
+            in_cache = False
+            if model.caching:
+                response, key = model.check_cache(
+                    instruction_str,
+                    curr_example_str,
+                    "\n".join(
+                        [
+                            f"{example.to_string(context_formatter)}\n {example.answer}"
+                            for example in few_shot_examples
+                        ]
+                    ),
+                    funcs=[gen_f],
+                )
+                if response is not None:
+                    in_cache = True
+            if not in_cache:
+                # Load our underlying guidance model, if we need to
+                lm: guidance.models.Model = maybe_load_lm(model, lm)
+                with guidance.user():
+                    lm += instruction_str
+                for example in few_shot_examples:
+                    with guidance.user():
+                        lm += example.to_string(context_formatter)
+                    with guidance.assistant():
+                        lm += example.answer
+                with guidance.user():
+                    lm += curr_example_str
+
+                model.prompt_tokens += len(model.tokenizer.encode(lm._current_prompt()))
+
+                with guidance.user():
+                    lm += gen_f(**gen_kwargs)
+
+                if is_list_output and modifier == "*":
+                    response = lm.get("response", [])
+                else:
+                    response = lm["response"]
+
+                model.completion_tokens += len(model.tokenizer.encode(str(response)))
+
+                if model.caching:
+                    model.cache[key] = response
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION

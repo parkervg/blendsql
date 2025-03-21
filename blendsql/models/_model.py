@@ -1,6 +1,15 @@
-from typing import Any, List, Optional, Generic, Dict, TypeVar
+from typing import (
+    Any,
+    List,
+    Optional,
+    Generic,
+    Dict,
+    TypeVar,
+    Sequence,
+    Callable,
+    Tuple,
+)
 import pandas as pd
-from attr import attrib, attrs
 from pathlib import Path
 from dotenv import load_dotenv
 from colorama import Fore
@@ -9,11 +18,14 @@ import threading
 from diskcache import Cache
 import platformdirs
 import hashlib
+import inspect
+from textwrap import dedent
 from abc import abstractmethod
+from attr import attrs, attrib
 
 from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
-from ..ingredients.few_shot import Example
+from .._logger import logger
 
 CONTEXT_TRUNCATION_LIMIT = 100
 ModelObj = TypeVar("ModelObj")
@@ -36,17 +48,8 @@ class TokenTimer(threading.Thread):
 
 
 def serialize(v: Any) -> str:
-    if isinstance(v, set):
-        return sorted(v)
-    elif isinstance(v, Example):
-        return v.to_string(context_formatter=lambda df: df.to_markdown(index=False))
-    elif isinstance(v, list) and isinstance(v[0], Example):
-        return "\n".join(
-            [
-                _v.to_string(context_formatter=lambda df: df.to_markdown(index=False))
-                for _v in v
-            ]
-        )
+    if isinstance(v, (str, tuple, list)):
+        return str(sorted(v))
     return str(v)
 
 
@@ -103,22 +106,40 @@ class Model:
         if self.run_setup_on_load:
             self._setup()
 
-    def _create_key(self, *args, **kwargs) -> str:
+    def _create_key(
+        self, *args, funcs: Optional[Sequence[Callable]] = None, **kwargs
+    ) -> str:
         """Generates a hash to use in diskcache Cache.
         This way, we don't need to send our prompts to the same Model
-        if our context of Model + kwargs is the same.
+        if our context of Model + args + kwargs is the same.
 
         Returns:
             md5 hash used as key in diskcache
         """
         hasher = hashlib.md5()
-        params_str = str(sorted([(k, serialize(v)) for k, v in kwargs.items()]))
+        params_str = ""
+        if len(kwargs) > 0:
+            params_str += str(sorted([(k, serialize(v)) for k, v in kwargs.items()]))
+        if len(args) > 0:
+            params_str += str([arg for arg in args])
+        if funcs:
+            params_str += "\n".join([dedent(inspect.getsource(func)) for func in funcs])
         combined_str = "{}||{}".format(
             f"{self.model_name_or_path}||{type(self)}",
             params_str,
         ).encode()
         hasher.update(combined_str)
         return hasher.hexdigest()
+
+    def check_cache(
+        self, *args, funcs: Sequence[Callable] = None, **kwargs
+    ) -> Tuple[Any, str]:
+        responses: Dict[str, str] = None
+        key: str = self._create_key(funcs=funcs, *args, **kwargs)
+        if key in self.cache:
+            logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
+            responses = self.cache.get(key)  # type: ignore
+        return (responses, key)
 
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
@@ -155,9 +176,9 @@ class Model:
         ...
 
 
-class LocalModel(Model):
+class ConstrainedModel(Model):
     pass
 
 
-class RemoteModel(Model):
+class UnconstrainedModel(Model):
     pass

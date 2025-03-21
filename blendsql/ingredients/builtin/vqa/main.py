@@ -37,4 +37,4 @@ class ImageCaption(MapIngredient):
             # prompt=prompt,
             generate_kwargs={"max_new_tokens": 200},
         )
-        return ([output[0]["generated_text"].strip() for output in model_output], "")
+        return [output[0]["generated_text"].strip() for output in model_output]

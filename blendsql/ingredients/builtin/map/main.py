@@ -10,7 +10,8 @@ from attr import attrs, attrib
 import guidance
 
 from blendsql._logger import logger
-from blendsql.models import Model, LocalModel
+from blendsql.models import Model, ConstrainedModel
+from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.models._utils import user, assistant
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
@@ -191,30 +192,21 @@ class LLMMap(MapIngredient):
             regex = current_example.output_type.regex
         options = current_example.options
         if options is not None and list_options_in_prompt:
-            if len(options) > os.getenv(
-                MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+            if len(options) > int(
+                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
             ):
                 logger.debug(
                     Fore.YELLOW
                     + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
                 )
                 list_options_in_prompt = False
-        if isinstance(model, LocalModel):
-            prompts = []
+        if isinstance(model, ConstrainedModel):
             if all(x is not None for x in [options, regex]):
                 raise IngredientException(
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
                 )
 
-            lm: guidance.models.Model = model.model_obj
-            with guidance.user():
-                lm += MAIN_INSTRUCTION
-                lm += "\n\nExamples:"
-                for example in few_shot_examples:
-                    lm += example.to_string(include_values=False)
-                    for k, v in example.mapping.items():
-                        lm += f"\n{k} -> {v}"
-                    lm += "\n\n---"
+            lm = LMString()
 
             if options is not None:
                 gen_f = lambda: guidance.select(options=options)
@@ -234,23 +226,63 @@ class LLMMap(MapIngredient):
                         lm += guidance.capture(gen_f(), name=value)
                 return lm
 
-            mapped_values: List[str] = []
+            example_str = "\n\nExamples:"
+            for example in few_shot_examples:
+                example_str += example.to_string(include_values=False)
+                for k, v in example.mapping.items():
+                    example_str += f"\n{k} -> {v}"
+                example_str += "\n\n---"
+
             for i in range(0, len(values), batch_size):
                 curr_batch_values = values[i : i + batch_size]
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = [str(i) for i in curr_batch_values]
-                with guidance.user():
-                    batch_lm = lm + current_example.to_string(
-                        include_values=False, list_options=list_options_in_prompt
-                    )
-                prompts.append(batch_lm._current_prompt())
-                with guidance.assistant():
-                    batch_lm += make_predictions(
-                        values=current_batch_example.values, gen_f=gen_f
-                    )
-                mapped_values.extend(
-                    [batch_lm[value] for value in current_batch_example.values]
+                current_example_str = current_example.to_string(
+                    include_values=False, list_options=list_options_in_prompt
                 )
+
+                # First check - do we need to load the model?
+                in_cache = False
+                if model.caching:
+                    responses, key = model.check_cache(
+                        MAIN_INSTRUCTION,
+                        example_str,
+                        current_example_str,
+                        current_batch_example.values,
+                        funcs=[make_predictions, gen_f],
+                    )
+                    if responses is not None:
+                        lm._variables.update(responses)
+                        in_cache = True
+                if not in_cache:
+                    if isinstance(lm, LMString):
+                        # Load our underlying guidance model, if we need to
+                        lm: guidance.models.Model = maybe_load_lm(model, lm)
+                        with guidance.user():
+                            lm += MAIN_INSTRUCTION
+                            lm += example_str
+                    with guidance.user():
+                        batch_lm = lm + current_example_str
+
+                    # TODO: since guidance does prefix caching, we don't actually reuse prompt tokens across batches
+                    model.prompt_tokens += len(
+                        model.tokenizer.encode(batch_lm._current_prompt())
+                    )
+
+                    with guidance.assistant():
+                        batch_lm += make_predictions(
+                            values=current_batch_example.values, gen_f=gen_f
+                        )
+                        generated_batch_variables = {
+                            k: batch_lm.get(k) for k in current_batch_example.values
+                        }
+                        lm._variables.update(generated_batch_variables)
+                    if model.caching:
+                        model.cache[key] = generated_batch_variables
+            mapped_values = [lm[value] for value in values]
+            model.completion_tokens += sum(
+                [len(model.tokenizer.encode(v)) for v in mapped_values]
+            )
         else:
             messages_list: List[List[dict]] = []
             batch_sizes: List[int] = []

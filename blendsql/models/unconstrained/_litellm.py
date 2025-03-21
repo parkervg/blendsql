@@ -2,17 +2,15 @@ import os
 from typing import Optional, List
 from asyncio import Semaphore
 import asyncio
-from litellm import acompletion, ModelResponse
-from colorama import Fore
+from litellm import acompletion
 
-from .._logger import logger
-from .._configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
-from ._model import RemoteModel
+from ..._configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
+from .._model import UnconstrainedModel
 
 DEFAULT_CONFIG = {"temperature": 0.0}
 
 
-class LiteLLM(RemoteModel):
+class LiteLLM(UnconstrainedModel):
     """Class for LiteLLM remote model integration.
     https://github.com/BerriAI/litellm
 
@@ -72,13 +70,10 @@ class LiteLLM(RemoteModel):
             return [m for m in await asyncio.gather(*responses)]
 
     def generate(self, *args, **kwargs) -> List[str]:
-        responses: List[ModelResponse] = None
+        """Handles cache lookup and generation using LiteLLM."""
+        responses, key = None, None
         if self.caching:
-            # First, check our cache
-            key: str = self._create_key(*args, **kwargs)
-            if key in self.cache:
-                logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
-                responses = self.cache.get(key)  # type: ignore
+            responses, key = self.check_cache(*args, **kwargs)
         if responses is None:
             responses = asyncio.get_event_loop().run_until_complete(
                 self._generate(*args, **kwargs)

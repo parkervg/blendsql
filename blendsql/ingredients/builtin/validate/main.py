@@ -2,7 +2,7 @@ from typing import Dict, Union, Optional
 import pandas as pd
 import guidance
 
-from blendsql.models import Model, LocalModel
+from blendsql.models import Model, ConstrainedModel
 from blendsql.models._utils import user
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql._exceptions import IngredientException
@@ -34,7 +34,7 @@ class LLMValidate(QAIngredient):
             m += f"\nTable Description: {kwargs.get('table_title')}"
         m += f"\n{serialized_db}\n\nAnswer:"
         prompt = m._current_prompt()
-        if isinstance(model, LocalModel):
+        if isinstance(model, ConstrainedModel):
             response = (
                 m
                 + guidance.capture(

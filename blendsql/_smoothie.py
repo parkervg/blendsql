@@ -46,7 +46,7 @@ class Smoothie:
                     "Time (s)": self.meta.process_time_seconds,
                     "Values Passed to Language Model": self.meta.num_values_passed,
                     "Prompt Tokens": self.meta.prompt_tokens,
-                    # "Completion Tokens": self.meta.completion_tokens,
+                    "Completion Tokens": self.meta.completion_tokens,
                 },
                 index=[0],
             )
