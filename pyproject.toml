@@ -53,7 +53,7 @@ dependencies = [
     "setuptools",            # For python 3.12
     "numpy<2",
 ]
-version = "0.0.31"
+version = "0.0.32"
 
 [project.urls]
 Documentation = "https://parkervg.github.io/blendsql/"
