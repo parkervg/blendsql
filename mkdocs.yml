@@ -92,5 +92,3 @@ nav:
           - PostgreSQL: reference/databases/postgresql.md
       - Smoothie:
           - reference/smoothie.md
-      - Programs:
-          - reference/programs.md
