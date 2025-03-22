@@ -29,6 +29,7 @@ dependencies = [
     "guidance==0.1.16",
     "transformers==4.47.0",
     "accelerate==1.5.2",
+    "litellm",
     "pyparsing==3.1.1",
     "pandas>=2.0.0",
     "bottleneck>=1.3.6",
@@ -75,7 +76,7 @@ select = ["B"]
 # E501: Line length violations
 # B032: Possible unintentional type annotation
 # B028: No explicit stacklevel argument found
-ignore = ["E501", "B032", "B028", "B005"]
+ignore = ["E501", "B032", "B028", "B005", "B026"]
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
 fixable = [

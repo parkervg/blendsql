@@ -27,8 +27,7 @@ class QAExample(Example):
         *args,
         **kwargs,
     ) -> str:
-        s = ""
-        s += f"\n\nQuestion: {self.question}\n"
+        s = f"Question: {self.question}\n"
         if self.output_type is not None:
             if self.output_type.name != "Any":
                 s += f"Output datatype: {self.output_type.name}\n"

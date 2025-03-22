@@ -482,7 +482,6 @@ class QAIngredient(Ingredient):
 
         from blendsql.models import Model, LocalModel, RemoteModel
         from blendsql.ingredients import QAIngredient
-        from blendsql.ingredients.generate import generate
         from blendsql._program import Program
 
 
@@ -497,8 +496,7 @@ class QAIngredient(Ingredient):
                     # https://github.com/guidance-ai/guidance
                     response = (model.model_obj + guidance.gen(max_tokens=20, name="response"))._variables["response"]
                 else:
-                    response = generate(
-                        model.model_obj,
+                    response = model.generate(
                         messages_list=[[{"role": "user", "content": prompt}]],
                         max_tokens=20
                     )[0]
@@ -517,7 +515,7 @@ class QAIngredient(Ingredient):
                 from blendsql import blend
                 from blendsql.db import SQLite
                 from blendsql.utils import fetch_from_hub
-                from blendsql.models import OpenaiLLM
+                from blendsql.models import LiteLLM
 
                 blendsql = """
                 SELECT {{
@@ -529,7 +527,7 @@ class QAIngredient(Ingredient):
 
                 smoothie = blend(
                     query=blendsql,
-                    default_model=OpenaiLLM("gpt-4o-mini"),
+                    default_model=LiteLLM("openai/gpt-4o-mini"),
                     db=SQLite(fetch_from_hub("single_table.db")),
                     ingredients={TableSummary}
                 )

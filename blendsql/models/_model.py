@@ -1,6 +1,15 @@
-from typing import Any, List, Optional, Generic, Type, Dict, TypeVar, Union
+from typing import (
+    Any,
+    List,
+    Optional,
+    Generic,
+    Dict,
+    TypeVar,
+    Sequence,
+    Callable,
+    Tuple,
+)
 import pandas as pd
-from attr import attrib, attrs
 from pathlib import Path
 from dotenv import load_dotenv
 from colorama import Fore
@@ -9,15 +18,14 @@ import threading
 from diskcache import Cache
 import platformdirs
 import hashlib
+import inspect
+from textwrap import dedent
 from abc import abstractmethod
-from functools import cached_property
+from attr import attrs, attrib
 
-from .._logger import logger
-from .._program import Program, program_to_str
 from .._constants import IngredientKwarg
 from ..db.utils import truncate_df_content
-from ..db._database import Database
-from ..ingredients.few_shot import Example
+from .._logger import logger
 
 CONTEXT_TRUNCATION_LIMIT = 100
 ModelObj = TypeVar("ModelObj")
@@ -39,21 +47,6 @@ class TokenTimer(threading.Thread):
             self.init_fn()
 
 
-def serialize(v: Any) -> str:
-    if isinstance(v, set):
-        return sorted(v)
-    elif isinstance(v, Example):
-        return v.to_string(context_formatter=lambda df: df.to_markdown(index=False))
-    elif isinstance(v, list) and isinstance(v[0], Example):
-        return "\n".join(
-            [
-                _v.to_string(context_formatter=lambda df: df.to_markdown(index=False))
-                for _v in v
-            ]
-        )
-    return str(v)
-
-
 @attrs
 class Model:
     """Parent class for all BlendSQL Models."""
@@ -62,18 +55,19 @@ class Model:
     tokenizer: Any = attrib(default=None)
     requires_config: bool = attrib(default=False)
     refresh_interval_min: Optional[int] = attrib(default=None)
-    load_model_kwargs: dict = attrib(default=None)
+    config: dict = attrib(default=None)
     env: str = attrib(default=".")
     caching: bool = attrib(default=True)
 
     model_obj: Generic[ModelObj] = attrib(init=False)
-    prompts: List[dict] = attrib(init=False)
-    raw_prompts: List[str] = attrib(init=False)
-    prompt_tokens: int = attrib(init=False)
-    completion_tokens: int = attrib(init=False)
-    num_calls: int = attrib(init=False)
+    prompts: List[dict] = attrib(factory=list)
+    raw_prompts: List[str] = attrib(factory=list)
     cache: Cache = attrib(init=False)
     run_setup_on_load: bool = attrib(default=True)
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    num_generation_calls: int = 0
 
     def __attrs_post_init__(self):
         if self.caching:
@@ -81,13 +75,8 @@ class Model:
                 Path(platformdirs.user_cache_dir("blendsql"))
                 / f"{self.model_name_or_path}.diskcache"
             )
-        if self.load_model_kwargs is None:
-            self.load_model_kwargs = {}
-        self.prompts: List[dict] = []
-        self.raw_prompts: List[str] = []
-        self.prompt_tokens = 0
-        self.completion_tokens = 0
-        self.num_calls = 0
+        if self.config is None:
+            self.config = {}
         if self.requires_config:
             if self.env is None:
                 self.env = "."
@@ -111,82 +100,40 @@ class Model:
         if self.run_setup_on_load:
             self._setup()
 
-    def predict(self, program: Type[Program], **kwargs) -> str:
-        """Takes a `Program` and some kwargs, and evaluates it with context of
-        current Model.
-
-        Args:
-            program: The `Program` object used to generate Model output
-            **kwargs: any additional kwargs will get passed to the program
-
-        Returns:
-            dict containing all Model variable names and their values.
-
-        Examples:
-            >>> model.predict(program, **kwargs)
-            "This is model generated output"
-        """
-        if self.caching:
-            # First, check our cache
-            key: str = self._create_key(program, **kwargs)
-            if key in self.cache:
-                logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
-                response: str = self.cache.get(key)  # type: ignore
-                self.prompts.insert(-1, self.format_prompt(response, **kwargs))
-                self.raw_prompts.insert(-1, "")
-                return response
-        # Modify fields used for tracking Model usage
-        response: Any
-        prompts: Union[str, List[str]]
-        response, prompts = program(model=self, **kwargs)
-        if not isinstance(prompts, list):
-            prompts = [prompts]
-        for prompt in prompts:
-            self.prompts.insert(-1, self.format_prompt(response, **kwargs))
-            self.raw_prompts.insert(-1, prompt)
-            self.num_calls += 1
-            if self.tokenizer is not None:
-                self.prompt_tokens += len(self.tokenizer.encode(prompt))
-                # self.completion_tokens += sum(
-                #     [len(self.tokenizer.encode(r)) for r in " ".join(response)]
-                # )
-        if self.caching:
-            self.cache[key] = response  # type: ignore
-        return response
-
-    def _create_key(self, program: Type[Program], **kwargs) -> str:
+    def _create_key(
+        self, *args, funcs: Optional[Sequence[Callable]] = None, **kwargs
+    ) -> str:
         """Generates a hash to use in diskcache Cache.
         This way, we don't need to send our prompts to the same Model
-        if our context of Model + program + kwargs is the same.
+        if our context of Model + args + kwargs is the same.
 
         Returns:
             md5 hash used as key in diskcache
         """
         hasher = hashlib.md5()
-        # Ignore partials, which create a random key within session
-        options_str = str(
-            sorted(
-                [
-                    (k, serialize(v))
-                    for k, v in kwargs.items()
-                    if not callable(v)
-                    and not isinstance(v, Database)
-                    and "uuid" not in k
-                ]
-            )
-        )
-        combined = "{}||{}||{}".format(
+        params_str = ""
+        if len(kwargs) > 0:
+            params_str += str(sorted([(k, str(v)) for k, v in kwargs.items()]))
+        if len(args) > 0:
+            params_str += str([arg for arg in args])
+        if funcs:
+            params_str += "\n".join([dedent(inspect.getsource(func)) for func in funcs])
+        combined_str = "{}||{}".format(
             f"{self.model_name_or_path}||{type(self)}",
-            program_to_str(program),
-            options_str,
+            params_str,
         ).encode()
-        hasher.update(combined)
+        hasher.update(combined_str)
         return hasher.hexdigest()
 
-    @cached_property
-    def model_obj(self) -> ModelObj:
-        """Allows for lazy loading of underlying model weights."""
-        return self._load_model()
+    def check_cache(
+        self, *args, funcs: Optional[Sequence[Callable]] = None, **kwargs
+    ) -> Tuple[Any, str]:
+        response: Dict[str, str] = None  # type: ignore
+        key: str = self._create_key(funcs=funcs, *args, **kwargs)
+        if key in self.cache:
+            logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
+            response = self.cache.get(key)  # type: ignore
+        return (response, key)
 
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
@@ -213,15 +160,15 @@ class Model:
     @abstractmethod
     def _load_model(self, *args, **kwargs) -> ModelObj:
         """Logic for instantiating the model class goes here.
-        Will most likely be an guidance model object,
+        Will most likely be a guidance model object,
         but in some cases (like OllamaLLM) we make an exception.
         """
         ...
 
 
-class LocalModel(Model):
+class ConstrainedModel(Model):
     pass
 
 
-class RemoteModel(Model):
+class UnconstrainedModel(Model):
     pass

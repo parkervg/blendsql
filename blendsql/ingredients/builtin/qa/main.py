@@ -3,7 +3,7 @@ import copy
 import re
 from ast import literal_eval
 from pathlib import Path
-from typing import Union, Optional, Tuple, Callable, List
+from typing import Union, Optional, Callable, List
 from collections.abc import Collection
 import pandas as pd
 import json
@@ -12,9 +12,9 @@ from attr import attrs, attrib
 import guidance
 
 from blendsql._logger import logger
-from blendsql.models import Model, LocalModel
-from blendsql.ingredients.generate import generate, user, assistant
-from blendsql._program import Program
+from blendsql.models import Model, ConstrainedModel
+from blendsql.models.constrained.utils import maybe_load_lm, LMString
+from blendsql.models._utils import user, assistant
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 from blendsql._exceptions import IngredientException
@@ -105,142 +105,6 @@ def get_option_aliases(options: Optional[List[str]], is_list_output: bool):
                 options_alias_to_original[option_alias] = option
                 options_with_aliases.add(option_alias)
     return options_with_aliases or options, options_alias_to_original
-
-
-class QAProgram(Program):
-    def __call__(
-        self,
-        model: Model,
-        current_example: QAExample,
-        context_formatter: Callable[[pd.DataFrame], str],
-        few_shot_examples: List[QAExample],
-        list_options_in_prompt: bool = True,
-        long_answer: Optional[bool] = False,
-        max_tokens: Optional[int] = None,
-        **kwargs,
-    ) -> Tuple[str, str]:
-        if isinstance(model, LocalModel):
-            lm: guidance.models.Model = model.model_obj
-        is_list_output = "list" in current_example.output_type.name.lower()
-        regex = current_example.output_type.regex
-        options = current_example.options
-        modifier = current_example.output_type.modifier
-        options_with_aliases, options_alias_to_original = get_option_aliases(
-            options, is_list_output=is_list_output
-        )
-        if options is not None and list_options_in_prompt:
-            if len(options) > os.getenv(
-                MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-            ):
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
-                )
-                list_options_in_prompt = False
-        if isinstance(model, LocalModel):
-            with guidance.user():
-                lm += MAIN_INSTRUCTION
-                if long_answer:
-                    lm += LONG_ANSWER_INSTRUCTION
-                else:
-                    lm += SHORT_ANSWER_INSTRUCTION
-            for example in few_shot_examples:
-                with guidance.user():
-                    lm += example.to_string(context_formatter)
-                with guidance.assistant():
-                    lm += example.answer
-            with guidance.user():
-                lm += current_example.to_string(
-                    context_formatter, list_options=list_options_in_prompt
-                )
-            prompt = lm._current_prompt()
-            if is_list_output:
-                lm += gen_list(
-                    force_quotes=bool("str" in current_example.output_type.name),
-                    regex=regex,
-                    options=options_with_aliases,
-                    modifier=modifier,
-                )
-            else:
-                if options:
-                    lm += guidance.select(options=options, name="response")
-                else:
-                    lm += guidance.gen(
-                        max_tokens=max_tokens or 200,
-                        regex=regex,
-                        # list_append=bool(modifier is not None),
-                        name="response",
-                        stop=["\n", "Question:"],
-                    )
-            if is_list_output and modifier == "*":
-                response = lm.get("response", [])
-            else:
-                response = lm["response"]
-        else:
-            messages = []
-            intro_prompt = MAIN_INSTRUCTION
-            if long_answer:
-                intro_prompt += LONG_ANSWER_INSTRUCTION
-            else:
-                intro_prompt += SHORT_ANSWER_INSTRUCTION
-            messages.append(user(intro_prompt))
-            # Add few-shot examples
-            for example in few_shot_examples:
-                messages.append(user(example.to_string(context_formatter)))
-                messages.append(assistant(example.answer))
-            # Add current question + context for inference
-            messages.append(
-                user(
-                    current_example.to_string(
-                        context_formatter, list_options=list_options_in_prompt
-                    )
-                )
-            )
-            response = generate(
-                model,
-                messages_list=[messages],
-                max_tokens=max_tokens,
-            )[0].strip()
-            prompt = "".join([i["content"] for i in messages])
-        if isinstance(response, str):
-            # If we have specified a modifier, we try to parse it to a tuple
-            if is_list_output:
-                try:
-                    response = response.strip("'")
-                    response = literal_eval(response)
-                    assert isinstance(response, (list, tuple))
-                    response = tuple(response)
-                except (ValueError, SyntaxError, AssertionError):
-                    response = [i.strip() for i in response.split(",")]
-                    response = tuple(
-                        [
-                            "'{}'".format(single_quote_escape(val.strip()))
-                            if isinstance(val, str)
-                            else val
-                            for val in cast_responses_to_datatypes(response)
-                        ]
-                    )
-            else:
-                response = cast_responses_to_datatypes([response])[0]
-        # Map from modified options to original, as they appear in DB
-        if not isinstance(response, (list, tuple, set)):
-            response = [response]
-        response: List[str] = [
-            options_alias_to_original.get(str(r), r) for r in response
-        ]
-        if len(response) == 1 and not is_list_output:
-            response = response[0]
-            if options and response not in options:
-                print(
-                    Fore.RED
-                    + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
-                    + Fore.RESET
-                )
-            if isinstance(response, str):
-                response = f"'{single_quote_escape(response)}'"
-        else:
-            response = tuple(response)
-        return (response, prompt)
 
 
 @attrs
@@ -399,13 +263,162 @@ class LLMQA(QAIngredient):
         few_shot_examples: List[AnnotatedQAExample] = few_shot_retriever(
             current_example.to_string(context_formatter)
         )
-        result = model.predict(
-            program=QAProgram,
-            current_example=current_example,
-            context_formatter=context_formatter,
-            few_shot_examples=few_shot_examples,
-            list_options_in_prompt=list_options_in_prompt,
-            long_answer=long_answer,
-            **kwargs,
+
+        is_list_output = "list" in current_example.output_type.name.lower()
+        regex = current_example.output_type.regex
+        options = current_example.options
+        modifier = current_example.output_type.modifier
+        options_with_aliases, options_alias_to_original = get_option_aliases(
+            options, is_list_output=is_list_output
         )
-        return result
+        if options is not None and list_options_in_prompt:
+            if len(options) > os.getenv(
+                MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+            ):
+                logger.debug(
+                    Fore.YELLOW
+                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                )
+                list_options_in_prompt = False
+        if isinstance(model, ConstrainedModel):
+            lm = LMString()
+
+            instruction_str = MAIN_INSTRUCTION
+            if long_answer:
+                instruction_str += LONG_ANSWER_INSTRUCTION
+            else:
+                instruction_str += SHORT_ANSWER_INSTRUCTION
+
+            curr_example_str = current_example.to_string(
+                context_formatter, list_options=list_options_in_prompt
+            )
+
+            if is_list_output:
+                gen_kwargs = {
+                    "force_quotes": bool("str" in current_example.output_type.name),
+                    "regex": regex,
+                    "options": options_with_aliases,
+                    "modifier": modifier,
+                }
+                gen_f = gen_list
+            else:
+                if options:
+                    gen_kwargs = {"options": options, "name": "response"}
+                    gen_f = guidance.select
+                else:
+                    gen_kwargs = {
+                        "max_tokens": kwargs.get("max_tokens", 200),
+                        "regex": regex,
+                        "name": "response",
+                        "stop": ["\n", "Question:"],
+                    }
+                    gen_f = guidance.gen
+
+            # First check - do we need to load the model?
+            in_cache = False
+            if model.caching:
+                response, key = model.check_cache(
+                    instruction_str,
+                    curr_example_str,
+                    "\n".join(
+                        [
+                            f"{example.to_string(context_formatter)}\n {example.answer}"
+                            for example in few_shot_examples
+                        ]
+                    ),
+                    funcs=[gen_f],
+                )
+                if response is not None:
+                    in_cache = True
+            if not in_cache:
+                # Load our underlying guidance model, if we need to
+                lm: guidance.models.Model = maybe_load_lm(model, lm)
+                model.num_generation_calls += 1
+                with guidance.user():
+                    lm += instruction_str
+                for example in few_shot_examples:
+                    with guidance.user():
+                        lm += example.to_string(context_formatter)
+                    with guidance.assistant():
+                        lm += example.answer
+                with guidance.user():
+                    lm += curr_example_str
+
+                model.prompt_tokens += len(model.tokenizer.encode(lm._current_prompt()))
+
+                with guidance.assistant():
+                    lm += gen_f(**gen_kwargs)
+
+                if is_list_output and modifier == "*":
+                    response = lm.get("response", [])
+                else:
+                    response = lm["response"]
+
+                model.completion_tokens += len(model.tokenizer.encode(str(response)))
+
+                if model.caching:
+                    model.cache[key] = response
+        else:
+            messages = []
+            intro_prompt = MAIN_INSTRUCTION
+            if long_answer:
+                intro_prompt += LONG_ANSWER_INSTRUCTION
+            else:
+                intro_prompt += SHORT_ANSWER_INSTRUCTION
+            messages.append(user(intro_prompt))
+            # Add few-shot examples
+            for example in few_shot_examples:
+                messages.append(user(example.to_string(context_formatter)))
+                messages.append(assistant(example.answer))
+            # Add current question + context for inference
+            messages.append(
+                user(
+                    current_example.to_string(
+                        context_formatter, list_options=list_options_in_prompt
+                    )
+                )
+            )
+            response = model.generate(
+                messages_list=[messages],
+                max_tokens=kwargs.get("max_tokens", None),
+            )[0].strip()
+            "".join([i["content"] for i in messages])
+        if isinstance(response, str):
+            # If we have specified a modifier, we try to parse it to a tuple
+            if is_list_output:
+                try:
+                    response = response.strip("'")
+                    response = literal_eval(response)
+                    assert isinstance(response, (list, tuple))
+                    response = tuple(response)
+                except (ValueError, SyntaxError, AssertionError):
+                    response = [i.strip() for i in response.split(",")]
+                    response = tuple(
+                        [
+                            "'{}'".format(single_quote_escape(val.strip()))
+                            if isinstance(val, str)
+                            else val
+                            for val in cast_responses_to_datatypes(response)
+                        ]
+                    )
+            else:
+                response = cast_responses_to_datatypes([response])[0]
+        # Map from modified options to original, as they appear in DB
+        if not isinstance(response, (list, tuple, set)):
+            response = [response]
+        response: List[str] = [
+            options_alias_to_original.get(str(r), r) for r in response
+        ]
+        if len(response) == 1 and not is_list_output:
+            response = response[0]
+            if options and response not in options:
+                print(
+                    Fore.RED
+                    + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
+                    + Fore.RESET
+                )
+            if isinstance(response, str):
+                response = f"'{single_quote_escape(response)}'"
+        else:
+            response = tuple(response)
+        return response

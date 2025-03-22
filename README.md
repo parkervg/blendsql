@@ -25,6 +25,7 @@ pip install blendsql
 ```
 
 ### ✨ News
+- (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
 - (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
 - (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now. 
   - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
@@ -172,15 +173,15 @@ import pandas as pd
 import blendsql
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
 from blendsql.db import Pandas
-from blendsql.models import TransformersLLM, OpenaiLLM, AnthropicLLM
+from blendsql.models import TransformersLLM, LiteLLM
 
 # Optionally set how many async calls to allow concurrently
 # This depends on your OpenAI/Anthropic/etc. rate limits
 blendsql.config.set_async_limit(10)
 
 # Load model
-model = OpenaiLLM("gpt-4o-mini") # requires .env file with `OPENAI_API_KEY`
-# model = AnthropicLLM("claude-3-haiku-20240307") # requires .env file with `ANTHROPIC_API_KEY`
+model = LiteLLM("openai/gpt-4o-mini") # requires .env file with `OPENAI_API_KEY`
+# model = LiteLLM("anthropic/claude-3-haiku-20240307") # requires .env file with `ANTHROPIC_API_KEY`
 # model = TransformersLLM('Qwen/Qwen1.5-0.5B') # run with any local Transformers model
 
 # Prepare our local database

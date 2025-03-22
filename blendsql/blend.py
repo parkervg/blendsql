@@ -491,9 +491,14 @@ def _blend(
             df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
                 num_values_passed=0,
-                prompt_tokens=default_model.prompt_tokens
-                if default_model is not None
-                else 0,
+                num_generation_calls=(
+                    default_model.num_generation_calls
+                    if default_model is not None
+                    else 0
+                ),
+                prompt_tokens=(
+                    default_model.prompt_tokens if default_model is not None else 0
+                ),
                 completion_tokens=(
                     default_model.completion_tokens if default_model is not None else 0
                 ),
@@ -950,12 +955,15 @@ def _blend(
                 ]
             )
             + _prev_passed_values,
-            prompt_tokens=default_model.prompt_tokens
-            if default_model is not None
-            else 0,
-            completion_tokens=default_model.completion_tokens
-            if default_model is not None
-            else 0,
+            num_generation_calls=(
+                default_model.num_generation_calls if default_model is not None else 0
+            ),
+            prompt_tokens=(
+                default_model.prompt_tokens if default_model is not None else 0
+            ),
+            completion_tokens=(
+                default_model.completion_tokens if default_model is not None else 0
+            ),
             prompts=default_model.prompts if default_model is not None else [],
             raw_prompts=default_model.raw_prompts if default_model is not None else [],
             ingredients=ingredients,

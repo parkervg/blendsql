@@ -1,6 +1,6 @@
 import copy
 import os
-from typing import Union, Iterable, Any, Optional, List, Callable, Tuple
+from typing import Union, Iterable, Any, Optional, List, Callable
 from collections.abc import Collection
 from pathlib import Path
 import json
@@ -10,12 +10,12 @@ from attr import attrs, attrib
 import guidance
 
 from blendsql._logger import logger
-from blendsql.models import Model, LocalModel
+from blendsql.models import Model, ConstrainedModel
+from blendsql.models.constrained.utils import LMString, maybe_load_lm
+from blendsql.models._utils import user, assistant
 from blendsql import _constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._program import Program
 from blendsql._exceptions import IngredientException
-from blendsql.ingredients.generate import generate, user, assistant
 from blendsql.ingredients.utils import (
     initialize_retriever,
     cast_responses_to_datatypes,
@@ -32,137 +32,19 @@ DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-MAIN_INSTRUCTION = f"Given a set of values from a database, answer the question row-by-row, in order.\nYour outputs should be separated by ';'."
+main_instruction = (
+    f"Given a set of values from a database, answer the question for each value. "
+)
+UNCONSTRAINED_MAIN_INSTRUCTION = (
+    main_instruction
+    + "Your output should be separated by ';', answering for each of the values left-to-right.\n"
+)
+CONSTRAINED_MAIN_INSTRUCTION = (
+    main_instruction
+    + "On each newline, you will follow the format of {value} -> {answer}.\n"
+)
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
 DEFAULT_MAP_BATCH_SIZE = 5
-
-
-class MapProgram(Program):
-    def __call__(
-        self,
-        model: Model,
-        current_example: MapExample,
-        values: List[str],
-        few_shot_examples: List[AnnotatedMapExample],
-        batch_size: int,
-        list_options_in_prompt: bool = True,
-        max_tokens: Optional[int] = None,
-        **kwargs,
-    ) -> Tuple[str, str]:
-        regex = None
-        if current_example.output_type is not None:
-            regex = current_example.output_type.regex
-        options = current_example.options
-        if options is not None and list_options_in_prompt:
-            if len(options) > os.getenv(
-                MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-            ):
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
-                )
-                list_options_in_prompt = False
-        if isinstance(model, LocalModel):
-            prompts = []
-            if all(x is not None for x in [options, regex]):
-                raise IngredientException(
-                    "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
-                )
-
-            lm: guidance.models.Model = model.model_obj
-            with guidance.user():
-                lm += MAIN_INSTRUCTION
-                lm += "\n\nExamples:"
-                for example in few_shot_examples:
-                    lm += example.to_string(include_values=False)
-                    for k, v in example.mapping.items():
-                        lm += f"\n{k} -> {v}"
-                    lm += "\n\n---"
-
-            if options is not None:
-                gen_f = lambda: guidance.select(options=options)
-            elif regex is not None:
-                gen_f = lambda: guidance.regex(pattern=regex)
-            else:
-                gen_f = lambda: guidance.gen(max_tokens=max_tokens or 20, stop=["\n"])
-
-            @guidance(stateless=True, dedent=False)
-            def make_predictions(lm, values, gen_f) -> guidance.models.Model:
-                for _idx, value in enumerate(values):
-                    with guidance.user():
-                        lm += f"\n{value} -> "
-                    with guidance.assistant():
-                        lm += guidance.capture(gen_f(), name=value)
-                return lm
-
-            mapped_values: List[str] = []
-            for i in range(0, len(values), batch_size):
-                curr_batch_values = values[i : i + batch_size]
-                current_batch_example = copy.deepcopy(current_example)
-                current_batch_example.values = [str(i) for i in curr_batch_values]
-                with guidance.user():
-                    batch_lm = lm + current_example.to_string(
-                        include_values=False, list_options=list_options_in_prompt
-                    )
-                prompts.append(batch_lm._current_prompt())
-                with guidance.assistant():
-                    batch_lm += make_predictions(
-                        values=current_batch_example.values, gen_f=gen_f
-                    )
-                mapped_values.extend(
-                    [batch_lm[value] for value in current_batch_example.values]
-                )
-        else:
-            messages_list: List[List[dict]] = []
-            batch_sizes: List[int] = []
-            for i in range(0, len(values), batch_size):
-                messages = []
-                curr_batch_values = values[i : i + batch_size]
-                batch_sizes.append(len(curr_batch_values))
-                current_batch_example = copy.deepcopy(current_example)
-                current_batch_example.values = curr_batch_values
-                messages.append(user(MAIN_INSTRUCTION))
-                # Add few-shot examples
-                for example in few_shot_examples:
-                    messages.append(user(example.to_string()))
-                    messages.append(
-                        assistant(CONST.DEFAULT_ANS_SEP.join(example.mapping.values()))
-                    )
-                # Add the current question + context for inference
-                messages.append(
-                    user(
-                        current_batch_example.to_string(
-                            list_options=list_options_in_prompt
-                        )
-                    )
-                )
-                messages_list.append(messages)
-
-            responses: List[str] = generate(
-                model, messages_list=messages_list, max_tokens=max_tokens or 1000
-            )
-
-            # Post-process language model response
-            mapped_values: List[str] = []
-            total_missing_values = 0
-            for idx, r in enumerate(responses):
-                expected_len = batch_sizes[idx]
-                predictions = r.split(CONST.DEFAULT_ANS_SEP)
-                while len(predictions) < expected_len:
-                    total_missing_values += 1
-                    predictions.append(None)
-                mapped_values.extend(predictions)
-            if total_missing_values > 0:
-                logger.debug(
-                    Fore.RED
-                    + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values)-total_missing_values} out of {len(mapped_values)} values"
-                )
-            prompts = [
-                "".join([i["content"] for i in messages]) for messages in messages_list
-            ]
-        # Try to map to booleans, `None`, and numeric datatypes
-        mapped_values = cast_responses_to_datatypes(mapped_values)
-        return mapped_values, prompts
 
 
 @attrs
@@ -315,20 +197,155 @@ class LLMMap(MapIngredient):
         few_shot_examples: List[AnnotatedMapExample] = few_shot_retriever(
             current_example.to_string()
         )
-        mapped_values: List[str] = model.predict(
-            program=MapProgram,
-            current_example=current_example,
-            values=values,
-            question=question,
-            few_shot_examples=few_shot_examples,
-            batch_size=batch_size,
-            list_options_in_prompt=list_options_in_prompt,
-            example_outputs=example_outputs,
-            output_type=output_type,
-            table_name=table_name,
-            column_name=column_name,
-            **kwargs,
-        )
+        regex = None
+        if current_example.output_type is not None:
+            regex = current_example.output_type.regex
+        options = current_example.options
+        if options is not None and list_options_in_prompt:
+            if len(options) > int(
+                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
+            ):
+                logger.debug(
+                    Fore.YELLOW
+                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                )
+                list_options_in_prompt = False
+        sorted_values = sorted(values)  # Sort, to maximize cache hit rate
+        if isinstance(model, ConstrainedModel):
+            if all(x is not None for x in [options, regex]):
+                raise IngredientException(
+                    "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
+                )
+
+            lm = LMString()
+
+            if options is not None:
+                gen_f = lambda: guidance.select(options=options)
+            elif regex is not None:
+                gen_f = lambda: guidance.regex(pattern=regex)
+            else:
+                gen_f = lambda: guidance.gen(
+                    max_tokens=kwargs.get("max_tokens", 20), stop=["\n"]
+                )
+
+            @guidance(stateless=True, dedent=False)
+            def make_predictions(lm, values, gen_f) -> guidance.models.Model:
+                for _idx, value in enumerate(values):
+                    with guidance.user():
+                        lm += f"\n{value} -> "
+                    with guidance.assistant():
+                        lm += guidance.capture(gen_f(), name=value)
+                return lm
+
+            example_str = "\n\nExamples:"
+            for example in few_shot_examples:
+                example_str += example.to_string(include_values=False)
+                for k, v in example.mapping.items():
+                    example_str += f"\n{k} -> {v}"
+                example_str += "\n\n---"
+
+            for i in range(0, len(sorted_values), batch_size):
+                curr_batch_values = sorted_values[i : i + batch_size]
+                current_batch_example = copy.deepcopy(current_example)
+                current_batch_example.values = [str(i) for i in curr_batch_values]
+                current_example_str = current_example.to_string(
+                    include_values=False, list_options=list_options_in_prompt
+                )
+
+                # First check - do we need to load the model?
+                in_cache = False
+                if model.caching:
+                    responses, key = model.check_cache(
+                        CONSTRAINED_MAIN_INSTRUCTION,
+                        example_str,
+                        current_example_str,
+                        current_batch_example.values,
+                        funcs=[make_predictions, gen_f],
+                    )
+                    if responses is not None:
+                        lm._variables.update(responses)
+                        in_cache = True
+                if not in_cache:
+                    lm: guidance.models.Model = maybe_load_lm(model, lm)
+                with guidance.user():
+                    lm += CONSTRAINED_MAIN_INSTRUCTION
+                    lm += example_str
+                with guidance.user():
+                    batch_lm = lm + current_example_str
+
+                # TODO: since guidance does prefix caching, we don't actually reuse prompt tokens across batches
+                model.prompt_tokens += len(
+                    model.tokenizer.encode(batch_lm._current_prompt())
+                )
+
+                if not in_cache:
+                    model.num_generation_calls += 1
+                    with guidance.assistant():
+                        batch_lm += make_predictions(
+                            values=current_batch_example.values, gen_f=gen_f
+                        )
+                        generated_batch_variables = {
+                            k: batch_lm.get(k) for k in current_batch_example.values
+                        }
+                        lm._variables.update(generated_batch_variables)
+                    if model.caching:
+                        model.cache[key] = generated_batch_variables
+            mapped_values = [lm[value] for value in values]
+            model.completion_tokens += sum(
+                [len(model.tokenizer.encode(v)) for v in mapped_values]
+            )
+            mapped_values = cast_responses_to_datatypes(mapped_values)
+        else:
+            messages_list: List[List[dict]] = []
+            batch_sizes: List[int] = []
+            for i in range(0, len(sorted_values), batch_size):
+                messages = []
+                curr_batch_values = sorted_values[i : i + batch_size]
+                batch_sizes.append(len(curr_batch_values))
+                current_batch_example = copy.deepcopy(current_example)
+                current_batch_example.values = curr_batch_values
+                messages.append(user(UNCONSTRAINED_MAIN_INSTRUCTION))
+                # Add few-shot examples
+                for example in few_shot_examples:
+                    messages.append(user(example.to_string()))
+                    messages.append(
+                        assistant(CONST.DEFAULT_ANS_SEP.join(example.mapping.values()))
+                    )
+                # Add the current question + context for inference
+                messages.append(
+                    user(
+                        current_batch_example.to_string(
+                            list_options=list_options_in_prompt
+                        )
+                    )
+                )
+                messages_list.append(messages)
+
+            responses: List[str] = model.generate(
+                messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
+            )
+
+            # Post-process language model response
+            mapped_values: List[str] = []
+            total_missing_values = 0
+            for idx, r in enumerate(responses):
+                expected_len = batch_sizes[idx]
+                predictions = r.split(CONST.DEFAULT_ANS_SEP)
+                while len(predictions) < expected_len:
+                    total_missing_values += 1
+                    predictions.append(None)
+                # Try to map to booleans, `None`, and numeric datatypes
+                mapped_values.extend(cast_responses_to_datatypes(predictions))
+
+            mapping = {k: v for k, v in zip(sorted_values, mapped_values)}
+            mapped_values = [mapping[value] for value in values]
+
+            if total_missing_values > 0:
+                logger.debug(
+                    Fore.RED
+                    + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
+                )
+
         logger.debug(
             Fore.YELLOW
             + f"Finished LLMMap with values:\n{json.dumps(dict(zip(values[:10], mapped_values[:10])), indent=4)}"

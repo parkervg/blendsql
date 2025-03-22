@@ -18,6 +18,7 @@ class PrettyDataFrame(pd.DataFrame):
 @dataclass
 class SmoothieMeta:
     num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
+    num_generation_calls: int  # Number of generation calls made to the model
     prompt_tokens: int
     completion_tokens: int
     prompts: List[dict]  # Log of prompts submitted to model
@@ -44,9 +45,9 @@ class Smoothie:
             pd.DataFrame(
                 {
                     "Time (s)": self.meta.process_time_seconds,
-                    "Values Passed to Language Model": self.meta.num_values_passed,
+                    "# Generation Calls": self.meta.num_generation_calls,
                     "Prompt Tokens": self.meta.prompt_tokens,
-                    # "Completion Tokens": self.meta.completion_tokens,
+                    "Completion Tokens": self.meta.completion_tokens,
                 },
                 index=[0],
             )

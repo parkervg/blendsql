@@ -11,6 +11,6 @@ hide:
 
 ## TransformersLLM
 
-::: blendsql.models.local._transformers.TransformersLLM
+::: blendsql.models._transformers.TransformersLLM
     handler: python
     show_source: false

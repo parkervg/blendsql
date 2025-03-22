@@ -82,11 +82,8 @@ nav:
               - RAGQA: reference/ingredients/RAGQA.md
       - Language Models:
           - reference/models/models.md
-          - OpenAI: reference/models/openai.md
-          - Anthropic: reference/models/anthropic.md
+          - LiteLLM: reference/models/litellm.md
           - Transformers: reference/models/transformers.md
-          - Ollama: reference/models/ollama.md
-          - Azure Phi: reference/models/azurephi.md
       - Databases:
           - reference/databases/databases.md
           - DuckDB: reference/databases/duckdb.md

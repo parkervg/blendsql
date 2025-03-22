@@ -24,8 +24,7 @@ class _MapExample(Example):
     def to_string(
         self, include_values: bool = True, list_options: bool = True, *args, **kwargs
     ) -> str:
-        s = "\n\n"
-        s += f"\n\nQuestion: {self.question}\n"
+        s = f"\n\nQuestion: {self.question}\n"
         if self.table_name is not None:
             s += f"Source table: {self.table_name}\n"
         if self.column_name is not None:
