@@ -1,0 +1,2578 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Unified dialect for orchestrating SQLite logic and LLM reasoning.">
+      
+      
+      
+      
+        <link rel="prev" href="../examples/teaching-blendsql-via-in-context-learning/">
+      
+      
+        <link rel="next" href="../blend-cli/">
+      
+      
+      <link rel="icon" href="../../img/blender.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.9">
+    
+    
+      
+        <title>Execute a BlendSQL Query - BlendSQL</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.4af4bdda.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#blend" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="BlendSQL" class="md-header__button md-logo" aria-label="BlendSQL" data-md-component="logo">
+      
+  <img src="../../img/blender.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            BlendSQL
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Execute a BlendSQL Query
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/parkervg/blendsql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    parkervg/blendsql
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../.." class="md-tabs__link">
+          
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../quickstart/" class="md-tabs__link">
+          
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="BlendSQL" class="md-nav__button md-logo" aria-label="BlendSQL" data-md-component="logo">
+      
+  <img src="../../img/blender.png" alt="logo">
+
+    </a>
+    BlendSQL
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/parkervg/blendsql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    parkervg/blendsql
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Home
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_2" id="__nav_1_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Examples from QA Datasets
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            Examples from QA Datasets
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/hybridqa/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    HybridQA
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/ottqa/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    OTT-QA
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/feverous/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FEVEROUS
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FAQ
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Quickstart
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../by-example/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Some Cool Things by Example
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Examples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/blendsql-by-example/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    BlendSQL by Example
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/vqa-ingredient/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Custom VQA Ingredient with LLaVA
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/teaching-blendsql-via-in-context-learning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Teaching BlendSQL via In-Context Learning
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Documentation
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Documentation
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Execute a BlendSQL Query
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Execute a BlendSQL Query
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#blend" class="md-nav__link">
+    <span class="md-ellipsis">
+      blend()
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.blend.blend" class="md-nav__link">
+    <span class="md-ellipsis">
+      blend
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="blend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#appendix" class="md-nav__link">
+    <span class="md-ellipsis">
+      Appendix
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Appendix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#preprocess_blendsql" class="md-nav__link">
+    <span class="md-ellipsis">
+      preprocess_blendsql()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.blend.preprocess_blendsql" class="md-nav__link">
+    <span class="md-ellipsis">
+      preprocess_blendsql
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../blend-cli/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Blend CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../ingredients/ingredients/" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Ingredients
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            Ingredients
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingredients/creating-custom-ingredients/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Creating Custom Ingredients
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3_2" id="__nav_3_3_2_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Built-in
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Built-in
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingredients/LLMMap/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LLMMap
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingredients/LLMQA/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LLMQA
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingredients/LLMJoin/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LLMJoin
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingredients/RAGQA/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    RAGQA
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../models/models/" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Language Models
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_4" id="__nav_3_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            Language Models
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/litellm/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    LiteLLM
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/transformers/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Transformers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../databases/databases/" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Databases
+    
+  </span>
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_5" id="__nav_3_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            Databases
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../databases/duckdb/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    DuckDB
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../databases/pandas/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pandas (aka DuckDB in a trench coat)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../databases/sqlite/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    SQLite
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../databases/postgresql/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    PostgreSQL
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../smoothie/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Smoothie
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#blend" class="md-nav__link">
+    <span class="md-ellipsis">
+      blend()
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.blend.blend" class="md-nav__link">
+    <span class="md-ellipsis">
+      blend
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="blend">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#appendix" class="md-nav__link">
+    <span class="md-ellipsis">
+      Appendix
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Appendix">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#preprocess_blendsql" class="md-nav__link">
+    <span class="md-ellipsis">
+      preprocess_blendsql()
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.blend.preprocess_blendsql" class="md-nav__link">
+    <span class="md-ellipsis">
+      preprocess_blendsql
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+
+
+
+                  
+  
+
+
+
+  
+  
+
+
+  <h1>Execute a BlendSQL Query</h1>
+
+<h2 id="blend">blend()</h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<a id="blendsql.blend.blend"></a>
+    <div class="doc doc-contents first">
+
+        <p>The <code>blend()</code> function is used to execute a BlendSQL query against a database and
+return the final result, in addition to the intermediate reasoning steps taken.
+Execution is done on a database given an ingredient context.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>query</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The BlendSQL query to execute</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>db</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="blendsql.db._database.Database" href="../databases/databases/#blendsql.db._database.Database">Database</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Database connector object</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ingredients</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="collections.abc.Collection">Collection</span>[<span title="typing.Type">Type</span>[<span title="blendsql.ingredients.ingredient.Ingredient">Ingredient</span>]]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Collection of ingredient objects, to use in interpreting BlendSQL query</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>verbose</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Boolean defining whether to run with logger in debug mode</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>default_model</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<a class="autorefs autorefs-internal" title="blendsql.models._model.Model" href="../models/models/#blendsql.models._model.Model">Model</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which BlendSQL model to use in performing ingredient tasks in the current query</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>infer_gen_constraints</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optionally infer the output format of an <code>IngredientMap</code> call, given the predicate context
+For example, in <code>{{LLMMap('convert to date', 'w::listing date')}} &lt;= '1960-12-31'</code>
+We can infer the output format should look like '1960-12-31' and both:
+    1) Put this string in the <code>example_outputs</code> kwarg
+    2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to guidance</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>table_to_title</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="typing.Dict">Dict</span>[<span title="str">str</span>, <span title="str">str</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional mapping from table name to title of table.
+Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>schema_qualify</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional bool, determines if we run qualify_columns() from sqlglot
+This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
+However, we need to call <code>db.sqlglot_schema</code> if schema_qualify=True, which may add some latency.
+With single-table queries, we can set this to False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>smoothie</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="blendsql._smoothie.Smoothie" href="../smoothie/#blendsql._smoothie.Smoothie">Smoothie</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Smoothie</code> dataclass containing pd.DataFrame output and execution metadata</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">blend</span><span class="p">,</span> <span class="n">LLMMap</span><span class="p">,</span> <span class="n">LLMQA</span><span class="p">,</span> <span class="n">LLMJoin</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pandas</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">TransformersLLM</span>
+
+<span class="c1"># Load model</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">TransformersLLM</span><span class="p">(</span><span class="s1">&#39;Qwen/Qwen1.5-0.5B&#39;</span><span class="p">)</span>
+
+<span class="c1"># Prepare our local database</span>
+<span class="n">db</span> <span class="o">=</span> <span class="n">Pandas</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;w&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="p">[</span><span class="s1">&#39;11 jun&#39;</span><span class="p">,</span> <span class="s1">&#39;western districts&#39;</span><span class="p">,</span> <span class="s1">&#39;bathurst&#39;</span><span class="p">,</span> <span class="s1">&#39;bathurst ground&#39;</span><span class="p">,</span> <span class="s1">&#39;11-0&#39;</span><span class="p">],</span>
+                <span class="p">[</span><span class="s1">&#39;12 jun&#39;</span><span class="p">,</span> <span class="s1">&#39;wallaroo &amp; university nsq&#39;</span><span class="p">,</span> <span class="s1">&#39;sydney&#39;</span><span class="p">,</span> <span class="s1">&#39;cricket ground&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;23-10&#39;</span><span class="p">],</span>
+                <span class="p">[</span><span class="s1">&#39;5 jun&#39;</span><span class="p">,</span> <span class="s1">&#39;northern districts&#39;</span><span class="p">,</span> <span class="s1">&#39;newcastle&#39;</span><span class="p">,</span> <span class="s1">&#39;sports ground&#39;</span><span class="p">,</span> <span class="s1">&#39;29-0&#39;</span><span class="p">]</span>
+            <span class="p">),</span>
+            <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;date&#39;</span><span class="p">,</span> <span class="s1">&#39;rival&#39;</span><span class="p">,</span> <span class="s1">&#39;city&#39;</span><span class="p">,</span> <span class="s1">&#39;venue&#39;</span><span class="p">,</span> <span class="s1">&#39;score&#39;</span><span class="p">]</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;documents&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="p">[</span><span class="s1">&#39;bathurst, new south wales&#39;</span><span class="p">,</span> <span class="s1">&#39;bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .&#39;</span><span class="p">],</span>
+                <span class="p">[</span><span class="s1">&#39;sydney&#39;</span><span class="p">,</span> <span class="s1">&#39;sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.&#39;</span><span class="p">],</span>
+                <span class="p">[</span><span class="s1">&#39;newcastle, new south wales&#39;</span><span class="p">,</span> <span class="s1">&#39;the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .&#39;</span><span class="p">]</span>
+            <span class="p">),</span>
+            <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;title&#39;</span><span class="p">,</span> <span class="s1">&#39;content&#39;</span><span class="p">]</span>
+        <span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Write BlendSQL query</span>
+<span class="n">blendsql</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">SELECT * FROM w</span>
+<span class="s2">WHERE city = {{</span>
+<span class="s2">    LLMQA(</span>
+<span class="s2">        &#39;Which city is located 120 miles west of Sydney?&#39;,</span>
+<span class="s2">        (SELECT * FROM documents WHERE content LIKE &#39;</span><span class="si">%s</span><span class="s2">ydney%&#39;),</span>
+<span class="s2">        options=&#39;w::city&#39;</span>
+<span class="s2">    )</span>
+<span class="s2">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+<span class="n">smoothie</span> <span class="o">=</span> <span class="n">blend</span><span class="p">(</span>
+    <span class="n">query</span><span class="o">=</span><span class="n">blendsql</span><span class="p">,</span>
+    <span class="n">db</span><span class="o">=</span><span class="n">db</span><span class="p">,</span>
+    <span class="n">ingredients</span><span class="o">=</span><span class="p">{</span><span class="n">LLMMap</span><span class="p">,</span> <span class="n">LLMQA</span><span class="p">,</span> <span class="n">LLMJoin</span><span class="p">},</span>
+    <span class="n">default_model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="c1"># Optional args below</span>
+    <span class="n">infer_gen_constraints</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">smoothie</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
+<span class="c1"># ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐</span>
+<span class="c1"># │ date   │ rival             │ city     │ venue           │ score   │</span>
+<span class="c1"># ├────────┼───────────────────┼──────────┼─────────────────┼─────────┤</span>
+<span class="c1"># │ 11 jun │ western districts │ bathurst │ bathurst ground │ 11-0    │</span>
+<span class="c1"># └────────┴───────────────────┴──────────┴─────────────────┴─────────┘</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">smoothie</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">prompts</span><span class="p">)</span>
+<span class="c1"># [</span>
+<span class="c1">#   {</span>
+<span class="c1">#       &#39;answer&#39;: &#39;sydney&#39;,</span>
+<span class="c1">#       &#39;question&#39;: &#39;Which city is located 120 miles west of Sydney?&#39;,</span>
+<span class="c1">#       &#39;context&#39;: [</span>
+<span class="c1">#           {&#39;title&#39;: &#39;bathurst, new south wales&#39;, &#39;content&#39;: &#39;bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about...&#39;},</span>
+<span class="c1">#           {&#39;title&#39;: &#39;sydney&#39;, &#39;content&#39;: &#39;sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in...&#39;}</span>
+<span class="c1">#       ]</span>
+<span class="c1">#    }</span>
+<span class="c1"># ]</span>
+</code></pre></div>
+
+
+            <details class="quote">
+              <summary>Source code in <code>blendsql/blend.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 977</span>
+<span class="normal"> 978</span>
+<span class="normal"> 979</span>
+<span class="normal"> 980</span>
+<span class="normal"> 981</span>
+<span class="normal"> 982</span>
+<span class="normal"> 983</span>
+<span class="normal"> 984</span>
+<span class="normal"> 985</span>
+<span class="normal"> 986</span>
+<span class="normal"> 987</span>
+<span class="normal"> 988</span>
+<span class="normal"> 989</span>
+<span class="normal"> 990</span>
+<span class="normal"> 991</span>
+<span class="normal"> 992</span>
+<span class="normal"> 993</span>
+<span class="normal"> 994</span>
+<span class="normal"> 995</span>
+<span class="normal"> 996</span>
+<span class="normal"> 997</span>
+<span class="normal"> 998</span>
+<span class="normal"> 999</span>
+<span class="normal">1000</span>
+<span class="normal">1001</span>
+<span class="normal">1002</span>
+<span class="normal">1003</span>
+<span class="normal">1004</span>
+<span class="normal">1005</span>
+<span class="normal">1006</span>
+<span class="normal">1007</span>
+<span class="normal">1008</span>
+<span class="normal">1009</span>
+<span class="normal">1010</span>
+<span class="normal">1011</span>
+<span class="normal">1012</span>
+<span class="normal">1013</span>
+<span class="normal">1014</span>
+<span class="normal">1015</span>
+<span class="normal">1016</span>
+<span class="normal">1017</span>
+<span class="normal">1018</span>
+<span class="normal">1019</span>
+<span class="normal">1020</span>
+<span class="normal">1021</span>
+<span class="normal">1022</span>
+<span class="normal">1023</span>
+<span class="normal">1024</span>
+<span class="normal">1025</span>
+<span class="normal">1026</span>
+<span class="normal">1027</span>
+<span class="normal">1028</span>
+<span class="normal">1029</span>
+<span class="normal">1030</span>
+<span class="normal">1031</span>
+<span class="normal">1032</span>
+<span class="normal">1033</span>
+<span class="normal">1034</span>
+<span class="normal">1035</span>
+<span class="normal">1036</span>
+<span class="normal">1037</span>
+<span class="normal">1038</span>
+<span class="normal">1039</span>
+<span class="normal">1040</span>
+<span class="normal">1041</span>
+<span class="normal">1042</span>
+<span class="normal">1043</span>
+<span class="normal">1044</span>
+<span class="normal">1045</span>
+<span class="normal">1046</span>
+<span class="normal">1047</span>
+<span class="normal">1048</span>
+<span class="normal">1049</span>
+<span class="normal">1050</span>
+<span class="normal">1051</span>
+<span class="normal">1052</span>
+<span class="normal">1053</span>
+<span class="normal">1054</span>
+<span class="normal">1055</span>
+<span class="normal">1056</span>
+<span class="normal">1057</span>
+<span class="normal">1058</span>
+<span class="normal">1059</span>
+<span class="normal">1060</span>
+<span class="normal">1061</span>
+<span class="normal">1062</span>
+<span class="normal">1063</span>
+<span class="normal">1064</span>
+<span class="normal">1065</span>
+<span class="normal">1066</span>
+<span class="normal">1067</span>
+<span class="normal">1068</span>
+<span class="normal">1069</span>
+<span class="normal">1070</span>
+<span class="normal">1071</span>
+<span class="normal">1072</span>
+<span class="normal">1073</span>
+<span class="normal">1074</span>
+<span class="normal">1075</span>
+<span class="normal">1076</span>
+<span class="normal">1077</span>
+<span class="normal">1078</span>
+<span class="normal">1079</span>
+<span class="normal">1080</span>
+<span class="normal">1081</span>
+<span class="normal">1082</span>
+<span class="normal">1083</span>
+<span class="normal">1084</span>
+<span class="normal">1085</span>
+<span class="normal">1086</span>
+<span class="normal">1087</span>
+<span class="normal">1088</span>
+<span class="normal">1089</span>
+<span class="normal">1090</span>
+<span class="normal">1091</span>
+<span class="normal">1092</span>
+<span class="normal">1093</span>
+<span class="normal">1094</span>
+<span class="normal">1095</span>
+<span class="normal">1096</span>
+<span class="normal">1097</span>
+<span class="normal">1098</span>
+<span class="normal">1099</span>
+<span class="normal">1100</span>
+<span class="normal">1101</span>
+<span class="normal">1102</span>
+<span class="normal">1103</span>
+<span class="normal">1104</span>
+<span class="normal">1105</span>
+<span class="normal">1106</span>
+<span class="normal">1107</span>
+<span class="normal">1108</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">blend</span><span class="p">(</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">db</span><span class="p">:</span> <span class="n">Database</span><span class="p">,</span>
+    <span class="n">default_model</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Model</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">ingredients</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Collection</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">Ingredient</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">infer_gen_constraints</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">table_to_title</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">schema_qualify</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Smoothie</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;The `blend()` function is used to execute a BlendSQL query against a database and</span>
+<span class="sd">    return the final result, in addition to the intermediate reasoning steps taken.</span>
+<span class="sd">    Execution is done on a database given an ingredient context.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        query: The BlendSQL query to execute</span>
+<span class="sd">        db: Database connector object</span>
+<span class="sd">        ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query</span>
+<span class="sd">        verbose: Boolean defining whether to run with logger in debug mode</span>
+<span class="sd">        default_model: Which BlendSQL model to use in performing ingredient tasks in the current query</span>
+<span class="sd">        infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context</span>
+<span class="sd">            For example, in `{{LLMMap(&#39;convert to date&#39;, &#39;w::listing date&#39;)}} &lt;= &#39;1960-12-31&#39;`</span>
+<span class="sd">            We can infer the output format should look like &#39;1960-12-31&#39; and both:</span>
+<span class="sd">                1) Put this string in the `example_outputs` kwarg</span>
+<span class="sd">                2) If we have a LocalModel, pass the &#39;\d{4}-\d{2}-\d{2}&#39; pattern to guidance</span>
+<span class="sd">        table_to_title: Optional mapping from table name to title of table.</span>
+<span class="sd">            Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.</span>
+<span class="sd">        schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot</span>
+<span class="sd">            This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves</span>
+<span class="sd">            However, we need to call `db.sqlglot_schema` if schema_qualify=True, which may add some latency.</span>
+<span class="sd">            With single-table queries, we can set this to False.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        ```python</span>
+<span class="sd">        import pandas as pd</span>
+
+<span class="sd">        from blendsql import blend, LLMMap, LLMQA, LLMJoin</span>
+<span class="sd">        from blendsql.db import Pandas</span>
+<span class="sd">        from blendsql.models import TransformersLLM</span>
+
+<span class="sd">        # Load model</span>
+<span class="sd">        model = TransformersLLM(&#39;Qwen/Qwen1.5-0.5B&#39;)</span>
+
+<span class="sd">        # Prepare our local database</span>
+<span class="sd">        db = Pandas(</span>
+<span class="sd">            {</span>
+<span class="sd">                &quot;w&quot;: pd.DataFrame(</span>
+<span class="sd">                    (</span>
+<span class="sd">                        [&#39;11 jun&#39;, &#39;western districts&#39;, &#39;bathurst&#39;, &#39;bathurst ground&#39;, &#39;11-0&#39;],</span>
+<span class="sd">                        [&#39;12 jun&#39;, &#39;wallaroo &amp; university nsq&#39;, &#39;sydney&#39;, &#39;cricket ground&#39;,</span>
+<span class="sd">                         &#39;23-10&#39;],</span>
+<span class="sd">                        [&#39;5 jun&#39;, &#39;northern districts&#39;, &#39;newcastle&#39;, &#39;sports ground&#39;, &#39;29-0&#39;]</span>
+<span class="sd">                    ),</span>
+<span class="sd">                    columns=[&#39;date&#39;, &#39;rival&#39;, &#39;city&#39;, &#39;venue&#39;, &#39;score&#39;]</span>
+<span class="sd">                ),</span>
+<span class="sd">                &quot;documents&quot;: pd.DataFrame(</span>
+<span class="sd">                    (</span>
+<span class="sd">                        [&#39;bathurst, new south wales&#39;, &#39;bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .&#39;],</span>
+<span class="sd">                        [&#39;sydney&#39;, &#39;sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.&#39;],</span>
+<span class="sd">                        [&#39;newcastle, new south wales&#39;, &#39;the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .&#39;]</span>
+<span class="sd">                    ),</span>
+<span class="sd">                    columns=[&#39;title&#39;, &#39;content&#39;]</span>
+<span class="sd">                )</span>
+<span class="sd">            }</span>
+<span class="sd">        )</span>
+
+<span class="sd">        # Write BlendSQL query</span>
+<span class="sd">        blendsql = &quot;&quot;&quot;</span>
+<span class="sd">        SELECT * FROM w</span>
+<span class="sd">        WHERE city = {{</span>
+<span class="sd">            LLMQA(</span>
+<span class="sd">                &#39;Which city is located 120 miles west of Sydney?&#39;,</span>
+<span class="sd">                (SELECT * FROM documents WHERE content LIKE &#39;%sydney%&#39;),</span>
+<span class="sd">                options=&#39;w::city&#39;</span>
+<span class="sd">            )</span>
+<span class="sd">        }}</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">        smoothie = blend(</span>
+<span class="sd">            query=blendsql,</span>
+<span class="sd">            db=db,</span>
+<span class="sd">            ingredients={LLMMap, LLMQA, LLMJoin},</span>
+<span class="sd">            default_model=model,</span>
+<span class="sd">            # Optional args below</span>
+<span class="sd">            infer_gen_constraints=True,</span>
+<span class="sd">            verbose=True</span>
+<span class="sd">        )</span>
+<span class="sd">        print(smoothie.df)</span>
+<span class="sd">        # ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐</span>
+<span class="sd">        # │ date   │ rival             │ city     │ venue           │ score   │</span>
+<span class="sd">        # ├────────┼───────────────────┼──────────┼─────────────────┼─────────┤</span>
+<span class="sd">        # │ 11 jun │ western districts │ bathurst │ bathurst ground │ 11-0    │</span>
+<span class="sd">        # └────────┴───────────────────┴──────────┴─────────────────┴─────────┘</span>
+<span class="sd">        print(smoothie.meta.prompts)</span>
+<span class="sd">        # [</span>
+<span class="sd">        #   {</span>
+<span class="sd">        #       &#39;answer&#39;: &#39;sydney&#39;,</span>
+<span class="sd">        #       &#39;question&#39;: &#39;Which city is located 120 miles west of Sydney?&#39;,</span>
+<span class="sd">        #       &#39;context&#39;: [</span>
+<span class="sd">        #           {&#39;title&#39;: &#39;bathurst, new south wales&#39;, &#39;content&#39;: &#39;bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about...&#39;},</span>
+<span class="sd">        #           {&#39;title&#39;: &#39;sydney&#39;, &#39;content&#39;: &#39;sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in...&#39;}</span>
+<span class="sd">        #       ]</span>
+<span class="sd">        #    }</span>
+<span class="sd">        # ]</span>
+<span class="sd">        ```</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">logger</span><span class="o">.</span><span class="n">handlers</span><span class="p">:</span>
+            <span class="n">handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">smoothie</span> <span class="o">=</span> <span class="n">_blend</span><span class="p">(</span>
+            <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+            <span class="n">db</span><span class="o">=</span><span class="n">db</span><span class="p">,</span>
+            <span class="n">default_model</span><span class="o">=</span><span class="n">default_model</span><span class="p">,</span>
+            <span class="n">ingredients</span><span class="o">=</span><span class="n">ingredients</span><span class="p">,</span>
+            <span class="n">infer_gen_constraints</span><span class="o">=</span><span class="n">infer_gen_constraints</span><span class="p">,</span>
+            <span class="n">table_to_title</span><span class="o">=</span><span class="n">table_to_title</span><span class="p">,</span>
+            <span class="n">schema_qualify</span><span class="o">=</span><span class="n">schema_qualify</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">error</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># In the case of a recursive `_blend()` call,</span>
+        <span class="c1">#   this logic allows temp tables to persist until</span>
+        <span class="c1">#   the final base case is fulfilled.</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">_reset_connection</span><span class="p">()</span>
+    <span class="n">smoothie</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">process_time_seconds</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start</span>
+    <span class="k">return</span> <span class="n">smoothie</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div><h3 id="appendix">Appendix</h3>
+<h4 id="preprocess_blendsql">preprocess_blendsql()</h4>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<a id="blendsql.blend.preprocess_blendsql"></a>
+    <div class="doc doc-contents first">
+
+        <p>Parses BlendSQL string with our pyparsing grammar and returns objects
+required for interpretation and execution.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>query</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The BlendSQL query to preprocess</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>default_model</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="blendsql.models._model.Model" href="../models/models/#blendsql.models._model.Model">Model</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Model object, which we attach to each parsed_dict</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Tuple">Tuple</span>[<span title="str">str</span>, <span title="dict">dict</span>, <span title="set">set</span>, <span title="blendsql.blend.Kitchen">Kitchen</span>, <span title="typing.Set">Set</span>[<span title="blendsql.ingredients.ingredient.Ingredient">Ingredient</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tuple, containing:</p>
+<ul>
+<li>
+<p>ingredient_alias_to_parsed_dict</p>
+</li>
+<li>
+<p>tables_in_ingredients</p>
+</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <p><div class="highlight"><pre><span></span><code><span class="n">preprocess_blendsql</span><span class="p">(</span>
+    <span class="n">query</span><span class="o">=</span><span class="s2">&quot;SELECT * FROM documents JOIN {{LLMJoin(left_on=&#39;w::player&#39;, right_on=&#39;documents::title&#39;)}} WHERE rank = 2&quot;</span><span class="p">,</span>
+    <span class="n">default_model</span><span class="o">=</span><span class="n">default_model</span>
+<span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>(
+    {
+        &#39;{{A()}}&#39;: {
+            &#39;function&#39;: &#39;LLMJoin&#39;,
+            &#39;args&#39;: [],
+            &#39;ingredient_aliasname&#39;: &#39;A&#39;,
+            &#39;raw&#39;: &quot;{{ LLMJoin ( left_on= &#39;w::player&#39; , right_on= &#39;documents::title&#39; ) }}&quot;,
+            &#39;kwargs_dict&#39;: {
+                &#39;left_on&#39;: &#39;w::player&#39;,
+                &#39;right_on&#39;: &#39;documents::title&#39;
+            }
+        }
+    },
+    {&#39;documents&#39;, &#39;w&#39;}
+)
+</code></pre></div></p>
+
+
+            <details class="quote">
+              <summary>Source code in <code>blendsql/blend.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span>
+<span class="normal">247</span>
+<span class="normal">248</span>
+<span class="normal">249</span>
+<span class="normal">250</span>
+<span class="normal">251</span>
+<span class="normal">252</span>
+<span class="normal">253</span>
+<span class="normal">254</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span>
+<span class="normal">262</span>
+<span class="normal">263</span>
+<span class="normal">264</span>
+<span class="normal">265</span>
+<span class="normal">266</span>
+<span class="normal">267</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span>
+<span class="normal">283</span>
+<span class="normal">284</span>
+<span class="normal">285</span>
+<span class="normal">286</span>
+<span class="normal">287</span>
+<span class="normal">288</span>
+<span class="normal">289</span>
+<span class="normal">290</span>
+<span class="normal">291</span>
+<span class="normal">292</span>
+<span class="normal">293</span>
+<span class="normal">294</span>
+<span class="normal">295</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span>
+<span class="normal">299</span>
+<span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">preprocess_blendsql</span><span class="p">(</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">kitchen</span><span class="p">:</span> <span class="n">Kitchen</span><span class="p">,</span>
+    <span class="n">ingredients</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="n">Ingredient</span><span class="p">],</span>
+    <span class="n">default_model</span><span class="p">:</span> <span class="n">Model</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="nb">set</span><span class="p">,</span> <span class="n">Kitchen</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="n">Ingredient</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parses BlendSQL string with our pyparsing grammar and returns objects</span>
+<span class="sd">    required for interpretation and execution.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        query: The BlendSQL query to preprocess</span>
+<span class="sd">        default_model: Model object, which we attach to each parsed_dict</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Tuple, containing:</span>
+
+<span class="sd">            - ingredient_alias_to_parsed_dict</span>
+
+<span class="sd">            - tables_in_ingredients</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        ```python</span>
+<span class="sd">        preprocess_blendsql(</span>
+<span class="sd">            query=&quot;SELECT * FROM documents JOIN {{LLMJoin(left_on=&#39;w::player&#39;, right_on=&#39;documents::title&#39;)}} WHERE rank = 2&quot;,</span>
+<span class="sd">            default_model=default_model</span>
+<span class="sd">        )</span>
+<span class="sd">        ```</span>
+<span class="sd">        ```text</span>
+<span class="sd">        (</span>
+<span class="sd">            {</span>
+<span class="sd">                &#39;{{A()}}&#39;: {</span>
+<span class="sd">                    &#39;function&#39;: &#39;LLMJoin&#39;,</span>
+<span class="sd">                    &#39;args&#39;: [],</span>
+<span class="sd">                    &#39;ingredient_aliasname&#39;: &#39;A&#39;,</span>
+<span class="sd">                    &#39;raw&#39;: &quot;{{ LLMJoin ( left_on= &#39;w::player&#39; , right_on= &#39;documents::title&#39; ) }}&quot;,</span>
+<span class="sd">                    &#39;kwargs_dict&#39;: {</span>
+<span class="sd">                        &#39;left_on&#39;: &#39;w::player&#39;,</span>
+<span class="sd">                        &#39;right_on&#39;: &#39;documents::title&#39;</span>
+<span class="sd">                    }</span>
+<span class="sd">                }</span>
+<span class="sd">            },</span>
+<span class="sd">            {&#39;documents&#39;, &#39;w&#39;}</span>
+<span class="sd">        )</span>
+<span class="sd">        ```</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ingredient_alias_to_parsed_dict</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">ingredient_str_to_alias</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">tables_in_ingredients</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;(\s+)&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span>
+    <span class="n">reversed_scan_res</span> <span class="o">=</span> <span class="p">[</span><span class="n">scan_res</span> <span class="k">for</span> <span class="n">scan_res</span> <span class="ow">in</span> <span class="n">grammar</span><span class="o">.</span><span class="n">scanString</span><span class="p">(</span><span class="n">query</span><span class="p">)][::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">parse_results</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">reversed_scan_res</span><span class="p">):</span>
+        <span class="n">original_ingredient_string</span> <span class="o">=</span> <span class="n">query</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+        <span class="c1"># If we&#39;re in between parentheses, add a `SELECT`</span>
+        <span class="c1"># This way it gets picked up as a subquery to parse later</span>
+        <span class="c1"># TODO: is this safe to do?</span>
+        <span class="k">if</span> <span class="n">query</span><span class="p">[</span><span class="n">start</span> <span class="o">-</span> <span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;(&quot;</span> <span class="ow">and</span> <span class="n">query</span><span class="p">[</span><span class="n">end</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;)&quot;</span><span class="p">:</span>
+            <span class="n">inserted_select</span> <span class="o">=</span> <span class="s2">&quot; SELECT &quot;</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="n">query</span><span class="p">[:</span><span class="n">start</span><span class="p">]</span> <span class="o">+</span> <span class="n">inserted_select</span> <span class="o">+</span> <span class="n">query</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span> <span class="o">+</span> <span class="n">query</span><span class="p">[</span><span class="n">end</span><span class="p">:]</span>
+            <span class="n">start</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">inserted_select</span><span class="p">)</span>
+            <span class="n">end</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">inserted_select</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">original_ingredient_string</span> <span class="ow">in</span> <span class="n">ingredient_str_to_alias</span>
+        <span class="p">):</span>  <span class="c1"># If we&#39;ve already processed this function, no need to do it again</span>
+            <span class="n">substituted_ingredient_alias</span> <span class="o">=</span> <span class="n">ingredient_str_to_alias</span><span class="p">[</span>
+                <span class="n">original_ingredient_string</span>
+            <span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">parsed_results_dict</span> <span class="o">=</span> <span class="n">parse_results</span><span class="o">.</span><span class="n">as_dict</span><span class="p">()</span>
+            <span class="n">_ingredient</span> <span class="o">=</span> <span class="n">kitchen</span><span class="o">.</span><span class="n">get_from_name</span><span class="p">(</span><span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;function&quot;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">_ingredient</span><span class="o">.</span><span class="n">ingredient_type</span> <span class="o">==</span> <span class="n">IngredientType</span><span class="o">.</span><span class="n">ALIAS</span><span class="p">:</span>
+                <span class="n">_original_ingredient_string</span><span class="p">,</span> <span class="n">ingredient_dependencies</span> <span class="o">=</span> <span class="n">_ingredient</span><span class="p">(</span>
+                    <span class="o">*</span><span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">],</span>
+                    <span class="o">**</span><span class="p">{</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;kwargs&quot;</span><span class="p">]},</span>
+                <span class="p">)</span>
+                <span class="n">kitchen</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">ingredient_dependencies</span><span class="p">,</span> <span class="n">flag_duplicates</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">ingredients</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">ingredients</span><span class="p">)</span>
+                <span class="n">existing_ingredients</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="vm">__name__</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ingredients</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">ingredient</span> <span class="ow">in</span> <span class="n">ingredient_dependencies</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">ingredient</span><span class="o">.</span><span class="vm">__name__</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing_ingredients</span><span class="p">:</span>
+                        <span class="n">ingredients</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ingredient</span><span class="p">)</span>
+                <span class="n">parse_results</span> <span class="o">=</span> <span class="n">grammar</span><span class="o">.</span><span class="n">parseString</span><span class="p">(</span><span class="n">_original_ingredient_string</span><span class="p">)</span>
+                <span class="n">parsed_results_dict</span> <span class="o">=</span> <span class="n">parse_results</span><span class="o">.</span><span class="n">as_dict</span><span class="p">()</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="n">Fore</span><span class="o">.</span><span class="n">CYAN</span>
+                    <span class="o">+</span> <span class="s2">&quot;Unpacked alias `&quot;</span>
+                    <span class="o">+</span> <span class="n">Fore</span><span class="o">.</span><span class="n">LIGHTCYAN_EX</span>
+                    <span class="o">+</span> <span class="n">original_ingredient_string</span>
+                    <span class="o">+</span> <span class="n">Fore</span><span class="o">.</span><span class="n">CYAN</span>
+                    <span class="o">+</span> <span class="s2">&quot;` to `&quot;</span>
+                    <span class="o">+</span> <span class="n">Fore</span><span class="o">.</span><span class="n">LIGHTCYAN_EX</span>
+                    <span class="o">+</span> <span class="n">_original_ingredient_string</span>
+                    <span class="o">+</span> <span class="s2">&quot;`&quot;</span>
+                    <span class="o">+</span> <span class="n">Fore</span><span class="o">.</span><span class="n">RESET</span>
+                <span class="p">)</span>
+                <span class="n">original_ingredient_string</span> <span class="o">=</span> <span class="n">_original_ingredient_string</span>
+            <span class="n">ingredient_aliasname</span> <span class="o">=</span> <span class="n">string</span><span class="o">.</span><span class="n">ascii_uppercase</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;ingredient_aliasname&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ingredient_aliasname</span>
+            <span class="n">substituted_ingredient_alias</span> <span class="o">=</span> <span class="s2">&quot;{{&quot;</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ingredient_aliasname</span><span class="si">}</span><span class="s2">()&quot;</span> <span class="o">+</span> <span class="s2">&quot;}}&quot;</span>
+            <span class="n">ingredient_str_to_alias</span><span class="p">[</span>
+                <span class="n">original_ingredient_string</span>
+            <span class="p">]</span> <span class="o">=</span> <span class="n">substituted_ingredient_alias</span>
+            <span class="c1"># Remove parentheses at beginning and end of arg/kwarg</span>
+            <span class="c1"># TODO: this should be handled by pyparsing</span>
+            <span class="k">for</span> <span class="n">arg_type</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;args&quot;</span><span class="p">,</span> <span class="s2">&quot;kwargs&quot;</span><span class="p">}:</span>
+                <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">parsed_results_dict</span><span class="p">[</span><span class="n">arg_type</span><span class="p">])):</span>
+                    <span class="n">curr_arg</span> <span class="o">=</span> <span class="n">parsed_results_dict</span><span class="p">[</span><span class="n">arg_type</span><span class="p">][</span><span class="n">idx</span><span class="p">]</span>
+                    <span class="n">curr_arg</span> <span class="o">=</span> <span class="n">curr_arg</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">arg_type</span> <span class="o">==</span> <span class="s2">&quot;kwargs&quot;</span> <span class="k">else</span> <span class="n">curr_arg</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">curr_arg</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                        <span class="k">continue</span>
+                    <span class="n">formatted_curr_arg</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span>
+                        <span class="sa">r</span><span class="s2">&quot;(^\()(.*)(\)$)&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\2&quot;</span><span class="p">,</span> <span class="n">curr_arg</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">arg_type</span> <span class="o">==</span> <span class="s2">&quot;args&quot;</span><span class="p">:</span>
+                        <span class="n">parsed_results_dict</span><span class="p">[</span><span class="n">arg_type</span><span class="p">][</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">formatted_curr_arg</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">parsed_results_dict</span><span class="p">[</span><span class="n">arg_type</span><span class="p">][</span><span class="n">idx</span><span class="p">][</span>
+                            <span class="o">-</span><span class="mi">1</span>
+                        <span class="p">]</span> <span class="o">=</span> <span class="n">formatted_curr_arg</span>  <span class="c1"># kwargs gets returned as [&#39;limit&#39;, &#39;=&#39;, 10] sort of list</span>
+            <span class="c1"># So we need to parse by indices in dict expression</span>
+            <span class="c1"># maybe if I was better at pp.Suppress we wouldn&#39;t need this</span>
+            <span class="n">kwargs_dict</span> <span class="o">=</span> <span class="p">{</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;kwargs&quot;</span><span class="p">]}</span>
+            <span class="n">kwargs_dict</span><span class="p">[</span><span class="n">IngredientKwarg</span><span class="o">.</span><span class="n">MODEL</span><span class="p">]</span> <span class="o">=</span> <span class="n">default_model</span>
+            <span class="c1"># Heuristic check to see if we should snag the singleton arg as context</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="ow">and</span> <span class="s2">&quot;::&quot;</span> <span class="ow">in</span> <span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="p">):</span>
+                <span class="n">kwargs_dict</span><span class="p">[</span><span class="n">IngredientKwarg</span><span class="o">.</span><span class="n">CONTEXT</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">context_arg</span> <span class="o">=</span> <span class="n">kwargs_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="n">IngredientKwarg</span><span class="o">.</span><span class="n">CONTEXT</span><span class="p">,</span>
+                <span class="p">(</span>
+                    <span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span>
+                    <span class="k">else</span> <span class="p">(</span>
+                        <span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parsed_results_dict</span><span class="p">[</span><span class="s2">&quot;args&quot;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span>
+                        <span class="k">else</span> <span class="kc">None</span>
+                    <span class="p">)</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="p">{</span>
+                <span class="n">context_arg</span><span class="p">,</span>
+                <span class="n">kwargs_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;left_on&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                <span class="n">kwargs_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;right_on&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="p">}:</span>
+                <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">check</span><span class="o">.</span><span class="n">is_blendsql_query</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+                    <span class="n">tablename</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_tablename_colname</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+                    <span class="n">tables_in_ingredients</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">tablename</span><span class="p">)</span>
+            <span class="c1"># We don&#39;t need raw kwargs anymore</span>
+            <span class="c1"># in the future, we just refer to kwargs_dict</span>
+            <span class="n">parsed_results_dict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;kwargs&quot;</span><span class="p">)</span>
+            <span class="c1"># Below we track the &#39;raw&#39; representation, in case we need to pass into</span>
+            <span class="c1">#   a recursive BlendSQL call later</span>
+            <span class="n">ingredient_alias_to_parsed_dict</span><span class="p">[</span>
+                <span class="n">substituted_ingredient_alias</span>
+            <span class="p">]</span> <span class="o">=</span> <span class="n">parsed_results_dict</span> <span class="o">|</span> <span class="p">{</span>
+                <span class="s2">&quot;raw&quot;</span><span class="p">:</span> <span class="n">query</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">],</span>
+                <span class="s2">&quot;kwargs_dict&quot;</span><span class="p">:</span> <span class="n">kwargs_dict</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="n">query</span><span class="p">[:</span><span class="n">start</span><span class="p">]</span> <span class="o">+</span> <span class="n">substituted_ingredient_alias</span> <span class="o">+</span> <span class="n">query</span><span class="p">[</span><span class="n">end</span><span class="p">:]</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">query</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span>
+        <span class="n">ingredient_alias_to_parsed_dict</span><span class="p">,</span>
+        <span class="n">tables_in_ingredients</span><span class="p">,</span>
+        <span class="n">kitchen</span><span class="p">,</span>
+        <span class="n">ingredients</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+  
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["content.code.copy", "header.autohide", "navigation.expand", "navigation.tabs", "navigation.sections"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>
