@@ -119,8 +119,8 @@ class LLMJoin(JoinIngredient):
         current_example = JoinExample(
             **{
                 "join_criteria": question,
-                "left_values": left_values,
-                "right_values": right_values,
+                "left_values": sorted(left_values),
+                "right_values": sorted(right_values),
             }
         )
         few_shot_examples: List[AnnotatedJoinExample] = few_shot_retriever(
@@ -148,24 +148,35 @@ class LLMJoin(JoinIngredient):
             # First check - do we need to load the model?
             in_cache = False
             if model.caching:
-                response, key = model.check_cache(
+                mapping, key = model.check_cache(
                     MAIN_INSTRUCTION,
                     curr_example_str,
                     "\n".join(
                         [
-                            (example.to_string(), example.mapping)
+                            f"{example.to_string()}\n{example.mapping}"
                             for example in few_shot_examples
                         ]
                     ),
-                    current_example.left_values,
-                    current_example.right_values,
                     funcs=[make_predictions],
                 )
-                if response is not None:
+                if mapping is not None:
                     in_cache = True
+            model.prompt_tokens += len(
+                model.tokenizer.encode(
+                    MAIN_INSTRUCTION
+                    + "\n".join(
+                        [
+                            f"{example.to_string()}{json.dumps(example.mapping, indent=4)}"
+                            for example in few_shot_examples
+                        ]
+                    )
+                    + curr_example_str
+                )
+            )
             if not in_cache:
                 # Load our underlying guidance model, if we need to
                 lm: guidance.models.Model = maybe_load_lm(model, lm)
+                model.num_generation_calls += 1
                 with guidance.user():
                     lm += MAIN_INSTRUCTION
                 # Add few-shot examples
@@ -189,6 +200,11 @@ class LLMJoin(JoinIngredient):
                 mapping = lm._variables
                 if model.caching:
                     model.cache[key] = mapping
+
+            model.completion_tokens += sum(
+                [len(model.tokenizer.encode(v)) for v in mapping.values()]
+            )
+
         else:
             # Use 'old' style prompt for remote models
             messages = []

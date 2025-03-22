@@ -32,7 +32,17 @@ DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-MAIN_INSTRUCTION = f"Given a set of values from a database, answer the question row-by-row, in order.\nYour outputs should be separated by ';'."
+main_instruction = (
+    f"Given a set of values from a database, answer the question for each value. "
+)
+UNCONSTRAINED_MAIN_INSTRUCTION = (
+    main_instruction
+    + "Your output should be separated by ';', answering for each of the values left-to-right.\n"
+)
+CONSTRAINED_MAIN_INSTRUCTION = (
+    main_instruction
+    + "On each newline, you will follow the format of {value} -> {answer}.\n"
+)
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
 DEFAULT_MAP_BATCH_SIZE = 5
 
@@ -246,7 +256,7 @@ class LLMMap(MapIngredient):
                 in_cache = False
                 if model.caching:
                     responses, key = model.check_cache(
-                        MAIN_INSTRUCTION,
+                        CONSTRAINED_MAIN_INSTRUCTION,
                         example_str,
                         current_example_str,
                         current_batch_example.values,
@@ -258,7 +268,7 @@ class LLMMap(MapIngredient):
                 if not in_cache:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
                 with guidance.user():
-                    lm += MAIN_INSTRUCTION
+                    lm += CONSTRAINED_MAIN_INSTRUCTION
                     lm += example_str
                 with guidance.user():
                     batch_lm = lm + current_example_str
@@ -269,6 +279,7 @@ class LLMMap(MapIngredient):
                 )
 
                 if not in_cache:
+                    model.num_generation_calls += 1
                     with guidance.assistant():
                         batch_lm += make_predictions(
                             values=current_batch_example.values, gen_f=gen_f
@@ -283,6 +294,7 @@ class LLMMap(MapIngredient):
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in mapped_values]
             )
+            mapped_values = cast_responses_to_datatypes(mapped_values)
         else:
             messages_list: List[List[dict]] = []
             batch_sizes: List[int] = []
@@ -292,7 +304,7 @@ class LLMMap(MapIngredient):
                 batch_sizes.append(len(curr_batch_values))
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = curr_batch_values
-                messages.append(user(MAIN_INSTRUCTION))
+                messages.append(user(UNCONSTRAINED_MAIN_INSTRUCTION))
                 # Add few-shot examples
                 for example in few_shot_examples:
                     messages.append(user(example.to_string()))

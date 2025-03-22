@@ -333,6 +333,7 @@ class LLMQA(QAIngredient):
             if not in_cache:
                 # Load our underlying guidance model, if we need to
                 lm: guidance.models.Model = maybe_load_lm(model, lm)
+                model.num_generation_calls += 1
                 with guidance.user():
                     lm += instruction_str
                 for example in few_shot_examples:
@@ -345,7 +346,7 @@ class LLMQA(QAIngredient):
 
                 model.prompt_tokens += len(model.tokenizer.encode(lm._current_prompt()))
 
-                with guidance.user():
+                with guidance.assistant():
                     lm += gen_f(**gen_kwargs)
 
                 if is_list_output and modifier == "*":

@@ -13,17 +13,7 @@ class JoinExample(Example):
 
     def to_string(self, *args, **kwargs) -> str:
         return newline_dedent(
-            """
-        Criteria: {}
-
-        Left Values:
-        {}
-
-        Right Values:
-        {}
-
-        Output:
-        """.format(
+            """Criteria: {}\n\nLeft Values:\n{}\n\nRight Values:\n{}\n\nOutput:""".format(
                 self.join_criteria,
                 "\n".join(self.left_values),
                 "\n".join(self.right_values),

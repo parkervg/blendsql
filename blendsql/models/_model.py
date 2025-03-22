@@ -133,8 +133,6 @@ class Model:
         if key in self.cache:
             logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
             response = self.cache.get(key)  # type: ignore
-        else:
-            self.num_generation_calls += 1
         return (response, key)
 
     @staticmethod

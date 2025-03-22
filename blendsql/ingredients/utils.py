@@ -20,7 +20,7 @@ from blendsql._constants import (
 
 def unpack_options(
     options: Union[List[str], str], aliases_to_tablenames: Dict[str, str], db: Database
-) -> Set[str]:
+) -> Union[Set[str], None]:
     unpacked_options = options
     if not isinstance(options, list):
         try:
@@ -37,7 +37,7 @@ def unpack_options(
                 )
         except ValueError:
             unpacked_options = options.split(";")
-    return set(unpacked_options)
+    return set(unpacked_options) if len(unpacked_options) > 0 else None
 
 
 def initialize_retriever(

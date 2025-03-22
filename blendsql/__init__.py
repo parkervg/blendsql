@@ -3,7 +3,6 @@ from .ingredients import (
     LLMQA,
     LLMMap,
     LLMJoin,
-    LLMValidate,
     ImageCaption,
     BingWebSearch,
     RAGQA,
