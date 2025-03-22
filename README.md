@@ -32,6 +32,16 @@ pip install blendsql
 - (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info 
 - (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!  
 
+BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs. 
+
+As a result, we can *Blend* together...
+
+- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
+- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
+
+
+**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
+
 ### Features
 
 - Supports many DBMS 💾
@@ -45,15 +55,6 @@ pip install blendsql
   - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
-BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs. 
-
-As a result, we can *Blend* together...
-
-- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
-- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
-
-
-**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
 
 ![comparison](docs/img/comparison.jpg)
 
