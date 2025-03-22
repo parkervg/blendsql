@@ -78,7 +78,6 @@ class LiteLLM(UnconstrainedModel):
             responses = asyncio.get_event_loop().run_until_complete(
                 self._generate(*args, **kwargs)
             )  # type: ignore
-        else:
             self.num_generation_calls += 1
         self.prompt_tokens += sum([r.usage.prompt_tokens for r in responses])
         self.completion_tokens += sum([r.usage.completion_tokens for r in responses])
