@@ -31,7 +31,8 @@ from .utils import (
     get_tablename_colname,
 )
 from ._exceptions import InvalidBlendSQL
-from .db import Database, DuckDB
+from .db._database import Database
+from .db._duckdb import DuckDB
 from .db.utils import double_quote_escape, select_all_from_table_query, LazyTable
 from .parse import (
     get_dialect,

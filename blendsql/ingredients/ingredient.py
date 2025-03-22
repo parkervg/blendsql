@@ -3,7 +3,6 @@ from abc import abstractmethod
 import pandas as pd
 from sqlglot import exp
 import json
-from skrub import Joiner
 from typing import Any, Union, Dict, Tuple, Callable, Set, Optional, Type, List
 from collections.abc import Collection, Iterable
 import uuid
@@ -383,6 +382,8 @@ class JoinIngredient(Ingredient):
             # Remained _outer and inner lists preserved the sorting order in length:
             # len(_outer) = len(outer) - #matched <= len(inner original) - matched = len(inner)
             if self.use_skrub_joiner and all(len(x) > 1 for x in [inner, _outer]):
+                from skrub import Joiner
+
                 # Create the main_table DataFrame
                 main_table = pd.DataFrame(_outer, columns=["out"])
                 # Create the aux_table DataFrame

@@ -1,7 +1,8 @@
 import pytest
 import os
 
-from blendsql import blend, ImageCaption, LLMMap, LLMQA, RAGQA
+from blendsql import blend
+from blendsql.ingredients import ImageCaption, LLMMap, LLMQA, RAGQA
 from blendsql._smoothie import Smoothie
 from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub

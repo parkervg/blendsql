@@ -11,7 +11,7 @@ from blendsql.models import (
 )
 from litellm.exceptions import APIConnectionError
 
-from blendsql import LLMQA, LLMMap, LLMJoin
+from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
 
 load_dotenv()
