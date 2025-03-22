@@ -14,19 +14,19 @@ class LiteLLM(UnconstrainedModel):
     """Class for LiteLLM remote model integration.
     https://github.com/BerriAI/litellm
 
-        Args:
-            model_name_or_path: Name or identifier of the model to use with LiteLLM.
-                Should begin with provider, e.g. `openai/gpt-3.5-turbo`, `gemini/gemini-2.0-flash-exp`, `anthropic/claude-3-7-sonnet-20250219`.
-            env: Environment path, defaults to current directory (".")
-            config: Optional dictionary containing model configuration parameters
-            caching: Bool determining whether to enable response caching
-            **kwargs: Additional keyword arguments to pass to the model
+    Args:
+        model_name_or_path: Name or identifier of the model to use with LiteLLM.
+            Should begin with provider, e.g. `openai/gpt-3.5-turbo`, `gemini/gemini-2.0-flash-exp`, `anthropic/claude-3-7-sonnet-20250219`.
+        env: Environment path, defaults to current directory (".")
+        config: Optional dictionary containing model configuration parameters
+        caching: Bool determining whether to enable response caching
+        **kwargs: Additional keyword arguments to pass to the model
 
-        Examples:
-            ```python
-            from blendsql.models import LiteLLM
-            model = LiteLLM("openai/gpt-4o-mini", config={"temperature": 0.7})
-            ```
+    Examples:
+        ```python
+        from blendsql.models import LiteLLM
+        model = LiteLLM("openai/gpt-4o-mini", config={"temperature": 0.7})
+        ```
     """
 
     def __init__(
