@@ -172,9 +172,9 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
 import pandas as pd
 
 import blendsql
-from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
+from blendsql.ingredients import LLMMap, LLMQA
 from blendsql.db import Pandas
-from blendsql.models import TransformersLLM, LiteLLM
+from blendsql.models import LiteLLM
 
 # Optionally set how many async calls to allow concurrently
 # This depends on your OpenAI/Anthropic/etc. rate limits
@@ -187,67 +187,80 @@ model = LiteLLM("openai/gpt-4o-mini") # requires .env file with `OPENAI_API_KEY`
 
 # Prepare our local database
 db = Pandas(
-  {
-    "w": pd.DataFrame(
-      (
-        ['11 jun', 'western districts', 'bathurst', 'bathurst ground', '11-0'],
-        ['12 jun', 'wallaroo & university nsq', 'sydney', 'cricket ground',
-         '23-10'],
-        ['5 jun', 'northern districts', 'newcastle', 'sports ground', '29-0']
-      ),
-      columns=['date', 'rival', 'city', 'venue', 'score']
-    ),
-    "documents": pd.DataFrame(
-      (
-        ['bathurst, new south wales',
-         'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
-        ['sydney',
-         'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
-        ['newcastle, new south wales',
-         'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
-      ),
-      columns=['title', 'content']
-    )
-  }
+    {
+        "People": pd.DataFrame(
+            {
+                'Name': [
+                    'George Washington',
+                    'John Quincy Adams',
+                    'Thomas Jefferson',
+                    'James Madison',
+                    'James Monroe',
+                    'Alexander Hamilton',
+                    'Sabrina Carpenter',
+                    'Charli XCX',
+                    'Elon Musk',
+                    'Michelle Obama',
+                    'Elvis Presley',
+                ],
+                'Known_For': [
+                    'Established federal government, First U.S. President',
+                    'XYZ Affair, Alien and Sedition Acts',
+                    'Louisiana Purchase, Declaration of Independence',
+                    'War of 1812, Constitution',
+                    'Monroe Doctrine, Missouri Compromise',
+                    'Created national bank, Federalist Papers',
+                    'Nonsense, Emails I Cant Send, Mean Girls musical',
+                    'Crash, How Im Feeling Now, Boom Clap',
+                    'Tesla, SpaceX, Twitter/X acquisition',
+                    'Lets Move campaign, Becoming memoir',
+                    '14 Grammys, King of Rock n Roll'
+                ]
+            }
+        ),
+        "Eras": pd.DataFrame(
+            {
+                'Years': [
+                    '1800-1900',
+                    '1900-2000',
+                    '2000-Now'
+                ]
+            }
+        )
+    }
 )
 
 # Write BlendSQL query
 query = """
-SELECT * FROM w
-WHERE city = {{
-    LLMQA(
-        'Which city is located 120 miles west of Sydney?',
-        (SELECT * FROM documents WHERE content LIKE '%sydney%'),
-        options='w::city'
+WITH Musicians AS
+    (
+        SELECT Name FROM People
+        WHERE {{LLMMap('Is a singer?', 'People::Name')}} = TRUE
     )
-}}
+SELECT Name AS "working late cuz they're a singer" FROM Musicians M
+WHERE M.Name = {{LLMQA('Who wrote the song "Espresso?"')}}
 """
 smoothie = blendsql.blend(
   query=query,
   db=db,
-  ingredients={LLMMap, LLMQA, LLMJoin},
+  ingredients={LLMMap, LLMQA},
   default_model=model,
   # Optional args below
   infer_gen_constraints=True,
   verbose=True
 )
 print(smoothie.df)
-# ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐
-# │ date   │ rival             │ city     │ venue           │ score   │
-# ├────────┼───────────────────┼──────────┼─────────────────┼─────────┤
-# │ 11 jun │ western districts │ bathurst │ bathurst ground │ 11-0    │
-# └────────┴───────────────────┴──────────┴─────────────────┴─────────┘
-print(smoothie.meta.prompts)
-# [
-#   {
-#       'answer': 'bathurst',
-#       'question': 'Which city is located 120 miles west of Sydney?',
-#       'context': [
-#           {'title': 'bathurst, new south wales', 'content': 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about...'},
-#           {'title': 'sydney', 'content': 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in...'}
-#       ]
-#    }
-# ]
+# ┌─────────────────────────────────────┐
+# │ working late cuz they're a singer   │
+# ├─────────────────────────────────────┤
+# │ Sabrina Carpenter                   │
+# └─────────────────────────────────────┘
+print(smoothie.summary())
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    0.12474 │                    1 │            1918 │                  42 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
 ```
 <hr>
 
