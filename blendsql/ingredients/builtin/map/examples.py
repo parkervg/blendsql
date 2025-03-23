@@ -17,9 +17,8 @@ class _MapExample(Example):
     )
     options: Optional[Collection[str]] = attrib(default=None)
     example_outputs: Optional[List[str]] = attrib(default=None)
-
-    values: List[str] = None
-    mapping: Dict[str, str] = None
+    values: Optional[List[str]] = attrib(default=None)
+    mapping: Optional[Dict[str, str]] = attrib(default=None)
 
     def to_string(
         self, include_values: bool = True, list_options: bool = True, *args, **kwargs

@@ -27,9 +27,7 @@ def dummy_ingredients() -> set:
         starts_with,
         get_length,
         select_first_sorted,
-        # Disable skrub_joiner on JoinIngredient
-        # This way, we receive all values
-        do_join.from_args(use_skrub_joiner=False),
+        do_join,
         return_aapl,
         get_table_size,
         select_first_option,
@@ -609,7 +607,7 @@ def test_subquery_alias_with_join_multi_exec(db, dummy_ingredients):
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = db.execute_to_list(
         """
-    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) AND "Percent of Account" < 0.2 
+    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) AND "Percent of Account" < 0.2
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient
@@ -645,7 +643,7 @@ def test_subquery_alias_with_join_multi_exec_and(db, dummy_ingredients):
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = db.execute_to_list(
         """
-    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) 
+    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05)
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient
@@ -715,11 +713,11 @@ def test_infer_options_arg(db, dummy_ingredients):
     1a98559
     """
     blendsql = """
-    SELECT * FROM account_history 
+    SELECT * FROM account_history
     WHERE Symbol = {{select_first_option()}}
     """
     sql = """
-    SELECT * FROM account_history 
+    SELECT * FROM account_history
     WHERE Symbol = (SELECT Symbol FROM account_history WHERE Symbol NOT NULL ORDER BY Symbol LIMIT 1)
     """
     smoothie = blend(
@@ -746,7 +744,7 @@ def test_join_with_multiple_ingredients(db, dummy_ingredients):
     }} AND {{
         starts_with('H', 'portfolio::Description')
     }} AND {{
-        get_length('length', 'account_history::Security Description') 
+        get_length('length', 'account_history::Security Description')
     }} > 3
     """
     sql = """

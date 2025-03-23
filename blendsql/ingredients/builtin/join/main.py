@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Union
 import json
 from colorama import Fore
 from pathlib import Path
@@ -36,9 +36,11 @@ class LLMJoin(JoinIngredient):
     @classmethod
     def from_args(
         cls,
-        model: Model = None,
+        model: Optional[Model] = None,
         use_skrub_joiner: bool = True,
-        few_shot_examples: List[dict] = None,
+        few_shot_examples: Optional[
+            Union[List[dict], List[AnnotatedJoinExample]]
+        ] = None,
         k: Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -197,13 +199,12 @@ class LLMJoin(JoinIngredient):
                     lm += make_predictions(
                         left_values=current_example.left_values,
                         right_values=current_example.right_values,
-                    )
-                mapping = lm._variables
+                    )  # type: ignore
+                mapping: dict = lm._variables
                 if model.caching:
-                    model.cache[key] = mapping
-
+                    model.cache[key] = mapping  # type: ignore
             model.completion_tokens += sum(
-                [len(model.tokenizer.encode(v)) for v in mapping.values()]
+                [len(model.tokenizer.encode(v)) for v in mapping.values()]  # type: ignore
             )
 
         else:
@@ -234,4 +235,4 @@ class LLMJoin(JoinIngredient):
                     Fore.RED
                     + f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
                 )
-        return {k: v for k, v in mapping.items() if v != "-"}
+        return {k: v for k, v in mapping.items() if v != "-"}  # type: ignore

@@ -82,7 +82,7 @@ class LLMQA(QAIngredient):
     def from_args(
         cls,
         model: Optional[Model] = None,
-        few_shot_examples: Optional[List[dict]] = None,
+        few_shot_examples: Optional[Union[List[dict], List[AnnotatedQAExample]]] = None,
         context_formatter: Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
             index=False
         ),
@@ -164,16 +164,16 @@ class LLMQA(QAIngredient):
         model: Model,
         question: str,
         context_formatter: Callable[[pd.DataFrame], str],
-        few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = None,
+        list_options_in_prompt: bool,
+        few_shot_retriever: Optional[Callable[[str], List[AnnotatedQAExample]]] = None,
         options: Optional[Collection[str]] = None,
-        list_options_in_prompt: bool = None,
         modifier: ModifierType = None,
         output_type: Optional[Union[DataType, str]] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
         long_answer: bool = False,
         **kwargs,
-    ) -> Union[str, int, float]:
+    ) -> Union[str, int, float, tuple]:
         """
         Args:
             question: The question to map onto the values. Will also be the new column name
@@ -229,7 +229,7 @@ class LLMQA(QAIngredient):
         if options is not None and list_options_in_prompt:
             if len(options) > os.getenv(
                 MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-            ):
+            ):  # type: ignore
                 logger.debug(
                     Fore.YELLOW
                     + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
@@ -259,16 +259,16 @@ class LLMQA(QAIngredient):
                         min_length, max_length = repeats
                         modifier_wrapper = lambda f: guidance.sequence(
                             f, min_length=min_length, max_length=max_length
-                        )
-                return modifier_wrapper
+                        )  # type: ignore
+                return modifier_wrapper  # type: ignore
 
             @guidance(stateless=True, dedent=False)
             def gen_list(
                 lm,
                 force_quotes: bool,
                 modifier=None,
-                options: List[str] = None,
-                regex: str = None,
+                options: Optional[List[str]] = None,
+                regex: Optional[str] = None,
             ):
                 if options:
                     single_item = guidance.select(
@@ -281,15 +281,15 @@ class LLMQA(QAIngredient):
                         regex=regex or "[^],']+",
                         list_append=True,
                         name="response",
-                    )
+                    )  # type: ignore
                 quote = "'"
                 if not force_quotes:
-                    quote = guidance.optional(quote)
+                    quote = guidance.optional(quote)  # type: ignore
                 single_item = quote + single_item + quote
-                single_item += guidance.optional(", ")
+                single_item += guidance.optional(", ")  # type: ignore
                 return lm + "[" + get_modifier_wrapper(modifier)(single_item) + "]"
 
-            lm = LMString()
+            lm = LMString()  # type: ignore
 
             instruction_str = MAIN_INSTRUCTION
             if long_answer:
@@ -358,14 +358,14 @@ class LLMQA(QAIngredient):
                     lm += gen_f(**gen_kwargs)
 
                 if is_list_output and modifier == "*":
-                    response = lm.get("response", [])
+                    response: list = lm.get("response", [])  # type: ignore
                 else:
-                    response = lm["response"]
+                    response: str = lm["response"]  # type: ignore
 
                 model.completion_tokens += len(model.tokenizer.encode(str(response)))
 
                 if model.caching:
-                    model.cache[key] = response
+                    model.cache[key] = response  # type: ignore
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
@@ -391,7 +391,7 @@ class LLMQA(QAIngredient):
                 max_tokens=kwargs.get("max_tokens", None),
             )[0].strip()
             "".join([i["content"] for i in messages])
-        if isinstance(response, str):
+        if isinstance(response, str):  # type: ignore
             # If we have specified a modifier, we try to parse it to a tuple
             if is_list_output:
                 try:
@@ -418,7 +418,7 @@ class LLMQA(QAIngredient):
             options_alias_to_original.get(str(r), r) for r in response
         ]
         if len(response) == 1 and not is_list_output:
-            response = response[0]
+            response = response[0]  # type: ignore
             if options and response not in options:
                 print(
                     Fore.RED
@@ -426,7 +426,7 @@ class LLMQA(QAIngredient):
                     + Fore.RESET
                 )
             if isinstance(response, str):
-                response = f"'{single_quote_escape(response)}'"
+                response = f"'{single_quote_escape(response)}'"  # type: ignore
         else:
-            response = tuple(response)
-        return response
+            response = tuple(response)  # type: ignore
+        return response  # type: ignore

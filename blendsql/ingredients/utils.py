@@ -37,11 +37,17 @@ def unpack_options(
                 )
         except ValueError:
             unpacked_options = options.split(";")
+    if len(unpacked_options) == 0:
+        logger.debug(
+            Fore.YELLOW
+            + f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
+            + Fore.RESET
+        )
     return set(unpacked_options) if len(unpacked_options) > 0 else None
 
 
 def initialize_retriever(
-    examples: Example, k: int = None, **to_string_args
+    examples: List[Example], k: Optional[int] = None, **to_string_args
 ) -> Callable[[str], List[Example]]:
     """Initializes a DPR retriever over the few-shot examples provided."""
     if k is None or k == len(examples):
@@ -62,11 +68,11 @@ def initialize_retriever(
 
 def prepare_datatype(
     options: Optional[Collection[str]],
-    output_type: Optional[Union[str]] = None,
+    output_type: Optional[Union[str, DataType]] = None,
     modifier: Optional[ModifierType] = None,
 ) -> DataType:
     if output_type is None:
-        output_type = DataTypes.ANY()
+        resolved_output_type = DataTypes.ANY()
     elif isinstance(output_type, str):
         # The user has passed us an output type in the BlendSQL query
         # That should take precedence
@@ -74,31 +80,37 @@ def prepare_datatype(
             raise IngredientException(
                 f"{output_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
             )
-        output_type = STR_TO_DATATYPE.get(output_type)
+        resolved_output_type = STR_TO_DATATYPE[output_type]
         if modifier:  # User passed modifier takes precedence
-            output_type.modifier = modifier
+            resolved_output_type.modifier = modifier
+    elif isinstance(output_type, DataType):
+        resolved_output_type = output_type
     if modifier:
         # The user has passed us a modifier that should take precedence
-        output_type.modifier = modifier
-    if output_type.regex is not None:
+        resolved_output_type.modifier = modifier
+    if resolved_output_type.regex is not None:
         if options is not None:
             logger.debug(
                 Fore.LIGHTBLACK_EX
-                + f"Ignoring inferred regex '{output_type.regex}' and using options '{options}' instead"
+                + f"Ignoring inferred regex '{resolved_output_type.regex}' and using options '{options}' instead"
                 + Fore.RESET
             )
-            output_type.regex = None
+            resolved_output_type.regex = None
         else:
             logger.debug(
-                Fore.LIGHTBLACK_EX + f"Using regex '{output_type.regex}'" + Fore.RESET
+                Fore.LIGHTBLACK_EX
+                + f"Using regex '{resolved_output_type.regex}'"
+                + Fore.RESET
             )
     elif options:
         logger.debug(Fore.LIGHTBLACK_EX + f"Using options '{options}'" + Fore.RESET)
-    return output_type
+    return resolved_output_type
 
 
-def cast_responses_to_datatypes(responses: List[str]) -> List[Union[float, int, str]]:
-    responses = [
+def cast_responses_to_datatypes(
+    responses: List[Union[str, None]]
+) -> List[Union[float, int, str, bool]]:
+    responses = [  # type: ignore
         {
             "t": True,
             "f": False,
@@ -122,10 +134,10 @@ def cast_responses_to_datatypes(responses: List[str]) -> List[Union[float, int, 
         try:
             casted_value = literal_eval(value)
             assert isinstance(casted_value, (float, int, str))
-            responses[idx] = casted_value
+            responses[idx] = casted_value  # type: ignore
         except (ValueError, SyntaxError, AssertionError):
             continue
-    return responses
+    return responses  # type: ignore
 
 
 def partialclass(cls, *args, **kwds):

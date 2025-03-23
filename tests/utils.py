@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Iterable, List, Union, Tuple
+from typing import Iterable, List, Union, Tuple, Optional
 from collections.abc import Collection
 from blendsql.ingredients import (
     Ingredient,
@@ -62,20 +62,22 @@ class select_first_option(QAIngredient):
 
 class return_aapl_alias(AliasIngredient):
     def run(self, *args, **kwargs) -> Tuple[str, Collection[Ingredient]]:
-        return "{{select_first_option(options='AAPL;AMZN;TYL')}}", {select_first_option}
+        return (
+            "{{select_first_option(options='AAPL;AMZN;TYL')}}",
+            {select_first_option},
+        )
 
 
 class return_stocks_tuple(QAIngredient):
     def run(
         self, question: str, context: pd.DataFrame, options: set, **kwargs
     ) -> Union[str, int, float, tuple]:
-        """Returns the first item in the (ordered) options set"""
         return tuple(["AAPL", "AMZN", "TYL"])
 
 
 class return_stocks_tuple_alias(AliasIngredient):
     def run(self, *args, **kwargs) -> Tuple[str, Collection[Ingredient]]:
-        return "{{return_stocks_tuple()}}", {return_stocks_tuple}
+        return ("{{return_stocks_tuple()}}", {return_stocks_tuple})
 
 
 class do_join(JoinIngredient):
@@ -83,11 +85,15 @@ class do_join(JoinIngredient):
     But useful for testing.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_skrub_joiner = False
+
     def run(self, left_values: List[str], right_values: List[str], **kwargs) -> dict:
         return {left_value: left_value for left_value in left_values}
 
 
-def assert_equality(smoothie, sql_df: pd.DataFrame, args: List[str] = None):
+def assert_equality(smoothie, sql_df: pd.DataFrame, args: Optional[List[str]] = None):
     blendsql_df = smoothie.df
     if args is not None:
         arg_overlap = blendsql_df.columns.intersection(args).tolist()

@@ -1,6 +1,6 @@
 import copy
 import os
-from typing import Union, Iterable, Any, Optional, List, Callable
+from typing import Union, Optional, List, Callable
 from collections.abc import Collection
 from pathlib import Path
 import json
@@ -32,7 +32,7 @@ DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
     )
 ]
 main_instruction = (
-    f"Given a set of values from a database, answer the question for each value. "
+    "Given a set of values from a database, answer the question for each value. "
 )
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     main_instruction
@@ -63,7 +63,9 @@ class LLMMap(MapIngredient):
     def from_args(
         cls,
         model: Optional[Model] = None,
-        few_shot_examples: Optional[List[dict]] = None,
+        few_shot_examples: Optional[
+            Union[List[dict], List[AnnotatedMapExample]]
+        ] = None,
         list_options_in_prompt: bool = True,
         batch_size: Optional[int] = DEFAULT_MAP_BATCH_SIZE,
         k: Optional[int] = None,
@@ -143,15 +145,15 @@ class LLMMap(MapIngredient):
         model: Model,
         question: str,
         values: List[str],
-        few_shot_retriever: Callable[[str], List[AnnotatedMapExample]] = None,
-        options: Collection[str] = None,
-        list_options_in_prompt: bool = None,
-        value_limit: Union[int, None] = None,
+        list_options_in_prompt: bool,
+        few_shot_retriever: Optional[Callable[[str], List[AnnotatedMapExample]]] = None,
+        options: Optional[Collection[str]] = None,
+        value_limit: Optional[int] = None,
         example_outputs: Optional[str] = None,
         output_type: Optional[Union[DataType, str]] = None,
         batch_size: int = DEFAULT_MAP_BATCH_SIZE,
         **kwargs,
-    ) -> Iterable[Any]:
+    ) -> List[Union[float, int, str, bool]]:
         """For each value in a given column, calls a Model and retrieves the output.
 
         Args:
@@ -218,24 +220,24 @@ class LLMMap(MapIngredient):
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
                 )
 
-            lm = LMString()
+            lm = LMString()  # type: ignore
 
             if options is not None:
-                gen_f = lambda: guidance.select(options=options)
+                gen_f = lambda: guidance.select(options=options)  # type: ignore
             elif regex is not None:
-                gen_f = lambda: guidance.regex(pattern=regex)
+                gen_f = lambda: guidance.regex(pattern=regex)  # type: ignore
             else:
                 gen_f = lambda: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 20), stop=["\n"]
-                )
+                )  # type: ignore
 
-            @guidance(stateless=True, dedent=False)
+            @guidance(stateless=True, dedent=False)  # type: ignore
             def make_predictions(lm, values, gen_f) -> guidance.models.Model:
                 for _idx, value in enumerate(values):
                     with guidance.user():
                         lm += f"\n{value} -> "
                     with guidance.assistant():
-                        lm += guidance.capture(gen_f(), name=value)
+                        lm += guidance.capture(gen_f(), name=value)  # type: ignore
                 return lm
 
             example_str = "\n\nExamples:"
@@ -264,7 +266,7 @@ class LLMMap(MapIngredient):
                         funcs=[make_predictions, gen_f],
                     )
                     if responses is not None:
-                        lm._variables.update(responses)
+                        lm._variables.update(responses)  # type: ignore
                         in_cache = True
                 if not in_cache:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
@@ -284,18 +286,18 @@ class LLMMap(MapIngredient):
                     with guidance.assistant():
                         batch_lm += make_predictions(
                             values=current_batch_example.values, gen_f=gen_f
-                        )
+                        )  # type: ignore
                         generated_batch_variables = {
                             k: batch_lm.get(k) for k in current_batch_example.values
                         }
                         lm._variables.update(generated_batch_variables)
                     if model.caching:
-                        model.cache[key] = generated_batch_variables
-            mapped_values = [lm[value] for value in values]
+                        model.cache[key] = generated_batch_variables  # type: ignore
+            lm_mapping: List[str] = [lm[value] for value in values]  # type: ignore
             model.completion_tokens += sum(
-                [len(model.tokenizer.encode(v)) for v in mapped_values]
+                [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
-            mapped_values = cast_responses_to_datatypes(mapped_values)
+            mapped_values = cast_responses_to_datatypes(lm_mapping)
         else:
             messages_list: List[List[dict]] = []
             batch_sizes: List[int] = []
@@ -327,11 +329,11 @@ class LLMMap(MapIngredient):
             )
 
             # Post-process language model response
-            mapped_values: List[str] = []
+            mapped_values = []
             total_missing_values = 0
             for idx, r in enumerate(responses):
                 expected_len = batch_sizes[idx]
-                predictions = r.split(CONST.DEFAULT_ANS_SEP)
+                predictions: List[Union[str, None]] = r.split(CONST.DEFAULT_ANS_SEP)  # type: ignore
                 while len(predictions) < expected_len:
                     total_missing_values += 1
                     predictions.append(None)

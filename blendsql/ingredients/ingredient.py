@@ -20,7 +20,6 @@ from ..db import Database
 from ..db.utils import select_all_from_table_query, format_tuple
 from .utils import unpack_options
 from .few_shot import Example
-from .utils import partialclass
 
 
 def unpack_default_kwargs(**kwargs):
@@ -111,7 +110,7 @@ class AliasIngredient(Ingredient):
     '''
 
     ingredient_type: str = IngredientType.ALIAS.value
-    allowed_output_types: Tuple[Type] = Tuple[str, Collection[Ingredient]]
+    allowed_output_types: Tuple[Type] = (Tuple[str, Collection[Ingredient]],)
 
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
@@ -245,13 +244,13 @@ class MapIngredient(Ingredient):
         unpacked_options = None
         if options is not None:
             # Override any pattern with our new unpacked options
-            unpacked_options = list(
-                unpack_options(
-                    options=options,
-                    aliases_to_tablenames=aliases_to_tablenames,
-                    db=self.db,
-                )
+            unpacked_options = unpack_options(
+                options=options,
+                aliases_to_tablenames=aliases_to_tablenames,
+                db=self.db,
             )
+            if unpacked_options is not None:
+                unpacked_options = list(unpacked_options)
         # else:
         #     kwargs[IngredientKwarg.REGEX] = regex
         kwargs[IngredientKwarg.VALUES] = values
@@ -320,10 +319,6 @@ class JoinIngredient(Ingredient):
 
     ingredient_type: str = IngredientType.JOIN.value
     allowed_output_types: Tuple[Type] = (dict,)
-
-    @classmethod
-    def from_args(cls, use_skrub_joiner: bool = True):
-        return partialclass(cls, use_skrub_joiner=use_skrub_joiner)
 
     def __call__(
         self,
@@ -597,7 +592,7 @@ class QAIngredient(Ingredient):
         return response
 
     @abstractmethod
-    def run(self, *args, **kwargs) -> Union[str, int, float]:
+    def run(self, *args, **kwargs) -> Union[str, int, float, tuple]:
         ...
 
 

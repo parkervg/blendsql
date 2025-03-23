@@ -1,4 +1,4 @@
-from typing import NewType, Literal, Union, Optional, Dict
+from typing import Literal, Union, Optional, Dict
 from enum import Enum, EnumMeta
 from dataclasses import dataclass
 
@@ -15,7 +15,7 @@ DEFAULT_NAN_ANS = "-"
 
 # The 'modifier' arg can be either '*' or '+',
 #   or any string matching '{\d+}'
-ModifierType = NewType("modifier", Union[Literal["*", "+"], str, None])
+ModifierType = Union[Literal["*", "+"], str, None]
 
 
 class IngredientType(str, Enum, metaclass=StrInMeta):
