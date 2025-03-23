@@ -10,7 +10,7 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.9"
-license = {file = "LICENSE"}
+license = {text = "Apache-2.0"}
 keywords = [
     "language models",
     "query language",
