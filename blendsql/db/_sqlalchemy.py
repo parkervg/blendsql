@@ -13,7 +13,6 @@ from pandas.io.sql import get_schema
 from ._database import Database
 from .._logger import logger
 from .utils import double_quote_escape, truncate_df_content, LazyTables
-from .bridge_content_encoder import get_database_matches
 
 
 @attrs(auto_detect=True)
@@ -62,6 +61,8 @@ class SQLAlchemyDatabase(Database):
         question: Optional[str] = None,
     ) -> str:
         """Returns a string representation of the database, with example rows."""
+        from .bridge_content_encoder import get_database_matches
+
         serialized_db = []
         for tablename in self.tables():
             if use_tables is not None:

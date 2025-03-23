@@ -3,7 +3,6 @@ import json
 from colorama import Fore
 from pathlib import Path
 from attr import attrs, attrib
-import guidance
 
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models._utils import user, assistant
@@ -128,6 +127,8 @@ class LLMJoin(JoinIngredient):
         )
 
         if isinstance(model, ConstrainedModel):
+            import guidance
+
             lm = LMString()
 
             @guidance(stateless=True, dedent=False)

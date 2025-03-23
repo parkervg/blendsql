@@ -7,7 +7,6 @@ import json
 import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
-import guidance
 
 from blendsql._logger import logger
 from blendsql.models import Model, ConstrainedModel
@@ -212,6 +211,8 @@ class LLMMap(MapIngredient):
                 list_options_in_prompt = False
         sorted_values = sorted(values)  # Sort, to maximize cache hit rate
         if isinstance(model, ConstrainedModel):
+            import guidance
+
             if all(x is not None for x in [options, regex]):
                 raise IngredientException(
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."

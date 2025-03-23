@@ -9,7 +9,6 @@ import pandas as pd
 import json
 from colorama import Fore
 from attr import attrs, attrib
-import guidance
 
 from blendsql._logger import logger
 from blendsql.models import Model, ConstrainedModel
@@ -37,50 +36,6 @@ DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-
-
-def get_modifier_wrapper(
-    modifier: ModifierType,
-) -> Callable[[guidance.models.Model], guidance.models.Model]:
-    modifier_wrapper = lambda x: x
-    if modifier is not None:
-        if modifier == "*":
-            modifier_wrapper = guidance.zero_or_more
-        elif modifier == "+":
-            modifier_wrapper = guidance.one_or_more
-        elif re.match("{\d+}", modifier):
-            repeats = [
-                int(i) for i in modifier.replace("}", "").replace("{", "").split(",")
-            ]
-            if len(repeats) == 1:
-                repeats = repeats * 2
-            min_length, max_length = repeats
-            modifier_wrapper = lambda f: guidance.sequence(
-                f, min_length=min_length, max_length=max_length
-            )
-    return modifier_wrapper
-
-
-@guidance(stateless=True)
-def gen_list(
-    lm, force_quotes: bool, modifier=None, options: List[str] = None, regex: str = None
-):
-    if options:
-        single_item = guidance.select(options, list_append=True, name="response")
-    else:
-        single_item = guidance.gen(
-            max_tokens=100,
-            # If not regex is passed, default to all characters except these specific to list-syntax
-            regex=regex or "[^],']+",
-            list_append=True,
-            name="response",
-        )
-    quote = "'"
-    if not force_quotes:
-        quote = guidance.optional(quote)
-    single_item = quote + single_item + quote
-    single_item += guidance.optional(", ")
-    return lm + "[" + get_modifier_wrapper(modifier)(single_item) + "]"
 
 
 def get_option_aliases(options: Optional[List[str]], is_list_output: bool):
@@ -281,6 +236,59 @@ class LLMQA(QAIngredient):
                 )
                 list_options_in_prompt = False
         if isinstance(model, ConstrainedModel):
+            import guidance
+
+            def get_modifier_wrapper(
+                modifier: ModifierType,
+            ) -> Callable[[guidance.models.Model], guidance.models.Model]:
+                modifier_wrapper = lambda x: x
+                if modifier is not None:
+                    if modifier == "*":
+                        modifier_wrapper = guidance.zero_or_more
+                    elif modifier == "+":
+                        modifier_wrapper = guidance.one_or_more
+                    elif re.match("{\d+}", modifier):
+                        repeats = [
+                            int(i)
+                            for i in modifier.replace("}", "")
+                            .replace("{", "")
+                            .split(",")
+                        ]
+                        if len(repeats) == 1:
+                            repeats = repeats * 2
+                        min_length, max_length = repeats
+                        modifier_wrapper = lambda f: guidance.sequence(
+                            f, min_length=min_length, max_length=max_length
+                        )
+                return modifier_wrapper
+
+            @guidance(stateless=True, dedent=False)
+            def gen_list(
+                lm,
+                force_quotes: bool,
+                modifier=None,
+                options: List[str] = None,
+                regex: str = None,
+            ):
+                if options:
+                    single_item = guidance.select(
+                        options, list_append=True, name="response"
+                    )
+                else:
+                    single_item = guidance.gen(
+                        max_tokens=100,
+                        # If not regex is passed, default to all characters except these specific to list-syntax
+                        regex=regex or "[^],']+",
+                        list_append=True,
+                        name="response",
+                    )
+                quote = "'"
+                if not force_quotes:
+                    quote = guidance.optional(quote)
+                single_item = quote + single_item + quote
+                single_item += guidance.optional(", ")
+                return lm + "[" + get_modifier_wrapper(modifier)(single_item) + "]"
+
             lm = LMString()
 
             instruction_str = MAIN_INSTRUCTION

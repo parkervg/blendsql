@@ -1,6 +1,5 @@
 from typing import Dict, Union, Optional
 import pandas as pd
-import guidance
 
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
@@ -36,6 +35,8 @@ class LLMValidate(QAIngredient):
         instruction_str += f"\n{serialized_db}\n\nAnswer:"
 
         if isinstance(model, ConstrainedModel):
+            import guidance
+
             lm = LMString()
             in_cache = False
             if model.caching:
