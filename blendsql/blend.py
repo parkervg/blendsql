@@ -4,18 +4,9 @@ import time
 import uuid
 import pandas as pd
 import re
-from typing import (
-    Dict,
-    List,
-    Set,
-    Tuple,
-    Generator,
-    Optional,
-    Callable,
-    Type,
-)
+from typing import Dict, List, Set, Tuple, Generator, Optional, Callable, Type, Union
 from collections.abc import Collection, Iterable
-
+from dataclasses import dataclass, field
 import sqlglot
 from attr import attrs, attrib
 from functools import partial
@@ -974,135 +965,170 @@ def _blend(
     )
 
 
-def blend(
-    query: str,
-    db: Database,
-    default_model: Optional[Model] = None,
-    ingredients: Optional[Collection[Type[Ingredient]]] = None,
-    verbose: bool = False,
-    infer_gen_constraints: bool = True,
-    table_to_title: Optional[Dict[str, str]] = None,
-    schema_qualify: bool = True,
-) -> Smoothie:
-    '''The `blend()` function is used to execute a BlendSQL query against a database and
-    return the final result, in addition to the intermediate reasoning steps taken.
-    Execution is done on a database given an ingredient context.
+@dataclass
+class BlendSQL:
+    db: Union[pd.DataFrame, dict, str, Database] = field()
+    model: Optional[Model] = field(default=None)
+    ingredients: Optional[Collection[Type[Ingredient]]] = field(default_factory=list)
 
-    Args:
-        query: The BlendSQL query to execute
-        db: Database connector object
-        ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query
-        verbose: Boolean defining whether to run with logger in debug mode
-        default_model: Which BlendSQL model to use in performing ingredient tasks in the current query
-        infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
-            For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
-            We can infer the output format should look like '1960-12-31' and both:
-                1) Put this string in the `example_outputs` kwarg
-                2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to guidance
-        table_to_title: Optional mapping from table name to title of table.
-            Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
-        schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
-            This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
-            However, we need to call `db.sqlglot_schema` if schema_qualify=True, which may add some latency.
-            With single-table queries, we can set this to False.
+    verbose: bool = field(default=False)
+    infer_gen_constraints: bool = field(default=True)
+    table_to_title: Optional[Dict[str, str]] = field(default=None)
+    schema_qualify: bool = field(default=True)
 
-    Returns:
-        smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata
+    def __post_init__(self):
+        if not isinstance(self.db, Database):
+            self.db = self.infer_db_type(self.db)
+        if self.db is None:
+            raise ValueError("df_or_db_path must be provided")
 
-    Examples:
-        ```python
-        import pandas as pd
+    @staticmethod
+    def infer_db_type(df_or_db_path) -> Database:
+        from pathlib import Path
 
-        from blendsql import blend, LLMMap, LLMQA, LLMJoin
-        from blendsql.db import Pandas
-        from blendsql.models import TransformersLLM
+        if isinstance(df_or_db_path, (pd.DataFrame, dict)):
+            from .db._pandas import Pandas
 
-        # Load model
-        model = TransformersLLM('Qwen/Qwen1.5-0.5B')
+            return Pandas(df_or_db_path)
+        elif isinstance(df_or_db_path, str):
+            if Path(df_or_db_path).exists():
+                from .db._sqlite import SQLite
 
-        # Prepare our local database
-        db = Pandas(
-            {
-                "w": pd.DataFrame(
-                    (
-                        ['11 jun', 'western districts', 'bathurst', 'bathurst ground', '11-0'],
-                        ['12 jun', 'wallaroo & university nsq', 'sydney', 'cricket ground',
-                         '23-10'],
-                        ['5 jun', 'northern districts', 'newcastle', 'sports ground', '29-0']
-                    ),
-                    columns=['date', 'rival', 'city', 'venue', 'score']
-                ),
-                "documents": pd.DataFrame(
-                    (
-                        ['bathurst, new south wales', 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
-                        ['sydney', 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
-                        ['newcastle, new south wales', 'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
-                    ),
-                    columns=['title', 'content']
-                )
-            }
-        )
+                return SQLite(df_or_db_path)
+            else:
+                from .db._postgresql import PostgreSQL
 
-        # Write BlendSQL query
-        blendsql = """
-        SELECT * FROM w
-        WHERE city = {{
-            LLMQA(
-                'Which city is located 120 miles west of Sydney?',
-                (SELECT * FROM documents WHERE content LIKE '%sydney%'),
-                options='w::city'
+                return PostgreSQL(df_or_db_path)
+        else:
+            raise ValueError(
+                f"Could not resolve '{df_or_db_path}' to a valid database type!"
             )
-        }}
-        """
-        smoothie = blend(
-            query=blendsql,
-            db=db,
-            ingredients={LLMMap, LLMQA, LLMJoin},
-            default_model=model,
-            # Optional args below
-            infer_gen_constraints=True,
-            verbose=True
-        )
-        print(smoothie.df)
-        # ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐
-        # │ date   │ rival             │ city     │ venue           │ score   │
-        # ├────────┼───────────────────┼──────────┼─────────────────┼─────────┤
-        # │ 11 jun │ western districts │ bathurst │ bathurst ground │ 11-0    │
-        # └────────┴───────────────────┴──────────┴─────────────────┴─────────┘
-        print(smoothie.meta.prompts)
-        # [
-        #   {
-        #       'answer': 'sydney',
-        #       'question': 'Which city is located 120 miles west of Sydney?',
-        #       'context': [
-        #           {'title': 'bathurst, new south wales', 'content': 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about...'},
-        #           {'title': 'sydney', 'content': 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in...'}
-        #       ]
-        #    }
-        # ]
-        ```
-    '''
-    if verbose:
-        logger.setLevel(logging.DEBUG)
-        for handler in logger.handlers:
-            handler.setLevel(logging.DEBUG)
-    start = time.time()
-    try:
-        smoothie = _blend(
-            query=query,
-            db=db,
-            default_model=default_model,
-            ingredients=ingredients,
-            infer_gen_constraints=infer_gen_constraints,
-            table_to_title=table_to_title,
-            schema_qualify=schema_qualify,
-        )
-    except Exception as error:
-        raise error
-    finally:
-        # In the case of a recursive `_blend()` call,
-        #   this logic allows temp tables to persist until
-        #   the final base case is fulfilled.
-        db._reset_connection()
-    smoothie.meta.process_time_seconds = time.time() - start
-    return smoothie
+
+    def execute(
+        self,
+        query: str,
+        ingredients: Optional[Collection[Type[Ingredient]]] = None,
+        model: Optional[str] = None,
+    ) -> Smoothie:
+        '''The `blend()` function is used to execute a BlendSQL query against a database and
+        return the final result, in addition to the intermediate reasoning steps taken.
+        Execution is done on a database given an ingredient context.
+
+        Args:
+            query: The BlendSQL query to execute
+            db: Database connector object
+            ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query
+            verbose: Boolean defining whether to run with logger in debug mode
+            default_model: Which BlendSQL model to use in performing ingredient tasks in the current query
+            infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
+                For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
+                We can infer the output format should look like '1960-12-31' and both:
+                    1) Put this string in the `example_outputs` kwarg
+                    2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to guidance
+            table_to_title: Optional mapping from table name to title of table.
+                Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
+            schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
+                This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
+                However, we need to call `db.sqlglot_schema` if schema_qualify=True, which may add some latency.
+                With single-table queries, we can set this to False.
+
+        Returns:
+            smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata
+
+        Examples:
+            ```python
+            import pandas as pd
+
+            from blendsql import blend, LLMMap, LLMQA, LLMJoin
+            from blendsql.db import Pandas
+            from blendsql.models import TransformersLLM
+
+            # Load model
+            model = TransformersLLM('Qwen/Qwen1.5-0.5B')
+
+            # Prepare our local database
+            db = Pandas(
+                {
+                    "w": pd.DataFrame(
+                        (
+                            ['11 jun', 'western districts', 'bathurst', 'bathurst ground', '11-0'],
+                            ['12 jun', 'wallaroo & university nsq', 'sydney', 'cricket ground',
+                             '23-10'],
+                            ['5 jun', 'northern districts', 'newcastle', 'sports ground', '29-0']
+                        ),
+                        columns=['date', 'rival', 'city', 'venue', 'score']
+                    ),
+                    "documents": pd.DataFrame(
+                        (
+                            ['bathurst, new south wales', 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
+                            ['sydney', 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
+                            ['newcastle, new south wales', 'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
+                        ),
+                        columns=['title', 'content']
+                    )
+                }
+            )
+
+            # Write BlendSQL query
+            blendsql = """
+            SELECT * FROM w
+            WHERE city = {{
+                LLMQA(
+                    'Which city is located 120 miles west of Sydney?',
+                    (SELECT * FROM documents WHERE content LIKE '%sydney%'),
+                    options='w::city'
+                )
+            }}
+            """
+            smoothie = blend(
+                query=blendsql,
+                db=db,
+                ingredients={LLMMap, LLMQA, LLMJoin},
+                default_model=model,
+                # Optional args below
+                infer_gen_constraints=True,
+                verbose=True
+            )
+            print(smoothie.df)
+            # ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐
+            # │ date   │ rival             │ city     │ venue           │ score   │
+            # ├────────┼───────────────────┼──────────┼─────────────────┼─────────┤
+            # │ 11 jun │ western districts │ bathurst │ bathurst ground │ 11-0    │
+            # └────────┴───────────────────┴──────────┴─────────────────┴─────────┘
+            print(smoothie.meta.prompts)
+            # [
+            #   {
+            #       'answer': 'sydney',
+            #       'question': 'Which city is located 120 miles west of Sydney?',
+            #       'context': [
+            #           {'title': 'bathurst, new south wales', 'content': 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about...'},
+            #           {'title': 'sydney', 'content': 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in...'}
+            #       ]
+            #    }
+            # ]
+            ```
+        '''
+        if self.verbose:
+            logger.setLevel(logging.DEBUG)
+            for handler in logger.handlers:
+                handler.setLevel(logging.DEBUG)
+        start = time.time()
+        try:
+            smoothie = _blend(
+                query=query,
+                db=self.db,
+                default_model=model or self.model,
+                ingredients=ingredients or self.ingredients,
+                infer_gen_constraints=self.infer_gen_constraints,
+                table_to_title=self.table_to_title,
+                schema_qualify=self.schema_qualify,
+            )
+        except Exception as error:
+            raise error
+        finally:
+            # In the case of a recursive `_blend()` call,
+            #   this logic allows temp tables to persist until
+            #   the final base case is fulfilled.
+            self.db._reset_connection()
+        smoothie.meta.process_time_seconds = time.time() - start
+        return smoothie

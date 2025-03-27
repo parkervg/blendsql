@@ -1,17 +1,16 @@
 import pytest
 import pandas as pd
 
-import blendsql
+from blendsql import BlendSQL, config
 from blendsql.models import ConstrainedModel
 from blendsql._smoothie import Smoothie
-from blendsql.db import Pandas
 
-blendsql.config.set_async_limit(1)
+config.set_async_limit(1)
 
 
 @pytest.fixture(scope="session")
-def db() -> Pandas:
-    return Pandas(
+def bsql() -> BlendSQL:
+    return BlendSQL(
         {
             "People": pd.DataFrame(
                 {
@@ -48,45 +47,42 @@ def db() -> Pandas:
     )
 
 
-def test_singers(db, model, ingredients):
+def test_singers(bsql, model, ingredients):
     if isinstance(model, ConstrainedModel):
         pytest.skip()
-    res = blendsql.blend(
-        query="""
+    res = bsql.execute(
+        """
         SELECT * FROM People p
         WHERE {{LLMMap('Is a singer?', 'p::Name')}} = True
         """,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
-        db=db,
     )
     assert set(res.df["Name"].tolist()) == {
         "Sabrina Carpenter",
         "Charli XCX",
         "Elvis Presley",
     }
-    res = blendsql.blend(
+    res = bsql.execute(
         query="""
         SELECT GROUP_CONCAT(Name, ', ') AS 'Names',
         {{LLMMap('In which time period did the person live?', 'People::Name', options='Eras::Years')}} AS "Lived During Classification"
         FROM People
         GROUP BY "Lived During Classification"
         """,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
-        db=db,
     )
     assert isinstance(res, Smoothie)
 
 
-def test_alphabet(db, model, ingredients):
+def test_alphabet(bsql, model, ingredients):
     if not isinstance(model, ConstrainedModel):
         pytest.skip()
-    blend = lambda query: blendsql.blend(
+    blend = lambda query: bsql.execute(
         query=query,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
-        db=db,
     )
     blendsql_query = """
     SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options='A;B;C')}} )
