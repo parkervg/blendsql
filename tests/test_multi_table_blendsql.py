@@ -41,32 +41,32 @@ def test_simple_multi_exec(bsql):
     Also ensures we only pass what is neccessary to the external ingredient F().
     "Show me the price of tech stocks in my portfolio that start with 'A'"
     """
-    blendsql = """
-    SELECT Symbol, "North America", "Japan" FROM geographic
-        WHERE geographic.Symbol IN (
-            SELECT Symbol FROM portfolio
-            WHERE {{starts_with('A', 'portfolio::Description')}} = 1
-            AND portfolio.Symbol in (
-                SELECT Symbol FROM constituents
-                WHERE constituents.Sector = 'Information Technology'
-            )
-        )
-    """
-    sql = """
-    SELECT Symbol, "North America", "Japan" FROM geographic
-        WHERE geographic.Symbol IN (
-            SELECT Symbol FROM portfolio
-            WHERE portfolio.Description LIKE 'A%'
-            AND Symbol in (
-                SELECT Symbol FROM constituents
-                WHERE constituents.Sector = 'Information Technology'
-            )
-        )
-    """
     smoothie = bsql.execute(
-        blendsql,
+        """
+        SELECT Symbol, "North America", "Japan" FROM geographic
+            WHERE geographic.Symbol IN (
+                SELECT Symbol FROM portfolio
+                WHERE {{starts_with('A', 'portfolio::Description')}} = 1
+                AND portfolio.Symbol in (
+                    SELECT Symbol FROM constituents
+                    WHERE constituents.Sector = 'Information Technology'
+                )
+            )
+        """
     )
-    sql_df = bsql.db.execute_to_df(sql)
+    sql_df = bsql.db.execute_to_df(
+        """
+        SELECT Symbol, "North America", "Japan" FROM geographic
+            WHERE geographic.Symbol IN (
+                SELECT Symbol FROM portfolio
+                WHERE portfolio.Description LIKE 'A%'
+                AND Symbol in (
+                    SELECT Symbol FROM constituents
+                    WHERE constituents.Sector = 'Information Technology'
+                )
+            )
+        """
+    )
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = bsql.db.execute_to_list(
@@ -83,28 +83,28 @@ def test_simple_multi_exec(bsql):
 
 @pytest.mark.parametrize("bsql", bsql_connections)
 def test_join_multi_exec(bsql):
-    blendsql = """
-    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-        FROM account_history
-        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-        WHERE constituents.Sector = 'Information Technology'
-        AND {{starts_with('A', 'constituents::Name')}} = 1
-        AND lower(LOWER(account_history.Action)) like '%dividend%'
-        ORDER BY "Total Dividend Payout ($$)"
-        """
-    sql = """
-    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-        FROM account_history
-        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-        WHERE constituents.Sector = 'Information Technology'
-        AND constituents.Name LIKE 'A%'
-        AND lower(LOWER(account_history.Action)) like '%dividend%'
-        ORDER BY "Total Dividend Payout ($$)"
-    """
     smoothie = bsql.execute(
-        blendsql,
+        """
+        SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+            FROM account_history
+            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            WHERE constituents.Sector = 'Information Technology'
+            AND {{starts_with('A', 'constituents::Name')}} = 1
+            AND lower(LOWER(account_history.Action)) like '%dividend%'
+            ORDER BY "Total Dividend Payout ($$)"
+        """
     )
-    sql_df = bsql.db.execute_to_df(sql)
+    sql_df = bsql.db.execute_to_df(
+        """
+        SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+            FROM account_history
+            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            WHERE constituents.Sector = 'Information Technology'
+            AND constituents.Name LIKE 'A%'
+            AND lower(LOWER(account_history.Action)) like '%dividend%'
+            ORDER BY "Total Dividend Payout ($$)"
+        """
+    )
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = bsql.db.execute_to_list(
@@ -121,28 +121,28 @@ def test_join_not_qualified_multi_exec(bsql):
     i.e. 'Action' and 'Sector' don't have tablename preceding them.
     commit fefbc0a
     """
-    blendsql = """
-    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-        FROM account_history
-        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-        WHERE Sector = 'Information Technology'
-        AND {{starts_with('A', 'constituents::Name')}} = 1
-        AND lower(Action) like '%dividend%'
-        ORDER BY "Run Date"
-        """
-    sql = """
-    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-        FROM account_history
-        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-        WHERE Sector = 'Information Technology'
-        AND constituents.Name LIKE 'A%'
-        AND lower(Action) like '%dividend%'
-        ORDER BY "Run Date"
-    """
     smoothie = bsql.execute(
-        blendsql,
+        """
+        SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+            FROM account_history
+            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            WHERE Sector = 'Information Technology'
+            AND {{starts_with('A', 'constituents::Name')}} = 1
+            AND lower(Action) like '%dividend%'
+            ORDER BY "Run Date"
+        """
     )
-    sql_df = bsql.db.execute_to_df(sql)
+    sql_df = bsql.db.execute_to_df(
+        """
+        SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+            FROM account_history
+            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            WHERE Sector = 'Information Technology'
+            AND constituents.Name LIKE 'A%'
+            AND lower(Action) like '%dividend%'
+            ORDER BY "Run Date"
+        """
+    )
     assert_equality(smoothie=smoothie, sql_df=sql_df, args=["A"])
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = bsql.db.execute_to_list(
@@ -155,27 +155,27 @@ def test_join_not_qualified_multi_exec(bsql):
 
 @pytest.mark.parametrize("bsql", bsql_connections)
 def test_select_multi_exec(bsql):
-    blendsql = """
-    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-        FROM account_history
-        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-        WHERE constituents.Sector = {{select_first_sorted(options='constituents::Sector')}}
-        AND lower(LOWER(account_history.Action)) like '%dividend%'
-    """
-    sql = """
-    SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
-        FROM account_history
-        LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
-        WHERE constituents.Sector = (
-            SELECT Sector FROM constituents
-            ORDER BY Sector LIMIT 1
-        )
-        AND lower(LOWER(account_history.Action)) like '%dividend%'
-    """
     smoothie = bsql.execute(
-        blendsql,
+        """
+        SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+            FROM account_history
+            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            WHERE constituents.Sector = {{select_first_sorted(options='constituents::Sector')}}
+            AND lower(LOWER(account_history.Action)) like '%dividend%'
+        """
     )
-    sql_df = bsql.db.execute_to_df(sql)
+    sql_df = bsql.db.execute_to_df(
+        """
+        SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
+            FROM account_history
+            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            WHERE constituents.Sector = (
+                SELECT Sector FROM constituents
+                ORDER BY Sector LIMIT 1
+            )
+            AND lower(LOWER(account_history.Action)) like '%dividend%'
+        """
+    )
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
@@ -185,28 +185,28 @@ def test_complex_multi_exec(bsql):
     Below yields a tie in constituents.Name lengths, with 'Amgen' and 'Cisco'.
     DuckDB has different sorting behavior depending on the subset that's passed?
     """
-    blendsql = """
-    SELECT DISTINCT Name FROM constituents
-    LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
-    LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
-    WHERE account_history."Run Date" > '2021-02-23'
-    AND ({{get_length('n_length', 'constituents::Name')}} > 3 OR {{starts_with('A', 'portfolio::Symbol')}})
-    AND portfolio.Symbol IS NOT NULL
-    ORDER BY LENGTH(constituents.Name), constituents.Name LIMIT 4
-    """
-    sql = """
-    SELECT DISTINCT Name FROM constituents
-    LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
-    LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
-    WHERE account_history."Run Date" > '2021-02-23'
-    AND (LENGTH(constituents.Name) > 3 OR portfolio.Symbol LIKE 'A%')
-    AND portfolio.Symbol IS NOT NULL
-    ORDER BY LENGTH(constituents.Name), constituents.Name LIMIT 4
-    """
     smoothie = bsql.execute(
-        blendsql,
+        """
+        SELECT DISTINCT Name FROM constituents
+        LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
+        LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
+        WHERE account_history."Run Date" > '2021-02-23'
+        AND ({{get_length('n_length', 'constituents::Name')}} > 3 OR {{starts_with('A', 'portfolio::Symbol')}})
+        AND portfolio.Symbol IS NOT NULL
+        ORDER BY LENGTH(constituents.Name), constituents.Name LIMIT 4
+        """
     )
-    sql_df = bsql.db.execute_to_df(sql)
+    sql_df = bsql.db.execute_to_df(
+        """
+        SELECT DISTINCT Name FROM constituents
+        LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
+        LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
+        WHERE account_history."Run Date" > '2021-02-23'
+        AND (LENGTH(constituents.Name) > 3 OR portfolio.Symbol LIKE 'A%')
+        AND portfolio.Symbol IS NOT NULL
+        ORDER BY LENGTH(constituents.Name), constituents.Name LIMIT 4
+        """
+    )
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
