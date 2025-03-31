@@ -43,7 +43,7 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     + "On each newline, you will follow the format of {value} -> {answer}.\n"
 )
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
-DEFAULT_MAP_BATCH_SIZE = 5
+DEFAULT_MAP_BATCH_SIZE = 15
 
 
 @attrs
@@ -87,41 +87,36 @@ class LLMMap(MapIngredient):
 
         Examples:
             ```python
-            from blendsql import blend, LLMMap
-            from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
+            from blendsql import BlendSQL
+            from blendsql.ingredients.builtin import LLMQA, DEFAULT_QA_FEW_SHOT
 
             ingredients = {
-                LLMMap.from_args(
+                LLMQA.from_args(
                     few_shot_examples=[
-                        *DEFAULT_MAP_FEW_SHOT,
+                        *DEFAULT_QA_FEW_SHOT,
                         {
-                            "question": "Is this a sport?",
-                            "mapping": {
-                                "Soccer": "t",
-                                "Chair": "f",
-                                "Banana": "f",
-                                "Golf": "t"
+                            "question": "Which weighs the most?",
+                            "context": {
+                                {
+                                    "Animal": ["Dog", "Gorilla", "Hamster"],
+                                    "Weight": ["20 pounds", "350 lbs", "100 grams"]
+                                }
                             },
+                            "answer": "Gorilla",
                             # Below are optional
-                            "column_name": "Items",
-                            "table_name": "Table",
-                            "example_outputs": ["t", "f"],
-                            "options": ["t", "f"],
-                            "output_type": "boolean"
+                            "options": ["Dog", "Gorilla", "Hamster"]
                         }
                     ],
                     # Will fetch `k` most relevant few-shot examples using embedding-based retriever
                     k=2,
-                    # How many inference values to pass to model at once
-                    batch_size=5,
+                    # Lambda to turn the pd.DataFrame to a serialized string
+                    context_formatter=lambda df: df.to_markdown(
+                        index=False
+                    )
                 )
             }
-            smoothie = blend(
-                query=blendsql,
-                db=db,
-                ingredients=ingredients,
-                default_model=model,
-            )
+
+            bsql = BlendSQL(db, ingredients=ingredients)
             ```
         """
         if few_shot_examples is None:
@@ -233,12 +228,14 @@ class LLMMap(MapIngredient):
 
             @guidance(stateless=True, dedent=False)  # type: ignore
             def make_predictions(lm, values, gen_f) -> guidance.models.Model:
-                for _idx, value in enumerate(values):
-                    with guidance.user():
-                        lm += f"\n{value} -> "
-                    with guidance.assistant():
-                        lm += guidance.capture(gen_f(), name=value)  # type: ignore
-                return lm
+                # gen_str = "\n".join([f"{value} -> {guidance.capture(guidance.gen(max_tokens=5), name=value)}" for value in values])
+                gen_str = "\n".join(
+                    [
+                        f"{value} -> {guidance.capture(gen_f(), name=value)}"
+                        for value in values
+                    ]
+                )
+                return lm + gen_str
 
             example_str = "\n\nExamples:"
             for example in few_shot_examples:
@@ -289,6 +286,7 @@ class LLMMap(MapIngredient):
                         generated_batch_variables = {
                             k: batch_lm.get(k) for k in current_batch_example.values
                         }
+                        print(batch_lm._current_prompt())
                         lm._variables.update(generated_batch_variables)
                     if model.caching:
                         model.cache[key] = generated_batch_variables  # type: ignore

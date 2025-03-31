@@ -86,8 +86,6 @@ class TransformersLLM(ConstrainedModel):
         # https://huggingface.co/blog/how-to-generate
         from guidance.models import Transformers
 
-        # device_map = resolve_device_map(self.config.pop("device_map", None))
-
         lm = Transformers(
             self.model_name_or_path,
             echo=False,
@@ -110,8 +108,8 @@ class TransformersVisionModel(TransformersLLM):
     def _load_model(self):
         from transformers import pipeline
 
-        device_map = resolve_device_map(self.config.pop("device_map", None))
-
         return pipeline(
-            "image-to-text", model=self.model_name_or_path, device_map=device_map
+            "image-to-text",
+            model=self.model_name_or_path,
+            device_map=self.config.pop("device_map", None),
         )

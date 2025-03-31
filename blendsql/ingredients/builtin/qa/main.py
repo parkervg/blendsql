@@ -38,7 +38,7 @@ DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
 ]
 
 
-def get_option_aliases(options: Optional[List[str]], is_list_output: bool):
+def get_option_aliases(options: Optional[List[str]]):
     options_alias_to_original = {}
     options_with_aliases = None
     if options is not None:
@@ -223,9 +223,7 @@ class LLMQA(QAIngredient):
         regex = current_example.output_type.regex
         options = current_example.options
         modifier = current_example.output_type.modifier
-        options_with_aliases, options_alias_to_original = get_option_aliases(
-            options, is_list_output=is_list_output
-        )
+        options_with_aliases, options_alias_to_original = get_option_aliases(options)
         if options is not None and list_options_in_prompt:
             if len(options) > os.getenv(
                 MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT

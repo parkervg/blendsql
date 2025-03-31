@@ -13,7 +13,6 @@ def bsql() -> BlendSQL:
             pd.DataFrame({"Name": ["Danny", "Emma", "Tony"], "Age": [23, 26, 19]}),
             tablename="w",
         ),
-        ingredients=set(),
     )
 
 

@@ -27,12 +27,12 @@ pip install blendsql
 ### ✨ News
 - (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
 - (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
-- (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now. 
+- (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
   - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
-- (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info 
-- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!  
+- (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info
+- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!
 
-BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs. 
+BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
 
 As a result, we can *Blend* together...
 
@@ -91,7 +91,7 @@ _What does the largest park in Alaska look like?_
 
 ```sql
 SELECT "Name",
-{{ImageCaption('parks::Image')}} as "Image Description", 
+{{ImageCaption('parks::Image')}} as "Image Description",
 {{
     LLMMap(
         question='Size in km2?',
@@ -111,13 +111,13 @@ ORDER BY "Size in km" DESC LIMIT 1
 _Which state is the park in that protects an ash flow?_
 
 ```sql
-SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks 
+SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
     WHERE "Name" = {{
       LLMQA(
         'Which park protects an ash flow?',
         context=(SELECT "Name", "Description" FROM parks),
         options="parks::Name"
-      ) 
+      )
   }}
 ```
 | Location   | Park Protecting Ash Flow   |
@@ -150,7 +150,7 @@ SELECT "Name", "Location", "Description" FROM parks
 
 _What's the difference in visitors for those parks with a superlative in their description vs. those without?_
 ```sql
-SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors", 
+SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors",
 {{LLMMap('Contains a superlative?', 'parks::Description', options='t;f')}} AS "Description Contains Superlative",
 GROUP_CONCAT(Name, ', ') AS "Park Names"
 FROM parks
@@ -171,84 +171,70 @@ For in-depth descriptions of the above queries, check out our [documentation](ht
 ```python
 import pandas as pd
 
-import blendsql
-from blendsql.ingredients import LLMMap, LLMQA
-from blendsql.db import Pandas
-from blendsql.models import LiteLLM
+from blendsql import BlendSQL, config
+from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
+from blendsql.models import LiteLLM, TransformersLLM
 
 # Optionally set how many async calls to allow concurrently
 # This depends on your OpenAI/Anthropic/etc. rate limits
-blendsql.config.set_async_limit(10)
+config.set_async_limit(10)
 
 # Load model
 model = LiteLLM("openai/gpt-4o-mini") # requires .env file with `OPENAI_API_KEY`
 # model = LiteLLM("anthropic/claude-3-haiku-20240307") # requires .env file with `ANTHROPIC_API_KEY`
-# model = TransformersLLM('Qwen/Qwen1.5-0.5B') # run with any local Transformers model
+# model = TransformersLLM(
+#    "meta-llama/Llama-3.2-1B-Instruct",
+#    config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
+# ) # run with any local Transformers model
 
-# Prepare our local database
-db = Pandas(
+# Prepare our BlendSQL connection
+bsql = BlendSQL(
     {
         "People": pd.DataFrame(
             {
-                'Name': [
-                    'George Washington',
-                    'John Quincy Adams',
-                    'Thomas Jefferson',
-                    'James Madison',
-                    'James Monroe',
-                    'Alexander Hamilton',
-                    'Sabrina Carpenter',
-                    'Charli XCX',
-                    'Elon Musk',
-                    'Michelle Obama',
-                    'Elvis Presley',
+                "Name": [
+                    "George Washington",
+                    "John Quincy Adams",
+                    "Thomas Jefferson",
+                    "James Madison",
+                    "James Monroe",
+                    "Alexander Hamilton",
+                    "Sabrina Carpenter",
+                    "Charli XCX",
+                    "Elon Musk",
+                    "Michelle Obama",
+                    "Elvis Presley",
                 ],
-                'Known_For': [
-                    'Established federal government, First U.S. President',
-                    'XYZ Affair, Alien and Sedition Acts',
-                    'Louisiana Purchase, Declaration of Independence',
-                    'War of 1812, Constitution',
-                    'Monroe Doctrine, Missouri Compromise',
-                    'Created national bank, Federalist Papers',
-                    'Nonsense, Emails I Cant Send, Mean Girls musical',
-                    'Crash, How Im Feeling Now, Boom Clap',
-                    'Tesla, SpaceX, Twitter/X acquisition',
-                    'Lets Move campaign, Becoming memoir',
-                    '14 Grammys, King of Rock n Roll'
-                ]
+                "Known_For": [
+                    "Established federal government, First U.S. President",
+                    "XYZ Affair, Alien and Sedition Acts",
+                    "Louisiana Purchase, Declaration of Independence",
+                    "War of 1812, Constitution",
+                    "Monroe Doctrine, Missouri Compromise",
+                    "Created national bank, Federalist Papers",
+                    "Nonsense, Emails I Cant Send, Mean Girls musical",
+                    "Crash, How Im Feeling Now, Boom Clap",
+                    "Tesla, SpaceX, Twitter/X acquisition",
+                    "Lets Move campaign, Becoming memoir",
+                    "14 Grammys, King of Rock n Roll",
+                ],
             }
         ),
-        "Eras": pd.DataFrame(
-            {
-                'Years': [
-                    '1800-1900',
-                    '1900-2000',
-                    '2000-Now'
-                ]
-            }
-        )
-    }
+        "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
+    },
+    ingredients={LLMMap, LLMQA, LLMJoin},
+    model=model,
 )
 
-# Write BlendSQL query
-query = """
-WITH Musicians AS
-    (
-        SELECT Name FROM People
-        WHERE {{LLMMap('Is a singer?', 'People::Name')}} = TRUE
-    )
-SELECT Name AS "working late cuz they're a singer" FROM Musicians M
-WHERE M.Name = {{LLMQA('Who wrote the song "Espresso?"')}}
-"""
-smoothie = blendsql.blend(
-  query=query,
-  db=db,
-  ingredients={LLMMap, LLMQA},
-  default_model=model,
-  # Optional args below
-  infer_gen_constraints=True,
-  verbose=True
+smoothie = bsql.execute(
+    """
+    SELECT * FROM People P
+    WHERE P.Name IN {{
+        LLMQA('First 3 presidents of the U.S?', modifier='{3}')
+    }}
+    """
 )
+
 print(smoothie.df)
 # ┌─────────────────────────────────────┐
 # │ working late cuz they're a singer   │
@@ -284,8 +270,8 @@ For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `
 - [All possible fields](./blendsql/ingredients/builtin/map/examples.py)
 
 ```python
-from blendsql import blend, LLMMap
-from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
+from blendsql import BlendSQL
+from blendsql.ingredients.builtin import LLMMap, DEFAULT_MAP_FEW_SHOT
 
 ingredients = {
     LLMMap.from_args(
@@ -313,12 +299,8 @@ ingredients = {
         batch_size=5,
     )
 }
-smoothie = blend(
-    query=blendsql,
-    db=db,
-    ingredients=ingredients,
-    default_model=model,
-)
+
+bsql = BlendSQL(db, ingredients=ingredients)
 ```
 
 #### `LLMQA`
@@ -326,8 +308,8 @@ smoothie = blend(
 - [All possible fields](./blendsql/ingredients/builtin/qa/examples.py)
 
 ```python
-from blendsql import blend, LLMQA
-from blendsql.ingredients.builtin import DEFAULT_QA_FEW_SHOT
+from blendsql import BlendSQL
+from blendsql.ingredients.builtin import LLMQA, DEFAULT_QA_FEW_SHOT
 
 ingredients = {
     LLMQA.from_args(
@@ -354,12 +336,8 @@ ingredients = {
         )
     )
 }
-smoothie = blend(
-    query=blendsql,
-    db=db,
-    ingredients=ingredients,
-    default_model=model,
-)
+
+bsql = BlendSQL(db, ingredients=ingredients)
 ```
 
 #### `LLMJoin`
@@ -367,8 +345,8 @@ smoothie = blend(
 - [All possible fields](./blendsql/ingredients/builtin/join/examples.py)
 
 ```python
-from blendsql import blend, LLMJoin
-from blendsql.ingredients.builtin import DEFAULT_JOIN_FEW_SHOT
+from blendsql import BlendSQL
+from blendsql.ingredients.builtin import LLMJoin, DEFAULT_JOIN_FEW_SHOT
 
 ingredients = {
     LLMJoin.from_args(
@@ -389,12 +367,8 @@ ingredients = {
         k=2
     )
 }
-smoothie = blend(
-    query=blendsql,
-    db=db,
-    ingredients=ingredients,
-    default_model=model,
-)
+
+bsql = BlendSQL(db, ingredients=ingredients)
 ```
 
 
@@ -404,7 +378,7 @@ Special thanks to those below for inspiring this project. Definitely recommend c
 - The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
   - This paper was the primary inspiration for BlendSQL.
 - The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
-  - As far as I can tell, the first publication to propose unifying model calls within SQL 
+  - As far as I can tell, the first publication to propose unifying model calls within SQL
   - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
 - The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
 - The maintainers of the [Guidance](https://github.com/guidance-ai/guidance) library for powering the constrained decoding capabilities of BlendSQL

@@ -1,5 +1,5 @@
 import pandas as pd
-from guidance.chat import Llama3ChatTemplate
+from guidance.chat import ChatMLTemplate
 
 from blendsql import config, BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA
@@ -52,44 +52,16 @@ bsql = BlendSQL(
     },
     ingredients={LLMMap, LLMQA, LLMJoin},
     model=TransformersLLM(
-        "meta-llama/Llama-3.2-3B-Instruct",
-        config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
+        "HuggingFaceTB/SmolLM2-360M-Instruct",
+        config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
         caching=False,
     ),
 )
 
-# Write BlendSQL query
-# query = """
-# WITH Musicians AS
-#     (
-#         SELECT Name FROM People
-#         WHERE {{LLMMap('Is a singer?', 'People::Name')}} = TRUE
-#     )
-# SELECT Name AS "working late cuz they're a singer" FROM Musicians M
-# WHERE M.Name = {{LLMQA('Who wrote the song "Espresso?"')}}
-# """
-
-# query = """
-# SELECT * FROM ( VALUES {{LLMQA('Who was a president?', 'People::Name')}})
-# """
-
-query = """
-SELECT GROUP_CONCAT(Name, ', ') AS 'Names',
-{{LLMMap('In which time period did the person live?', 'People::Name', options='Eras::Years')}} AS "Lived During Classification"
-FROM People
-GROUP BY "Lived During Classification"
-"""
-
-# query = """
-# SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?')}} )
-# """
-
-
 smoothie = bsql.execute(
     """
-    {{
-        LLMQA('What is this table about? Explain in 10 words.', (SELECT * FROM People))
-    }}
+    SELECT * FROM People P
+    WHERE P.Name IN {{LLMQA('First 3 presidents of the U.S?', modifier='{3}')}}
     """
 )
 

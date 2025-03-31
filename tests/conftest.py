@@ -1,6 +1,5 @@
 import os
 import pytest
-
 from guidance.chat import ChatMLTemplate, Llama3ChatTemplate
 from dotenv import load_dotenv
 import torch
@@ -9,6 +8,7 @@ from blendsql.db import Database
 from blendsql.models import (
     TransformersLLM,
     LiteLLM,
+    TransformersVisionModel,
     Model,
 )
 from litellm.exceptions import APIConnectionError
@@ -32,21 +32,110 @@ def pytest_make_parametrize_id(config, val, argname):
     return None
 
 
+# Define the model configurations
+CONSTRAINED_MODEL_CONFIGS = [
+    {
+        "name": "llama",
+        "class": TransformersLLM,
+        "path": "meta-llama/Llama-3.2-3B-Instruct",
+        "config": {"chat_template": Llama3ChatTemplate, "device_map": "auto"},
+        "requires_cuda": True,
+    },
+    {
+        "name": "smollm",
+        "class": TransformersLLM,
+        "path": "HuggingFaceTB/SmolLM2-360M-Instruct",
+        "config": {"chat_template": ChatMLTemplate, "device_map": "cpu"},
+        "requires_cuda": False,
+    },
+]
+
+UNCONSTRAINED_MODEL_CONFIGS = [
+    {
+        "name": "ollama",
+        "class": LiteLLM,
+        "path": "ollama/qwen:0.5b",
+        "requires_api": False,
+    },
+    {
+        "name": "openai",
+        "class": LiteLLM,
+        "path": "openai/gpt-4o",
+        "requires_env": "OPENAI_API_KEY",
+    },
+    {
+        "name": "anthropic",
+        "class": LiteLLM,
+        "path": "anthropic/claude-3-5-sonnet-20241022",
+        "requires_env": "ANTHROPIC_API_KEY",
+    },
+    {
+        "name": "gemini",
+        "class": LiteLLM,
+        "path": "gemini/gemini-2.0-flash-exp",
+        "requires_env": "GEMINI_API_KEY",
+    },
+]
+
+
+def get_available_constrained_models():
+    available_models = []
+    for config in CONSTRAINED_MODEL_CONFIGS:
+        if config["requires_cuda"] and not torch.cuda.is_available():
+            continue
+        model = config["class"](
+            config["path"], config=config.get("config", {}), caching=False
+        )
+        available_models.append(pytest.param(model, id=config["name"]))
+    return available_models
+
+
+def get_available_unconstrained_models():
+    available_models = []
+    for config in UNCONSTRAINED_MODEL_CONFIGS:
+        if config.get("requires_env") and os.getenv(config["requires_env"]) is None:
+            continue
+
+        model = config["class"](config["path"], caching=False)
+
+        # Test Ollama connectivity
+        if config["name"] == "ollama":
+            try:
+                model.generate(messages_list=[[{"role": "user", "content": "hello"}]])
+            except APIConnectionError:
+                print(f"Skipping {config['name']}, as server is not running...")
+                continue
+            available_models.append(pytest.param(model, id=config["name"]))
+    return available_models
+
+
+def get_available_models():
+    return get_available_constrained_models() + get_available_unconstrained_models()
+
+
+@pytest.fixture(params=get_available_constrained_models(), scope="session")
+def constrained_model(request):
+    return request.param
+
+
+@pytest.fixture(params=get_available_unconstrained_models(), scope="session")
+def unconstrained_model(request):
+    return request.param
+
+
+@pytest.fixture(params=get_available_models(), scope="session")
+def model(request):
+    """Return all models"""
+    return request.param
+
+
 @pytest.fixture(scope="session")
-def constrained_model():
-    if torch.cuda.is_available():
-        return TransformersLLM(
-            # "meta-llama/Llama-3.1-8B-Instruct",
-            "meta-llama/Llama-3.2-3B-Instruct",
-            config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
-            caching=False,
-        )
-    else:
-        return TransformersLLM(
-            "HuggingFaceTB/SmolLM-135M-Instruct",
-            config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
-            caching=False,
-        )
+def vision_model() -> TransformersVisionModel:
+    return TransformersVisionModel(
+        "Salesforce/blip-image-captioning-base",
+        caching=False,
+        config={"device_map": "cuda" if torch.cuda.is_available() else "cpu"},
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -59,37 +148,6 @@ def cleanup():
 
 
 def pytest_generate_tests(metafunc):
-    if "model" in metafunc.fixturenames:
-        model_list = []
-
-        # Ollama check
-        try:
-            model = LiteLLM("ollama/qwen:0.5b", caching=False)
-            model.generate(messages_list=[[{"role": "user", "content": "hello"}]])
-            model_list.append(model)
-        except APIConnectionError:
-            print("Skipping OllamaLLM, as Ollama server is not running...")
-
-        # OpenAI check
-        if os.getenv("OPENAI_API_KEY") is not None:
-            model_list.append(LiteLLM("openai/gpt-4o", caching=False))
-
-        # Anthropic check
-        if os.getenv("ANTHROPIC_API_KEY") is not None:
-            model_list.append(
-                LiteLLM("anthropic/claude-3-5-sonnet-20241022", caching=False)
-            )
-
-        # Gemini check
-        if os.getenv("GEMINI_API_KEY") is not None:
-            model_list.append(LiteLLM("gemini/gemini-2.0-flash-exp", caching=False))
-
-        # Azure Phi check
-        # if all(os.getenv(k) is not None for k in ["AZURE_PHI_KEY", "AZURE_PHI_URL"]):
-        #     model_list.append(AzurePhiModel(caching=False))
-
-        metafunc.parametrize("model", model_list)
-
     if "ingredients" in metafunc.fixturenames:
         ingredient_sets = [
             {LLMQA, LLMMap, LLMJoin},
@@ -116,7 +174,7 @@ def pytest_generate_tests(metafunc):
                     model=TransformersLLM(
                         "HuggingFaceTB/SmolLM-135M-Instruct",
                         config={
-                            "chat_template": Phi3MiniChatTemplate,
+                            "chat_template": ChatMLTemplate,
                             "device_map": "auto",
                         },
                         caching=False,

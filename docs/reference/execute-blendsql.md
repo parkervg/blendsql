@@ -4,9 +4,11 @@ hide:
 ---
 ## blend()
 
-::: blendsql.blend.blend
+::: blendsql.BlendSQL
     handler: python
-    show_source: false
+    show_source: true
+    options:
+      members:
 
 ### Appendix
 

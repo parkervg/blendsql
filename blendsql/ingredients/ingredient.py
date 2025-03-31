@@ -145,18 +145,15 @@ class MapIngredient(Ingredient):
 
 
             if __name__ == "__main__":
-                from blendsql import blend
+                from blendsql import BlendSQL
                 from blendsql.db import SQLite
                 from blendsql.utils import fetch_from_hub
 
-                blendsql = "SELECT genre, url, {{GetQRCode('QR Code as Bytes:', 'w::url')}} FROM w WHERE genre = 'social'"
+                bsql = BlendSQL(fetch_from_hub('urls.db'), ingredients={GetQRCode})
 
-                smoothie = blend(
-                    query=blendsql,
-                    default_model=None,
-                    db=SQLite(fetch_from_hub("urls.db")),
-                    ingredients={GetQRCode}
-                )
+                smoothie = bsql.execute("SELECT genre, url, {{GetQRCode('QR Code as Bytes:', 'w::url')}} FROM w WHERE genre = 'social'")
+
+                smoothie.df
                 # | genre  | url           | QR Code as Bytes:      |
                 # |--------|---------------|-----------------------|
                 # | social | facebook.com  | b'...'                |

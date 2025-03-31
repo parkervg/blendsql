@@ -8,7 +8,7 @@ from blendsql._smoothie import Smoothie
 config.set_async_limit(1)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def bsql(constrained_model) -> BlendSQL:
     return BlendSQL(
         {

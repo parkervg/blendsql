@@ -1,10 +1,9 @@
 import pytest
-from guidance.chat import Phi3MiniChatTemplate
 
 from blendsql import BlendSQL
 from blendsql._smoothie import Smoothie
 from blendsql.utils import fetch_from_hub
-from blendsql.models import LiteLLM, TransformersLLM
+from blendsql.models import LiteLLM
 
 
 @pytest.fixture(scope="session")
@@ -14,30 +13,20 @@ def bsql() -> BlendSQL:
     )
 
 
-@pytest.fixture(scope="session")
-def constrained_model():
-    model = TransformersLLM(
-        "meta-llama/Llama-3.2-3B-Instruct",
-        config={"chat_template": Phi3MiniChatTemplate, "device_map": "auto"},
-        caching=False,
-    )
-    yield model
-
-
 @pytest.mark.long
-def test_no_ingredients(bsql, constrained_model, ingredients):
+def test_no_ingredients(bsql, model, ingredients):
     res = bsql.execute(
         """
         select * from w
         """,
-        model=constrained_model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
 
 
 @pytest.mark.long
-def test_llmmap(bsql, constrained_model, ingredients):
+def test_llmmap(bsql, model, ingredients):
     res = bsql.execute(
         """
         SELECT DISTINCT venue FROM w
@@ -48,11 +37,11 @@ def test_llmmap(bsql, constrained_model, ingredients):
               )
           }} = TRUE
         """,
-        model=constrained_model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(constrained_model, LiteLLM):
+    if isinstance(model, LiteLLM):
         assert set(res.df["venue"].values.tolist()) == {
             "cricket ground",
             "parramatta ground",
@@ -60,7 +49,7 @@ def test_llmmap(bsql, constrained_model, ingredients):
 
 
 @pytest.mark.long
-def test_llmjoin(bsql, constrained_model, ingredients):
+def test_llmjoin(bsql, model, ingredients):
     res = bsql.execute(
         """
         SELECT date, rival, score, documents.content AS "Team Description" FROM w
@@ -71,16 +60,16 @@ def test_llmjoin(bsql, constrained_model, ingredients):
               )
           }} WHERE rival = 'nsw waratahs'
         """,
-        model=constrained_model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(constrained_model, LiteLLM):
+    if isinstance(model, LiteLLM):
         assert res.df["rival"].unique().tolist() == ["nsw waratahs"]
 
 
 @pytest.mark.long
-def test_llmqa(bsql, constrained_model, ingredients):
+def test_llmqa(bsql, model, ingredients):
     res = bsql.execute(
         """
         SELECT * FROM w
@@ -92,16 +81,16 @@ def test_llmqa(bsql, constrained_model, ingredients):
               )
           }}
         """,
-        model=constrained_model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(constrained_model, LiteLLM):
+    if isinstance(model, LiteLLM):
         assert res.df["city"].unique().tolist() == ["bathurst"]
 
 
 @pytest.mark.long
-def test_llmmap_with_string(bsql, constrained_model, ingredients):
+def test_llmmap_with_string(bsql, model, ingredients):
     res = bsql.execute(
         """
         SELECT COUNT(*) AS "June Count" FROM w
@@ -112,16 +101,16 @@ def test_llmmap_with_string(bsql, constrained_model, ingredients):
               )
           }} = 'June'
         """,
-        model=constrained_model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(constrained_model, LiteLLM):
+    if isinstance(model, LiteLLM):
         assert res.df["June Count"].values[0] == 6
 
 
 @pytest.mark.long
-def test_unconstrained_llmqa(bsql, constrained_model, ingredients):
+def test_unconstrained_llmqa(bsql, model, ingredients):
     res = bsql.execute(
         """
         {{
@@ -132,9 +121,9 @@ def test_unconstrained_llmqa(bsql, constrained_model, ingredients):
           )
         }}
         """,
-        model=constrained_model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    if isinstance(constrained_model, LiteLLM):
+    if isinstance(model, LiteLLM):
         assert "sports" in res.df.values[0][0].lower()

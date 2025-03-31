@@ -5,45 +5,27 @@ from blendsql import BlendSQL
 from blendsql.ingredients import ImageCaption, LLMMap, LLMQA, RAGQA
 from blendsql._smoothie import Smoothie
 from blendsql.utils import fetch_from_hub
-from blendsql.models import TransformersVisionModel, TransformersLLM, LiteLLM
+from blendsql.models import LiteLLM
 from blendsql._exceptions import IngredientException
 
-TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M-Instruct"
-TEST_TRANSFORMERS_VISION_LLM = "Salesforce/blip-image-captioning-base"
-
 
 @pytest.fixture(scope="session")
-def bsql() -> BlendSQL:
-    return BlendSQL(fetch_from_hub("national_parks.db"))
-
-
-@pytest.fixture(scope="session")
-def vision_model() -> TransformersVisionModel:
-    return TransformersVisionModel(
-        TEST_TRANSFORMERS_VISION_LLM, caching=False, config={"device_map": "auto"}
-    )
-
-
-@pytest.fixture(scope="session")
-def text_model() -> TransformersLLM:
-    return TransformersLLM(
-        TEST_TRANSFORMERS_LLM, caching=False, config={"device_map": "auto"}
-    )
+def bsql(vision_model) -> BlendSQL:
+    return BlendSQL(fetch_from_hub("national_parks.db"), model=vision_model)
 
 
 @pytest.mark.long
-def test_no_ingredients(bsql, vision_model):
+def test_no_ingredients(bsql):
     res = bsql.execute(
         """
         select * from parks
         """,
-        model=vision_model,
     )
     assert isinstance(res, Smoothie)
 
 
 @pytest.mark.long
-def test_image_caption(bsql, vision_model):
+def test_image_caption(bsql):
     ingredients = {ImageCaption}
     res = bsql.execute(
         """
@@ -52,14 +34,13 @@ def test_image_caption(bsql, vision_model):
         FROM parks
         WHERE "Location" = 'Alaska'
         """,
-        model=vision_model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
 
 
 @pytest.mark.long
-def test_mixed_models(bsql, vision_model, text_model):
+def test_mixed_models(bsql, vision_model, constrained_model):
     ingredients = {ImageCaption.from_args(model=vision_model), LLMMap}
     res = bsql.execute(
         """
@@ -74,7 +55,7 @@ def test_mixed_models(bsql, vision_model, text_model):
         WHERE "Location" = 'Alaska'
         ORDER BY "Size in km" DESC LIMIT 1
         """,
-        model=text_model,
+        model=constrained_model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -105,7 +86,7 @@ def test_mixed_models_no_default_error(bsql, vision_model):
 
 
 @pytest.mark.long
-def test_readme_example_1(bsql, text_model):
+def test_readme_example_1(bsql, constrained_model):
     ingredients = {LLMMap}
     res = bsql.execute(
         """
@@ -117,7 +98,7 @@ def test_readme_example_1(bsql, text_model):
                 )
             }} = FALSE
             """,
-        model=text_model,
+        model=constrained_model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)

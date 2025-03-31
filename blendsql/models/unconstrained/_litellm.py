@@ -47,6 +47,7 @@ class LiteLLM(UnconstrainedModel):
             caching=caching,
             **kwargs,
         )
+        self.model_obj = None
 
     async def _generate(
         self,
