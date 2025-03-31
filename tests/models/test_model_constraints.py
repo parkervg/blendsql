@@ -3,7 +3,6 @@ import pandas as pd
 
 from blendsql import BlendSQL, config
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
-from blendsql.models import ConstrainedModel
 from blendsql._smoothie import Smoothie
 
 config.set_async_limit(1)
@@ -46,7 +45,7 @@ def bsql(constrained_model) -> BlendSQL:
             "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
         },
         model=constrained_model,
-        ingredients={LLMQA, LLMMap, LLMJoin}
+        ingredients={LLMQA, LLMMap, LLMJoin},
     )
 
 

@@ -1,5 +1,5 @@
 import pytest
-from guidance.chat import Phi3MiniChatTemplate, ChatMLTemplate
+from guidance.chat import Phi3MiniChatTemplate
 
 from blendsql import BlendSQL
 from blendsql._smoothie import Smoothie
@@ -13,14 +13,16 @@ def bsql() -> BlendSQL:
         fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
     )
 
+
 @pytest.fixture(scope="session")
 def constrained_model():
     model = TransformersLLM(
         "meta-llama/Llama-3.2-3B-Instruct",
         config={"chat_template": Phi3MiniChatTemplate, "device_map": "auto"},
-        caching=False
+        caching=False,
     )
     yield model
+
 
 @pytest.mark.long
 def test_no_ingredients(bsql, constrained_model, ingredients):

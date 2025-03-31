@@ -3,7 +3,7 @@ from guidance.chat import Llama3ChatTemplate
 
 from blendsql import config, BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA
-from blendsql.models import LiteLLM, TransformersLLM
+from blendsql.models import TransformersLLM
 from blendsql.ingredients import LLMJoin
 
 
@@ -54,8 +54,8 @@ bsql = BlendSQL(
     model=TransformersLLM(
         "meta-llama/Llama-3.2-3B-Instruct",
         config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
-        caching=False
-    )
+        caching=False,
+    ),
 )
 
 # Write BlendSQL query
