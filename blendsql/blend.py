@@ -1009,6 +1009,8 @@ class BlendSQL:
         query: str,
         ingredients: Optional[Collection[Type[Ingredient]]] = None,
         model: Optional[str] = None,
+        infer_gen_constraints: Optional[bool] = None,
+        schema_qualify: Optional[bool] = None,
     ) -> Smoothie:
         '''The `blend()` function is used to execute a BlendSQL query against a database and
         return the final result, in addition to the intermediate reasoning steps taken.
@@ -1128,9 +1130,10 @@ class BlendSQL:
                 db=self.db,
                 default_model=model or self.model,
                 ingredients=ingredients or self.ingredients,
-                infer_gen_constraints=self.infer_gen_constraints,
+                infer_gen_constraints=infer_gen_constraints
+                or self.infer_gen_constraints,
                 table_to_title=self.table_to_title,
-                schema_qualify=self.schema_qualify,
+                schema_qualify=schema_qualify or self.schema_qualify,
             )
         except Exception as error:
             raise error
