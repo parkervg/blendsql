@@ -44,7 +44,7 @@ CONSTRAINED_MODEL_CONFIGS = [
     {
         "name": "smollm",
         "class": TransformersLLM,
-        "path": "HuggingFaceTB/SmolLM2-360M-Instruct",
+        "path": "HuggingFaceTB/SmolLM2-135M-Instruct",
         "config": {"chat_template": ChatMLTemplate, "device_map": "cpu"},
         "requires_cuda": False,
     },
@@ -60,13 +60,13 @@ UNCONSTRAINED_MODEL_CONFIGS = [
     {
         "name": "openai",
         "class": LiteLLM,
-        "path": "openai/gpt-4o",
+        "path": "openai/gpt-4o-mini",
         "requires_env": "OPENAI_API_KEY",
     },
     {
         "name": "anthropic",
         "class": LiteLLM,
-        "path": "anthropic/claude-3-5-sonnet-20241022",
+        "path": "anthropic/claude-3-haiku-20240307",
         "requires_env": "ANTHROPIC_API_KEY",
     },
     {
@@ -105,7 +105,7 @@ def get_available_unconstrained_models():
             except APIConnectionError:
                 print(f"Skipping {config['name']}, as server is not running...")
                 continue
-            available_models.append(pytest.param(model, id=config["name"]))
+        available_models.append(pytest.param(model, id=config["name"]))
     return available_models
 
 
