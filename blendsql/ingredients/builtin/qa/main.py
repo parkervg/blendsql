@@ -417,7 +417,7 @@ class LLMQA(QAIngredient):
         if len(response) == 1 and not is_list_output:
             response = response[0]  # type: ignore
             if options and response not in options:
-                print(
+                logger.debug(
                     Fore.RED
                     + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
                     + Fore.RESET

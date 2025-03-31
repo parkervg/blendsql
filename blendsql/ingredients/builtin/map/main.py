@@ -286,7 +286,6 @@ class LLMMap(MapIngredient):
                         generated_batch_variables = {
                             k: batch_lm.get(k) for k in current_batch_example.values
                         }
-                        print(batch_lm._current_prompt())
                         lm._variables.update(generated_batch_variables)
                     if model.caching:
                         model.cache[key] = generated_batch_variables  # type: ignore
