@@ -5,18 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "blendsql"
 description = "Query language for blending SQL logic and LLM reasoning across multi-modal data. [Findings of ACL 2024]"
-authors = [
-    {"name" = "Parker Glenn", "email" = "parkervg5@gmail.com"}
-]
+authors = [{ "name" = "Parker Glenn", "email" = "parkervg5@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "Apache-2.0"}
-keywords = [
-    "language models",
-    "query language",
-    "symbolic ai",
-    "sql"
-]
+license = { text = "Apache-2.0" }
+keywords = ["language models", "query language", "symbolic ai", "sql"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -26,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "guidance==0.1.16",
+    "guidance",
     "transformers==4.47.0",
     "accelerate==1.5.2",
     "litellm",

@@ -8,7 +8,7 @@ from blendsql.utils import fetch_from_hub
 from blendsql.models import TransformersVisionModel, TransformersLLM, LiteLLM
 from blendsql._exceptions import IngredientException
 
-TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M"
+TEST_TRANSFORMERS_LLM = "HuggingFaceTB/SmolLM-135M-Instruct"
 TEST_TRANSFORMERS_VISION_LLM = "Salesforce/blip-image-captioning-base"
 
 
@@ -20,14 +20,14 @@ def bsql() -> BlendSQL:
 @pytest.fixture(scope="session")
 def vision_model() -> TransformersVisionModel:
     return TransformersVisionModel(
-        TEST_TRANSFORMERS_VISION_LLM, caching=False, config={"device_map": "cpu"}
+        TEST_TRANSFORMERS_VISION_LLM, caching=False, config={"device_map": "auto"}
     )
 
 
 @pytest.fixture(scope="session")
 def text_model() -> TransformersLLM:
     return TransformersLLM(
-        TEST_TRANSFORMERS_LLM, caching=False, config={"device_map": "cpu"}
+        TEST_TRANSFORMERS_LLM, caching=False, config={"device_map": "auto"}
     )
 
 

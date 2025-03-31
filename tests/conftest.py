@@ -1,7 +1,9 @@
 import os
+import pytest
 
-from guidance.chat import ChatMLTemplate
+from guidance.chat import ChatMLTemplate, Llama3ChatTemplate
 from dotenv import load_dotenv
+import torch
 
 from blendsql.db import Database
 from blendsql.models import (
@@ -20,7 +22,6 @@ load_dotenv()
 # This causes an 'MPS backend out of memory' error on github actions
 os.environ["HAYSTACK_MPS_ENABLED"] = "false"
 
-
 def pytest_make_parametrize_id(config, val, argname):
     if isinstance(val, Database):
         return val.__class__.__name__
@@ -29,16 +30,33 @@ def pytest_make_parametrize_id(config, val, argname):
     # return None to let pytest handle the formatting
     return None
 
+@pytest.fixture(scope="session")
+def constrained_model():
+    if torch.cuda.is_available():
+        return TransformersLLM(
+            # "meta-llama/Llama-3.1-8B-Instruct",
+            "meta-llama/Llama-3.2-3B-Instruct",
+            config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
+            caching=False
+        )
+    else:
+        return TransformersLLM(
+            "HuggingFaceTB/SmolLM-135M-Instruct",
+            config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
+            caching=False
+        )
+
+@pytest.fixture(autouse=True)
+def cleanup():
+    yield
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.reset_max_memory_allocated()
+        torch.cuda.reset_peak_memory_stats()
 
 def pytest_generate_tests(metafunc):
     if "model" in metafunc.fixturenames:
-        model_list = [
-            TransformersLLM(
-                "HuggingFaceTB/SmolLM-135M-Instruct",
-                caching=False,
-                config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
-            )
-        ]
+        model_list = []
 
         # Ollama check
         try:
@@ -91,11 +109,7 @@ def pytest_generate_tests(metafunc):
                 ),
                 LLMJoin.from_args(
                     k=2,
-                    model=TransformersLLM(
-                        "HuggingFaceTB/SmolLM-135M-Instruct",
-                        caching=False,
-                        config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
-                    ),
+                    model=TransformersLLM("HuggingFaceTB/SmolLM-135M-Instruct", config={"chat_template": Phi3MiniChatTemplate, "device_map": "auto"}, caching=False),
                 ),
             },
         ]

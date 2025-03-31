@@ -86,12 +86,12 @@ class TransformersLLM(ConstrainedModel):
         # https://huggingface.co/blog/how-to-generate
         from guidance.models import Transformers
 
-        device_map = resolve_device_map(self.config.pop("device_map", None))
+        # device_map = resolve_device_map(self.config.pop("device_map", None))
 
         lm = Transformers(
             self.model_name_or_path,
             echo=False,
-            device_map=device_map,
+            device_map=self.config.pop("device_map", None),
             **self.config,
         )
         # Try to infer if we're in chat mode

@@ -1,21 +1,22 @@
 import pandas as pd
+from guidance.chat import Llama3ChatTemplate
 
-import blendsql
+from blendsql import config, BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA
-from blendsql.db import Pandas
-from blendsql.models import LiteLLM
+from blendsql.models import LiteLLM, TransformersLLM
+from blendsql.ingredients import LLMJoin
+
 
 # Optionally set how many async calls to allow concurrently
 # This depends on your OpenAI/Anthropic/etc. rate limits
-blendsql.config.set_async_limit(10)
+config.set_async_limit(10)
 
 # Load model
-model = LiteLLM("openai/gpt-4o-mini")  # requires .env file with `OPENAI_API_KEY`
-# model = LiteLLM("anthropic/claude-3-haiku-20240307") # requires .env file with `ANTHROPIC_API_KEY`
-# model = TransformersLLM('Qwen/Qwen1.5-0.5B') # run with any local Transformers model
+# model = TransformersLLM("microsoft/Phi-3.5-mini-instruct", config={"device_map": "auto"}, caching=False) # run with any local Transformers model
+# model = TransformersLLM("meta-llama/Llama-3.1-8B-Instruct", config={"device_map": "auto"}, caching=False) # run with any local Transformers model
 
 # Prepare our local database
-db = Pandas(
+bsql = BlendSQL(
     {
         "People": pd.DataFrame(
             {
@@ -48,28 +49,50 @@ db = Pandas(
             }
         ),
         "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
-    }
+    },
+    ingredients={LLMMap, LLMQA, LLMJoin},
+    model=TransformersLLM(
+        "meta-llama/Llama-3.2-3B-Instruct",
+        config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
+        caching=False
+    )
 )
 
 # Write BlendSQL query
+# query = """
+# WITH Musicians AS
+#     (
+#         SELECT Name FROM People
+#         WHERE {{LLMMap('Is a singer?', 'People::Name')}} = TRUE
+#     )
+# SELECT Name AS "working late cuz they're a singer" FROM Musicians M
+# WHERE M.Name = {{LLMQA('Who wrote the song "Espresso?"')}}
+# """
+
+# query = """
+# SELECT * FROM ( VALUES {{LLMQA('Who was a president?', 'People::Name')}})
+# """
+
 query = """
-WITH Musicians AS
-    (
-        SELECT Name FROM People
-        WHERE {{LLMMap('Is a singer?', 'People::Name')}} = TRUE
-    )
-SELECT Name AS "working late cuz they're a singer" FROM Musicians M
-WHERE M.Name = {{LLMQA('Who wrote the song "Espresso?"')}}
+SELECT GROUP_CONCAT(Name, ', ') AS 'Names',
+{{LLMMap('In which time period did the person live?', 'People::Name', options='Eras::Years')}} AS "Lived During Classification"
+FROM People
+GROUP BY "Lived During Classification"
 """
-smoothie = blendsql.blend(
-    query=query,
-    db=db,
-    ingredients={LLMMap, LLMQA},
-    default_model=model,
-    # Optional args below
-    infer_gen_constraints=True,
-    verbose=True,
+
+# query = """
+# SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?')}} )
+# """
+
+
+smoothie = bsql.execute(
+    """
+    {{
+        LLMQA('What is this table about? Explain in 10 words.', (SELECT * FROM People))
+    }}
+    """
 )
+
 print(smoothie.df)
 # ┌─────────────────────────────────────┐
 # │ working late cuz they're a singer   │

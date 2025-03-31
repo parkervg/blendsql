@@ -273,7 +273,6 @@ class LLMMap(MapIngredient):
                 with guidance.user():
                     lm += CONSTRAINED_MAIN_INSTRUCTION
                     lm += example_str
-                with guidance.user():
                     batch_lm = lm + current_example_str
 
                 # TODO: since guidance does prefix caching, we don't actually reuse prompt tokens across batches

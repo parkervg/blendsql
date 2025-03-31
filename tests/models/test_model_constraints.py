@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 
 from blendsql import BlendSQL, config
+from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 from blendsql.models import ConstrainedModel
 from blendsql._smoothie import Smoothie
 
@@ -9,7 +10,7 @@ config.set_async_limit(1)
 
 
 @pytest.fixture(scope="session")
-def bsql() -> BlendSQL:
+def bsql(constrained_model) -> BlendSQL:
     return BlendSQL(
         {
             "People": pd.DataFrame(
@@ -43,20 +44,18 @@ def bsql() -> BlendSQL:
                 }
             ),
             "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
-        }
+        },
+        model=constrained_model,
+        ingredients={LLMQA, LLMMap, LLMJoin}
     )
 
 
-def test_singers(bsql, model, ingredients):
-    if isinstance(model, ConstrainedModel):
-        pytest.skip()
+def test_singers(bsql):
     res = bsql.execute(
         """
         SELECT * FROM People p
-        WHERE {{LLMMap('Is a singer?', 'p::Name')}} = True
-        """,
-        model=model,
-        ingredients=ingredients,
+        WHERE {{LLMMap('Is a famous singer?', 'p::Name')}} = True
+        """
     )
     assert set(res.df["Name"].tolist()) == {
         "Sabrina Carpenter",
@@ -69,37 +68,28 @@ def test_singers(bsql, model, ingredients):
         {{LLMMap('In which time period did the person live?', 'People::Name', options='Eras::Years')}} AS "Lived During Classification"
         FROM People
         GROUP BY "Lived During Classification"
-        """,
-        model=model,
-        ingredients=ingredients,
+        """
     )
     assert isinstance(res, Smoothie)
 
 
-def test_alphabet(bsql, model, ingredients):
-    if not isinstance(model, ConstrainedModel):
-        pytest.skip()
-    blend = lambda query: bsql.execute(
-        query=query,
-        model=model,
-        ingredients=ingredients,
-    )
+def test_alphabet(bsql):
     blendsql_query = """
     SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options='A;B;C')}} )
     """
-    smoothie = blend(blendsql_query)
+    smoothie = bsql.execute(blendsql_query)
     assert "A" in list(smoothie.df.values.flat)
 
     blendsql_query = """
         SELECT * FROM ( VALUES {{LLMQA('What are the first capital letters of the alphabet?', options='A;B;C', modifier="{2}")}} )
         """
-    smoothie = blend(blendsql_query)
+    smoothie = bsql.execute(blendsql_query)
     assert set(smoothie.df.values.flat) == {"A", "B"}
 
     blendsql_query = """
     SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options='α;β;γ', modifier="{3}")}} )
     """
-    smoothie = blend(blendsql_query)
+    smoothie = bsql.execute(blendsql_query)
     assert set(smoothie.df.values.flat) == {"α", "β", "γ"}
 
     blendsql_query = """
@@ -111,7 +101,7 @@ def test_alphabet(bsql, model, ingredients):
         )
     }} AS 'response'
     """
-    smoothie = blend(blendsql_query)
+    smoothie = bsql.execute(blendsql_query)
     assert list(smoothie.df.values.flat)[0].lower() == "alpha"
 
     blendsql_query = """
@@ -123,5 +113,5 @@ def test_alphabet(bsql, model, ingredients):
             options=(SELECT * FROM greek_letters)
         )}}
     """
-    smoothie = blend(blendsql_query)
+    smoothie = bsql.execute(blendsql_query)
     assert list(smoothie.df.values.flat)[0].lower() == "alpha"

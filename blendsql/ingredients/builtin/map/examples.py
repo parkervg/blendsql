@@ -24,10 +24,10 @@ class _MapExample(Example):
         self, include_values: bool = True, list_options: bool = True, *args, **kwargs
     ) -> str:
         s = f"\n\nQuestion: {self.question}\n"
-        if self.table_name is not None:
-            s += f"Source table: {self.table_name}\n"
-        if self.column_name is not None:
-            s += f"Source column: {self.column_name}\n"
+        # if self.table_name is not None:
+        #     s += f"Source table: {self.table_name}\n"
+        # if self.column_name is not None:
+        #     s += f"Source column: {self.column_name}\n"
         if self.output_type is not None:
             if self.output_type.name != "Any":
                 s += f"Output datatype: {self.output_type.name}\n"
