@@ -1,9 +1,8 @@
 import pandas as pd
-from guidance.chat import ChatMLTemplate
 
 from blendsql import config, BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA
-from blendsql.models import TransformersLLM
+from blendsql.models import LiteLLM
 from blendsql.ingredients import LLMJoin
 
 
@@ -51,29 +50,35 @@ bsql = BlendSQL(
         "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
     },
     ingredients={LLMMap, LLMQA, LLMJoin},
-    model=TransformersLLM(
-        "HuggingFaceTB/SmolLM2-360M-Instruct",
-        config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
-        caching=False,
-    ),
+    model=LiteLLM("anthropic/claude-3-7-sonnet-20250219", caching=True)
+    # model=TransformersLLM(
+    #     "HuggingFaceTB/SmolLM2-360M-Instruct",
+    #     config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
+    #     caching=False,
+    # ),
 )
 
 smoothie = bsql.execute(
     """
     SELECT * FROM People P
-    WHERE P.Name IN {{LLMQA('First 3 presidents of the U.S?', modifier='{3}')}}
-    """
+    WHERE P.Name IN {{
+        LLMQA('First 3 presidents of the U.S?', modifier='{3}')
+    }}
+    """,
+    infer_gen_constraints=True,
 )
 
 print(smoothie.df)
-# ┌─────────────────────────────────────┐
-# │ working late cuz they're a singer   │
-# ├─────────────────────────────────────┤
-# │ Sabrina Carpenter                   │
-# └─────────────────────────────────────┘
+# ┌───────────────────┬───────────────────────────────────────────────────────┐
+# │ Name              │ Known_For                                             │
+# ├───────────────────┼───────────────────────────────────────────────────────┤
+# │ George Washington │ Established federal government, First U.S. Preside... │
+# │ John Quincy Adams │ XYZ Affair, Alien and Sedition Acts                   │
+# │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
+# └───────────────────┴───────────────────────────────────────────────────────┘
 print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
-# │    0.12474 │                    1 │            1918 │                  42 │
+# │    1.25158 │                    1 │             296 │                  16 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
