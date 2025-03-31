@@ -15,8 +15,6 @@
   </p>
 <b><h3>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</h3></b>
 
-<i>Results from the paper are available [here](https://github.com/parkervg/blendsql/tree/research-paper/research/paper-results)</i>
-
 </div>
 <br/>
 
@@ -24,168 +22,21 @@
 pip install blendsql
 ```
 
-### ✨ News
-- (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
-- (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
-- (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
-  - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
-- (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info
-- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!
-
-BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
-
-As a result, we can *Blend* together...
-
-- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
-- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
-
-
-**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
-
-### Features
-
-- Supports many DBMS 💾
-  - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
-- Supports many models ✨
-  - Transformers, OpenAI, Anthropic, Ollama
-- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
-- Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
-  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
-- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-  - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
-
-
-![comparison](docs/img/comparison.jpg)
-
-For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
-
-We can use BlendSQL to build a travel planning LLM chatbot to help us navigate the options below.
-
-
-| **Name**        | **Image**                                                                       | **Location**       | **Area**                          | **Recreation Visitors (2022)** | **Description**                                                                                                                          |
-|-----------------|---------------------------------------------------------------------------------|--------------------|-----------------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| Death Valley    | ![death_valley.jpeg](./docs/img/national_parks_example/death_valley.jpeg)       | California, Nevada | 3,408,395.63 acres (13,793.3 km2) | 1,128,862                      | Death Valley is the hottest, lowest, and driest place in the United States, with daytime temperatures that have exceeded 130 °F (54 °C). |
-| Everglades      | ![everglades.jpeg](./docs/img/national_parks_example/everglades.jpeg)           | Alaska             | 7,523,897.45 acres (30,448.1 km2) | 9,457                          | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.              |
-| New River Gorge | ![new_river_gorge.jpeg](./docs/img/national_parks_example/new_river_gorge.jpeg) | West Virgina       | 7,021 acres (28.4 km2)            | 1,593,523                      | The New River Gorge is the deepest river gorge east of the Mississippi River.                                                            |
- | Katmai          | ![katmai.jpg](./docs/img/national_parks_example/katmai.jpg)                     | Alaska             |  3,674,529.33 acres (14,870.3 km2)                                 | 33,908 | This park on the Alaska Peninsula protects the Valley of Ten Thousand Smokes, an ash flow formed by the 1912 eruption of Novarupta.  |
-
-BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
-
-_Which parks don't have park facilities?_
-```sql
-SELECT "Name", "Description" FROM parks
-  WHERE {{
-      LLMMap(
-          'Does this location have park facilities?',
-          context='parks::Description'
-      )
-  }} = FALSE
-```
-| Name            | Description                                                                                                                            |
-|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
-| Everglades      | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.            |
-<hr>
-
-_What does the largest park in Alaska look like?_
-
-```sql
-SELECT "Name",
-{{ImageCaption('parks::Image')}} as "Image Description",
-{{
-    LLMMap(
-        question='Size in km2?',
-        context='parks::Area'
-    )
-}} as "Size in km" FROM parks
-WHERE "Location" = 'Alaska'
-ORDER BY "Size in km" DESC LIMIT 1
-```
-
-| Name       | Image Description                                       |   Size in km |
-|:-----------|:--------------------------------------------------------|-------------:|
-| Everglades | A forest of tall trees with a sunset in the background. |      30448.1 |
-
-<hr>
-
-_Which state is the park in that protects an ash flow?_
-
-```sql
-SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
-    WHERE "Name" = {{
-      LLMQA(
-        'Which park protects an ash flow?',
-        context=(SELECT "Name", "Description" FROM parks),
-        options="parks::Name"
-      )
-  }}
-```
-| Location   | Park Protecting Ash Flow   |
-|:-----------|:---------------------------|
-| Alaska     | Katmai                     |
-
-<hr>
-
-_How many parks are located in more than 1 state?_
-
-```sql
-SELECT COUNT(*) FROM parks
-    WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
-```
-|   Count |
-|--------:|
-|       1 |
-<hr>
-
-_Give me some info about the park in the state that Sarah Palin was governor of._
-```sql
-SELECT "Name", "Location", "Description" FROM parks
-  WHERE Location = {{RAGQA('Which state was Sarah Palin governor of?')}}
-```
-| Name       | Location   | Description                                                                                                                         |
-|:-----------|:-----------|:------------------------------------------------------------------------------------------------------------------------------------|
-| Everglades | Alaska     | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.         |
-| Katmai     | Alaska     | This park on the Alaska Peninsula protects the Valley of Ten Thousand Smokes, an ash flow formed by the 1912 eruption of Novarupta. |
-<hr>
-
-_What's the difference in visitors for those parks with a superlative in their description vs. those without?_
-```sql
-SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors",
-{{LLMMap('Contains a superlative?', 'parks::Description', options='t;f')}} AS "Description Contains Superlative",
-GROUP_CONCAT(Name, ', ') AS "Park Names"
-FROM parks
-GROUP BY "Description Contains Superlative"
-```
-| Total Visitors |   Description Contains Superlative | Park Names                    |
-|---------------:|-----------------------------------:|:------------------------------|
-|          43365 |                                  0 | Everglades, Katmai            |
-|        2722385 |                                  1 | Death Valley, New River Gorge |
-<hr>
-
-Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
-
-For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
-
-## Quickstart
-
 ```python
 import pandas as pd
+from guidance.chat import Llama3ChatTemplate
 
-from blendsql import BlendSQL, config
+from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
 from blendsql.models import LiteLLM, TransformersLLM
 
-# Optionally set how many async calls to allow concurrently
-# This depends on your OpenAI/Anthropic/etc. rate limits
-config.set_async_limit(10)
-
 # Load model
-model = LiteLLM("openai/gpt-4o-mini") # requires .env file with `OPENAI_API_KEY`
-# model = LiteLLM("anthropic/claude-3-haiku-20240307") # requires .env file with `ANTHROPIC_API_KEY`
-# model = TransformersLLM(
-#    "meta-llama/Llama-3.2-1B-Instruct",
-#    config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
-# ) # run with any local Transformers model
+# model = LiteLLM("openai/gpt-4o-mini") # Requires .env file with `OPENAI_API_KEY`
+# model = LiteLLM("anthropic/claude-3-haiku-20240307") # Requires .env file with `ANTHROPIC_API_KEY`
+model = TransformersLLM(
+   "meta-llama/Llama-3.2-3B-Instruct",
+   config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
+) # Run with any local transformers model, enabling more powerful constrained decoding
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
@@ -232,23 +83,58 @@ smoothie = bsql.execute(
     WHERE P.Name IN {{
         LLMQA('First 3 presidents of the U.S?', modifier='{3}')
     }}
-    """
+    """,
+    infer_gen_constraints=True 
 )
 
-print(smoothie.df)
-# ┌─────────────────────────────────────┐
-# │ working late cuz they're a singer   │
-# ├─────────────────────────────────────┤
-# │ Sabrina Carpenter                   │
-# └─────────────────────────────────────┘
+# ┌───────────────────┬───────────────────────────────────────────────────────┐
+# │ Name              │ Known_For                                             │
+# ├───────────────────┼───────────────────────────────────────────────────────┤
+# │ George Washington │ Established federal government, First U.S. Preside... │
+# │ John Quincy Adams │ XYZ Affair, Alien and Sedition Acts                   │
+# │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
+# └───────────────────┴───────────────────────────────────────────────────────┘
 print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
-# │    0.12474 │                    1 │            1918 │                  42 │
+# │    1.25158 │                    1 │             296 │                  16 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
 ```
-<hr>
+
+### ✨ News
+- (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
+- (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
+- (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
+  - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
+- (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info
+- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!
+
+BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
+
+As a result, we can *Blend* together...
+
+- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
+- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
+
+
+**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
+
+### Features
+
+- Supports many DBMS 💾
+  - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
+- Supports many models ✨
+  - Transformers, OpenAI, Anthropic, Ollama
+- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
+- Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+- Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
+  - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
+- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+
+
+![comparison](docs/img/comparison.jpg)
 
 ### Citation
 
