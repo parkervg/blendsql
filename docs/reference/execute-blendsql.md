@@ -2,7 +2,7 @@
 hide:
   - toc
 ---
-## blend()
+## BlendSQL Class
 
 ::: blendsql.BlendSQL
     handler: python

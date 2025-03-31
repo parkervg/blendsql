@@ -967,6 +967,33 @@ def _blend(
 
 @dataclass
 class BlendSQL:
+    """Core `BlendSQL` class that provides high level interface for executing BlendSQL queries.
+
+    Args:
+        db (Union[pd.DataFrame, dict, str, Database]): Database to connect to. Can be:
+
+            - pandas DataFrame or dict of DataFrames
+
+            - Path to SQLite database file
+
+            - PostgreSQL connection string
+
+            - `Database` object
+        model (Optional[Model]): Model instance to use for LLM operations. Can also be
+            provided during query execution.
+        ingredients (Optional[Collection[Type[Ingredient]]]): Collection of ingredients to
+            make available for queries. Can also be
+                provided during query execution.
+        verbose (bool): Whether to output debug logging information. Defaults to False.
+        infer_gen_constraints (bool): Whether to automatically infer constraints for
+            LLM generation based on query context. Defaults to True.
+        table_to_title (Optional[Dict[str, str]]): Optional mapping from table names to
+            descriptive titles, useful for datasets where table titles contain metadata.
+        schema_qualify (bool): Whether to qualify column names with table names. Required
+            for multi-table queries but adds overhead. Can be disabled for single-table
+            queries. Defaults to True.
+    """
+
     db: Union[pd.DataFrame, dict, str, Database] = field()
     model: Optional[Model] = field(default=None)
     ingredients: Optional[Collection[Type[Ingredient]]] = field(default_factory=list)
@@ -1012,13 +1039,12 @@ class BlendSQL:
         infer_gen_constraints: Optional[bool] = None,
         schema_qualify: Optional[bool] = None,
     ) -> Smoothie:
-        '''The `blend()` function is used to execute a BlendSQL query against a database and
+        '''The `execute()` function is used to execute a BlendSQL query against a database and
         return the final result, in addition to the intermediate reasoning steps taken.
         Execution is done on a database given an ingredient context.
 
         Args:
             query: The BlendSQL query to execute
-            db: Database connector object
             ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query
             verbose: Boolean defining whether to run with logger in debug mode
             default_model: Which BlendSQL model to use in performing ingredient tasks in the current query
@@ -1106,16 +1132,18 @@ class BlendSQL:
             )
 
             print(smoothie.df)
-            # ┌─────────────────────────────────────┐
-            # │ working late cuz they're a singer   │
-            # ├─────────────────────────────────────┤
-            # │ Sabrina Carpenter                   │
-            # └─────────────────────────────────────┘
+            # ┌───────────────────┬───────────────────────────────────────────────────────┐
+            # │ Name              │ Known_For                                             │
+            # ├───────────────────┼───────────────────────────────────────────────────────┤
+            # │ George Washington │ Established federal government, First U.S. Preside... │
+            # │ John Quincy Adams │ XYZ Affair, Alien and Sedition Acts                   │
+            # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
+            # └───────────────────┴───────────────────────────────────────────────────────┘
             print(smoothie.summary())
             # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
             # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
             # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
-            # │    0.12474 │                    1 │            1918 │                  42 │
+            # │    1.25158 │                    1 │             296 │                  16 │
             # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
             ```
         '''

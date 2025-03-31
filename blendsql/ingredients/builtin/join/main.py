@@ -82,6 +82,7 @@ class LLMJoin(JoinIngredient):
             }
 
             bsql = BlendSQL(db, ingredients=ingredients)
+            ```
         """
         if few_shot_examples is None:
             few_shot_examples = DEFAULT_JOIN_FEW_SHOT
