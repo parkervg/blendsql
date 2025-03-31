@@ -388,7 +388,6 @@ class LLMQA(QAIngredient):
                 messages_list=[messages],
                 max_tokens=kwargs.get("max_tokens", None),
             )[0].strip()
-            "".join([i["content"] for i in messages])
         if isinstance(response, str):  # type: ignore
             # If we have specified a modifier, we try to parse it to a tuple
             if is_list_output:
@@ -398,12 +397,12 @@ class LLMQA(QAIngredient):
                     assert isinstance(response, (list, tuple))
                     response = tuple(response)
                 except (ValueError, SyntaxError, AssertionError):
-                    response = [i.strip() for i in response.split(",")]
+                    response = [i.strip() for i in response.strip("[]()").split(",")]
                     response = tuple(
                         [
-                            "'{}'".format(single_quote_escape(val.strip()))
-                            if isinstance(val, str)
-                            else val
+                            single_quote_escape(val)
+                            # "'{}'".format(single_quote_escape(val.strip()))
+                            if isinstance(val, str) else val
                             for val in cast_responses_to_datatypes(response)
                         ]
                     )
