@@ -6,7 +6,7 @@ from functools import cached_property
 from ..._logger import logger
 from .._model import ConstrainedModel, ModelObj
 
-DEFAULT_KWARGS = {"do_sample": False, "temperature": 0.0, "top_p": 1.0}
+DEFAULT_KWARGS = {"do_sample": False}
 
 _has_transformers = importlib.util.find_spec("transformers") is not None
 _has_torch = importlib.util.find_spec("torch") is not None
@@ -86,6 +86,33 @@ class TransformersLLM(ConstrainedModel):
         # https://huggingface.co/blog/how-to-generate
         from guidance.models import Transformers
 
+        # Try to infer chat template
+        if "chat_template" not in self.config:
+            chat_template = None
+            if "smollm" in self.model_name_or_path.lower():
+                from guidance.chat import ChatMLTemplate
+
+                chat_template = ChatMLTemplate
+            elif "llama-3" in self.model_name_or_path.lower():
+                from guidance.chat import Llama3ChatTemplate
+
+                chat_template = Llama3ChatTemplate
+            elif "llama-2" in self.model_name_or_path.lower():
+                from guidance.chat import Llama2ChatTemplate
+
+                chat_template = Llama2ChatTemplate
+            elif "phi-3" in self.model_name_or_path.lower():
+                from guidance.chat import Phi3MiniChatTemplate
+
+                chat_template = Phi3MiniChatTemplate
+            if chat_template is not None:
+                logger.debug(
+                    Fore.MAGENTA
+                    + f"Loading '{self.model_name_or_path}' with {chat_template.__name__} chat template..."
+                    + Fore.RESET
+                )
+            self.config["chat_template"] = chat_template
+
         lm = Transformers(
             self.model_name_or_path,
             echo=False,
@@ -100,16 +127,3 @@ class TransformersLLM(ConstrainedModel):
                 + Fore.RESET
             )
         return lm
-
-
-class TransformersVisionModel(TransformersLLM):
-    """Wrapper for the image-to-text Transformers pipeline."""
-
-    def _load_model(self):
-        from transformers import pipeline
-
-        return pipeline(
-            "image-to-text",
-            model=self.model_name_or_path,
-            device_map=self.config.pop("device_map", None),
-        )
