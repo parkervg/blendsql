@@ -24,19 +24,15 @@ pip install blendsql
 
 ```python
 import pandas as pd
-from guidance.chat import Llama3ChatTemplate
 
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
-from blendsql.models import LiteLLM, TransformersLLM
+from blendsql.models import TransformersLLM
 
 # Load model
-# model = LiteLLM("openai/gpt-4o-mini") # Requires .env file with `OPENAI_API_KEY`
-# model = LiteLLM("anthropic/claude-3-haiku-20240307") # Requires .env file with `ANTHROPIC_API_KEY`
 model = TransformersLLM(
-   "meta-llama/Llama-3.2-3B-Instruct",
-   config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
-) # Run with any local transformers model, enabling more powerful constrained decoding
+   "meta-llama/Llama-3.2-1B-Instruct"
+) # Local models enable BlendSQL's predicate-guided constrained decoding
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
@@ -75,6 +71,7 @@ bsql = BlendSQL(
     },
     ingredients={LLMMap, LLMQA, LLMJoin},
     model=model,
+    verbose=True
 )
 
 smoothie = bsql.execute(
@@ -84,9 +81,10 @@ smoothie = bsql.execute(
         LLMQA('First 3 presidents of the U.S?', modifier='{3}')
     }}
     """,
-    infer_gen_constraints=True 
+    infer_gen_constraints=True
 )
 
+print(smoothie.df)
 # ┌───────────────────┬───────────────────────────────────────────────────────┐
 # │ Name              │ Known_For                                             │
 # ├───────────────────┼───────────────────────────────────────────────────────┤

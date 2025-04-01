@@ -1,20 +1,15 @@
 import pandas as pd
 
-from blendsql import config, BlendSQL
-from blendsql.ingredients import LLMMap, LLMQA
-from blendsql.models import LiteLLM
-from blendsql.ingredients import LLMJoin
-
-
-# Optionally set how many async calls to allow concurrently
-# This depends on your OpenAI/Anthropic/etc. rate limits
-config.set_async_limit(10)
+from blendsql import BlendSQL
+from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
+from blendsql.models import TransformersLLM
 
 # Load model
-# model = TransformersLLM("microsoft/Phi-3.5-mini-instruct", config={"device_map": "auto"}, caching=False) # run with any local Transformers model
-# model = TransformersLLM("meta-llama/Llama-3.1-8B-Instruct", config={"device_map": "auto"}, caching=False) # run with any local Transformers model
+model = TransformersLLM(
+    "meta-llama/Llama-3.2-1B-Instruct"
+)  # Local models enable BlendSQL's predicate-guided constrained decoding
 
-# Prepare our local database
+# Prepare our BlendSQL connection
 bsql = BlendSQL(
     {
         "People": pd.DataFrame(
@@ -50,12 +45,8 @@ bsql = BlendSQL(
         "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
     },
     ingredients={LLMMap, LLMQA, LLMJoin},
-    model=LiteLLM("anthropic/claude-3-7-sonnet-20250219", caching=True)
-    # model=TransformersLLM(
-    #     "HuggingFaceTB/SmolLM2-360M-Instruct",
-    #     config={"chat_template": ChatMLTemplate, "device_map": "cpu"},
-    #     caching=False,
-    # ),
+    model=model,
+    verbose=True,
 )
 
 smoothie = bsql.execute(
