@@ -2,12 +2,17 @@ import pandas as pd
 
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
-from blendsql.models import TransformersLLM
+from blendsql.models import TransformersLLM, LiteLLM
 
-# Load model
-model = TransformersLLM(
-    "meta-llama/Llama-3.2-1B-Instruct"
-)  # Local models enable BlendSQL's predicate-guided constrained decoding
+USE_LOCAL_CONSTRAINED_MODEL = False
+
+# Load model, either a local transformers model, or remote provider via LiteLLM
+if USE_LOCAL_CONSTRAINED_MODEL:
+    model = TransformersLLM(
+        "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
+    )  # Local models enable BlendSQL's predicate-guided constrained decoding
+else:
+    model = LiteLLM("openai/gpt-4o-mini")
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
@@ -16,7 +21,7 @@ bsql = BlendSQL(
             {
                 "Name": [
                     "George Washington",
-                    "John Quincy Adams",
+                    "John Adams",
                     "Thomas Jefferson",
                     "James Madison",
                     "James Monroe",
@@ -64,7 +69,7 @@ print(smoothie.df)
 # │ Name              │ Known_For                                             │
 # ├───────────────────┼───────────────────────────────────────────────────────┤
 # │ George Washington │ Established federal government, First U.S. Preside... │
-# │ John Quincy Adams │ XYZ Affair, Alien and Sedition Acts                   │
+# │ John Adams │ XYZ Affair, Alien and Sedition Acts                   │
 # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
 # └───────────────────┴───────────────────────────────────────────────────────┘
 print(smoothie.summary())
