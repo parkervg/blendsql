@@ -18,10 +18,12 @@
 </div>
 <br/>
 
+## Installation
 ```
 pip install blendsql
 ```
 
+# Quickstart
 ```python
 import pandas as pd
 
@@ -37,7 +39,7 @@ if USE_LOCAL_CONSTRAINED_MODEL:
         "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
     )  # Local models enable BlendSQL's predicate-guided constrained decoding
 else:
-    model = LiteLLM("openai/gpt-4o-mini")
+    model = LiteLLM("openai/gpt-4o-mini", caching=False)
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
@@ -72,7 +74,7 @@ bsql = BlendSQL(
                 ],
             }
         ),
-        "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
+        "Eras": pd.DataFrame({"Years": ["1700-1800", "1800-1900", "1900-2000", "2000-Now"]}),
     },
     ingredients={LLMMap, LLMQA, LLMJoin},
     model=model,
@@ -103,6 +105,37 @@ print(smoothie.summary())
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
 # │    1.25158 │                    1 │             296 │                  16 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
+
+smoothie = bsql.execute(
+    """
+    SELECT GROUP_CONCAT(Name, ', ') AS 'Names',
+    {{
+        LLMMap(
+            'In which time period was this person born?', 
+            'People::Name', 
+            options='Eras::Years'
+        )
+    }} AS Born
+    FROM People
+    GROUP BY Born
+    """,
+)
+
+print(smoothie.df)
+# ┌───────────────────────────────────────────────────────┬───────────┐
+# │ Names                                                 │ Born      │
+# ├───────────────────────────────────────────────────────┼───────────┤
+# │ George Washington, John Adams, Thomas Jefferson, J... │ 1700-1800 │
+# │ Sabrina Carpenter, Charli XCX, Elon Musk, Michelle... │ 2000-Now  │
+# │ Elvis Presley                                         │ 1900-2000 │
+# └───────────────────────────────────────────────────────┴───────────┘
+print(smoothie.summary())
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    1.03858 │                    2 │             544 │                  75 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
 ```
 
 ### ✨ News
@@ -112,6 +145,8 @@ print(smoothie.summary())
   - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
 - (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info
 - (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!
+
+### Summary 
 
 BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
 
@@ -127,8 +162,8 @@ As a result, we can *Blend* together...
 
 - Supports many DBMS 💾
   - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
-- Supports many models ✨
-  - Transformers, OpenAI, Anthropic, Ollama
+- Supports local & remote models ✨
+  - Transformers, OpenAI, Anthropic, Ollama, and 100+ more!
 - Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
@@ -136,8 +171,97 @@ As a result, we can *Blend* together...
   - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
-
 ![comparison](docs/img/comparison.jpg)
+
+
+### Example 
+For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
+
+We can use BlendSQL to build a travel planning LLM chatbot to help us navigate the options below.
+
+
+| **Name**        | **Image**                                                                   | **Location**       | **Area**                          | **Recreation Visitors (2022)** | **Description**                                                                                                                          |
+|-----------------|-----------------------------------------------------------------------------|--------------------|-----------------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| Death Valley    | ![death_valley.jpeg](./img/national_parks_example/death_valley.jpeg)     | California, Nevada | 3,408,395.63 acres (13,793.3 km2) | 1,128,862                      | Death Valley is the hottest, lowest, and driest place in the United States, with daytime temperatures that have exceeded 130 °F (54 °C). |
+| Everglades      | ![everglades.jpeg](./img/national_parks_example/everglades.jpeg)         | Alaska             | 7,523,897.45 acres (30,448.1 km2) | 9,457                          | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.              |
+| New River Gorge | ![new_river_gorge.jpeg](./img/national_parks_example/new_river_gorge.jpeg) | West Virgina       | 7,021 acres (28.4 km2)            | 1,593,523                      | The New River Gorge is the deepest river gorge east of the Mississippi River.                                                            |
+ | Katmai          | ![katmai.jpg](./img/national_parks_example/katmai.jpg)                  | Alaska             |  3,674,529.33 acres (14,870.3 km2)                                 | 33,908 | This park on the Alaska Peninsula protects the Valley of Ten Thousand Smokes, an ash flow formed by the 1912 eruption of Novarupta.  |
+
+BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
+
+_Which parks don't have park facilities?_
+```sql
+SELECT "Name", "Description" FROM parks
+  WHERE {{
+      LLMMap(
+          'Does this location have park facilities?',
+          context='parks::Description'
+      )
+  }} = FALSE
+```
+
+| Name            | Description                                                                                                                            |
+|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
+| Everglades      | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.            |
+
+<hr>
+
+_What does the largest park in Alaska look like?_
+
+```sql
+SELECT "Name",
+{{ImageCaption('parks::Image')}} as "Image Description",
+{{
+    LLMMap(
+        question='Size in km2?',
+        context='parks::Area'
+    )
+}} as "Size in km" FROM parks
+WHERE "Location" = 'Alaska'
+ORDER BY "Size in km" DESC LIMIT 1
+```
+
+| Name       | Image Description                                       |   Size in km |
+|:-----------|:--------------------------------------------------------|-------------:|
+| Everglades | A forest of tall trees with a sunset in the background. |      30448.1 |
+
+<hr>
+
+_Which state is the park in that protects an ash flow?_
+
+```sql
+SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
+    WHERE "Name" = {{
+      LLMQA(
+        'Which park protects an ash flow?',
+        context=(SELECT "Name", "Description" FROM parks),
+        options="parks::Name"
+      )
+  }}
+```
+
+| Location   | Park Protecting Ash Flow   |
+|:-----------|:---------------------------|
+| Alaska     | Katmai                     |
+
+<hr>
+
+_How many parks are located in more than 1 state?_
+
+```sql
+SELECT COUNT(*) FROM parks
+    WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
+```
+
+|   Count |
+|--------:|
+|       1 |
+
+<hr>
+Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
+
+For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
+
 
 ### Citation
 
