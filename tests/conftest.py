@@ -1,6 +1,6 @@
 import os
 import pytest
-from guidance.chat import ChatMLTemplate, Llama3ChatTemplate
+from guidance.chat import ChatMLTemplate
 from dotenv import load_dotenv
 import torch
 
@@ -38,16 +38,24 @@ CONSTRAINED_MODEL_CONFIGS = [
         "name": "llama",
         "class": TransformersLLM,
         "path": "meta-llama/Llama-3.2-3B-Instruct",
-        "config": {"chat_template": Llama3ChatTemplate, "device_map": "auto"},
+        "config": {"device_map": "auto"},
         "requires_cuda": True,
     },
     {
         "name": "smollm",
         "class": TransformersLLM,
         "path": "HuggingFaceTB/SmolLM2-135M-Instruct",
-        "config": {"chat_template": ChatMLTemplate, "device_map": "cpu"},
+        "config": {"device_map": "cpu"},
         "requires_cuda": False,
     },
+    # {
+    #     "name": "llamacpp",
+    #     "class": LlamaCpp,
+    #     "path": "QuantFactory/SmolLM-135M-GGUF",
+    #     "filename": "SmolLM-135M.Q2_K.gguf",
+    #     "config": {"device_map": "cpu"},
+    #     "requires_cuda": False,
+    # },
 ]
 
 UNCONSTRAINED_MODEL_CONFIGS = [
@@ -83,9 +91,12 @@ def get_available_constrained_models():
     for config in CONSTRAINED_MODEL_CONFIGS:
         if config["requires_cuda"] and not torch.cuda.is_available():
             continue
-        model = config["class"](
-            config["path"], config=config.get("config", {}), caching=False
+        args = (
+            (config["filename"], config["path"])
+            if "filename" in config
+            else (config["path"],)
         )
+        model = config["class"](*args, config=config.get("config", {}), caching=False)
         available_models.append(pytest.param(model, id=config["name"]))
     return available_models
 
