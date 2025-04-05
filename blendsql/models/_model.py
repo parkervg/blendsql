@@ -62,7 +62,7 @@ class Model:
     model_obj: Generic[ModelObj] = attrib(init=False)
     prompts: List[dict] = attrib(factory=list)
     raw_prompts: List[str] = attrib(factory=list)
-    cache: Cache = attrib(init=False)
+    cache: Optional[Cache] = attrib(default=None)
     run_setup_on_load: bool = attrib(default=True)
 
     prompt_tokens: int = 0
@@ -75,6 +75,8 @@ class Model:
                 Path(platformdirs.user_cache_dir("blendsql"))
                 / f"{self.model_name_or_path}.diskcache"
             )
+        else:
+            self.cache = None
         if self.config is None:
             self.config = {}
         if self.requires_config:

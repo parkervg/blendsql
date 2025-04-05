@@ -8,7 +8,7 @@ hide:
 
     You need to install the `psycopg2-binary` library to use this in blendsql.
 
-::: blendsql.db._postgres.PostgreSQL
+::: blendsql.db._postgresql.PostgreSQL
     handler: python
     show_source: true
     options:

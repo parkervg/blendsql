@@ -53,3 +53,6 @@ class Smoothie:
             )
         )
         return s
+
+    def __str__(self):
+        return self.summary()

@@ -38,7 +38,7 @@ DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
 ]
 
 
-def get_option_aliases(options: Optional[List[str]], is_list_output: bool):
+def get_option_aliases(options: Optional[List[str]]):
     options_alias_to_original = {}
     options_with_aliases = None
     if options is not None:
@@ -223,9 +223,7 @@ class LLMQA(QAIngredient):
         regex = current_example.output_type.regex
         options = current_example.options
         modifier = current_example.output_type.modifier
-        options_with_aliases, options_alias_to_original = get_option_aliases(
-            options, is_list_output=is_list_output
-        )
+        options_with_aliases, options_alias_to_original = get_option_aliases(options)
         if options is not None and list_options_in_prompt:
             if len(options) > os.getenv(
                 MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
@@ -390,7 +388,6 @@ class LLMQA(QAIngredient):
                 messages_list=[messages],
                 max_tokens=kwargs.get("max_tokens", None),
             )[0].strip()
-            "".join([i["content"] for i in messages])
         if isinstance(response, str):  # type: ignore
             # If we have specified a modifier, we try to parse it to a tuple
             if is_list_output:
@@ -400,12 +397,12 @@ class LLMQA(QAIngredient):
                     assert isinstance(response, (list, tuple))
                     response = tuple(response)
                 except (ValueError, SyntaxError, AssertionError):
-                    response = [i.strip() for i in response.split(",")]
+                    response = [i.strip() for i in response.strip("[]()").split(",")]
                     response = tuple(
                         [
-                            "'{}'".format(single_quote_escape(val.strip()))
-                            if isinstance(val, str)
-                            else val
+                            single_quote_escape(val)
+                            # "'{}'".format(single_quote_escape(val.strip()))
+                            if isinstance(val, str) else val
                             for val in cast_responses_to_datatypes(response)
                         ]
                     )
@@ -420,7 +417,7 @@ class LLMQA(QAIngredient):
         if len(response) == 1 and not is_list_output:
             response = response[0]  # type: ignore
             if options and response not in options:
-                print(
+                logger.debug(
                     Fore.RED
                     + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
                     + Fore.RESET

@@ -1,7 +1,7 @@
 from typing import List
 from attr import attrs, attrib
 
-from blendsql.models import Model
+from blendsql.models import Model, TransformersVisionModel
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql._exceptions import IngredientException
 from blendsql.ingredients.utils import partialclass
@@ -23,7 +23,11 @@ class ImageCaption(MapIngredient):
         """Generates a caption for all byte images passed to it."""
         if model is None:
             raise IngredientException(
-                "ImageCaption requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
+                "ImageCaption requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `model` argument in either `BlendSQL(...)` or `BlendSQL().blend()`?"
+            )
+        if not isinstance(model, TransformersVisionModel):
+            raise IngredientException(
+                "The VQA ingredient currently only supports the `TransformersVisionModel` class!"
             )
         if not all(isinstance(value, bytes) for value in values):
             raise IngredientException(

@@ -1,36 +1,34 @@
 import pytest
 
-from blendsql import blend
+from blendsql import BlendSQL
 from blendsql._smoothie import Smoothie
-from blendsql.db import SQLite
 from blendsql.utils import fetch_from_hub
 from blendsql.models import LiteLLM
 
 
 @pytest.fixture(scope="session")
-def db() -> SQLite:
-    return SQLite(
+def bsql() -> BlendSQL:
+    return BlendSQL(
         fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
     )
 
 
 @pytest.mark.long
-def test_no_ingredients(db, model, ingredients):
-    res = blend(
-        query="""
+def test_no_ingredients(bsql, model, ingredients):
+    res = bsql.execute(
+        """
         select * from w
         """,
-        db=db,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
 
 
 @pytest.mark.long
-def test_llmmap(db, model, ingredients):
-    res = blend(
-        query="""
+def test_llmmap(bsql, model, ingredients):
+    res = bsql.execute(
+        """
         SELECT DISTINCT venue FROM w
           WHERE city = 'sydney' AND {{
               LLMMap(
@@ -39,8 +37,7 @@ def test_llmmap(db, model, ingredients):
               )
           }} = TRUE
         """,
-        db=db,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -52,9 +49,9 @@ def test_llmmap(db, model, ingredients):
 
 
 @pytest.mark.long
-def test_llmjoin(db, model, ingredients):
-    res = blend(
-        query="""
+def test_llmjoin(bsql, model, ingredients):
+    res = bsql.execute(
+        """
         SELECT date, rival, score, documents.content AS "Team Description" FROM w
           JOIN {{
               LLMJoin(
@@ -63,8 +60,7 @@ def test_llmjoin(db, model, ingredients):
               )
           }} WHERE rival = 'nsw waratahs'
         """,
-        db=db,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -73,20 +69,19 @@ def test_llmjoin(db, model, ingredients):
 
 
 @pytest.mark.long
-def test_llmqa(db, model, ingredients):
-    res = blend(
-        query="""
+def test_llmqa(bsql, model, ingredients):
+    res = bsql.execute(
+        """
         SELECT * FROM w
           WHERE city = {{
               LLMQA(
                   'Which city is located 120 miles west of Sydney?',
-                  (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120'),
+                  (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120' LIMIT 2),
                   options='w::city'
               )
           }}
         """,
-        db=db,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -95,9 +90,9 @@ def test_llmqa(db, model, ingredients):
 
 
 @pytest.mark.long
-def test_llmmap_with_string(db, model, ingredients):
-    res = blend(
-        query="""
+def test_llmmap_with_string(bsql, model, ingredients):
+    res = bsql.execute(
+        """
         SELECT COUNT(*) AS "June Count" FROM w
         WHERE {{
               LLMMap(
@@ -106,8 +101,7 @@ def test_llmmap_with_string(db, model, ingredients):
               )
           }} = 'June'
         """,
-        db=db,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
@@ -116,9 +110,9 @@ def test_llmmap_with_string(db, model, ingredients):
 
 
 @pytest.mark.long
-def test_unconstrained_llmqa(db, model, ingredients):
-    res = blend(
-        query="""
+def test_unconstrained_llmqa(bsql, model, ingredients):
+    res = bsql.execute(
+        """
         {{
           LLMQA(
             "What's this table about?",
@@ -127,8 +121,7 @@ def test_unconstrained_llmqa(db, model, ingredients):
           )
         }}
         """,
-        db=db,
-        default_model=model,
+        model=model,
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)

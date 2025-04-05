@@ -58,8 +58,8 @@ class LLMJoin(JoinIngredient):
 
         Examples:
             ```python
-            from blendsql import blend, LLMJoin
-            from blendsql.ingredients.builtin import DEFAULT_JOIN_FEW_SHOT
+            from blendsql import BlendSQL
+            from blendsql.ingredients.builtin import LLMJoin, DEFAULT_JOIN_FEW_SHOT
 
             ingredients = {
                 LLMJoin.from_args(
@@ -80,12 +80,8 @@ class LLMJoin(JoinIngredient):
                     k=2
                 )
             }
-            smoothie = blend(
-                query=blendsql,
-                db=db,
-                ingredients=ingredients,
-                default_model=model,
-            )
+
+            bsql = BlendSQL(db, ingredients=ingredients)
             ```
         """
         if few_shot_examples is None:

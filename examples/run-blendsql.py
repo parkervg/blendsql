@@ -1,27 +1,27 @@
 import pandas as pd
 
-import blendsql
-from blendsql.ingredients import LLMMap, LLMQA
-from blendsql.db import Pandas
-from blendsql.models import LiteLLM
+from blendsql import BlendSQL
+from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
+from blendsql.models import TransformersLLM, LiteLLM
 
-# Optionally set how many async calls to allow concurrently
-# This depends on your OpenAI/Anthropic/etc. rate limits
-blendsql.config.set_async_limit(10)
+USE_LOCAL_CONSTRAINED_MODEL = False
 
-# Load model
-model = LiteLLM("openai/gpt-4o-mini")  # requires .env file with `OPENAI_API_KEY`
-# model = LiteLLM("anthropic/claude-3-haiku-20240307") # requires .env file with `ANTHROPIC_API_KEY`
-# model = TransformersLLM('Qwen/Qwen1.5-0.5B') # run with any local Transformers model
+# Load model, either a local transformers model, or remote provider via LiteLLM
+if USE_LOCAL_CONSTRAINED_MODEL:
+    model = TransformersLLM(
+        "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
+    )  # Local models enable BlendSQL's predicate-guided constrained decoding
+else:
+    model = LiteLLM("openai/gpt-4o-mini")
 
-# Prepare our local database
-db = Pandas(
+# Prepare our BlendSQL connection
+bsql = BlendSQL(
     {
         "People": pd.DataFrame(
             {
                 "Name": [
                     "George Washington",
-                    "John Quincy Adams",
+                    "John Adams",
                     "Thomas Jefferson",
                     "James Madison",
                     "James Monroe",
@@ -48,37 +48,33 @@ db = Pandas(
             }
         ),
         "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
-    }
-)
-
-# Write BlendSQL query
-query = """
-WITH Musicians AS
-    (
-        SELECT Name FROM People
-        WHERE {{LLMMap('Is a singer?', 'People::Name')}} = TRUE
-    )
-SELECT Name AS "working late cuz they're a singer" FROM Musicians M
-WHERE M.Name = {{LLMQA('Who wrote the song "Espresso?"')}}
-"""
-smoothie = blendsql.blend(
-    query=query,
-    db=db,
-    ingredients={LLMMap, LLMQA},
-    default_model=model,
-    # Optional args below
-    infer_gen_constraints=True,
+    },
+    ingredients={LLMMap, LLMQA, LLMJoin},
+    model=model,
     verbose=True,
 )
+
+smoothie = bsql.execute(
+    """
+    SELECT * FROM People P
+    WHERE P.Name IN {{
+        LLMQA('First 3 presidents of the U.S?', modifier='{3}')
+    }}
+    """,
+    infer_gen_constraints=True,
+)
+
 print(smoothie.df)
-# ┌─────────────────────────────────────┐
-# │ working late cuz they're a singer   │
-# ├─────────────────────────────────────┤
-# │ Sabrina Carpenter                   │
-# └─────────────────────────────────────┘
+# ┌───────────────────┬───────────────────────────────────────────────────────┐
+# │ Name              │ Known_For                                             │
+# ├───────────────────┼───────────────────────────────────────────────────────┤
+# │ George Washington │ Established federal government, First U.S. Preside... │
+# │ John Adams │ XYZ Affair, Alien and Sedition Acts                   │
+# │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
+# └───────────────────┴───────────────────────────────────────────────────────┘
 print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
-# │    0.12474 │                    1 │            1918 │                  42 │
+# │    1.25158 │                    1 │             296 │                  16 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
