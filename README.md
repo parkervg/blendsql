@@ -39,7 +39,7 @@ if USE_LOCAL_CONSTRAINED_MODEL:
         "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
     )  # Local models enable BlendSQL's predicate-guided constrained decoding
 else:
-    model = LiteLLM("openai/gpt-4o-mini", caching=False)
+    model = LiteLLM("openai/gpt-4o-mini")
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
