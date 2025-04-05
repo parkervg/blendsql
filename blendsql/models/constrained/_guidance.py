@@ -163,6 +163,7 @@ class LlamaCpp(ConstrainedModel):
 
     def _load_model(self) -> ModelObj:
         from llama_cpp import Llama
+        from guidance.models import LlamaCpp as GuidanceLlamaCpp
 
         if "chat_template" not in self.config:
             self.config["chat_template"] = infer_chat_template(self.model_name_or_path)
@@ -177,18 +178,11 @@ class LlamaCpp(ConstrainedModel):
         else:
             llama = Llama(self.filename, verbose=False, **self.config)
 
-        lm = LlamaCpp(
+        lm = GuidanceLlamaCpp(
             llama,
             echo=False,
             device_map=self.config.pop("device_map", None),
             **self.config,
         )
-        # Try to infer if we're in chat mode
-        if lm.engine.tokenizer._orig_tokenizer.chat_template is None:
-            logger.debug(
-                Fore.YELLOW
-                + "chat_template not found in tokenizer config.\nBlendSQL currently only works with chat models"
-                + Fore.RESET
-            )
         self.tokenizer = llama.tokenizer()
         return lm
