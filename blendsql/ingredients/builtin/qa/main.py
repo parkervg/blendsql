@@ -316,7 +316,7 @@ class LLMQA(QAIngredient):
                         "max_tokens": kwargs.get("max_tokens", 200),
                         "regex": regex,
                         "name": "response",
-                        "stop": ["\n", "Question:"],
+                        "stop": ["Question:"],
                     }
                     gen_f = guidance.gen
 
@@ -351,15 +351,13 @@ class LLMQA(QAIngredient):
                     lm += curr_example_str
 
                 model.prompt_tokens += len(model.tokenizer.encode(lm._current_prompt()))
-
                 with guidance.assistant():
                     lm += gen_f(**gen_kwargs)
-
+                print(lm._current_prompt())
                 if is_list_output and modifier == "*":
                     response: list = lm.get("response", [])  # type: ignore
                 else:
                     response: str = lm["response"]  # type: ignore
-
                 model.completion_tokens += len(model.tokenizer.encode(str(response)))
 
                 if model.caching:
