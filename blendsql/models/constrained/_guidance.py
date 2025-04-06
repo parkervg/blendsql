@@ -194,5 +194,6 @@ class LlamaCpp(ConstrainedModel):
                 config=self.config,
             ),
             echo=False,
+            chat_template=self.config.get("chat_template")
         )
         return lm
