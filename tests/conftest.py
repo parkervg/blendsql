@@ -55,7 +55,7 @@ CONSTRAINED_MODEL_CONFIGS = [
         "path": "QuantFactory/SmolLM-135M-GGUF",
         "filename": "SmolLM-135M.Q2_K.gguf",
         "config": {"n_gpu_layers": 0},
-        "requires_cuda": False,
+        "requires_cuda": True,
     },
 ]
 
