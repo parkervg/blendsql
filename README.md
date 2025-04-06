@@ -10,9 +10,7 @@
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo_dark.png">
   <img alt="blendsql" src="docs/img/logo_light.png" width=350">
 </picture>
-<p align="center">
     <i> SQL 🤝 LLMs </i>
-  </p>
 <b><h3>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</h3></b>
 
 </div>
@@ -112,8 +110,8 @@ smoothie = bsql.execute(
     SELECT GROUP_CONCAT(Name, ', ') AS 'Names',
     {{
         LLMMap(
-            'In which time period was this person born?', 
-            'People::Name', 
+            'In which time period was this person born?',
+            'People::Name',
             options='Eras::Years'
         )
     }} AS Born
@@ -146,7 +144,7 @@ print(smoothie.summary())
 - (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info
 - (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!
 
-# Summary 
+# Summary
 
 BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
 
@@ -174,7 +172,7 @@ As a result, we can *Blend* together...
 ![comparison](docs/img/comparison.jpg)
 
 
-# Example 
+# Example
 For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
 
 We can use BlendSQL to build a travel planning LLM chatbot to help us navigate the options below.
@@ -208,7 +206,7 @@ _What does the largest park in Alaska look like?_
 
 ```sql
 SELECT "Name",
-{{ImageCaption('parks::Image')}} as "Image Description", 
+{{ImageCaption('parks::Image')}} as "Image Description",
 {{
     LLMMap(
         question='Size in km2?',
@@ -228,13 +226,13 @@ ORDER BY "Size in km" DESC LIMIT 1
 _Which state is the park in that protects an ash flow?_
 
 ```sql
-SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks 
+SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
     WHERE "Name" = {{
       LLMQA(
         'Which park protects an ash flow?',
         context=(SELECT "Name", "Description" FROM parks),
         options="parks::Name"
-      ) 
+      )
   }}
 ```
 | Location   | Park Protecting Ash Flow   |
@@ -267,7 +265,7 @@ SELECT "Name", "Location", "Description" FROM parks
 
 _What's the difference in visitors for those parks with a superlative in their description vs. those without?_
 ```sql
-SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors", 
+SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors",
 {{LLMMap('Contains a superlative?', 'parks::Description', options='t;f')}} AS "Description Contains Superlative",
 GROUP_CONCAT(Name, ', ') AS "Park Names"
 FROM parks

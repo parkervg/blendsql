@@ -2,15 +2,23 @@ import pandas as pd
 
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
-from blendsql.models import TransformersLLM, LiteLLM
+from blendsql.models import TransformersLLM, LiteLLM, LlamaCpp
+from pip._vendor.certifi import where
 
-USE_LOCAL_CONSTRAINED_MODEL = False
+USE_LOCAL_CONSTRAINED_MODEL = True
 
 # Load model, either a local transformers model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
-    model = TransformersLLM(
-        "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
-    )  # Local models enable BlendSQL's predicate-guided constrained decoding
+    # model = TransformersLLM(
+    #     "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
+    # )  # Local models enable BlendSQL's predicate-guided constrained decoding
+
+    model = LlamaCpp(
+        "Meta-Llama-3-8B-Instruct.Q6_K.gguf",
+        "QuantFactory/Meta-Llama-3-8B-Instruct-GGUF",
+        config={"n_gpu_layers": -1},
+        caching=False
+    )
 else:
     model = LiteLLM("openai/gpt-4o-mini")
 
@@ -49,17 +57,19 @@ bsql = BlendSQL(
         ),
         "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
     },
-    ingredients={LLMMap, LLMQA, LLMJoin},
+    # ingredients={LLMMap, LLMQA, LLMJoin},
+    ingredients={LLMMap.from_args(k=0), LLMQA.from_args(k=0), LLMJoin.from_args(k=0)},
     model=model,
     verbose=True,
 )
 
 smoothie = bsql.execute(
     """
-    SELECT * FROM People P
-    WHERE P.Name IN {{
-        LLMQA('First 3 presidents of the U.S?', modifier='{3}')
-    }}
+    WITH musicians AS (
+        SELECT * FROM People p WHERE
+        {{LLMMap('Is a singer?', 'p::Name')}} = True
+    ) SELECT * FROM musicians WHERE
+    musicians.Name = {{LLMQA('Who wrote the song espresso?')}}
     """,
     infer_gen_constraints=True,
 )

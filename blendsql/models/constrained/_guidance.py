@@ -137,24 +137,44 @@ class LlamaCpp(ConstrainedModel):
 
     def __init__(
         self,
-        filename: Optional[str] = None,
+        filename: str,
         model_name_or_path: Optional[str] = None,
         config: Optional[dict] = None,
         caching: bool = True,
         **kwargs,
     ):
+        from llama_cpp import Llama
+
         if config is None:
             config = {}
 
         super().__init__(
-            model_name_or_path=model_name_or_path,
+            model_name_or_path=model_name_or_path, # type: ignore
             requires_config=False,
-            tokenizer=None,
-            config=DEFAULT_KWARGS | config,
+            tokenizer=self._load_llama_cpp(
+                filename=filename,
+                model_name_or_path=model_name_or_path,
+                config=config,
+                vocab_only=True
+            ).tokenizer_,
+            config=config,
             caching=caching,
             **kwargs,
         )
         self.filename = filename
+
+    @staticmethod
+    def _load_llama_cpp(filename: str, model_name_or_path: Optional[str], config: dict, vocab_only: bool = False):
+        from llama_cpp import Llama
+        if model_name_or_path:
+            return Llama.from_pretrained(
+                repo_id=model_name_or_path,
+                filename=filename,
+                verbose=False,
+                vocab_only=vocab_only,
+                **config,
+            )
+        return Llama(filename, verbose=False, vocab_only=vocab_only, **config)
 
     @cached_property
     def model_obj(self) -> ModelObj:
@@ -162,27 +182,17 @@ class LlamaCpp(ConstrainedModel):
         return self._load_model()
 
     def _load_model(self) -> ModelObj:
-        from llama_cpp import Llama
         from guidance.models import LlamaCpp as GuidanceLlamaCpp
 
         if "chat_template" not in self.config:
             self.config["chat_template"] = infer_chat_template(self.model_name_or_path)
 
-        if self.model_name_or_path:
-            llama = Llama.from_pretrained(
-                repo_id=self.model_name_or_path,
-                filename=self.filename,
-                verbose=False,
-                **self.config,
-            )
-        else:
-            llama = Llama(self.filename, verbose=False, **self.config)
-
         lm = GuidanceLlamaCpp(
-            llama,
+            self._load_llama_cpp(
+                filename=self.filename,
+                model_name_or_path=self.model_name_or_path,
+                config=self.config,
+            ),
             echo=False,
-            device_map=self.config.pop("device_map", None),
-            **self.config,
         )
-        self.tokenizer = llama.tokenizer()
         return lm
