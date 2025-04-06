@@ -353,7 +353,6 @@ class LLMQA(QAIngredient):
                 model.prompt_tokens += len(model.tokenizer.encode(lm._current_prompt()))
                 with guidance.assistant():
                     lm += gen_f(**gen_kwargs)
-                print(lm._current_prompt())
                 if is_list_output and modifier == "*":
                     response: list = lm.get("response", [])  # type: ignore
                 else:

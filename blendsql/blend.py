@@ -471,9 +471,12 @@ def _blend(
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
         # Check to see if there is a table we haven't materialized yet
-        for tablename in [i.name for i in query_context.node.find_all(exp.Table)]:
-            if tablename not in db.tables():
-                db.lazy_tables.pop(tablename).collect()
+        try:
+            for tablename in [i.name for i in query_context.node.find_all(exp.Table)]:
+                if tablename not in db.tables():
+                    db.lazy_tables.pop(tablename).collect()
+        except Exception as e:
+            logger.error(f"Error while materializing tables: {e}")
         logger.debug(
             Fore.YELLOW + f"No BlendSQL ingredients found in query:" + Fore.RESET
         )
@@ -994,7 +997,7 @@ class BlendSQL:
             queries. Defaults to True.
     """
 
-    db: Union[pd.DataFrame, dict, str, Database] = field()
+    db: Union[pd.DataFrame, dict, str, Database] = field(default=None)
     model: Optional[Model] = field(default=None)
     ingredients: Optional[Collection[Type[Ingredient]]] = field(default_factory=list)
 
@@ -1013,7 +1016,12 @@ class BlendSQL:
     def infer_db_type(df_or_db_path) -> Database:
         from pathlib import Path
 
-        if isinstance(df_or_db_path, (pd.DataFrame, dict)):
+        if df_or_db_path is None:
+            from .db._pandas import Pandas
+
+            return Pandas({}) # Load an empty DuckDB connection
+
+        elif isinstance(df_or_db_path, (pd.DataFrame, dict)):
             from .db._pandas import Pandas
 
             return Pandas(df_or_db_path)
