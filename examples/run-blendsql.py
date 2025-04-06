@@ -3,20 +3,19 @@ import pandas as pd
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
 from blendsql.models import TransformersLLM, LiteLLM, LlamaCpp
-from pip._vendor.certifi import where
 
 USE_LOCAL_CONSTRAINED_MODEL = True
 
 # Load model, either a local transformers model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
     # model = TransformersLLM(
-    #     "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
+    #     "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}, caching=False
     # )  # Local models enable BlendSQL's predicate-guided constrained decoding
 
     model = LlamaCpp(
-        "Meta-Llama-3-8B-Instruct.Q6_K.gguf",
-        "QuantFactory/Meta-Llama-3-8B-Instruct-GGUF",
-        config={"n_gpu_layers": -1},
+        "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
+        "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
+        config={"n_gpu_layers": -1, "n_ctx": 10000},
         caching=False
     )
 else:
@@ -87,4 +86,61 @@ print(smoothie.summary())
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
 # │    1.25158 │                    1 │             296 │                  16 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
+smoothie = bsql.execute(
+    """
+    SELECT GROUP_CONCAT(Name, ', ') AS 'Names',
+    {{
+        LLMMap(
+            'In which time period was this person born?',
+            'People::Name',
+            options='Eras::Years'
+        )
+    }} AS Born
+    FROM People
+    GROUP BY Born
+    """,
+)
+
+print(smoothie.df)
+# ┌───────────────────────────────────────────────────────┬───────────┐
+# │ Names                                                 │ Born      │
+# ├───────────────────────────────────────────────────────┼───────────┤
+# │ George Washington, John Adams, Thomas Jefferson, J... │ 1700-1800 │
+# │ Sabrina Carpenter, Charli XCX, Elon Musk, Michelle... │ 2000-Now  │
+# │ Elvis Presley                                         │ 1900-2000 │
+# └───────────────────────────────────────────────────────┴───────────┘
+print(smoothie.summary())
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    1.03858 │                    2 │             544 │                  75 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
+smoothie = bsql.execute("""
+    SELECT {{
+        LLMQA(
+            'Describe BlendSQL in 50 words',
+            (
+                SELECT content[0:5000] AS "README"
+                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md');
+            )
+        )
+    }} AS answer
+""")
+
+print(smoothie.df)
+# ┌─────────────────────────────────────────────────────┐
+# │ answer                                              │
+# ├─────────────────────────────────────────────────────┤
+# │ BlendSQL is a Python library that combines SQL a... │
+# └─────────────────────────────────────────────────────┘
+
+print(smoothie.summary())
+
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    4.07617 │                    1 │            1921 │                  50 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
