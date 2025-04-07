@@ -2,9 +2,9 @@ import pandas as pd
 
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
-from blendsql.models import TransformersLLM, LiteLLM, LlamaCpp
+from blendsql.models import LiteLLM, LlamaCpp
 
-USE_LOCAL_CONSTRAINED_MODEL = True
+USE_LOCAL_CONSTRAINED_MODEL = False
 
 # Load model, either a local transformers model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
@@ -16,7 +16,7 @@ if USE_LOCAL_CONSTRAINED_MODEL:
         "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
         "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
         config={"n_gpu_layers": -1, "n_ctx": 10000},
-        caching=False
+        caching=False,
     )
 else:
     model = LiteLLM("openai/gpt-4o-mini")
@@ -56,8 +56,7 @@ bsql = BlendSQL(
         ),
         "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
     },
-    # ingredients={LLMMap, LLMQA, LLMJoin},
-    ingredients={LLMMap.from_args(k=0), LLMQA.from_args(k=0), LLMJoin.from_args(k=0)},
+    ingredients={LLMMap, LLMQA, LLMJoin},
     model=model,
     verbose=True,
 )
@@ -118,7 +117,8 @@ print(smoothie.summary())
 # │    1.03858 │                    2 │             544 │                  75 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
 
-smoothie = bsql.execute("""
+smoothie = bsql.execute(
+    """
     SELECT {{
         LLMQA(
             'Describe BlendSQL in 50 words',
@@ -128,7 +128,8 @@ smoothie = bsql.execute("""
             )
         )
     }} AS answer
-""")
+"""
+)
 
 print(smoothie.df)
 # ┌─────────────────────────────────────────────────────┐
