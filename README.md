@@ -10,7 +10,9 @@
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo_dark.png">
   <img alt="blendsql" src="docs/img/logo_light.png" width=350">
 </picture>
+<p align="center">
     <i> SQL 🤝 LLMs </i>
+  </p>
 <b><h3>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</h3></b>
 
 </div>
@@ -181,6 +183,7 @@ As a result, we can *Blend* together...
 - 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
 - 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
 
+![comparison](docs/img/comparison.jpg)
 
 **Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
 
@@ -196,9 +199,6 @@ As a result, we can *Blend* together...
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
   - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
-
-![comparison](docs/img/comparison.jpg)
-
 
 # Example
 For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
