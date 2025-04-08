@@ -19,6 +19,19 @@ class ImageCaption(MapIngredient):
     def from_args(cls, model: Model = None):
         return partialclass(cls, model=model)
 
+    def __call__(
+        self,
+        context: str = None,
+        *args,
+        **kwargs,
+    ) -> tuple:
+        """
+        This allows us to call this ingredient via `{{ImageCaption('table::col')}}`.
+        """
+        return super().__call__(
+            question=None, context=context, options=None, *args, **kwargs
+        )
+
     def run(self, model: Model, values: List[bytes], **kwargs):
         """Generates a caption for all byte images passed to it."""
         if model is None:

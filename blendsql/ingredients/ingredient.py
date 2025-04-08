@@ -170,7 +170,6 @@ class MapIngredient(Ingredient):
         self,
         question: Optional[str] = None,
         context: Optional[str] = None,
-        # regex: Optional[Callable] = None,
         options: Optional[Union[list, str]] = None,
         *args,
         **kwargs,
