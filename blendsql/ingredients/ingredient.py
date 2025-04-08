@@ -319,9 +319,9 @@ class JoinIngredient(Ingredient):
 
     def __call__(
         self,
-        question: Optional[str] = None,
         left_on: Optional[str] = None,
         right_on: Optional[str] = None,
+        question: Optional[str] = None,
         *args,
         **kwargs,
     ) -> tuple:
@@ -449,9 +449,9 @@ class JoinIngredient(Ingredient):
         return (
             left_tablename,
             right_tablename,
-            f"""JOIN "{temp_join_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right
-               JOIN "{left_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left
-               """,
+            f"""JOIN "{temp_join_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left
+              JOIN "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right
+              """,
             temp_join_tablename,
         )
 

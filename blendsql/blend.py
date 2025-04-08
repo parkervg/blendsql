@@ -129,10 +129,10 @@ def autowrap_query(
                     f"""SELECT {alias}""",
                 )
         elif _function.ingredient_type == IngredientType.JOIN:
-            left_table, _ = get_tablename_colname(d["kwargs_dict"]["left_on"])
+            right_table, _ = get_tablename_colname(d["kwargs_dict"]["right_on"])
             query = query.replace(
                 alias,
-                f'"{left_table}" ON {alias}',
+                f'"{right_table}" ON {alias}',
             )
         else:
             continue
@@ -261,26 +261,18 @@ def preprocess_blendsql(
             # maybe if I was better at pp.Suppress we wouldn't need this
             kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
             kwargs_dict[IngredientKwarg.MODEL] = default_model
-            # Heuristic check to see if we should snag the singleton arg as context
-            if (
-                len(parsed_results_dict["args"]) == 1
-                and "::" in parsed_results_dict["args"][0]
-            ):
-                kwargs_dict[IngredientKwarg.CONTEXT] = parsed_results_dict["args"].pop()
-            context_arg = kwargs_dict.get(
-                IngredientKwarg.CONTEXT,
-                (
-                    parsed_results_dict["args"][1]
-                    if len(parsed_results_dict["args"]) > 1
-                    else (
-                        parsed_results_dict["args"][1]
-                        if len(parsed_results_dict["args"]) > 1
-                        else None
-                    )
-                ),
-            )
+
+            # Bind arguments to function
+            from inspect import signature
+
+            sig = signature(_ingredient)
+            bound = sig.bind(*parsed_results_dict["args"], **kwargs_dict)
+            kwargs_dict = {
+                k: v for k, v in bound.arguments.items() if k != "kwargs"
+            } | bound.arguments["kwargs"]
+
             for arg in {
-                context_arg,
+                kwargs_dict.get("context", None),
                 kwargs_dict.get("left_on", None),
                 kwargs_dict.get("right_on", None),
             }:
@@ -289,9 +281,12 @@ def preprocess_blendsql(
                 if not check.is_blendsql_query(arg):
                     tablename, _ = get_tablename_colname(arg)
                     tables_in_ingredients.add(tablename)
+
             # We don't need raw kwargs anymore
             # in the future, we just refer to kwargs_dict
             parsed_results_dict.pop("kwargs")
+            parsed_results_dict["args"] = []
+
             # Below we track the 'raw' representation, in case we need to pass into
             #   a recursive BlendSQL call later
             ingredient_alias_to_parsed_dict[
@@ -471,6 +466,7 @@ def _blend(
     # If we don't have any ingredient calls, execute as normal SQL
     if len(ingredients) == 0 or len(ingredient_alias_to_parsed_dict) == 0:
         # Check to see if there is a table we haven't materialized yet
+        # Need to `try`, `except` for cases like DuckDB's `...FROM read_text(x)`
         try:
             for tablename in [i.name for i in query_context.node.find_all(exp.Table)]:
                 if tablename not in db.tables():
@@ -1019,7 +1015,7 @@ class BlendSQL:
         if df_or_db_path is None:
             from .db._pandas import Pandas
 
-            return Pandas({}) # Load an empty DuckDB connection
+            return Pandas({})  # Load an empty DuckDB connection
 
         elif isinstance(df_or_db_path, (pd.DataFrame, dict)):
             from .db._pandas import Pandas
