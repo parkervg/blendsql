@@ -247,8 +247,8 @@ def test_join_ingredient_multi_exec(bsql):
         SELECT Account, Quantity FROM returns
         JOIN {{
             do_join(
-                left_on='account_history::Account',
-                right_on='returns::Annualized Returns'
+                'returns::Annualized Returns',
+                'account_history::Account'
             )
         }}
         """
@@ -397,7 +397,7 @@ def test_cte_qa_multi_exec(bsql):
         """
        {{
             get_table_size(
-                (
+                context=(
                     WITH a AS (
                         SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
                             WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
@@ -443,7 +443,7 @@ def test_cte_qa_named_multi_exec(bsql):
         """
        {{
             get_table_size(
-                (
+                context=(
                     WITH a AS (
                         SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
                             WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
@@ -555,8 +555,8 @@ def test_subquery_alias_with_join_multi_exec(bsql):
         SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
         JOIN {{
             do_join(
-                left_on='geographic::Symbol',
-                right_on='w::Symbol'
+                'w::Symbol',
+                'geographic::Symbol'
             )
         }} WHERE {{starts_with('F', 'w::Symbol')}}
         AND w."Percent of Account" < 0.2
@@ -590,8 +590,8 @@ def test_subquery_alias_with_join_multi_exec_and(bsql):
         SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
         JOIN {{
             do_join(
-                left_on='geographic::Symbol',
-                right_on='w::Symbol'
+                'w::Symbol',
+                'geographic::Symbol'
             )
         }} AND {{starts_with('F', 'w::Symbol')}}
         """
@@ -699,8 +699,8 @@ def test_join_with_multiple_ingredients(bsql):
         SELECT "Run Date", Action, portfolio.Symbol FROM account_history
         JOIN {{
             do_join(
-                right_on='account_history::Symbol',
-                left_on='portfolio::Symbol'
+                'account_history::Symbol',
+                'portfolio::Symbol'
             )
         }} AND {{
             starts_with('H', 'portfolio::Description')

@@ -27,9 +27,9 @@ For example:
 SELECT Capitals.name, State.name FROM Capitals
     JOIN {{
         LLMJoin(
-            'Align state to capital', 
-            left_on='States::name', 
-            right_on='Capitals::name'
+            'Capitals::name',
+            'States::name',
+            question='Align state to capital.',
         )
     }}
 ```
