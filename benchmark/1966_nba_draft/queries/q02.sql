@@ -1,7 +1,7 @@
 SELECT title, player FROM w JOIN {{
     LLMJoin(
-        left_on='documents::title',
-        right_on='w::player'
+        'w::player',
+        'documents::title'
     )
 }} WHERE {{
     LLMMap(
