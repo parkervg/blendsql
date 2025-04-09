@@ -504,11 +504,11 @@ def _blend(
             ),
         )
 
-    schema = None
     if schema_qualify:
         # Only construct sqlglot schema if we need to
         schema = db.sqlglot_schema
-    query_context.parse(query, schema=schema)
+        # Re-parse with schema, but utilize the previous sqlglot parse
+        query_context.parse(query_context.node, schema=schema)
 
     _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
     # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
@@ -616,9 +616,7 @@ def _blend(
                     abstracted_df = db.execute_to_df(abstracted_query_str)
                     if postprocess_columns:
                         if isinstance(db, DuckDB):
-                            set_of_column_names = set(
-                                i.strip('"') for i in schema[f'"{tablename}"']
-                            )
+                            set_of_column_names = set(schema[tablename])
                             # In case of a join, duckdb formats columns with 'column_1'
                             # But some columns (e.g. 'parent_category') just have underscores in them already
                             abstracted_df = abstracted_df.rename(
