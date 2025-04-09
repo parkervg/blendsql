@@ -133,7 +133,8 @@ class DuckDB(Database):
             for column_name, column_type in self.con.sql(
                 f"SELECT column_name, column_type FROM (DESCRIBE {tablename})"
             ).fetchall():
-                schema[tablename][column_name] = column_type
+                column_name_to_add = f'"{double_quote_escape(column_name)}"' if " " in column_name else column_name
+                schema[tablename][column_name_to_add] = column_type
         return schema
 
     def tables(self) -> List[str]:
