@@ -38,14 +38,12 @@ class SQLite(SQLAlchemyDatabase):
         """
         schema: Dict[str, dict] = {}
         for tablename in self.tables():
-            schema[f'"{double_quote_escape(tablename)}"'] = {}
+            schema[tablename] = {}
             for _, row in self.execute_to_df(
                 f"""
             SELECT name, type FROM pragma_table_info(:t)
             """,
                 {"t": tablename},
             ).iterrows():
-                schema[f'"{double_quote_escape(tablename)}"'][
-                    '"' + row["name"] + '"'
-                ] = row["type"]
+                schema[tablename][row["name"]] = row["type"]
         return schema

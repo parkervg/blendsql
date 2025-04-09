@@ -129,13 +129,11 @@ class DuckDB(Database):
         """
         schema: Dict[str, dict] = {}
         for tablename in self.tables():
-            schema[f'"{double_quote_escape(tablename)}"'] = {}
+            schema[tablename] = {}
             for column_name, column_type in self.con.sql(
                 f"SELECT column_name, column_type FROM (DESCRIBE {tablename})"
             ).fetchall():
-                schema[f'"{double_quote_escape(tablename)}"'][
-                    '"' + column_name + '"'
-                ] = column_type
+                schema[tablename][column_name] = column_type
         return schema
 
     def tables(self) -> List[str]:
