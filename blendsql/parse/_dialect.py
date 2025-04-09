@@ -4,7 +4,7 @@ import itertools
 import sqlglot.dialects
 from sqlglot.dialects import SQLite, Postgres, DuckDB
 from sqlglot.tokens import TokenType
-from sqlglot.schema import Schema
+from sqlglot.schema import Schema, MappingSchema
 from sqlglot import exp, parse_one, alias
 from sqlglot.optimizer import qualify_columns as qc
 from sqlglot.errors import OptimizeError
@@ -215,13 +215,23 @@ def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
 
 
 def _parse_one(
-    sql: str, dialect: sqlglot.Dialect, schema: Optional[Union[dict, Schema]] = None
+    sql: Union[str, exp.Expression], dialect: sqlglot.Dialect, schema: Optional[Union[dict, Schema]] = None
 ):
     """Utility to make sure we parse/read queries with the correct dialect."""
     # https://www.sqlite.org/optoverview.html
-    node = parse_one(sql, dialect=dialect)
+    node = sql
+    if isinstance(sql, str):
+        node = parse_one(sql, dialect=dialect)
     if schema is not None:
-        node = qualify_columns(expression=node, schema=schema, expand_alias_refs=False)
+        node = qualify_columns(
+            expression=node,
+            schema=MappingSchema(
+                schema,
+                dialect=dialect,
+                normalize=False
+            ),
+            expand_alias_refs=False
+        )
     return node
 
 
