@@ -1021,7 +1021,7 @@ class BlendSQL:
             from .db._pandas import Pandas
 
             return Pandas(df_or_db_path)
-        elif isinstance(df_or_db_path, str):
+        elif isinstance(df_or_db_path, (str, Path)):
             if Path(df_or_db_path).exists():
                 from .db._sqlite import SQLite
 
