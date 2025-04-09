@@ -423,7 +423,7 @@ class SubqueryContextManager:
             if isinstance(start_node.args["this"], exp.Column):
                 if "table" not in start_node.args["this"].args:
                     logger.debug(
-                        "When inferring `options` in infer_gen_kwargs, encountered a column node with "
+                        f"When inferring `options` in infer_gen_kwargs, encountered column node `{start_node}` with "
                         "no table specified!\nShould probably mark `schema_qualify` arg as True"
                     )
                 else:
