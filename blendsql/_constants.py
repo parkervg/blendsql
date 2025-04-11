@@ -58,6 +58,7 @@ class DataTypes:
     # This is 20 digits long, so to be safe, cap the generation at 18
     INT = lambda modifier=None: DataType("int", "(\d{1,18})", modifier)
     FLOAT = lambda modifier=None: DataType("float", "(\d(\d|\.)*)", modifier)
+    ISO_8601_DATE = lambda modifier=None: DataType("date", "\d{4}-\d{2}-\d{2}", modifier)
     STR = lambda modifier=None: DataType("str", None, modifier)
     LIST = lambda modifier="*": DataType("list", None, modifier)
     ANY = lambda modifier=None: DataType("Any", None, modifier)
@@ -68,8 +69,10 @@ STR_TO_DATATYPE: Dict[str, DataType] = {
     "int": DataTypes.INT(),
     "float": DataTypes.FLOAT(),
     "bool": DataTypes.BOOL(),
+    "date": DataTypes.ISO_8601_DATE(),
     "List[str]": DataTypes.STR("*"),
     "List[int]": DataTypes.INT("*"),
     "List[float]": DataTypes.FLOAT("*"),
     "List[bool]": DataTypes.BOOL("*"),
+    "List[date]": DataTypes.ISO_8601_DATE("*"),
 }
