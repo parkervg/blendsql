@@ -332,6 +332,7 @@ class LLMQA(QAIngredient):
                             for example in few_shot_examples
                         ]
                     ),
+                    regex,
                     funcs=[gen_f],
                 )
                 if response is not None:
