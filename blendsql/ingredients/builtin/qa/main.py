@@ -317,7 +317,7 @@ class LLMQA(QAIngredient):
                         "max_tokens": kwargs.get("max_tokens", 200),
                         "regex": regex,
                         "name": "response",
-                        "stop": ["Question:"],
+                        "stop": ["Question:"] + (["\n"] if regex is not None else []),
                     }
                     gen_f = guidance.gen
 
