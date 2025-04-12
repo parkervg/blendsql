@@ -22,7 +22,7 @@ from blendsql.ingredients.utils import (
     partialclass,
 )
 from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql._constants import DataType
+from blendsql._constants import DataType, DataTypes
 from .examples import AnnotatedMapExample, MapExample
 
 DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
@@ -43,7 +43,7 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     + "On each newline, you will follow the format of {value} -> {answer}.\n"
 )
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
-DEFAULT_MAP_BATCH_SIZE = 15
+DEFAULT_MAP_BATCH_SIZE = 100
 
 
 @attrs
@@ -135,6 +135,24 @@ class LLMMap(MapIngredient):
             batch_size=batch_size,
         )
 
+    def __call__(
+        self,
+        question: Optional[str] = None,
+        context: Optional[str] = None,
+        options: Optional[Union[list, str]] = None,
+        batch_size: Optional[int] = DEFAULT_MAP_BATCH_SIZE,
+        *args,
+        **kwargs,
+    ) -> tuple:
+        return super().__call__(
+            question=question,
+            context=context,
+            options=options,
+            batch_size=batch_size,
+            *args,
+            **kwargs,
+        )
+
     def run(
         self,
         model: Model,
@@ -174,7 +192,7 @@ class LLMMap(MapIngredient):
         if value_limit is not None:
             values = values[:value_limit]
         values = [value if not pd.isna(value) else "-" for value in values]
-        output_type: DataType = prepare_datatype(
+        resolved_output_type: DataType = prepare_datatype(
             output_type=output_type, options=options, modifier=None
         )
         current_example = MapExample(
@@ -182,7 +200,7 @@ class LLMMap(MapIngredient):
                 "question": question,
                 "column_name": column_name,
                 "table_name": table_name,
-                "output_type": output_type,
+                "output_type": resolved_output_type,
                 "example_outputs": example_outputs,
                 "options": options,
                 # Random subset of values for few-shot example retrieval
@@ -218,20 +236,22 @@ class LLMMap(MapIngredient):
             lm = LMString()  # type: ignore
 
             if options is not None:
-                gen_f = lambda: guidance.select(options=options)  # type: ignore
+                gen_f = lambda _: guidance.select(options=options)  # type: ignore
+            elif output_type == "substring":
+                # Special case for substring datatypes
+                gen_f = lambda s: guidance.substring(target_string=s)
             elif regex is not None:
-                gen_f = lambda: guidance.regex(pattern=regex)  # type: ignore
+                gen_f = lambda _: guidance.regex(pattern=regex)  # type: ignore
             else:
-                gen_f = lambda: guidance.gen(
+                gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 20), stop=["\n"]
                 )  # type: ignore
 
             @guidance(stateless=True, dedent=False)  # type: ignore
             def make_predictions(lm, values, gen_f) -> guidance.models.Model:
-                # gen_str = "\n".join([f"{value} -> {guidance.capture(guidance.gen(max_tokens=5), name=value)}" for value in values])
                 gen_str = "\n".join(
                     [
-                        f"{value} -> {guidance.capture(gen_f(), name=value)}"
+                        f"{value} -> {guidance.capture(gen_f(value), name=value)}"
                         for value in values
                     ]
                 )
@@ -244,6 +264,11 @@ class LLMMap(MapIngredient):
                     example_str += f"\n{k} -> {v}"
                 example_str += "\n\n---"
 
+            loaded_lm = False
+            # Due to guidance's prefix caching, this is a one-time cost
+            model.prompt_tokens += len(
+                model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
+            )
             for i in range(0, len(sorted_values), batch_size):
                 curr_batch_values = sorted_values[i : i + batch_size]
                 current_batch_example = copy.deepcopy(current_example)
@@ -265,17 +290,16 @@ class LLMMap(MapIngredient):
                     if responses is not None:
                         lm._variables.update(responses)  # type: ignore
                         in_cache = True
-                if not in_cache:
+                if not in_cache and not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
-                with guidance.user():
-                    lm += CONSTRAINED_MAIN_INSTRUCTION
-                    lm += example_str
-                    batch_lm = lm + current_example_str
+                    loaded_lm = True
+                    with guidance.user():
+                        lm += CONSTRAINED_MAIN_INSTRUCTION
+                        lm += example_str
 
-                # TODO: since guidance does prefix caching, we don't actually reuse prompt tokens across batches
-                model.prompt_tokens += len(
-                    model.tokenizer.encode(batch_lm._current_prompt())
-                )
+                batch_lm = lm + current_example_str
+
+                model.prompt_tokens += len(model.tokenizer.encode(current_example_str))
 
                 if not in_cache:
                     model.num_generation_calls += 1

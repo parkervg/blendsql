@@ -169,6 +169,7 @@ class LLMQA(QAIngredient):
         options: Optional[Collection[str]] = None,
         modifier: ModifierType = None,
         output_type: Optional[Union[DataType, str]] = None,
+        regex: Optional[str] = None,
         context: Optional[pd.DataFrame] = None,
         value_limit: Optional[int] = None,
         long_answer: bool = False,
@@ -186,7 +187,7 @@ class LLMQA(QAIngredient):
             modifier: If we expect an array of scalars, this defines the regex we want to apply.
                 Used directly for constrained decoding at inference time if we have a guidance model.
             output_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
-            regex: Optional regex to constrain answer generation.
+            regex: Optional regex to constrain answer generation. Takes precedence over `output_type`
             value_limit: Optional limit on how many rows from context we use
             long_answer: If true, we more closely mimic long-form end-to-end question answering.
                 If false, we just give the answer with no explanation or context
@@ -220,7 +221,7 @@ class LLMQA(QAIngredient):
         )
 
         is_list_output = "list" in current_example.output_type.name.lower()
-        regex = current_example.output_type.regex
+        regex = regex or current_example.output_type.regex
         options = current_example.options
         modifier = current_example.output_type.modifier
         options_with_aliases, options_alias_to_original = get_option_aliases(options)
