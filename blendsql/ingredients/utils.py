@@ -43,7 +43,7 @@ def unpack_options(
             unpacked_options = options.split(";")
     if len(unpacked_options) == 0:
         logger.debug(
-            Fore.YELLOW
+            Fore.LIGHTRED_EX
             + f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
             + Fore.RESET
         )
