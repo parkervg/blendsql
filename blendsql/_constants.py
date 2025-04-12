@@ -53,11 +53,11 @@ class DataType:
 
 @dataclass
 class DataTypes:
-    BOOL = lambda modifier=None: DataType("bool", "(t|f)", modifier)
-    # SQLite max is 18446744073709551615
-    # This is 20 digits long, so to be safe, cap the generation at 18
-    INT = lambda modifier=None: DataType("int", "(\d{1,18})", modifier)
-    FLOAT = lambda modifier=None: DataType("float", "(\d(\d|\.)*)", modifier)
+    BOOL = lambda modifier=None: DataType(
+        "bool", "(t|f|true|false|True|False)", modifier
+    )
+    INT = lambda modifier=None: DataType("int", "(\d+)", modifier)
+    FLOAT = lambda modifier=None: DataType("float", "(\d+(\.\d+)?)", modifier)
     ISO_8601_DATE = lambda modifier=None: DataType(
         "date", "\d{4}-\d{2}-\d{2}", modifier
     )
