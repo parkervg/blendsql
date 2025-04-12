@@ -16,7 +16,6 @@ import string
 
 from ._logger import logger
 from .utils import (
-    sub_tablename,
     get_temp_session_table,
     get_temp_subquery_table,
     get_tablename_colname,
@@ -912,16 +911,18 @@ def _blend(
         query = re.sub(
             r"(AS )?{}".format(re.escape(function_str)), f" {str(res)} ", query
         )
+    query_context.parse(query)
     for t in session_modified_tables:
-        query = sub_tablename(
-            t, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
+        query_context.node = query_context.node.transform(
+            transform.replace_tablename, t, _get_temp_session_table(t)
         )
     if scm is not None:
         for a, t in scm.alias_to_tablename.items():
             if t in session_modified_tables:
-                query = sub_tablename(
-                    a, f'"{double_quote_escape(_get_temp_session_table(t))}"', query
+                query_context.node = query_context.node.transform(
+                    transform.replace_tablename, a, _get_temp_session_table(t)
                 )
+    query = query_context.to_string()
     # Finally, iter through tables in query and see if we need to collect LazyTable
     for table in get_scope_nodes(
         nodetype=exp.Table, node=query_context.node, restrict_scope=False

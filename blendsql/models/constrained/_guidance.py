@@ -143,19 +143,17 @@ class LlamaCpp(ConstrainedModel):
         caching: bool = True,
         **kwargs,
     ):
-        from llama_cpp import Llama
-
         if config is None:
             config = {}
 
         super().__init__(
-            model_name_or_path=model_name_or_path, # type: ignore
+            model_name_or_path=model_name_or_path,  # type: ignore
             requires_config=False,
             tokenizer=self._load_llama_cpp(
                 filename=filename,
                 model_name_or_path=model_name_or_path,
                 config=config,
-                vocab_only=True
+                vocab_only=True,
             ).tokenizer_,
             config=config,
             caching=caching,
@@ -164,8 +162,14 @@ class LlamaCpp(ConstrainedModel):
         self.filename = filename
 
     @staticmethod
-    def _load_llama_cpp(filename: str, model_name_or_path: Optional[str], config: dict, vocab_only: bool = False):
+    def _load_llama_cpp(
+        filename: str,
+        model_name_or_path: Optional[str],
+        config: dict,
+        vocab_only: bool = False,
+    ):
         from llama_cpp import Llama
+
         if model_name_or_path:
             return Llama.from_pretrained(
                 repo_id=model_name_or_path,
@@ -194,6 +198,6 @@ class LlamaCpp(ConstrainedModel):
                 config=self.config,
             ),
             echo=False,
-            chat_template=self.config.get("chat_template")
+            chat_template=self.config.get("chat_template"),
         )
         return lm

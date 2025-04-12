@@ -414,7 +414,11 @@ class SubqueryContextManager:
             _parent = child.parent
             if isinstance(_parent, exp.Column):
                 child = _parent
-        start_node = child.parent
+        if isinstance(child.parent, exp.Select):
+            # We don't want to traverse up in cases of `SELECT {{A()}} FROM table WHERE x < y`
+            start_node = child
+        else:
+            start_node = child.parent
         predicate_literals: List[str] = []
         modifier: ModifierType = None
         # Check for instances like `{column} = {QAIngredient}`

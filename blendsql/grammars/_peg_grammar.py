@@ -14,8 +14,8 @@ blendsql_function_name = pp.Word(pp.alphanums + "_")
 nums = pp.Word(pp.nums)
 
 # Parse action to remove opening and closing quotes
-single_qs = pp.QuotedString(quoteChar='"', multiline=True, escChar="\\")
-double_qs = pp.QuotedString(quoteChar="'", multiline=True, escChar="\\")
+single_qs = pp.QuotedString(quoteChar='"', multiline=True)
+double_qs = pp.QuotedString(quoteChar="'", multiline=True)
 str_arg = single_qs | double_qs
 # Below is modified from pp.dbl_slash_comment
 # TODO: confirm below is working

@@ -273,3 +273,17 @@ def maybe_set_subqueries_to_true(node):
     if len([i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,))]) == 1:
         return node
     return node.transform(set_subqueries_to_true).transform(prune_empty_where)
+
+
+def replace_tablename(node: exp.Expression, original_tablename, new_tablename):
+    if isinstance(node, exp.Table):
+        if node.name.lower() == original_tablename.lower():
+            node.set("this", exp.Identifier(this=new_tablename, quoted=True))
+        if "alias" in node.args and node.args["alias"].name == original_tablename:
+            node.args["alias"].set(
+                "this", exp.Identifier(this=new_tablename, quoted=True)
+            )
+    elif isinstance(node, exp.Column) and "table" in node.args:
+        if node.args["table"].name.lower() == original_tablename.lower():
+            node.set("table", exp.Identifier(this=new_tablename, quoted=True))
+    return node

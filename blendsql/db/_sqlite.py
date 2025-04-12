@@ -45,6 +45,10 @@ class SQLite(SQLAlchemyDatabase):
             """,
                 {"t": tablename},
             ).iterrows():
-                column_name_to_add = f'"{double_quote_escape(row["name"])}"' if " " in row["name"] else row["name"]
+                column_name_to_add = (
+                    f'"{double_quote_escape(row["name"])}"'
+                    if " " in row["name"]
+                    else row["name"]
+                )
                 schema[tablename][column_name_to_add] = row["type"]
         return schema

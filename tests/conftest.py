@@ -8,7 +8,6 @@ from blendsql.db import Database
 from blendsql.models import (
     TransformersLLM,
     LiteLLM,
-    LlamaCpp,
     TransformersVisionModel,
     Model,
 )
@@ -38,7 +37,7 @@ CONSTRAINED_MODEL_CONFIGS = [
     {
         "name": "llama",
         "class": TransformersLLM,
-        "path": "meta-llama/Llama-3.2-3B-Instruct",
+        "path": "meta-llama/Llama-3.2-1B-Instruct",
         "config": {"device_map": "auto"},
         "requires_cuda": True,
     },
@@ -49,14 +48,14 @@ CONSTRAINED_MODEL_CONFIGS = [
         "config": {"device_map": "cpu"},
         "requires_cuda": False,
     },
-    {
-        "name": "llamacpp",
-        "class": LlamaCpp,
-        "path": "QuantFactory/SmolLM-135M-GGUF",
-        "filename": "SmolLM-135M.Q2_K.gguf",
-        "config": {"n_gpu_layers": 0},
-        "requires_cuda": True,
-    },
+    # {
+    #     "name": "llamacpp",
+    #     "class": LlamaCpp,
+    #     "path": "QuantFactory/SmolLM-135M-GGUF",
+    #     "filename": "SmolLM-135M.Q2_K.gguf",
+    #     "config": {"n_gpu_layers": -1},
+    #     "requires_cuda": True,
+    # },
 ]
 
 UNCONSTRAINED_MODEL_CONFIGS = [

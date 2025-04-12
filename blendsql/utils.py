@@ -1,5 +1,4 @@
 from typing import Tuple
-import re
 from tabulate import tabulate
 from functools import partial
 
@@ -34,27 +33,6 @@ def get_tablename_colname(s: str) -> Tuple[str, str]:
         )
     tablename, colname = out
     return (tablename.strip('"'), colname.strip('"'))
-
-
-def sub_tablename(original_tablename: str, new_tablename: str, query: str) -> str:
-    """Replaces old tablename with a new tablename reference, likely one from a `get_temp` function.
-
-    Args:
-        original_tablename: String of the tablename in the current query to replace
-        new_tablename: String of the new tablename
-        query: BlendSQL query to do replacement in
-
-    Returns:
-        updated_query: BlendSQL query with tablenames subbed
-    """
-    return re.sub(
-        # Only sub if surrounded by: whitespace, comma, or parentheses
-        # Or, prefaced by period (e.g. 'p.Current_Value')
-        r"(?<=( |,|\()|\.)\"?{}\"?(?=( |,|\)|;|\.|$))".format(original_tablename),
-        new_tablename,
-        query,
-        flags=re.IGNORECASE,
-    )
 
 
 def get_temp_subquery_table(

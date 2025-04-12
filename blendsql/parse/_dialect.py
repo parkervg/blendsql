@@ -215,7 +215,9 @@ def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
 
 
 def _parse_one(
-    sql: Union[str, exp.Expression], dialect: sqlglot.Dialect, schema: Optional[Union[dict, Schema]] = None
+    sql: Union[str, exp.Expression],
+    dialect: sqlglot.Dialect,
+    schema: Optional[Union[dict, Schema]] = None,
 ):
     """Utility to make sure we parse/read queries with the correct dialect."""
     # https://www.sqlite.org/optoverview.html
@@ -225,12 +227,8 @@ def _parse_one(
     if schema is not None:
         node = qualify_columns(
             expression=node,
-            schema=MappingSchema(
-                schema,
-                dialect=dialect,
-                normalize=False
-            ),
-            expand_alias_refs=False
+            schema=MappingSchema(schema, dialect=dialect, normalize=False),
+            expand_alias_refs=False,
         )
     return node
 

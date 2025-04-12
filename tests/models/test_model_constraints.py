@@ -48,7 +48,6 @@ def bsql() -> BlendSQL:
 
 
 def test_singers(bsql, model):
-    print(model.model_name_or_path)
     _ = bsql.execute(
         """
         SELECT * FROM People p

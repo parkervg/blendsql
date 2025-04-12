@@ -4,6 +4,8 @@ from collections import defaultdict
 import json
 import numpy as np
 
+from tag_queries import TAG_DATASET
+
 from blendsql import BlendSQL
 from blendsql.models import LlamaCpp
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin, RAGQA
@@ -58,51 +60,23 @@ if __name__ == "__main__":
     model = LlamaCpp(
         "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
         "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-        config={"n_gpu_layers": -1},
+        config={"n_gpu_layers": -1, "n_ctx": 2048},
+        caching=True,
     )
     load_bsql = lambda path: BlendSQL(
-        path, model=model, ingredients={LLMQA, LLMMap, LLMJoin, RAGQA}
+        path, model=model, ingredients={LLMQA, LLMMap, LLMJoin, RAGQA}, verbose=True
     )
-
-    tag_queries = pd.read_csv("./tag-benchmark/tag_queries.csv")
 
     prediction_data = []
-    for _, row in tag_queries.iterrows():
+    for item in TAG_DATASET:
         curr_pred_data = {}
-        bsql = load_bsql(load_tag_db_path(row["DB used"]))
-        smoothie = bsql.execute(row["blendsql_query"])
-        curr_pred_data["latency"] = smoothie.meta.process_time_seconds
-        curr_pred_data["completion_tokens"] = smoothie.meta.completion_tokens
-        curr_pred_data["prompt_tokens"] = smoothie.meta.prompt_tokens
-        curr_pred_data["prediction"] = smoothie.df.to_dict()
-        prediction_data.append(curr_pred_data)
-
-    # Among the schools with the average score in Math over 560 in the SAT test, how many schools are in the bay area?
-    smoothie = bsql.execute(
-        """
-        SELECT COUNT(DISTINCT s.CDSCode) 
-            FROM schools s 
-            JOIN satscores sa ON s.CDSCode = sa.cds 
-            WHERE sa.AvgScrMath > 560 
-            AND s.County IN {{RAGQA('Which counties are in the Bay Area?')}}
-        """
-    )
-    print(smoothie.df)
-    print(smoothie.meta.process_time_seconds)
-    # blendsql_query = """
-    # SELECT s.Phone
-    #     FROM satscores ss
-    #     JOIN schools s ON ss.cds = s.CDSCode
-    #     WHERE county IN {{
-    #         LLMQA(
-    #             'Which counties are in the Bay Area?',
-    #             (
-    #                 SELECT {{
-    #                     BingWebSearch('Counties in the Bay Area')
-    #                 }} AS "Search Results"
-    #             )
-    #         )
-    #     }}
-    #     ORDER BY ss.AvgScrRead ASC
-    #     LIMIT 1
-    # """
+        if item["Query ID"] == 29 and item['DB used'] == 'debit_card_specializing':
+            # if item["BlendSQL"] is None:
+            #     continue
+            bsql = load_bsql(load_tag_db_path(item["DB used"]))
+            smoothie = bsql.execute(item["BlendSQL"])
+            curr_pred_data["latency"] = smoothie.meta.process_time_seconds
+            curr_pred_data["completion_tokens"] = smoothie.meta.completion_tokens
+            curr_pred_data["prompt_tokens"] = smoothie.meta.prompt_tokens
+            curr_pred_data["prediction"] = smoothie.df.to_dict()
+            prediction_data.append(curr_pred_data)
