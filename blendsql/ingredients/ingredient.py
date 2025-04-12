@@ -237,21 +237,18 @@ class MapIngredient(Ingredient):
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
 
-        unpacked_options = None
         if options is not None:
             # Override any pattern with our new unpacked options
-            unpacked_options = unpack_options(
+            kwargs[IngredientKwarg.OPTIONS] = unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
                 db=self.db,
             )
-            if unpacked_options is not None:
-                unpacked_options = list(unpacked_options)
-        # else:
-        #     kwargs[IngredientKwarg.REGEX] = regex
+        else:
+            kwargs[IngredientKwarg.OPTIONS] = None
+
         kwargs[IngredientKwarg.VALUES] = values
         kwargs[IngredientKwarg.QUESTION] = question
-        kwargs[IngredientKwarg.OPTIONS] = unpacked_options
         mapped_values: Collection[Any] = self._run(*args, **self.__dict__ | kwargs)
         self.num_values_passed += len(mapped_values)
         df_as_dict: Dict[str, list] = {colname: [], new_arg_column: []}

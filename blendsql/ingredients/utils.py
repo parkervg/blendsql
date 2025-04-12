@@ -28,15 +28,17 @@ def unpack_options(
             tablename = aliases_to_tablenames.get(tablename, tablename)
             # Optionally materialize a CTE
             if tablename in db.lazy_tables:
-                unpacked_options: list = (
-                    [
-                        str(i) for i in db.lazy_tables.pop(tablename).collect()[colname].unique()
-                    ]
-                )
+                unpacked_options: list = [
+                    str(i)
+                    for i in db.lazy_tables.pop(tablename).collect()[colname].unique()
+                ]
             else:
-                unpacked_options: list = [str(i) for i in db.execute_to_list(
-                    f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                )]
+                unpacked_options: list = [
+                    str(i)
+                    for i in db.execute_to_list(
+                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                    )
+                ]
         except ValueError:
             unpacked_options = options.split(";")
     if len(unpacked_options) == 0:

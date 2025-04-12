@@ -65,6 +65,7 @@ class DataTypes:
     LIST = lambda modifier="*": DataType("list", None, modifier)
     ANY = lambda modifier=None: DataType("Any", None, modifier)
 
+
 STR_TO_DATATYPE: Dict[str, DataType] = {
     "str": DataTypes.STR(),
     "int": DataTypes.INT(),
