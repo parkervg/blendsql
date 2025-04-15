@@ -75,17 +75,19 @@ class Ingredient:
         self,
         options: Union[List[str], str],
         aliases_to_tablenames: Dict[str, str],
-        get_temp_subquery_table,
     ) -> Union[Set[str], None]:
         unpacked_options = options
         if not isinstance(options, list):
             try:
                 tablename, colname = get_tablename_colname(options)
                 tablename = aliases_to_tablenames.get(tablename, tablename)
+                # IMPORTANT: Below was commented out, since it would cause:
+                #   `SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1`
+                #   ...to always select the result of the `LIMIT 1`.
                 # Check for previously created temporary tables
-                value_source_tablename, _ = self.maybe_get_temp_table(
-                    temp_table_func=get_temp_subquery_table, tablename=tablename
-                )
+                # value_source_tablename, _ = self.maybe_get_temp_table(
+                #     temp_table_func=get_temp_subquery_table, tablename=tablename
+                # )
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
                     unpacked_options: list = [
@@ -98,7 +100,7 @@ class Ingredient:
                     unpacked_options: list = [
                         str(i)
                         for i in self.db.execute_to_list(
-                            f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"'
+                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
                         )
                     ]
             except ValueError:
@@ -281,7 +283,6 @@ class MapIngredient(Ingredient):
             kwargs[IngredientKwarg.OPTIONS] = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
-                get_temp_subquery_table=get_temp_subquery_table,
             )
         else:
             kwargs[IngredientKwarg.OPTIONS] = None
@@ -609,7 +610,6 @@ class QAIngredient(Ingredient):
             kwargs[IngredientKwarg.OPTIONS] = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
-                get_temp_subquery_table=get_temp_subquery_table,
             )
         else:
             kwargs[IngredientKwarg.OPTIONS] = None
