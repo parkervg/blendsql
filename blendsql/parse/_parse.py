@@ -202,6 +202,7 @@ class SubqueryContextManager:
         ):
             return
 
+        self._gather_alias_mappings()
         # Special condition: If we *only* have an ingredient in the top-level `SELECT` clause
         # ... then we should execute entire rest of SQL first and assign to temporary session table.
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
@@ -221,14 +222,13 @@ class SubqueryContextManager:
 
             for tablename in self.tables_in_ingredients:
                 yield (
-                    tablename,
+                    self.alias_to_tablename.get(tablename, tablename),
                     self.node.find(exp.Join) is not None,
                     abstracted_query_str,
                 )
             return
 
         # Base case is below
-        self._gather_alias_mappings()
         abstracted_query = (
             to_select_star(self.node).transform(transform.set_ingredient_nodes_to_true)
             # TODO: is the below complete?
