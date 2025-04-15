@@ -184,14 +184,13 @@ class SubqueryContextManager:
         # TODO: don't really know how to optimize with 'CASE' queries right now
         if self.node.find(exp.Case):
             return
-        # Special condition: If...
-        #   1) We *only* have an ingredient in the top-level `SELECT` clause
+        # Special condition: If we *only* have an ingredient in the top-level `SELECT` clause
         # ... then we should execute entire rest of SQL first and assign to temporary session table.
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
         #         FROM images JOIN w ON w.title = images.title
         #         WHERE "designer ( s )" = 'georgia gerber'"""
         # Below, we need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
-        #   E.g. `SELECT A() AS _col_0` should be ignored
+        #   E.g. `SELECT A() AS _col_0` cases should be ignored
         if (
             self.node.find(exp.Table)
             and check.ingredients_only_in_top_select(self.node)
@@ -205,6 +204,19 @@ class SubqueryContextManager:
             for tablename in self.tables_in_ingredients:
                 yield (tablename, True, abstracted_query_str)
             return
+        # Special condition, if we have only 1 ingredient call and exclusively `AND` predicates
+        #   we should bypass the below rules and execute the larger query first,
+        #   then grab the output of the larger query and feed to ingredient.
+        # Example: """SELECT * FROM posts p
+        #   JOIN users u ON p.OwnerUserId = u.Id WHERE u.DisplayName = 'Vebjorn Ljosa'
+        #   AND {{LLMMap('Is this about statistics?', 'p::Title')}} = TRUE"""
+        # The above ingredient should benefit from the filter of `u.DisplayName = 'Vebjorn Ljosa'`, and the JOIN
+        # Above, we return the joined concatenation of the two (`SELECT * FROM posts p JOIN ...`)
+        #   and point both p and u at it for future use.
+        # https://nuo-lei.medium.com/sql-join-where-which-runs-first-e5e60dcb04b7#:~:text=Join%20runs%20before%20where%20filtering%20The%20execution,and%20then%20filtered%20by%20the%20WHERE%20query.
+        if True:
+            pass
+
         for tablename, table_star_query in self._table_star_queries():
             # If this table_star_query doesn't have an ingredient at the top-level, we can safely ignore
             if (
