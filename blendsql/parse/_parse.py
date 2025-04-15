@@ -184,7 +184,7 @@ class SubqueryContextManager:
         # TODO: don't really know how to optimize with 'CASE' queries right now
         if self.node.find(exp.Case):
             return
-        # If we doesn't have an ingredient at the top-level, we can safely ignore
+        # If we don't have an ingredient at the top-level, we can safely ignore
         elif (
             len(
                 list(
@@ -220,13 +220,17 @@ class SubqueryContextManager:
             abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
 
             for tablename in self.tables_in_ingredients:
-                yield (tablename, True, abstracted_query_str)
+                yield (
+                    tablename,
+                    self.node.find(exp.Join) is not None,
+                    abstracted_query_str,
+                )
             return
 
         abstracted_query = (
-            to_select_star(self.node)
-            .transform(transform.set_ingredient_nodes_to_true)
-            .transform(transform.remove_nodetype, (exp.Order, exp.Limit))
+            to_select_star(self.node).transform(transform.set_ingredient_nodes_to_true)
+            # TODO: is the below complete?
+            .transform(transform.remove_nodetype, (exp.Order, exp.Limit, exp.Group))
         )
         # If our previous subquery has an ingredient, we can't optimize with subquery condition
         # So, remove this subquery constraint and run
@@ -236,21 +240,23 @@ class SubqueryContextManager:
             )
         # Check here to see if we have no other predicates other than 'WHERE TRUE'
         # There's no point in creating a temporary table in this situation
-        where_node = abstracted_query.find(exp.Where)
-        if where_node:
-            if where_node.args["this"] == exp.true():
-                return
-            elif isinstance(where_node.args["this"], exp.Column):
-                return
-            elif check.all_terminals_are_true(where_node):
-                return
-        elif not where_node:
-            return
+        # where_node = abstracted_query.find(exp.Where)
+        # if where_node:
+        #     if where_node.args["this"] == exp.true():
+        #         return
+        #     elif isinstance(where_node.args["this"], exp.Column):
+        #         return
+        #     elif check.all_terminals_are_true(where_node):
+        #         return
+        # elif not where_node:
+        #     return
         abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
+        for _, _ in self._table_star_queries():
+            pass
         for tablename in self.tables_in_ingredients:
             yield (
                 self.alias_to_tablename.get(tablename, tablename),
-                True,
+                self.node.find(exp.Join) is not None,
                 abstracted_query_str,
             )
         return
