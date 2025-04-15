@@ -4,7 +4,7 @@ https://github.com/tobymao/sqlglot
 
 """
 
-from typing import Union
+from typing import Union, Type, Tuple
 
 import sqlglot
 from sqlglot import exp
@@ -263,8 +263,10 @@ def replace_subquery_with_direct_alias_call(node, subquery, aliasname):
     return node
 
 
-def remove_ctes(node):
-    if isinstance(node, exp.With):
+def remove_nodetype(
+    node, nodetype: Union[Type[exp.Expression], Tuple[Type[exp.Expression]]]
+):
+    if isinstance(node, nodetype):
         return None
     return node
 

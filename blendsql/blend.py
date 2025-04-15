@@ -528,7 +528,7 @@ def _blend(
     ):
         # At this point, we should have already handled cte statements and created associated tables
         if subquery.find(exp.With) is not None:
-            subquery = subquery.transform(transform.remove_ctes)
+            subquery = subquery.transform(transform.remove_nodetype, exp.With)
         # Only cache executed_ingredients within the same subquery
         # The same ingredient may have different results within a different subquery context
         executed_subquery_ingredients: Set[str] = set()
@@ -616,34 +616,34 @@ def _blend(
                     + f"and setting to `{_get_temp_subquery_table(tablename)}`..."
                     + Fore.RESET
                 )
-                try:
-                    abstracted_df = db.execute_to_df(abstracted_query_str)
-                    if postprocess_columns:
-                        if isinstance(db, DuckDB):
-                            set_of_column_names = set(schema[tablename])
-                            # In case of a join, duckdb formats columns with 'column_1'
-                            # But some columns (e.g. 'parent_category') just have underscores in them already
-                            abstracted_df = abstracted_df.rename(
-                                columns=lambda x: re.sub(r"_\d$", "", x)
-                                if x not in set_of_column_names  # noqa: B023
-                                else x
-                            )
-                        # In case of a join, we could have duplicate column names in our pandas dataframe
-                        # This will throw an error when we try to write to the database
-                        abstracted_df = abstracted_df.loc[
-                            :, ~abstracted_df.columns.duplicated()
-                        ]
-                    db.to_temp_table(
-                        df=abstracted_df,
-                        tablename=_get_temp_subquery_table(tablename),
-                    )
-                except Exception as e:
-                    # Fallback to naive execution
-                    logger.debug(Fore.RED + str(e) + Fore.RESET)
-                    logger.debug(
-                        Fore.RED + "Falling back to naive execution..." + Fore.RESET
-                    )
-                    naive_execution = True
+                # try:
+                abstracted_df = db.execute_to_df(abstracted_query_str)
+                if postprocess_columns:
+                    if isinstance(db, DuckDB):
+                        set_of_column_names = set(schema[tablename])
+                        # In case of a join, duckdb formats columns with 'column_1'
+                        # But some columns (e.g. 'parent_category') just have underscores in them already
+                        abstracted_df = abstracted_df.rename(
+                            columns=lambda x: re.sub(r"_\d$", "", x)
+                            if x not in set_of_column_names  # noqa: B023
+                            else x
+                        )
+                    # In case of a join, we could have duplicate column names in our pandas dataframe
+                    # This will throw an error when we try to write to the database
+                    abstracted_df = abstracted_df.loc[
+                        :, ~abstracted_df.columns.duplicated()
+                    ]
+                db.to_temp_table(
+                    df=abstracted_df,
+                    tablename=_get_temp_subquery_table(tablename),
+                )
+                # except Exception as e:
+                #     # Fallback to naive execution
+                #     logger.debug(Fore.RED + str(e) + Fore.RESET)
+                #     logger.debug(
+                #         Fore.RED + "Falling back to naive execution..." + Fore.RESET
+                #     )
+                #     naive_execution = True
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
             db.lazy_tables.add(

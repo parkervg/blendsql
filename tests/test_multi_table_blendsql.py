@@ -109,7 +109,10 @@ def test_join_multi_exec(bsql):
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = bsql.db.execute_to_list(
         """
-    SELECT COUNT(DISTINCT Name) FROM constituents WHERE Sector = 'Information Technology'
+    SELECT COUNT(DISTINCT Name) FROM account_history 
+    LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+    WHERE Sector = 'Information Technology'
+    AND lower(Action) like '%dividend%'
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient
@@ -147,7 +150,10 @@ def test_join_not_qualified_multi_exec(bsql):
     # Make sure we only pass what's necessary to our ingredient
     passed_to_ingredient = bsql.db.execute_to_list(
         """
-    SELECT COUNT(DISTINCT Name) FROM constituents WHERE Sector = 'Information Technology'
+    SELECT COUNT(DISTINCT Name) FROM account_history 
+    LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+    WHERE Sector = 'Information Technology'
+    AND lower(Action) like '%dividend%'
     """
     )[0]
     assert smoothie.meta.num_values_passed == passed_to_ingredient

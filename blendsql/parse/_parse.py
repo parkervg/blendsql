@@ -184,82 +184,54 @@ class SubqueryContextManager:
         # TODO: don't really know how to optimize with 'CASE' queries right now
         if self.node.find(exp.Case):
             return
-        # Special condition: If we *only* have an ingredient in the top-level `SELECT` clause
-        # ... then we should execute entire rest of SQL first and assign to temporary session table.
-        # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
-        #         FROM images JOIN w ON w.title = images.title
-        #         WHERE "designer ( s )" = 'georgia gerber'"""
-        # Below, we need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
-        #   E.g. `SELECT A() AS _col_0` cases should be ignored
-        if (
-            self.node.find(exp.Table)
-            and check.ingredients_only_in_top_select(self.node)
-            and not check.ingredient_alias_in_query_body(self.node)
-        ):
-            abstracted_query = to_select_star(self.node).transform(
-                transform.set_ingredient_nodes_to_true
-            )
-            abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
-
-            for tablename in self.tables_in_ingredients:
-                yield (tablename, True, abstracted_query_str)
-            return
-        # Special condition, if we have only 1 ingredient call and exclusively `AND` predicates
-        #   we should bypass the below rules and execute the larger query first,
-        #   then grab the output of the larger query and feed to ingredient.
-        # Example: """SELECT * FROM posts p
-        #   JOIN users u ON p.OwnerUserId = u.Id WHERE u.DisplayName = 'Vebjorn Ljosa'
-        #   AND {{LLMMap('Is this about statistics?', 'p::Title')}} = TRUE"""
-        # The above ingredient should benefit from the filter of `u.DisplayName = 'Vebjorn Ljosa'`, and the JOIN
-        # Above, we return the joined concatenation of the two (`SELECT * FROM posts p JOIN ...`)
-        #   and point both p and u at it for future use.
-        # https://nuo-lei.medium.com/sql-join-where-which-runs-first-e5e60dcb04b7#:~:text=Join%20runs%20before%20where%20filtering%20The%20execution,and%20then%20filtered%20by%20the%20WHERE%20query.
-        if True:
-            pass
-
-        for tablename, table_star_query in self._table_star_queries():
-            # If this table_star_query doesn't have an ingredient at the top-level, we can safely ignore
-            if (
-                len(
-                    list(
-                        filter(
-                            lambda node: check.is_ingredient_node(node),
-                            get_scope_nodes(
-                                root=self.root,
-                                nodetype=exp.Identifier,
-                                restrict_scope=True,
-                            ),
-                        )
+        # If we doesn't have an ingredient at the top-level, we can safely ignore
+        elif (
+            len(
+                list(
+                    filter(
+                        lambda node: check.is_ingredient_node(node),
+                        get_scope_nodes(
+                            root=self.root,
+                            nodetype=exp.Identifier,
+                            restrict_scope=True,
+                        ),
                     )
                 )
-                == 0
-            ):
-                continue
-            # If our previous subquery has an ingredient, we can't optimize with subquery condition
-            # So, remove this subquery constraint and run
-            if self.prev_subquery_has_ingredient:
-                table_star_query = table_star_query.transform(
-                    transform.maybe_set_subqueries_to_true
-                )
-            # Substitute all ingredients with 'TRUE'
-            abstracted_query = table_star_query.transform(
-                transform.set_ingredient_nodes_to_true
             )
-            # Check here to see if we have no other predicates other than 'WHERE TRUE'
-            # There's no point in creating a temporary table in this situation
-            where_node = abstracted_query.find(exp.Where)
-            if where_node:
-                if where_node.args["this"] == exp.true():
-                    continue
-                elif isinstance(where_node.args["this"], exp.Column):
-                    continue
-                elif check.all_terminals_are_true(where_node):
-                    continue
-            elif not where_node:
-                continue
-            abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
-
-            yield (tablename, False, abstracted_query_str)
+            == 0
+        ):
+            return
+        abstracted_query = (
+            to_select_star(self.node)
+            .transform(transform.set_ingredient_nodes_to_true)
+            .transform(transform.remove_nodetype, (exp.Order, exp.Limit))
+        )
+        # If our previous subquery has an ingredient, we can't optimize with subquery condition
+        # So, remove this subquery constraint and run
+        if self.prev_subquery_has_ingredient:
+            abstracted_query = abstracted_query.transform(
+                transform.maybe_set_subqueries_to_true
+            )
+        # Check here to see if we have no other predicates other than 'WHERE TRUE'
+        # There's no point in creating a temporary table in this situation
+        where_node = abstracted_query.find(exp.Where)
+        if where_node:
+            if where_node.args["this"] == exp.true():
+                return
+            elif isinstance(where_node.args["this"], exp.Column):
+                return
+            elif check.all_terminals_are_true(where_node):
+                return
+        elif not where_node:
+            return
+        abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
+        for tablename in self.tables_in_ingredients:
+            yield (
+                self.alias_to_tablename.get(tablename, tablename),
+                True,
+                abstracted_query_str,
+            )
+        return
 
     def _table_star_queries(
         self,
