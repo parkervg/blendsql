@@ -65,12 +65,11 @@ class Ingredient:
         self, temp_table_func: Callable, tablename: str
     ) -> Tuple[str, bool]:
         temp_tablename = temp_table_func(tablename)
-        _tablename = tablename
         if self.db.has_temp_table(temp_tablename):
             # We've already applied some operation to this table
             # We want to use this as our base
-            _tablename = temp_tablename
-        return (_tablename, True) if _tablename != tablename else (_tablename, False)
+            return (temp_tablename, True)
+        return (tablename, False)
 
 
 @attrs
