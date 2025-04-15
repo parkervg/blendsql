@@ -240,12 +240,11 @@ class LLMMap(MapIngredient):
             elif output_type == "substring":
                 # Special case for substring datatypes
                 gen_f = lambda s: guidance.substring(target_string=s)
-            elif regex is not None:
-                gen_f = lambda _: guidance.regex(pattern=regex)  # type: ignore
             else:
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
                     stop=["\n"] if regex is not None else None,
+                    regex=regex,
                 )  # type: ignore
 
             @guidance(stateless=True, dedent=False)  # type: ignore
