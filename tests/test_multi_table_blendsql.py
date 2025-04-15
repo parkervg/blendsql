@@ -87,7 +87,7 @@ def test_join_multi_exec(bsql):
         """
         SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
             FROM account_history
-            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            JOIN constituents ON account_history.Symbol = constituents.Symbol
             WHERE constituents.Sector = 'Information Technology'
             AND {{starts_with('A', 'constituents::Name')}} = 1
             AND lower(LOWER(account_history.Action)) like '%dividend%'
@@ -98,7 +98,7 @@ def test_join_multi_exec(bsql):
         """
         SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
             FROM account_history
-            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            JOIN constituents ON account_history.Symbol = constituents.Symbol
             WHERE constituents.Sector = 'Information Technology'
             AND constituents.Name LIKE 'A%'
             AND lower(LOWER(account_history.Action)) like '%dividend%'
@@ -110,7 +110,7 @@ def test_join_multi_exec(bsql):
     passed_to_ingredient = bsql.db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Name) FROM account_history 
-    LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+    JOIN constituents ON account_history.Symbol = constituents.Symbol
     WHERE Sector = 'Information Technology'
     AND lower(Action) like '%dividend%'
     """
@@ -128,7 +128,7 @@ def test_join_not_qualified_multi_exec(bsql):
         """
         SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
             FROM account_history
-            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            JOIN constituents ON account_history.Symbol = constituents.Symbol
             WHERE Sector = 'Information Technology'
             AND {{starts_with('A', 'constituents::Name')}} = 1
             AND lower(Action) like '%dividend%'
@@ -139,7 +139,7 @@ def test_join_not_qualified_multi_exec(bsql):
         """
         SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
             FROM account_history
-            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            JOIN constituents ON account_history.Symbol = constituents.Symbol
             WHERE Sector = 'Information Technology'
             AND constituents.Name LIKE 'A%'
             AND lower(Action) like '%dividend%'
@@ -151,7 +151,7 @@ def test_join_not_qualified_multi_exec(bsql):
     passed_to_ingredient = bsql.db.execute_to_list(
         """
     SELECT COUNT(DISTINCT Name) FROM account_history 
-    LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+    JOIN constituents ON account_history.Symbol = constituents.Symbol
     WHERE Sector = 'Information Technology'
     AND lower(Action) like '%dividend%'
     """
@@ -165,21 +165,23 @@ def test_select_multi_exec(bsql):
         """
         SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
             FROM account_history
-            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            JOIN constituents ON account_history.Symbol = constituents.Symbol
             WHERE constituents.Sector = {{select_first_sorted(options='constituents::Sector')}}
             AND lower(LOWER(account_history.Action)) like '%dividend%'
+            ORDER BY account_history."Run Date"
         """
     )
     sql_df = bsql.db.execute_to_df(
         """
         SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
             FROM account_history
-            LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
+            JOIN constituents ON account_history.Symbol = constituents.Symbol
             WHERE constituents.Sector = (
                 SELECT Sector FROM constituents
                 ORDER BY Sector LIMIT 1
             )
             AND lower(LOWER(account_history.Action)) like '%dividend%'
+            ORDER BY account_history."Run Date"
         """
     )
     assert_equality(smoothie=smoothie, sql_df=sql_df)
@@ -194,8 +196,8 @@ def test_complex_multi_exec(bsql):
     smoothie = bsql.execute(
         """
         SELECT DISTINCT Name FROM constituents
-        LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
-        LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
+        JOIN account_history ON constituents.Symbol = account_history.Symbol
+        JOIN portfolio on constituents.Symbol = portfolio.Symbol
         WHERE account_history."Run Date" > '2021-02-23'
         AND ({{get_length('n_length', 'constituents::Name')}} > 3 OR {{starts_with('A', 'portfolio::Symbol')}})
         AND portfolio.Symbol IS NOT NULL
@@ -205,8 +207,8 @@ def test_complex_multi_exec(bsql):
     sql_df = bsql.db.execute_to_df(
         """
         SELECT DISTINCT Name FROM constituents
-        LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
-        LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
+        JOIN account_history ON constituents.Symbol = account_history.Symbol
+        JOIN portfolio on constituents.Symbol = portfolio.Symbol
         WHERE account_history."Run Date" > '2021-02-23'
         AND (LENGTH(constituents.Name) > 3 OR portfolio.Symbol LIKE 'A%')
         AND portfolio.Symbol IS NOT NULL
