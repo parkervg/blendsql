@@ -27,7 +27,7 @@ from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_I
 from blendsql._constants import ModifierType, DataType
 from .examples import QAExample, AnnotatedQAExample
 
-MAIN_INSTRUCTION = "Answer the question given the table context.\n"
+MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
 LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
 SHORT_ANSWER_INSTRUCTION = "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
 DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
@@ -317,7 +317,7 @@ class LLMQA(QAIngredient):
                         "max_tokens": kwargs.get("max_tokens", 200),
                         "regex": regex,
                         "name": "response",
-                        "stop": ["Question:"] + (["\n"] if regex is not None else []),
+                        "stop": ["\n"] if regex is not None else None,
                     }
                     gen_f = guidance.gen
 
@@ -344,11 +344,12 @@ class LLMQA(QAIngredient):
                 model.num_generation_calls += 1
                 with guidance.user():
                     lm += instruction_str
-                for example in few_shot_examples:
-                    with guidance.user():
-                        lm += example.to_string(context_formatter)
-                    with guidance.assistant():
-                        lm += example.answer
+                if len(few_shot_examples) > 0:
+                    for example in few_shot_examples:
+                        with guidance.user():
+                            lm += example.to_string(context_formatter)
+                        with guidance.assistant():
+                            lm += example.answer
                 with guidance.user():
                     lm += curr_example_str
 

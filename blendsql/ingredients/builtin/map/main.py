@@ -244,7 +244,8 @@ class LLMMap(MapIngredient):
                 gen_f = lambda _: guidance.regex(pattern=regex)  # type: ignore
             else:
                 gen_f = lambda _: guidance.gen(
-                    max_tokens=kwargs.get("max_tokens", 20), stop=["\n"]
+                    max_tokens=kwargs.get("max_tokens", 200),
+                    stop=["\n"] if regex is not None else None,
                 )  # type: ignore
 
             @guidance(stateless=True, dedent=False)  # type: ignore
@@ -257,12 +258,14 @@ class LLMMap(MapIngredient):
                 )
                 return lm + gen_str
 
-            example_str = "\n\nExamples:"
-            for example in few_shot_examples:
-                example_str += example.to_string(include_values=False)
-                for k, v in example.mapping.items():
-                    example_str += f"\n{k} -> {v}"
-                example_str += "\n\n---"
+            example_str = ""
+            if len(few_shot_examples) > 0:
+                example_str += "\n\nExamples:"
+                for example in few_shot_examples:
+                    example_str += example.to_string(include_values=False)
+                    for k, v in example.mapping.items():
+                        example_str += f"\n{k} -> {v}"
+                    example_str += "\n\n---"
 
             loaded_lm = False
             # Due to guidance's prefix caching, this is a one-time cost
@@ -297,7 +300,8 @@ class LLMMap(MapIngredient):
                         lm += CONSTRAINED_MAIN_INSTRUCTION
                         lm += example_str
 
-                batch_lm = lm + current_example_str
+                with guidance.user():
+                    batch_lm = lm + current_example_str
 
                 model.prompt_tokens += len(model.tokenizer.encode(current_example_str))
 

@@ -178,16 +178,17 @@ class LLMJoin(JoinIngredient):
                 model.num_generation_calls += 1
                 with guidance.user():
                     lm += MAIN_INSTRUCTION
-                # Add few-shot examples
-                for example in few_shot_examples:
-                    with guidance.user():
-                        lm += example.to_string()
-                    with guidance.assistant():
-                        lm += (
-                            "```json\n"
-                            + json.dumps(example.mapping, indent=4)
-                            + "\n```"
-                        )
+                if len(few_shot_examples) > 0:
+                    # Add few-shot examples
+                    for example in few_shot_examples:
+                        with guidance.user():
+                            lm += example.to_string()
+                        with guidance.assistant():
+                            lm += (
+                                "```json\n"
+                                + json.dumps(example.mapping, indent=4)
+                                + "\n```"
+                            )
                 with guidance.user():
                     lm += curr_example_str
 
