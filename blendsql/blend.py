@@ -271,16 +271,21 @@ def preprocess_blendsql(
             } | bound.arguments["kwargs"]
 
             for arg in {
+                # Below lists all arguments where a table may be referenced
                 kwargs_dict.get("context", None),
                 kwargs_dict.get("left_on", None),
                 kwargs_dict.get("right_on", None),
+                kwargs_dict.get("options", None),
             }:
                 if arg is None:
                     continue
                 if not check.is_blendsql_query(arg):
-                    tablename, _ = get_tablename_colname(arg)
-                    tables_in_ingredients.add(tablename)
-
+                    # try, except for case when we pass 'a;b;c' options
+                    try:
+                        tablename, _ = get_tablename_colname(arg)
+                        tables_in_ingredients.add(tablename)
+                    except ValueError:
+                        pass
             # We don't need raw kwargs anymore
             # in the future, we just refer to kwargs_dict
             parsed_results_dict.pop("kwargs")
@@ -1162,9 +1167,12 @@ class BlendSQL:
                 default_model=model or self.model,
                 ingredients=ingredients or self.ingredients,
                 infer_gen_constraints=infer_gen_constraints
-                or self.infer_gen_constraints,
+                if infer_gen_constraints is not None
+                else self.infer_gen_constraints,
                 table_to_title=self.table_to_title,
-                schema_qualify=schema_qualify or self.schema_qualify,
+                schema_qualify=schema_qualify
+                if schema_qualify is not None
+                else self.schema_qualify,
             )
         except Exception as error:
             raise error
