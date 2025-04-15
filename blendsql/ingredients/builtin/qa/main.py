@@ -226,12 +226,13 @@ class LLMQA(QAIngredient):
         modifier = current_example.output_type.modifier
         options_with_aliases, options_alias_to_original = get_option_aliases(options)
         if options is not None and list_options_in_prompt:
-            if len(options) > os.getenv(
+            max_options_in_prompt = os.getenv(
                 MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-            ):  # type: ignore
+            )
+            if len(options) > max_options_in_prompt:  # type: ignore
                 logger.debug(
                     Fore.YELLOW
-                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
                 )
                 list_options_in_prompt = False
         if isinstance(model, ConstrainedModel):
