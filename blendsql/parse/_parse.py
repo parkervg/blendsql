@@ -245,6 +245,16 @@ class SubqueryContextManager:
             return
         abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
         for tablename in self.tables_in_ingredients:
+            # TODO: execute query once, and then separate out the results to their respective tables
+            # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
+            # Gives:
+            #   id  country_id                    name   id_1   name_1
+            #   0      1           1  Belgium Jupiler League      1  Belgium
+            #   1   1729        1729  England Premier League   1729  England
+            #   2   4769        4769          France Ligue 1   4769   France
+            #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
+            #   4  10257       10257           Italy Serie A  10257    Italy
+            # But, below we remove the columns with underscores. we need those.
             yield (
                 self.alias_to_tablename.get(tablename, tablename),
                 self.node.find(exp.Join) is not None,

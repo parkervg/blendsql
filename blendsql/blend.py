@@ -620,6 +620,16 @@ def _blend(
                 if aliased_subquery is None:
                     if postprocess_columns:
                         if isinstance(db, DuckDB):
+                            # TODO: fix this
+                            # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
+                            # Gives:
+                            #   id  country_id                    name   id_1   name_1
+                            #   0      1           1  Belgium Jupiler League      1  Belgium
+                            #   1   1729        1729  England Premier League   1729  England
+                            #   2   4769        4769          France Ligue 1   4769   France
+                            #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
+                            #   4  10257       10257           Italy Serie A  10257    Italy
+                            # But, below we remove the columns with underscores. we need those.
                             set_of_column_names = set(schema[tablename])
                             # In case of a join, duckdb formats columns with 'column_1'
                             # But some columns (e.g. 'parent_category') just have underscores in them already

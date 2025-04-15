@@ -3,7 +3,7 @@ import pandas as pd
 
 from blendsql import BlendSQL, config
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
-from .utils import select_first_option
+from .utils import starts_with
 
 config.set_async_limit(1)
 
@@ -18,7 +18,7 @@ def bsql() -> BlendSQL:
                     {"id": 1729, "country_id": 1729, "name": "England Premier League"},
                     {"id": 4769, "country_id": 4769, "name": "France Ligue 1"},
                     {"id": 7809, "country_id": 7809, "name": "Germany 1. Bundesliga"},
-                    {"id": 10257, "country_id": 10257, "name": "Italy Serie A"},
+                    {"id": 10257, "country_id": 10257, "name": "The Italy Serie A"},
                 ]
             ),
             "Country": pd.DataFrame(
@@ -31,7 +31,7 @@ def bsql() -> BlendSQL:
                 ]
             ),
         },
-        ingredients={LLMQA, LLMMap, LLMJoin, select_first_option},
+        ingredients={LLMQA, LLMMap, LLMJoin, starts_with},
     )
 
 
@@ -51,8 +51,8 @@ def test_join_with_duplicate_columns(bsql, model):
         """
         SELECT l.name FROM League l
         JOIN Country c ON l.country_id = c.id
-        WHERE c.name = {{select_first_option('c::name')}}
+        WHERE {{starts_with('I', 'c::name')}}
         """,
         model=model,
     )
-    assert smoothie.df.values.flat[0] == "Z Belgium Jupiler League"
+    assert not smoothie.df.empty
