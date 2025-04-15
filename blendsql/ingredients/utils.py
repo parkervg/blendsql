@@ -1,11 +1,9 @@
-from typing import Union, List, Set, Dict, Callable, Optional, Union
+from typing import Union, List, Callable, Optional, Union
 from collections.abc import Collection
 from functools import partialmethod, partial
 from ast import literal_eval
 from colorama import Fore
 
-from ..utils import get_tablename_colname
-from ..db import Database
 from .few_shot import Example
 from .._logger import logger
 from blendsql._exceptions import IngredientException
@@ -16,38 +14,6 @@ from blendsql._constants import (
     DataTypes,
     STR_TO_DATATYPE,
 )
-
-
-def unpack_options(
-    options: Union[List[str], str], aliases_to_tablenames: Dict[str, str], db: Database
-) -> Union[Set[str], None]:
-    unpacked_options = options
-    if not isinstance(options, list):
-        try:
-            tablename, colname = get_tablename_colname(options)
-            tablename = aliases_to_tablenames.get(tablename, tablename)
-            # Optionally materialize a CTE
-            if tablename in db.lazy_tables:
-                unpacked_options: list = [
-                    str(i)
-                    for i in db.lazy_tables.pop(tablename).collect()[colname].unique()
-                ]
-            else:
-                unpacked_options: list = [
-                    str(i)
-                    for i in db.execute_to_list(
-                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )
-                ]
-        except ValueError:
-            unpacked_options = options.split(";")
-    if len(unpacked_options) == 0:
-        logger.debug(
-            Fore.LIGHTRED_EX
-            + f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
-            + Fore.RESET
-        )
-    return set(unpacked_options) if len(unpacked_options) > 0 else None
 
 
 def initialize_retriever(

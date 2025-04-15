@@ -18,7 +18,7 @@ from .._constants import (
 )
 from ..db import Database
 from ..db.utils import select_all_from_table_query, format_tuple
-from .utils import unpack_options
+from ..utils import get_tablename_colname
 from .few_shot import Example
 
 
@@ -70,6 +70,46 @@ class Ingredient:
             # We want to use this as our base
             return (temp_tablename, True)
         return (tablename, False)
+
+    def unpack_options(
+        self,
+        options: Union[List[str], str],
+        aliases_to_tablenames: Dict[str, str],
+        get_temp_subquery_table,
+    ) -> Union[Set[str], None]:
+        unpacked_options = options
+        if not isinstance(options, list):
+            try:
+                tablename, colname = get_tablename_colname(options)
+                tablename = aliases_to_tablenames.get(tablename, tablename)
+                # Check for previously created temporary tables
+                value_source_tablename, _ = self.maybe_get_temp_table(
+                    temp_table_func=get_temp_subquery_table, tablename=tablename
+                )
+                # Optionally materialize a CTE
+                if tablename in self.db.lazy_tables:
+                    unpacked_options: list = [
+                        str(i)
+                        for i in self.db.lazy_tables.pop(tablename)
+                        .collect()[colname]
+                        .unique()
+                    ]
+                else:
+                    unpacked_options: list = [
+                        str(i)
+                        for i in self.db.execute_to_list(
+                            f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"'
+                        )
+                    ]
+            except ValueError:
+                unpacked_options = options.split(";")
+        if len(unpacked_options) == 0:
+            logger.debug(
+                Fore.LIGHTRED_EX
+                + f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
+                + Fore.RESET
+            )
+        return set(unpacked_options) if len(unpacked_options) > 0 else None
 
 
 @attrs
@@ -238,10 +278,10 @@ class MapIngredient(Ingredient):
 
         if options is not None:
             # Override any pattern with our new unpacked options
-            kwargs[IngredientKwarg.OPTIONS] = unpack_options(
+            kwargs[IngredientKwarg.OPTIONS] = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
-                db=self.db,
+                get_temp_subquery_table=get_temp_subquery_table,
             )
         else:
             kwargs[IngredientKwarg.OPTIONS] = None
@@ -541,6 +581,7 @@ class QAIngredient(Ingredient):
     ) -> Tuple[Union[str, int, float], Optional[exp.Expression]]:
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
 
         subtable: Union[pd.DataFrame, None] = None
         if context is not None:
@@ -565,8 +606,10 @@ class QAIngredient(Ingredient):
                 raise IngredientException("Empty subtable passed to QAIngredient!")
 
         if options is not None:
-            kwargs[IngredientKwarg.OPTIONS] = unpack_options(
-                options=options, aliases_to_tablenames=aliases_to_tablenames, db=self.db
+            kwargs[IngredientKwarg.OPTIONS] = self.unpack_options(
+                options=options,
+                aliases_to_tablenames=aliases_to_tablenames,
+                get_temp_subquery_table=get_temp_subquery_table,
             )
         else:
             kwargs[IngredientKwarg.OPTIONS] = None
