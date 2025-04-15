@@ -246,6 +246,28 @@ def test_complex_not_qualified_multi_exec(bsql):
         """
     )
     assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_constituents_ingredient = bsql.db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT constituents.Name) FROM constituents
+        LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
+        LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
+        WHERE "Run Date" > '2021-02-23'
+        AND portfolio.Symbol IS NOT NULL
+    """
+    )[0]
+    passed_to_portfolio_ingredient = bsql.db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT portfolio.Symbol) FROM constituents
+        LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
+        LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
+        WHERE "Run Date" > '2021-02-23'
+        AND portfolio.Symbol IS NOT NULL
+    """
+    )[0]
+    assert smoothie.meta.num_values_passed == (
+        passed_to_portfolio_ingredient + passed_to_constituents_ingredient
+    )
 
 
 @pytest.mark.parametrize("bsql", bsql_connections)
