@@ -3,6 +3,7 @@ from collections.abc import Collection
 from functools import partialmethod, partial
 from ast import literal_eval
 from colorama import Fore
+import itertools
 
 from .few_shot import Example
 from .._logger import logger
@@ -76,7 +77,11 @@ def prepare_datatype(
                 + Fore.RESET
             )
     elif options:
-        logger.debug(Fore.LIGHTBLACK_EX + f"Using options '{options}'" + Fore.RESET)
+        logger.debug(
+            Fore.LIGHTBLACK_EX
+            + f"Using options '{set(itertools.islice(options, 20))}...'"
+            + Fore.RESET
+        )
     return resolved_output_type
 
 
