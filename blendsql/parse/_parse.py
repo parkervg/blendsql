@@ -201,6 +201,28 @@ class SubqueryContextManager:
             == 0
         ):
             return
+
+        # Special condition: If we *only* have an ingredient in the top-level `SELECT` clause
+        # ... then we should execute entire rest of SQL first and assign to temporary session table.
+        # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
+        #         FROM images JOIN w ON w.title = images.title
+        #         WHERE "designer ( s )" = 'georgia gerber'"""
+        # Below, we need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
+        #   E.g. `SELECT A() AS _col_0` cases should be ignored
+        if (
+            self.node.find(exp.Table)
+            and check.ingredients_only_in_top_select(self.node)
+            and not check.ingredient_alias_in_query_body(self.node)
+        ):
+            abstracted_query = to_select_star(self.node).transform(
+                transform.set_ingredient_nodes_to_true
+            )
+            abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
+
+            for tablename in self.tables_in_ingredients:
+                yield (tablename, True, abstracted_query_str)
+            return
+
         abstracted_query = (
             to_select_star(self.node)
             .transform(transform.set_ingredient_nodes_to_true)
