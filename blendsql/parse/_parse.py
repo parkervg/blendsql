@@ -227,6 +227,8 @@ class SubqueryContextManager:
                 )
             return
 
+        # Base case is below
+        self._gather_alias_mappings()
         abstracted_query = (
             to_select_star(self.node).transform(transform.set_ingredient_nodes_to_true)
             # TODO: is the below complete?
@@ -238,21 +240,10 @@ class SubqueryContextManager:
             abstracted_query = abstracted_query.transform(
                 transform.maybe_set_subqueries_to_true
             )
-        # Check here to see if we have no other predicates other than 'WHERE TRUE'
-        # There's no point in creating a temporary table in this situation
-        # where_node = abstracted_query.find(exp.Where)
-        # if where_node:
-        #     if where_node.args["this"] == exp.true():
-        #         return
-        #     elif isinstance(where_node.args["this"], exp.Column):
-        #         return
-        #     elif check.all_terminals_are_true(where_node):
-        #         return
-        # elif not where_node:
-        #     return
+        # Happens with {{LLMQA()}} cases, where we get 'SELECT *'
+        if abstracted_query.find(exp.Table) is None:
+            return
         abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
-        for _, _ in self._table_star_queries():
-            pass
         for tablename in self.tables_in_ingredients:
             yield (
                 self.alias_to_tablename.get(tablename, tablename),
@@ -261,7 +252,7 @@ class SubqueryContextManager:
             )
         return
 
-    def _table_star_queries(
+    def _gather_alias_mappings(
         self,
     ) -> Generator[Tuple[str, exp.Select], None, None]:
         """For each table in the select query, generates a new query
@@ -280,11 +271,6 @@ class SubqueryContextManager:
                 LEFT JOIN constituents ON account_history.Symbol = constituents.Symbol
                 WHERE constituents.Sector = 'Information Technology'
                 AND lower(Action) like "%dividend%"
-            ```
-            Returns (after getting str representation of `exp.Select`):
-            ```text
-            ('account_history', 'SELECT * FROM account_history WHERE lower(Action) like "%dividend%')
-            ('constituents', 'SELECT * FROM constituents WHERE sector = \'Information Technology\'')
             ```
         """
         # Use `scope` to get all unique tablenodes in ast
@@ -322,66 +308,49 @@ class SubqueryContextManager:
             # e.g. `SELECT a FROM table AS w`
             table_alias_node = tablenode.find(exp.TableAlias)
             if table_alias_node is not None:
-                tablename_to_extract = table_alias_node.name
-                curr_alias_to_tablename = {tablename_to_extract: tablenode.name}
-                base_select_str = f'SELECT * FROM "{tablenode.name}" AS "{tablename_to_extract}" WHERE '
-            else:
-                tablename_to_extract = tablenode.name
-                base_select_str = f'SELECT * FROM "{tablenode.name}" WHERE '
-            table_conditions_str = self.get_table_predicates_str(
-                tablename=tablename_to_extract,
-                disambiguate_multi_tables=bool(len(tablenodes) > 1)
-                or (table_alias_node is not None),
-            )
-            self.alias_to_tablename = self.alias_to_tablename | curr_alias_to_tablename
-            self.tablename_to_alias = self.tablename_to_alias | {
+                curr_alias_to_tablename = {table_alias_node.name: tablenode.name}
+            self.alias_to_tablename |= curr_alias_to_tablename
+            self.tablename_to_alias |= {
                 v: k for k, v in curr_alias_to_tablename.items()
             }
-            self.alias_to_subquery = self.alias_to_subquery | curr_alias_to_subquery
-            if table_conditions_str:
-                yield (
-                    tablenode.name,
-                    _parse_one(
-                        base_select_str + table_conditions_str, dialect=self.dialect
-                    ),
-                )
+            self.alias_to_subquery |= curr_alias_to_subquery
 
-    def get_table_predicates_str(
-        self, tablename, disambiguate_multi_tables: bool
-    ) -> str:
-        """Returns str containing all predicates acting on a specific tablename.
-
-        Args:
-            tablename: The target tablename to search and extract predicates for
-            disambiguate_multi_tables: `True` if we have multiple tables in our subquery,
-                and need to be sure we're only fetching the predicates for the specified `tablename`
-        """
-        # 2 places conditions can come in here
-        # 'WHERE' statement and predicate in a 'JOIN' statement
-        all_table_predicates = []
-        for table_predicates in get_scope_nodes(
-            nodetype=exp.Predicate, root=self.root, restrict_scope=True
-        ):
-            # Unary operators like `NOT` get parsed as parents of predicate by sqlglot
-            # i.e. `SELECT * FROM w WHERE x IS NOT NULL` -> `SELECT * FROM w WHERE NOT x IS NULL`
-            # Since these impact the temporary table creation, we consider them parts of the predicate
-            #   and fetch them below.
-            if isinstance(table_predicates.parent, exp.Unary):
-                table_predicates = table_predicates.parent
-            if check.in_subquery(table_predicates):
-                continue
-            if disambiguate_multi_tables:
-                table_predicates = table_predicates.transform(
-                    transform.extract_multi_table_predicates, tablename=tablename
-                )
-            if isinstance(table_predicates, exp.Expression):
-                all_table_predicates.append(table_predicates)
-        if len(all_table_predicates) == 0:
-            return ""
-        table_conditions_str = " AND ".join(
-            [c.sql(dialect=self.dialect) for c in all_table_predicates]
-        )
-        return table_conditions_str
+    # def get_table_predicates_str(
+    #     self, tablename, disambiguate_multi_tables: bool
+    # ) -> str:
+    #     """Returns str containing all predicates acting on a specific tablename.
+    #
+    #     Args:
+    #         tablename: The target tablename to search and extract predicates for
+    #         disambiguate_multi_tables: `True` if we have multiple tables in our subquery,
+    #             and need to be sure we're only fetching the predicates for the specified `tablename`
+    #     """
+    #     # 2 places conditions can come in here
+    #     # 'WHERE' statement and predicate in a 'JOIN' statement
+    #     all_table_predicates = []
+    #     for table_predicates in get_scope_nodes(
+    #         nodetype=exp.Predicate, root=self.root, restrict_scope=True
+    #     ):
+    #         # Unary operators like `NOT` get parsed as parents of predicate by sqlglot
+    #         # i.e. `SELECT * FROM w WHERE x IS NOT NULL` -> `SELECT * FROM w WHERE NOT x IS NULL`
+    #         # Since these impact the temporary table creation, we consider them parts of the predicate
+    #         #   and fetch them below.
+    #         if isinstance(table_predicates.parent, exp.Unary):
+    #             table_predicates = table_predicates.parent
+    #         if check.in_subquery(table_predicates):
+    #             continue
+    #         if disambiguate_multi_tables:
+    #             table_predicates = table_predicates.transform(
+    #                 transform.extract_multi_table_predicates, tablename=tablename
+    #             )
+    #         if isinstance(table_predicates, exp.Expression):
+    #             all_table_predicates.append(table_predicates)
+    #     if len(all_table_predicates) == 0:
+    #         return ""
+    #     table_conditions_str = " AND ".join(
+    #         [c.sql(dialect=self.dialect) for c in all_table_predicates]
+    #     )
+    #     return table_conditions_str
 
     def infer_gen_constraints(self, start: int, end: int) -> dict:
         """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
