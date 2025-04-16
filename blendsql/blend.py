@@ -270,24 +270,6 @@ def preprocess_blendsql(
                 k: v for k, v in bound.arguments.items() if k != "kwargs"
             } | bound.arguments["kwargs"]
 
-            for arg in {
-                # Below lists all arguments where a table may be referenced
-                kwargs_dict.get("context", None),
-                kwargs_dict.get("left_on", None),
-                kwargs_dict.get("right_on", None),
-                kwargs_dict.get("options", None),
-            }:
-                if arg is None:
-                    continue
-                if not check.is_blendsql_query(arg):
-                    # try, except for case when we pass 'a;b;c' options
-                    try:
-                        tablename, columnname = get_tablename_colname(arg)
-                        if tablename not in columns_in_ingredients:
-                            columns_in_ingredients[tablename] = set()
-                        columns_in_ingredients[tablename].add(columnname)
-                    except ValueError:
-                        pass
             # We don't need raw kwargs anymore
             # in the future, we just refer to kwargs_dict
             parsed_results_dict.pop("kwargs")
@@ -305,7 +287,6 @@ def preprocess_blendsql(
     return (
         query.strip(),
         ingredient_alias_to_parsed_dict,
-        columns_in_ingredients,
         kitchen,
         ingredients,
     )
@@ -448,7 +429,6 @@ def _blend(
     (
         query,
         ingredient_alias_to_parsed_dict,
-        columns_in_ingredients,
         kitchen,
         ingredients,
     ) = preprocess_blendsql(
@@ -567,7 +547,7 @@ def _blend(
             ),  # Need to do this so we don't track parents into construct_abstracted_selects
             prev_subquery_has_ingredient=prev_subquery_has_ingredient,
             alias_to_subquery={table_alias_name: subquery} if in_cte else {},
-            columns_in_ingredients=columns_in_ingredients,
+            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         )
         for (
             tablename,
