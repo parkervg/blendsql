@@ -277,7 +277,7 @@ def maybe_set_subqueries_to_true(node):
     return node.transform(set_subqueries_to_true).transform(prune_empty_where)
 
 
-def replace_tablename(node: exp.Expression, original_tablename, new_tablename):
+def replace_tablename(node, original_tablename, new_tablename):
     if isinstance(node, exp.Table):
         if node.name.lower() == original_tablename.lower():
             node.set("this", exp.Identifier(this=new_tablename, quoted=True))

@@ -185,7 +185,7 @@ def preprocess_blendsql(
     """
     ingredient_alias_to_parsed_dict: Dict[str, dict] = {}
     ingredient_str_to_alias: Dict[str, str] = {}
-    tables_in_ingredients: Set[str] = set()
+    columns_in_ingredients: Dict[str, Set[str]] = {}
     query = re.sub(r"(\s+)", " ", query)
     reversed_scan_res = [scan_res for scan_res in grammar.scanString(query)][::-1]
     for idx, (parse_results, start, end) in enumerate(reversed_scan_res):
@@ -282,8 +282,10 @@ def preprocess_blendsql(
                 if not check.is_blendsql_query(arg):
                     # try, except for case when we pass 'a;b;c' options
                     try:
-                        tablename, _ = get_tablename_colname(arg)
-                        tables_in_ingredients.add(tablename)
+                        tablename, columnname = get_tablename_colname(arg)
+                        if tablename not in columns_in_ingredients:
+                            columns_in_ingredients[tablename] = set()
+                        columns_in_ingredients[tablename].add(columnname)
                     except ValueError:
                         pass
             # We don't need raw kwargs anymore
@@ -303,7 +305,7 @@ def preprocess_blendsql(
     return (
         query.strip(),
         ingredient_alias_to_parsed_dict,
-        tables_in_ingredients,
+        columns_in_ingredients,
         kitchen,
         ingredients,
     )
@@ -446,7 +448,7 @@ def _blend(
     (
         query,
         ingredient_alias_to_parsed_dict,
-        tables_in_ingredients,
+        columns_in_ingredients,
         kitchen,
         ingredients,
     ) = preprocess_blendsql(
@@ -565,7 +567,7 @@ def _blend(
             ),  # Need to do this so we don't track parents into construct_abstracted_selects
             prev_subquery_has_ingredient=prev_subquery_has_ingredient,
             alias_to_subquery={table_alias_name: subquery} if in_cte else {},
-            tables_in_ingredients=tables_in_ingredients,
+            columns_in_ingredients=columns_in_ingredients,
         )
         for (
             tablename,

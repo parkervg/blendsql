@@ -1,16 +1,7 @@
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
-from typing import (
-    Generator,
-    List,
-    Tuple,
-    Union,
-    Type,
-    Optional,
-    Dict,
-    Any,
-)
+from typing import Generator, List, Tuple, Union, Type, Optional, Dict, Any, Set
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
@@ -20,7 +11,7 @@ from ._dialect import _parse_one
 from . import _checks as check
 from . import _transforms as transform
 from ._constants import SUBQUERY_EXP
-from ._utils import to_select_star
+from ._utils import set_select_to
 from .._logger import logger
 
 
@@ -133,7 +124,7 @@ class SubqueryContextManager:
     dialect: sqlglot.Dialect = attrib()
     node: exp.Select = attrib()
     prev_subquery_has_ingredient: bool = attrib()
-    tables_in_ingredients: set = attrib()
+    columns_in_ingredients: Dict[str, Set[str]] = attrib()
 
     # Keep a running log of what aliases we've initialized so far, per subquery
     alias_to_subquery: dict = attrib(default=None)
@@ -215,22 +206,22 @@ class SubqueryContextManager:
             and check.ingredients_only_in_top_select(self.node)
             and not check.ingredient_alias_in_query_body(self.node)
         ):
-            abstracted_query = to_select_star(self.node).transform(
+            abstracted_query = self.node.transform(
                 transform.set_ingredient_nodes_to_true
             )
-            abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
-
-            for tablename in self.tables_in_ingredients:
+            for tablename, columnnames in self.columns_in_ingredients.items():
                 yield (
                     self.alias_to_tablename.get(tablename, tablename),
                     self.node.find(exp.Join) is not None,
-                    abstracted_query_str,
+                    set_select_to(abstracted_query, tablename, columnnames).sql(
+                        dialect=self.dialect
+                    ),
                 )
             return
 
         # Base case is below
         abstracted_query = (
-            to_select_star(self.node).transform(transform.set_ingredient_nodes_to_true)
+            self.node.transform(transform.set_ingredient_nodes_to_true)
             # TODO: is the below complete?
             .transform(transform.remove_nodetype, (exp.Order, exp.Limit, exp.Group))
         )
@@ -243,8 +234,8 @@ class SubqueryContextManager:
         # Happens with {{LLMQA()}} cases, where we get 'SELECT *'
         if abstracted_query.find(exp.Table) is None:
             return
-        abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
-        for tablename in self.tables_in_ingredients:
+        # abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
+        for tablename, columnnames in self.columns_in_ingredients.items():
             # TODO: execute query once, and then separate out the results to their respective tables
             # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
             # Gives:
@@ -255,10 +246,15 @@ class SubqueryContextManager:
             #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
             #   4  10257       10257           Italy Serie A  10257    Italy
             # But, below we remove the columns with underscores. we need those.
+            # Here, we should:
+            #   1) Separate out the columns corresponding with each table
+            #   2) Only select those columns that we'll end up using in an ingredient
             yield (
                 self.alias_to_tablename.get(tablename, tablename),
                 self.node.find(exp.Join) is not None,
-                abstracted_query_str,
+                set_select_to(abstracted_query, tablename, columnnames).sql(
+                    dialect=self.dialect
+                ),
             )
         return
 
@@ -324,43 +320,6 @@ class SubqueryContextManager:
                 v: k for k, v in curr_alias_to_tablename.items()
             }
             self.alias_to_subquery |= curr_alias_to_subquery
-
-    # def get_table_predicates_str(
-    #     self, tablename, disambiguate_multi_tables: bool
-    # ) -> str:
-    #     """Returns str containing all predicates acting on a specific tablename.
-    #
-    #     Args:
-    #         tablename: The target tablename to search and extract predicates for
-    #         disambiguate_multi_tables: `True` if we have multiple tables in our subquery,
-    #             and need to be sure we're only fetching the predicates for the specified `tablename`
-    #     """
-    #     # 2 places conditions can come in here
-    #     # 'WHERE' statement and predicate in a 'JOIN' statement
-    #     all_table_predicates = []
-    #     for table_predicates in get_scope_nodes(
-    #         nodetype=exp.Predicate, root=self.root, restrict_scope=True
-    #     ):
-    #         # Unary operators like `NOT` get parsed as parents of predicate by sqlglot
-    #         # i.e. `SELECT * FROM w WHERE x IS NOT NULL` -> `SELECT * FROM w WHERE NOT x IS NULL`
-    #         # Since these impact the temporary table creation, we consider them parts of the predicate
-    #         #   and fetch them below.
-    #         if isinstance(table_predicates.parent, exp.Unary):
-    #             table_predicates = table_predicates.parent
-    #         if check.in_subquery(table_predicates):
-    #             continue
-    #         if disambiguate_multi_tables:
-    #             table_predicates = table_predicates.transform(
-    #                 transform.extract_multi_table_predicates, tablename=tablename
-    #             )
-    #         if isinstance(table_predicates, exp.Expression):
-    #             all_table_predicates.append(table_predicates)
-    #     if len(all_table_predicates) == 0:
-    #         return ""
-    #     table_conditions_str = " AND ".join(
-    #         [c.sql(dialect=self.dialect) for c in all_table_predicates]
-    #     )
-    #     return table_conditions_str
 
     def infer_gen_constraints(self, start: int, end: int) -> dict:
         """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
