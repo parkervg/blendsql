@@ -30,6 +30,14 @@ def bsql() -> BlendSQL:
                     {"id": 10257, "name": "Italy"},
                 ]
             ),
+            "Food": pd.DataFrame(
+                [
+                    {"id": 1, "name": "Broccoli", "calories": 14},
+                    {"id": 10257, "name": "Pizza", "calories": 300},
+                    {"id": 4769, "name": "Celery", "calories": 1},
+                    {"id": 9999, "name": "Wasabi", "calories": 99},
+                ]
+            ),
         },
         ingredients={LLMQA, LLMMap, LLMJoin, starts_with},
     )
@@ -46,13 +54,12 @@ def test_many_aliases(bsql, model):
     )
 
 
-def test_join_with_duplicate_columns(bsql, model):
+def test_join_with_duplicate_columns(bsql):
     smoothie = bsql.execute(
         """
         SELECT l.name FROM League l
         JOIN Country c ON l.country_id = c.id
         WHERE {{starts_with('I', 'c::name')}}
         """,
-        model=model,
     )
     assert not smoothie.df.empty

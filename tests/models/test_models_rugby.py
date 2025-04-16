@@ -9,7 +9,7 @@ from blendsql.models import LiteLLM
 @pytest.fixture(scope="session")
 def bsql() -> BlendSQL:
     return BlendSQL(
-        fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db")
+        fetch_from_hub("1884_New_Zealand_rugby_union_tour_of_New_South_Wales_1.db"),
     )
 
 
@@ -97,7 +97,8 @@ def test_llmmap_with_string(bsql, model, ingredients):
         WHERE {{
               LLMMap(
                   "What's the full month name?",
-                  'w::date'
+                  'w::date',
+                  options='May;June;July'
               )
           }} = 'June'
         """,

@@ -76,6 +76,17 @@ def test_singers(bsql, model):
         model=model,
     )
 
+    _ = bsql.execute(
+        """
+        WITH musicians AS (
+            SELECT * FROM People p WHERE
+            {{LLMMap('Is a singer?', 'p::Name')}} = True
+        ) SELECT * FROM musicians WHERE
+        musicians.Name = {{LLMQA('Who wrote the song espresso?')}}
+        """,
+        infer_gen_constraints=True,
+    )
+
 
 def test_alphabet(bsql, constrained_model):
     smoothie = bsql.execute(
