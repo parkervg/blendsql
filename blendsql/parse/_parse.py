@@ -1,11 +1,12 @@
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
-from typing import Generator, List, Tuple, Union, Type, Optional, Dict, Any, Set
+from typing import Generator, List, Tuple, Union, Type, Optional, Dict, Any
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
+from ..utils import get_tablename_colname
 from .._constants import IngredientKwarg, ModifierType, DataTypes
 from ._dialect import _parse_one
 from . import _checks as check
@@ -124,12 +125,13 @@ class SubqueryContextManager:
     dialect: sqlglot.Dialect = attrib()
     node: exp.Select = attrib()
     prev_subquery_has_ingredient: bool = attrib()
-    columns_in_ingredients: Dict[str, Set[str]] = attrib()
+    ingredient_alias_to_parsed_dict: dict = attrib()
 
     # Keep a running log of what aliases we've initialized so far, per subquery
     alias_to_subquery: dict = attrib(default=None)
     alias_to_tablename: dict = attrib(init=False)
     tablename_to_alias: dict = attrib(init=False)
+    columns_referenced_by_ingredients: dict = attrib(init=False)
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
 
     def __attrs_post_init__(self):
@@ -137,6 +139,11 @@ class SubqueryContextManager:
         self.tablename_to_alias = {}
         # https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
         self.root = build_scope(self.node)
+        self.columns_referenced_by_ingredients = (
+            self.get_columns_referenced_by_ingredients(
+                self.ingredient_alias_to_parsed_dict
+            )
+        )
 
     def _reset_root(self):
         self.root = build_scope(self.node)
@@ -144,6 +151,34 @@ class SubqueryContextManager:
     def set_node(self, node):
         self.node = node
         self._reset_root()
+
+    def get_columns_referenced_by_ingredients(
+        self, ingredient_alias_to_parsed_dict: dict
+    ):
+        # TODO: call infer_gen_constraints() first, to populate `options`
+        columns_referenced_by_ingredients = {}
+        ingredient_aliases = [i.name for i in check.get_ingredient_nodes(self.node)]
+        for ingredient_alias in ingredient_aliases:
+            kwargs_dict = ingredient_alias_to_parsed_dict[ingredient_alias][
+                "kwargs_dict"
+            ]
+            for arg in {
+                # Below lists all arguments where a table may be referenced
+                # We omit `options`, since this should not take into account the
+                #   state of the subquery.
+                kwargs_dict.get("context", None),
+                kwargs_dict.get("left_on", None),
+                kwargs_dict.get("right_on", None),
+            }:
+                if arg is None:
+                    continue
+                # If `context` is a subquery, this gets executed on its own later.
+                if not check.is_blendsql_query(arg):
+                    tablename, columnname = get_tablename_colname(arg)
+                    if tablename not in columns_referenced_by_ingredients:
+                        columns_referenced_by_ingredients[tablename] = set()
+                    columns_referenced_by_ingredients[tablename].add(columnname)
+        return columns_referenced_by_ingredients
 
     def abstracted_table_selects(self) -> Generator[Tuple[str, bool, str], None, None]:
         """For each table in a given query, generates a `SELECT *` query where all unneeded predicates
@@ -209,7 +244,10 @@ class SubqueryContextManager:
             abstracted_query = self.node.transform(
                 transform.set_ingredient_nodes_to_true
             )
-            for tablename, columnnames in self.columns_in_ingredients.items():
+            for (
+                tablename,
+                columnnames,
+            ) in self.columns_referenced_by_ingredients.items():
                 yield (
                     self.alias_to_tablename.get(tablename, tablename),
                     self.node.find(exp.Join) is not None,
@@ -234,21 +272,8 @@ class SubqueryContextManager:
         # Happens with {{LLMQA()}} cases, where we get 'SELECT *'
         if abstracted_query.find(exp.Table) is None:
             return
-        # abstracted_query_str = abstracted_query.sql(dialect=self.dialect)
-        for tablename, columnnames in self.columns_in_ingredients.items():
+        for tablename, columnnames in self.columns_referenced_by_ingredients.items():
             # TODO: execute query once, and then separate out the results to their respective tables
-            # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
-            # Gives:
-            #   id  country_id                    name   id_1   name_1
-            #   0      1           1  Belgium Jupiler League      1  Belgium
-            #   1   1729        1729  England Premier League   1729  England
-            #   2   4769        4769          France Ligue 1   4769   France
-            #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
-            #   4  10257       10257           Italy Serie A  10257    Italy
-            # But, below we remove the columns with underscores. we need those.
-            # Here, we should:
-            #   1) Separate out the columns corresponding with each table
-            #   2) Only select those columns that we'll end up using in an ingredient
             yield (
                 self.alias_to_tablename.get(tablename, tablename),
                 self.node.find(exp.Join) is not None,
@@ -376,10 +401,11 @@ class SubqueryContextManager:
         if isinstance(start_node, (exp.EQ, exp.In)):
             if isinstance(start_node.args["this"], exp.Column):
                 if "table" not in start_node.args["this"].args:
-                    logger.debug(
-                        f"When inferring `options` in infer_gen_kwargs, encountered column node `{start_node}` with "
-                        "no table specified!\nShould probably mark `schema_qualify` arg as True"
-                    )
+                    if not check.contains_ingredient(start_node):
+                        logger.debug(
+                            f"When inferring `options` in infer_gen_kwargs, encountered column node `{start_node}` with "
+                            "no table specified!\nShould probably mark `schema_qualify` arg as True"
+                        )
                 else:
                     # This is valid for a default `options` set
                     added_kwargs[
