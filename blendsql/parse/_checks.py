@@ -10,9 +10,11 @@ INGREDIENT_PATTERN = re.compile("{{[A-Z]\(\)}}")
 
 
 def get_ingredient_count(node) -> int:
-    return len(
-        list(filter(lambda x: is_ingredient_node(x), node.find_all(exp.Identifier)))
-    )
+    return len(get_ingredient_nodes(node))
+
+
+def get_ingredient_nodes(node) -> list:
+    return list(filter(lambda x: is_ingredient_node(x), node.find_all(exp.Identifier)))
 
 
 def is_blendsql_query(s: str) -> bool:
