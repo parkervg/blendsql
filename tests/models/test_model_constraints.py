@@ -84,7 +84,7 @@ def test_singers(bsql, model):
         ) SELECT * FROM musicians WHERE
         musicians.Name = {{LLMQA('Who wrote the song espresso?')}}
         """,
-        infer_gen_constraints=True,
+        model=model,
     )
 
 
