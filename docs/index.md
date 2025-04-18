@@ -1,3 +1,7 @@
+---
+hide:
+  - toc
+---
 <div align="right">
 <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
 <a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
@@ -6,18 +10,13 @@
 <br>
 </div>
 
-<div align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo_dark.png">
-  <img alt="blendsql" src="docs/img/logo_light.png" width=350">
+<center>
+<picture>
+  <img alt="blendsql" src="img/logo_light.png" width=350">
 </picture>
-<p align="center">
+<br>
     <i> SQL 🤝 LLMs </i>
-  </p>
-<b><h3>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</h3></b>
-
-</div>
-<br/>
-
+<br><br>
 [Paper :simple-arxiv:](https://arxiv.org/pdf/2402.17882.pdf){ .md-button } [GitHub :simple-github:](https://github.com/parkervg/blendsql){ .md-button }
 
 <div class="index-pre-code">

@@ -6,9 +6,14 @@ import pandas as pd
 
 
 from blendsql import BlendSQL
-from blendsql.models import TransformersLLM
+from blendsql.models import LlamaCpp
 
-MODEL = TransformersLLM("HuggingFaceTB/SmolLM-135M", caching=False)
+MODEL = LlamaCpp(
+    "Phi-3.5-mini-instruct.Q6_K.gguf",
+    "QuantFactory/Phi-3.5-mini-instruct-GGUF",
+    config={"n_gpu_layers": -1, "n_ctx": 9600},
+    caching=False,
+)
 NUM_ITER_PER_QUERY = 5
 
 if __name__ == "__main__":
@@ -35,7 +40,11 @@ if __name__ == "__main__":
             query = open(query_file, "r").read()
             for x in range(NUM_ITER_PER_QUERY):
                 print("." * x, end="\r")
-                smoothie = bsql.execute(query)
+                try:
+                    smoothie = bsql.execute(query)
+                except Exception as e:
+                    print(f"Failed on {task_dir}.{query_file}")
+                    raise e
                 task_to_times[task_dir.name].append(smoothie.meta.process_time_seconds)
     tasks, avg_runtime, num_queries = [], [], []
     for task_name, times in task_to_times.items():

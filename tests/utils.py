@@ -47,6 +47,16 @@ class return_aapl(QAIngredient):
 
 
 class get_table_size(QAIngredient):
+    def __call__(
+        self,
+        context: str = None,
+        *args,
+        **kwargs,
+    ) -> tuple:
+        return super().__call__(
+            question=None, context=context, options=None, *args, **kwargs
+        )
+
     def run(self, context: pd.DataFrame, **kwargs) -> Union[str, int, float, tuple]:
         """Returns the length of the context subtable passed to it."""
         return len(context)

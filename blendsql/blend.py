@@ -598,44 +598,45 @@ def _blend(
                     + f"and setting to `{_get_temp_subquery_table(tablename)}`..."
                     + Fore.RESET
                 )
-                abstracted_df = db.execute_to_df(abstracted_query_str)
-                if aliased_subquery is None:
-                    if postprocess_columns:
-                        if isinstance(db, DuckDB):
-                            # TODO: fix this
-                            # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
-                            # Gives:
-                            #   id  country_id                    name   id_1   name_1
-                            #   0      1           1  Belgium Jupiler League      1  Belgium
-                            #   1   1729        1729  England Premier League   1729  England
-                            #   2   4769        4769          France Ligue 1   4769   France
-                            #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
-                            #   4  10257       10257           Italy Serie A  10257    Italy
-                            # But, below we remove the columns with underscores. we need those.
-                            set_of_column_names = set(schema[tablename])
-                            # In case of a join, duckdb formats columns with 'column_1'
-                            # But some columns (e.g. 'parent_category') just have underscores in them already
-                            abstracted_df = abstracted_df.rename(
-                                columns=lambda x: re.sub(r"_\d$", "", x)
-                                if x not in set_of_column_names  # noqa: B023
-                                else x
-                            )
-                        # In case of a join, we could have duplicate column names in our pandas dataframe
-                        # This will throw an error when we try to write to the database
-                        abstracted_df = abstracted_df.loc[
-                            :, ~abstracted_df.columns.duplicated()
-                        ]
-                db.to_temp_table(
-                    df=abstracted_df,
-                    tablename=_get_temp_subquery_table(tablename),
-                )
-                # except Exception as e:
-                #     # Fallback to naive execution
-                #     logger.debug(Fore.RED + str(e) + Fore.RESET)
-                #     logger.debug(
-                #         Fore.RED + "Falling back to naive execution..." + Fore.RESET
-                #     )
-                #     naive_execution = True
+                try:
+                    abstracted_df = db.execute_to_df(abstracted_query_str)
+                    if aliased_subquery is None:
+                        if postprocess_columns:
+                            if isinstance(db, DuckDB):
+                                # TODO: fix this
+                                # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
+                                # Gives:
+                                #   id  country_id                    name   id_1   name_1
+                                #   0      1           1  Belgium Jupiler League      1  Belgium
+                                #   1   1729        1729  England Premier League   1729  England
+                                #   2   4769        4769          France Ligue 1   4769   France
+                                #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
+                                #   4  10257       10257           Italy Serie A  10257    Italy
+                                # But, below we remove the columns with underscores. we need those.
+                                set_of_column_names = set(schema[tablename])
+                                # In case of a join, duckdb formats columns with 'column_1'
+                                # But some columns (e.g. 'parent_category') just have underscores in them already
+                                abstracted_df = abstracted_df.rename(
+                                    columns=lambda x: re.sub(r"_\d$", "", x)
+                                    if x not in set_of_column_names  # noqa: B023
+                                    else x
+                                )
+                            # In case of a join, we could have duplicate column names in our pandas dataframe
+                            # This will throw an error when we try to write to the database
+                            abstracted_df = abstracted_df.loc[
+                                :, ~abstracted_df.columns.duplicated()
+                            ]
+                    db.to_temp_table(
+                        df=abstracted_df,
+                        tablename=_get_temp_subquery_table(tablename),
+                    )
+                except Exception as e:
+                    # Fallback to naive execution
+                    logger.debug(Fore.RED + str(e) + Fore.RESET)
+                    logger.debug(
+                        Fore.RED + "Falling back to naive execution..." + Fore.RESET
+                    )
+                    naive_execution = True
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
             db.lazy_tables.add(
