@@ -588,6 +588,7 @@ class QAIngredient(Ingredient):
         if context is not None:
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
+                tablename = aliases_to_tablenames.get(tablename, tablename)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
                     subtable: pd.DataFrame = self.db.lazy_tables.pop(
