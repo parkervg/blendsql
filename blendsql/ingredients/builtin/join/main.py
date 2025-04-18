@@ -232,4 +232,10 @@ class LLMJoin(JoinIngredient):
                     Fore.RED
                     + f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
                 )
-        return {k: v for k, v in mapping.items() if v != "-"}  # type: ignore
+        final_mapping = {k: v for k, v in mapping.items() if v != "-"}  # type: ignore
+        logger.debug(
+            Fore.YELLOW
+            + f"Finished LLMJoin with values:\n{json.dumps({k: final_mapping[k] for k in list(final_mapping.keys())[:10]}, indent=4)}"
+            + Fore.RESET
+        )
+        return final_mapping
