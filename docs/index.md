@@ -17,6 +17,7 @@ hide:
 <br>
     <i> SQL 🤝 LLMs </i>
 <br><br>
+
 [Paper :simple-arxiv:](https://arxiv.org/pdf/2402.17882.pdf){ .md-button } [GitHub :simple-github:](https://github.com/parkervg/blendsql){ .md-button }
 
 <div class="index-pre-code">
