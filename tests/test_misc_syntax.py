@@ -3,6 +3,7 @@ import pandas as pd
 
 from blendsql import BlendSQL, config
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
+from blendsql.models import LlamaCpp
 from .utils import starts_with
 
 config.set_async_limit(1)
@@ -47,7 +48,7 @@ def test_many_aliases(bsql, model):
     _ = bsql.execute(
         """
         SELECT l.name FROM League l
-        JOIN Country c ON l.country_id = c.id
+        JOIN Country c ON l.id = c.id
         WHERE {{LLMMap('Is this country landlocked?', 'c::name')}} = TRUE
         """,
         model=model,
@@ -58,8 +59,21 @@ def test_join_with_duplicate_columns(bsql):
     smoothie = bsql.execute(
         """
         SELECT l.name FROM League l
-        JOIN Country c ON l.country_id = c.id
+        JOIN Country c ON l.id = c.id
         WHERE {{starts_with('I', 'c::name')}}
         """,
     )
     assert not smoothie.df.empty
+
+
+def test_llmqa_options_precedence(bsql, model):
+    smoothie = bsql.execute(
+        """
+        SELECT l.name FROM League l JOIN Country c ON l.id = c.id 
+        WHERE l.id < 4769  
+        AND l.name = {{LLMQA('Which of these is in Italy?')}}
+        """,
+        model=model,
+    )
+    if isinstance(model, LlamaCpp):
+        assert smoothie.df.empty
