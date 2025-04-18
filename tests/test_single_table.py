@@ -473,7 +473,7 @@ def test_exists_isolated_qa_call(bsql):
             SELECT * FROM transactions WHERE {{get_length('length', 'transactions::merchant')}} > 4 AND amount > 500
         ) OR (
             {{
-                get_table_size('Table size?', (select * from transactions where amount < 500))
+                get_table_size((select * from transactions where amount < 500))
             }}
         )
         """
@@ -653,11 +653,11 @@ def test_cte_with_ingredient(bsql):
         """
         WITH a AS (
             SELECT {{
-                get_table_size('Table size?', (select * from transactions where amount < 500))
+                get_table_size((select * from transactions where amount < 500))
             }} AS "size"
         ) SELECT {{
             get_table_size(
-                'Table size?', (select * from a where a.size > 0)
+                (select * from a where a.size > 0)
             )
         }}
         """
