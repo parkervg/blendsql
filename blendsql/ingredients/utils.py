@@ -1,4 +1,4 @@
-from typing import Union, List, Callable, Optional, Union
+import typing as t
 from collections.abc import Collection
 from functools import partialmethod, partial
 from ast import literal_eval
@@ -18,8 +18,8 @@ from blendsql._constants import (
 
 
 def initialize_retriever(
-    examples: List[Example], k: Optional[int] = None, **to_string_args
-) -> Callable[[str], List[Example]]:
+    examples: t.List[Example], k: t.Optional[int] = None, **to_string_args
+) -> t.Callable[[str], t.List[Example]]:
     """Initializes a DPR retriever over the few-shot examples provided."""
     if k is None or k == len(examples):
         # Just return all the examples everytime this is called
@@ -41,9 +41,9 @@ def initialize_retriever(
 
 
 def prepare_datatype(
-    options: Optional[Collection[str]],
-    output_type: Optional[Union[str, DataType]] = None,
-    modifier: Optional[ModifierType] = None,
+    options: t.Optional[Collection[str]],
+    output_type: t.Optional[t.Union[str, DataType]] = None,
+    modifier: t.Optional[ModifierType] = None,
 ) -> DataType:
     if output_type is None:
         resolved_output_type = DataTypes.ANY()
@@ -86,8 +86,8 @@ def prepare_datatype(
 
 
 def cast_responses_to_datatypes(
-    responses: List[Union[str, None]]
-) -> List[Union[float, int, str, bool]]:
+    responses: t.List[t.Union[str, None]]
+) -> t.List[t.Union[float, int, str, bool]]:
     responses = [  # type: ignore
         {
             "t": True,

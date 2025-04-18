@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from attr import attrs, attrib
-from typing import List, Iterable, Type, Set
+import typing as t
 
 from ..ingredients import Ingredient
 from ..grammars._peg_grammar import grammar as peg_grammar
@@ -30,11 +30,11 @@ class Examples:
 
     data: str = attrib()
 
-    split_data: List[str] = attrib(init=False)
+    split_data: t.List[str] = attrib(init=False)
 
     def __attrs_post_init__(self):
         self.data = self.data.strip()
-        self.split_data: list = self.data.split("---")
+        self.split_data: t.List[str] = self.data.split("---")
 
     def __getitem__(self, subscript):
         newline = (
@@ -54,7 +54,7 @@ class Examples:
     def __len__(self):
         return len(self.split_data)
 
-    def is_valid_query(self, query: str, ingredient_names: Set[str]) -> bool:
+    def is_valid_query(self, query: str, ingredient_names: t.Set[str]) -> bool:
         """Checks if a given query is valid given the ingredient_names passed.
         A query is invalid if it includes an ingredient that is not specified in ingredient_names.
         """
@@ -67,9 +67,9 @@ class Examples:
                     stack.append(arg)
         return True
 
-    def filter(self, ingredients: Iterable[Type[Ingredient]]) -> "Examples":
+    def filter(self, ingredients: t.Iterable[t.Type[Ingredient]]) -> "Examples":
         """Retrieve only those prompts which do not include any ingredient not specified in `ingredients`."""
-        ingredient_names: Set[str] = {
+        ingredient_names: t.Set[str] = {
             ingredient.__name__.upper() for ingredient in ingredients
         }
         filtered_split_data = []

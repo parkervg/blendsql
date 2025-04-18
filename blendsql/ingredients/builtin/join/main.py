@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable, Union
+import typing as t
 import json
 from colorama import Fore
 from pathlib import Path
@@ -13,7 +13,7 @@ from blendsql.ingredients.utils import initialize_retriever, partialclass
 
 from .examples import AnnotatedJoinExample, JoinExample
 
-DEFAULT_JOIN_FEW_SHOT: List[AnnotatedJoinExample] = [
+DEFAULT_JOIN_FEW_SHOT: t.List[AnnotatedJoinExample] = [
     AnnotatedJoinExample(**d)
     for d in json.loads(
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
@@ -29,19 +29,19 @@ class LLMJoin(JoinIngredient):
         `{{LLMJoin(left_on='table::column', right_on='table::column')}}`
     """
     model: Model = attrib(default=None)
-    few_shot_retriever: Callable[[str], List[AnnotatedJoinExample]] = attrib(
+    few_shot_retriever: t.Callable[[str], t.List[AnnotatedJoinExample]] = attrib(
         default=None
     )
 
     @classmethod
     def from_args(
         cls,
-        model: Optional[Model] = None,
+        model: t.Optional[Model] = None,
         use_skrub_joiner: bool = True,
-        few_shot_examples: Optional[
-            Union[List[dict], List[AnnotatedJoinExample]]
+        few_shot_examples: t.Optional[
+            t.Union[t.List[dict], t.List[AnnotatedJoinExample]]
         ] = None,
-        k: Optional[int] = None,
+        k: t.Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -102,10 +102,10 @@ class LLMJoin(JoinIngredient):
     def run(
         self,
         model: Model,
-        left_values: List[str],
-        right_values: List[str],
-        question: Optional[str] = None,
-        few_shot_retriever: Callable[[str], List[AnnotatedJoinExample]] = None,
+        left_values: t.List[str],
+        right_values: t.List[str],
+        question: t.Optional[str] = None,
+        few_shot_retriever: t.Callable[[str], t.List[AnnotatedJoinExample]] = None,
         **kwargs,
     ) -> dict:
         if question is None:
@@ -120,7 +120,7 @@ class LLMJoin(JoinIngredient):
                 "right_values": sorted(right_values),
             }
         )
-        few_shot_examples: List[AnnotatedJoinExample] = few_shot_retriever(
+        few_shot_examples: t.List[AnnotatedJoinExample] = few_shot_retriever(
             current_example.to_string()
         )
 

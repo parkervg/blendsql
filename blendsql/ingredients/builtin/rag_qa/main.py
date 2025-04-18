@@ -1,4 +1,4 @@
-from typing import Literal, Tuple, Optional
+import typing as t
 from collections.abc import Collection
 from textwrap import dedent
 
@@ -14,13 +14,13 @@ class RAGQA(AliasIngredient):
     def run(
         self,
         question: str,
-        source: Literal["bing"] = "bing",
-        options: Optional[Collection[str]] = None,
+        source: t.Literal["bing"] = "bing",
+        options: t.Optional[Collection[str]] = None,
         modifier: ModifierType = None,
-        output_type: Optional[str] = None,
+        output_type: t.Optional[str] = None,
         *args,
         **kwargs,
-    ) -> Tuple[str, Collection[Ingredient]]:
+    ) -> t.Tuple[str, Collection[Ingredient]]:
         '''Returns a subquery which first fetches relevant context from a source,
         and returns a retrieval-augmented LM generation.
 
@@ -63,7 +63,7 @@ class RAGQA(AliasIngredient):
             f"""
         {{{{
             LLMQA(
-                "{double_quote_escape(question)}", 
+                "{double_quote_escape(question)}",
                 (
                     SELECT {{{{
                         {rag_ingredient.__name__}("{double_quote_escape(question)}")

@@ -1,4 +1,4 @@
-from typing import Generator, List, Callable, Optional, Union
+import typing as t
 from collections.abc import Collection
 import pandas as pd
 from colorama import Fore
@@ -34,15 +34,15 @@ class SQLAlchemyDatabase(Database):
         self.con.close()
         self.con = self.engine.connect()
 
-    def tables(self) -> List[str]:
+    def tables(self) -> t.List[str]:
         return inspect(self.engine).get_table_names()
 
-    def iter_columns(self, tablename: str) -> Generator[str, None, None]:
+    def iter_columns(self, tablename: str) -> t.Generator[str, None, None]:
         if tablename in self.tables():
             for column_data in inspect(self.engine).get_columns(tablename):
                 yield column_data["name"]
 
-    def schema_string(self, use_tables: Optional[Collection[str]] = None) -> str:
+    def schema_string(self, use_tables: t.Optional[t.Collection[str]] = None) -> str:
         create_table_stmts = []
         for table in self.metadata.sorted_tables:
             if use_tables:
@@ -55,10 +55,10 @@ class SQLAlchemyDatabase(Database):
         self,
         num_rows: int = 3,
         truncate_content: int = 300,
-        use_tables: Optional[Collection[str]] = None,
-        include_content: Union[str, Collection[str]] = "all",
+        use_tables: t.Optional[t.Collection[str]] = None,
+        include_content: t.Union[str, Collection[str]] = "all",
         use_bridge_encoder: bool = False,
-        question: Optional[str] = None,
+        question: t.Optional[str] = None,
     ) -> str:
         """Returns a string representation of the database, with example rows."""
         from .bridge_content_encoder import get_database_matches
@@ -130,7 +130,9 @@ class SQLAlchemyDatabase(Database):
         self.con.execute(text(create_table_stmt))
         df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
-    def execute_to_df(self, query: str, params: Optional[dict] = None) -> pd.DataFrame:
+    def execute_to_df(
+        self, query: str, params: t.Optional[dict] = None
+    ) -> pd.DataFrame:
         """
         Execute the given query and return results as dataframe.
 
@@ -151,7 +153,7 @@ class SQLAlchemyDatabase(Database):
         """
         return pd.read_sql(text(query), self.con, params=params)
 
-    def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
+    def execute_to_list(self, query: str, to_type: t.Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.
         Returns results as a tuple.
         """

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Iterable, Type
+import typing as t
 import pandas as pd
 
 from .ingredients import Ingredient
@@ -21,9 +21,9 @@ class SmoothieMeta:
     num_generation_calls: int  # Number of generation calls made to the model
     prompt_tokens: int
     completion_tokens: int
-    prompts: List[dict]  # Log of prompts submitted to model
-    raw_prompts: List[str]
-    ingredients: Iterable[Type[Ingredient]]
+    prompts: t.List[dict]  # Log of prompts submitted to model
+    raw_prompts: t.List[str]
+    ingredients: t.Iterable[t.Type[Ingredient]]
     query: str
     db_url: str
     contains_ingredient: bool = True

@@ -4,7 +4,7 @@ import time
 import uuid
 import pandas as pd
 import re
-from typing import Dict, List, Set, Tuple, Generator, Optional, Callable, Type, Union
+import typing as t
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
 import sqlglot
@@ -50,7 +50,7 @@ class Kitchen(list):
     db: Database = attrib()
     session_uuid: str = attrib()
 
-    name_to_ingredient: Dict[str, Ingredient] = attrib(init=False)
+    name_to_ingredient: t.Dict[str, Ingredient] = attrib(init=False)
 
     def __attrs_post_init__(self):
         self.name_to_ingredient = {}
@@ -67,7 +67,7 @@ class Kitchen(list):
             ) from None
 
     def extend(
-        self, ingredients: Iterable[Type[Ingredient]], flag_duplicates: bool = True
+        self, ingredients: Iterable[t.Type[Ingredient]], flag_duplicates: bool = True
     ) -> None:
         """Initializes ingredients class with base attributes, for use in later operations."""
         try:
@@ -100,7 +100,7 @@ class Kitchen(list):
 
 
 def autowrap_query(
-    query: str, kitchen: Kitchen, ingredient_alias_to_parsed_dict: Dict[str, dict]
+    query: str, kitchen: Kitchen, ingredient_alias_to_parsed_dict: t.Dict[str, dict]
 ) -> str:
     """
     Check to see if we have some BlendSQL ingredient syntax that needs to be formatted differently
@@ -143,7 +143,7 @@ def preprocess_blendsql(
     kitchen: Kitchen,
     ingredients: Collection[Ingredient],
     default_model: Model,
-) -> Tuple[str, dict, set, Kitchen, Set[Ingredient]]:
+) -> t.Tuple[str, dict, set, Kitchen, t.Set[Ingredient]]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
 
@@ -183,9 +183,8 @@ def preprocess_blendsql(
         )
         ```
     """
-    ingredient_alias_to_parsed_dict: Dict[str, dict] = {}
-    ingredient_str_to_alias: Dict[str, str] = {}
-    columns_in_ingredients: Dict[str, Set[str]] = {}
+    ingredient_alias_to_parsed_dict: t.Dict[str, dict] = {}
+    ingredient_str_to_alias: t.Dict[str, str] = {}
     query = re.sub(r"(\s+)", " ", query)
     reversed_scan_res = [scan_res for scan_res in grammar.scanString(query)][::-1]
     for idx, (parse_results, start, end) in enumerate(reversed_scan_res):
@@ -298,7 +297,7 @@ def materialize_cte(
     aliasname: str,
     db: Database,
     default_model: Model,
-    ingredient_alias_to_parsed_dict: Dict[str, dict],
+    ingredient_alias_to_parsed_dict: t.Dict[str, dict],
     **kwargs,
 ) -> pd.DataFrame:
     str_subquery = subquery.sql(dialect=query_context.dialect)
@@ -330,7 +329,7 @@ def get_sorted_grammar_matches(
     q: str,
     ingredient_alias_to_parsed_dict: dict,
     kitchen: Kitchen,
-) -> Generator[Tuple[int, int, str, dict, Ingredient], None, None]:
+) -> t.Generator[t.Tuple[int, int, str, dict, Ingredient], None, None]:
     """
     Yields parsed matches from grammar, according to a specified order of operations.
 
@@ -381,7 +380,7 @@ def get_sorted_grammar_matches(
 
 
 def disambiguate_and_submit_blend(
-    ingredient_alias_to_parsed_dict: Dict[str, dict],
+    ingredient_alias_to_parsed_dict: t.Dict[str, dict],
     query: str,
     aliasname: str,
     **kwargs,
@@ -400,11 +399,11 @@ def disambiguate_and_submit_blend(
 def _blend(
     query: str,
     db: Database,
-    default_model: Optional[Model] = None,
-    ingredients: Optional[Collection[Type[Ingredient]]] = None,
+    default_model: t.Optional[Model] = None,
+    ingredients: t.Optional[Collection[t.Type[Ingredient]]] = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
-    table_to_title: Optional[Dict[str, str]] = None,
+    table_to_title: t.Optional[t.Dict[str, str]] = None,
     schema_qualify: bool = True,
     _prev_passed_values: int = 0,
 ) -> Smoothie:
@@ -496,9 +495,9 @@ def _blend(
         # Re-parse with schema, but utilize the previous sqlglot parse
         query_context.parse(query_context.node, schema=schema)
 
-    _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
+    _get_temp_session_table: t.Callable = partial(get_temp_session_table, session_uuid)
     # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
-    function_call_to_res: Dict[str, str] = {}
+    function_call_to_res: t.Dict[str, str] = {}
     session_modified_tables = set()
     scm = None
     # TODO: Currently, as we traverse upwards from deepest subquery,
@@ -513,9 +512,9 @@ def _blend(
             subquery = subquery.transform(transform.remove_nodetype, exp.With)
         # Only cache executed_ingredients within the same subquery
         # The same ingredient may have different results within a different subquery context
-        executed_subquery_ingredients: Set[str] = set()
-        prev_subquery_map_columns: Set[str] = set()
-        _get_temp_subquery_table: Callable = partial(
+        executed_subquery_ingredients: t.Set[str] = set()
+        prev_subquery_map_columns: t.Set[str] = set()
+        _get_temp_subquery_table: t.Callable = partial(
             get_temp_subquery_table, session_uuid, subquery_idx
         )
         if not isinstance(subquery, exp.Select):
@@ -668,7 +667,7 @@ def _blend(
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
         # 2) Track when we've created a new table from a MapIngredient call
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
-        tablename_to_map_out: Dict[str, List[pd.DataFrame]] = {}
+        tablename_to_map_out: t.Dict[str, t.List[pd.DataFrame]] = {}
         for (
             start,
             end,
@@ -990,13 +989,15 @@ class BlendSQL:
             queries. Defaults to True.
     """
 
-    db: Union[pd.DataFrame, dict, str, Database] = field(default=None)
-    model: Optional[Model] = field(default=None)
-    ingredients: Optional[Collection[Type[Ingredient]]] = field(default_factory=list)
+    db: t.Union[pd.DataFrame, dict, str, Database] = field(default=None)
+    model: t.Optional[Model] = field(default=None)
+    ingredients: t.Optional[Collection[t.Type[Ingredient]]] = field(
+        default_factory=list
+    )
 
     verbose: bool = field(default=False)
     infer_gen_constraints: bool = field(default=True)
-    table_to_title: Optional[Dict[str, str]] = field(default=None)
+    table_to_title: t.Optional[t.Dict[str, str]] = field(default=None)
     schema_qualify: bool = field(default=True)
 
     def __post_init__(self):
@@ -1035,10 +1036,10 @@ class BlendSQL:
     def execute(
         self,
         query: str,
-        ingredients: Optional[Collection[Type[Ingredient]]] = None,
-        model: Optional[str] = None,
-        infer_gen_constraints: Optional[bool] = None,
-        schema_qualify: Optional[bool] = None,
+        ingredients: t.Optional[Collection[t.Type[Ingredient]]] = None,
+        model: t.Optional[str] = None,
+        infer_gen_constraints: t.Optional[bool] = None,
+        schema_qualify: t.Optional[bool] = None,
     ) -> Smoothie:
         '''The `execute()` function is used to execute a BlendSQL query against a database and
         return the final result, in addition to the intermediate reasoning steps taken.

@@ -3,7 +3,7 @@ from abc import abstractmethod
 import pandas as pd
 from sqlglot import exp
 import json
-from typing import Any, Union, Dict, Tuple, Callable, Set, Optional, Type, List
+import typing as t
 from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
@@ -36,11 +36,11 @@ class Ingredient:
     db: Database = attrib()
     session_uuid: str = attrib()
 
-    few_shot_retriever: Callable[[str], List[Example]] = attrib(default=None)
+    few_shot_retriever: t.Callable[[str], t.List[Example]] = attrib(default=None)
     list_options_in_prompt: bool = attrib(default=True)
 
     ingredient_type: str = attrib(init=False)
-    allowed_output_types: Tuple[Type] = attrib(init=False)
+    allowed_output_types: t.Tuple[t.Type] = attrib(init=False)
 
     num_values_passed: int = 0
 
@@ -51,19 +51,19 @@ class Ingredient:
         return f"{self.ingredient_type} {self.name}"
 
     @abstractmethod
-    def run(self, *args, **kwargs) -> Any:
+    def run(self, *args, **kwargs) -> t.Any:
         ...
 
     @abstractmethod
-    def __call__(self, *args, **kwargs) -> Any:
+    def __call__(self, *args, **kwargs) -> t.Any:
         ...
 
     def _run(self, *args, **kwargs):
         return check_type(self.run(*args, **kwargs), self.allowed_output_types)
 
     def maybe_get_temp_table(
-        self, temp_table_func: Callable, tablename: str
-    ) -> Tuple[str, bool]:
+        self, temp_table_func: t.Callable, tablename: str
+    ) -> t.Tuple[str, bool]:
         temp_tablename = temp_table_func(tablename)
         if self.db.has_temp_table(temp_tablename):
             # We've already applied some operation to this table
@@ -73,9 +73,9 @@ class Ingredient:
 
     def unpack_options(
         self,
-        options: Union[List[str], str],
-        aliases_to_tablenames: Dict[str, str],
-    ) -> Union[Set[str], None]:
+        options: t.Union[t.List[str], str],
+        aliases_to_tablenames: t.Dict[str, str],
+    ) -> t.Union[t.Set[str], None]:
         unpacked_options = options
         if not isinstance(options, list):
             try:
@@ -151,7 +151,7 @@ class AliasIngredient(Ingredient):
     '''
 
     ingredient_type: str = IngredientType.ALIAS.value
-    allowed_output_types: Tuple[Type] = (Tuple[str, Collection[Ingredient]],)
+    allowed_output_types: t.Tuple[t.Type] = (t.Tuple[str, Collection[Ingredient]],)
 
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
@@ -202,25 +202,25 @@ class MapIngredient(Ingredient):
     '''
 
     ingredient_type: str = IngredientType.MAP.value
-    allowed_output_types: Tuple[Type] = (Iterable[Any],)
+    allowed_output_types: t.Tuple[t.Type] = (t.Iterable[t.Any],)
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
 
     def __call__(
         self,
-        question: Optional[str] = None,
-        context: Optional[str] = None,
-        options: Optional[Union[list, str]] = None,
+        question: t.Optional[str] = None,
+        context: t.Optional[str] = None,
+        options: t.Optional[t.Union[list, str]] = None,
         *args,
         **kwargs,
     ) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
-        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
-        get_temp_session_table: Callable = kwargs["get_temp_session_table"]
-        prev_subquery_map_columns: Set[str] = kwargs["prev_subquery_map_columns"]
+        aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: t.Callable = kwargs["get_temp_subquery_table"]
+        get_temp_session_table: t.Callable = kwargs["get_temp_session_table"]
+        prev_subquery_map_columns: t.Set[str] = kwargs["prev_subquery_map_columns"]
 
         tablename, colname = utils.get_tablename_colname(context)
         tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -289,9 +289,9 @@ class MapIngredient(Ingredient):
 
         kwargs[IngredientKwarg.VALUES] = values
         kwargs[IngredientKwarg.QUESTION] = question
-        mapped_values: Collection[Any] = self._run(*args, **self.__dict__ | kwargs)
+        mapped_values: Collection[t.Any] = self._run(*args, **self.__dict__ | kwargs)
         self.num_values_passed += len(mapped_values)
-        df_as_dict: Dict[str, list] = {colname: [], new_arg_column: []}
+        df_as_dict: t.Dict[str, list] = {colname: [], new_arg_column: []}
         for value, mapped_value in zip(values, mapped_values):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
@@ -314,7 +314,7 @@ class MapIngredient(Ingredient):
         return (new_arg_column, tablename, colname, new_table)
 
     @abstractmethod
-    def run(self, *args, **kwargs) -> Iterable[Any]:
+    def run(self, *args, **kwargs) -> Iterable[t.Any]:
         ...
 
 
@@ -351,27 +351,27 @@ class JoinIngredient(Ingredient):
     use_skrub_joiner: bool = attrib(default=True)
 
     ingredient_type: str = IngredientType.JOIN.value
-    allowed_output_types: Tuple[Type] = (dict,)
+    allowed_output_types: t.Tuple[t.Type] = (dict,)
 
     def __call__(
         self,
-        left_on: Optional[str] = None,
-        right_on: Optional[str] = None,
-        question: Optional[str] = None,
+        left_on: t.Optional[str] = None,
+        right_on: t.Optional[str] = None,
+        question: t.Optional[str] = None,
         *args,
         **kwargs,
     ) -> tuple:
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
-        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
-        get_temp_session_table: Callable = kwargs["get_temp_session_table"]
+        aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: t.Callable = kwargs["get_temp_subquery_table"]
+        get_temp_session_table: t.Callable = kwargs["get_temp_session_table"]
         # Depending on the size of the underlying data, it may be optimal to swap
         #   the order of 'left_on' and 'right_on' columns during processing
         swapped = False
         values = []
         original_lr_identifiers = []
         modified_lr_identifiers = []
-        mapping: Dict[str, str] = {}
+        mapping: t.Dict[str, str] = {}
         for on_arg in [left_on, right_on]:
             tablename, colname = utils.get_tablename_colname(on_arg)
             tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -467,7 +467,7 @@ class JoinIngredient(Ingredient):
             )
 
             kwargs[IngredientKwarg.QUESTION] = question
-            _predicted_mapping: Dict[str, str] = self._run(
+            _predicted_mapping: t.Dict[str, str] = self._run(
                 *args, **self.__dict__ | kwargs
             )
             mapping = mapping | _predicted_mapping
@@ -570,21 +570,21 @@ class QAIngredient(Ingredient):
     '''
 
     ingredient_type: str = IngredientType.QA.value
-    allowed_output_types: Tuple[Type] = (Union[str, int, float, tuple],)
+    allowed_output_types: t.Tuple[t.Type] = (t.Union[str, int, float, tuple],)
 
     def __call__(
         self,
-        question: Optional[str] = None,
-        context: Optional[Union[str, pd.DataFrame]] = None,
-        options: Optional[Union[list, str]] = None,
+        question: t.Optional[str] = None,
+        context: t.Optional[t.Union[str, pd.DataFrame]] = None,
+        options: t.Optional[t.Union[list, str]] = None,
         *args,
         **kwargs,
-    ) -> Tuple[Union[str, int, float], Optional[exp.Expression]]:
+    ) -> t.Tuple[t.Union[str, int, float, tuple], t.Optional[exp.Expression]]:
         # Unpack kwargs
         aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
         get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
 
-        subtable: Union[pd.DataFrame, None] = None
+        subtable: t.Union[pd.DataFrame, None] = None
         if context is not None:
             if isinstance(context, str):
                 tablename, colname = utils.get_tablename_colname(context)
@@ -618,7 +618,7 @@ class QAIngredient(Ingredient):
         self.num_values_passed += len(subtable) if subtable is not None else 0
         kwargs[IngredientKwarg.CONTEXT] = subtable
         kwargs[IngredientKwarg.QUESTION] = question
-        response: Union[str, int, float, tuple] = self._run(
+        response: t.Union[str, int, float, tuple] = self._run(
             *args, **self.__dict__ | kwargs
         )
         if isinstance(response, tuple):
@@ -628,7 +628,7 @@ class QAIngredient(Ingredient):
         return response
 
     @abstractmethod
-    def run(self, *args, **kwargs) -> Union[str, int, float, tuple]:
+    def run(self, *args, **kwargs) -> t.Union[str, int, float, tuple]:
         ...
 
 
@@ -637,7 +637,7 @@ class StringIngredient(Ingredient):
     """Outputs a string to be placed directly into the SQL query."""
 
     ingredient_type: str = IngredientType.STRING.value
-    allowed_output_types: Tuple[Type] = (str,)
+    allowed_output_types: t.Tuple[t.Type] = (str,)
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)

@@ -1,7 +1,7 @@
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
-from typing import Generator, List, Tuple, Union, Type, Optional, Dict, Any
+import typing as t
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
@@ -16,7 +16,7 @@ from ._utils import set_select_to
 from .._logger import logger
 
 
-def get_predicate_literals(node) -> List[str]:
+def get_predicate_literals(node) -> t.List[str]:
     """From a given SQL clause, gets all literals appearing as object of predicate.
     (We treat booleans as literals here, which might be a misuse of terminology.)
 
@@ -63,11 +63,11 @@ def get_reversed_subqueries(node):
 
 
 def get_scope_nodes(
-    nodetype: Type[exp.Expression],
+    nodetype: t.Type[exp.Expression],
     restrict_scope: bool = False,
-    root: Optional[sqlglot.optimizer.Scope] = None,
-    node: Optional[exp.Expression] = None,
-) -> Generator:
+    root: t.Optional[sqlglot.optimizer.Scope] = None,
+    node: t.Optional[exp.Expression] = None,
+) -> t.Generator:
     """Utility to get nodes of a certain type within our subquery scope.
 
     https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
@@ -105,7 +105,7 @@ class QueryContextManager:
     _query: str = attrib(default=None)
     _last_to_string_node: exp.Expression = None
 
-    def parse(self, query, schema: Optional[Union[dict, Schema]] = None):
+    def parse(self, query, schema: t.Optional[t.Union[dict, Schema]] = None):
         self._query = query
         self.node = _parse_one(query, dialect=self.dialect, schema=schema)
 
@@ -180,7 +180,9 @@ class SubqueryContextManager:
                     columns_referenced_by_ingredients[tablename].add(columnname)
         return columns_referenced_by_ingredients
 
-    def abstracted_table_selects(self) -> Generator[Tuple[str, bool, str], None, None]:
+    def abstracted_table_selects(
+        self,
+    ) -> t.Generator[t.Tuple[str, bool, str], None, None]:
         """For each table in a given query, generates a `SELECT *` query where all unneeded predicates
         are set to `TRUE`.
         We say `unneeded` in the sense that to minimize the data that gets passed to an ingredient,
@@ -285,7 +287,7 @@ class SubqueryContextManager:
 
     def _gather_alias_mappings(
         self,
-    ) -> Generator[Tuple[str, exp.Select], None, None]:
+    ) -> t.Generator[t.Tuple[str, exp.Select], None, None]:
         """For each table in the select query, generates a new query
             selecting all columns with the given predicates (Relationships like x = y, x > 1, x >= y).
 
@@ -375,7 +377,7 @@ class SubqueryContextManager:
                 - options: Optional str default to pass to `options` argument in a QAIngredient
                     - Will have the form '{table}::{column}'
         """
-        added_kwargs: Dict[str, Any] = {}
+        added_kwargs: t.Dict[str, Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end], dialect=self.dialect)
         if isinstance(ingredient_node, exp.Column):
             ingredient_node = ingredient_node.find(exp.Identifier)
@@ -394,7 +396,7 @@ class SubqueryContextManager:
             start_node = child
         else:
             start_node = child.parent
-        predicate_literals: List[str] = []
+        predicate_literals: t.List[str] = []
         modifier: ModifierType = None
         # Check for instances like `{column} = {QAIngredient}`
         # where we can infer the space of possible options for QAIngredient

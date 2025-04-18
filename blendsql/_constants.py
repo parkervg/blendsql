@@ -1,4 +1,4 @@
-from typing import Literal, Union, Optional, Dict
+import typing as t
 from enum import Enum, EnumMeta
 from dataclasses import dataclass
 
@@ -15,7 +15,7 @@ DEFAULT_NAN_ANS = "-"
 
 # The 'modifier' arg can be either '*' or '+',
 #   or any string matching '{\d+}'
-ModifierType = Union[Literal["*", "+"], str, None]
+ModifierType = t.Union[t.Literal["*", "+"], str, None]
 
 
 class IngredientType(str, Enum, metaclass=StrInMeta):
@@ -41,8 +41,8 @@ class IngredientKwarg:
 @dataclass
 class DataType:
     _name: str
-    regex: Optional[str]
-    modifier: Optional[ModifierType]
+    regex: t.Optional[str]
+    modifier: t.Optional[ModifierType]
 
     @property
     def name(self) -> str:
@@ -66,7 +66,7 @@ class DataTypes:
     ANY = lambda modifier=None: DataType("Any", None, modifier)
 
 
-STR_TO_DATATYPE: Dict[str, DataType] = {
+STR_TO_DATATYPE: t.Dict[str, DataType] = {
     "str": DataTypes.STR(),
     "int": DataTypes.INT(),
     "float": DataTypes.FLOAT(),

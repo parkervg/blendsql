@@ -3,7 +3,7 @@ import copy
 import re
 from ast import literal_eval
 from pathlib import Path
-from typing import Union, Optional, Callable, List
+import typing as t
 from collections.abc import Collection
 import pandas as pd
 import json
@@ -30,7 +30,7 @@ from .examples import QAExample, AnnotatedQAExample
 MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
 LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
 SHORT_ANSWER_INSTRUCTION = "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
-DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
+DEFAULT_QA_FEW_SHOT: t.List[AnnotatedQAExample] = [
     AnnotatedQAExample(**d)
     for d in json.loads(
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
@@ -38,7 +38,7 @@ DEFAULT_QA_FEW_SHOT: List[AnnotatedQAExample] = [
 ]
 
 
-def get_option_aliases(options: Optional[List[str]]):
+def get_option_aliases(options: t.Optional[t.List[str]]):
     options_alias_to_original = {}
     options_with_aliases = None
     if options is not None:
@@ -71,23 +71,27 @@ class LLMQA(QAIngredient):
         For example: `... WHERE column = {{LLMQA('question', (blendsql), options='table::column)}}`
     """
     model: Model = attrib(default=None)
-    context_formatter: Callable[[pd.DataFrame], str] = attrib(
+    context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
         default=lambda df: df.to_markdown(index=False)
     )
     list_options_in_prompt: bool = attrib(default=True)
-    few_shot_retriever: Callable[[str], List[AnnotatedQAExample]] = attrib(default=None)
-    k: Optional[int] = attrib(default=None)
+    few_shot_retriever: t.Callable[[str], t.List[AnnotatedQAExample]] = attrib(
+        default=None
+    )
+    k: t.Optional[int] = attrib(default=None)
 
     @classmethod
     def from_args(
         cls,
-        model: Optional[Model] = None,
-        few_shot_examples: Optional[Union[List[dict], List[AnnotatedQAExample]]] = None,
-        context_formatter: Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
+        model: t.Optional[Model] = None,
+        few_shot_examples: t.Optional[
+            t.Union[t.List[dict], t.List[AnnotatedQAExample]]
+        ] = None,
+        context_formatter: t.Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
             index=False
         ),
         list_options_in_prompt: bool = True,
-        k: Optional[int] = None,
+        k: t.Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -163,18 +167,20 @@ class LLMQA(QAIngredient):
         self,
         model: Model,
         question: str,
-        context_formatter: Callable[[pd.DataFrame], str],
+        context_formatter: t.Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
-        few_shot_retriever: Optional[Callable[[str], List[AnnotatedQAExample]]] = None,
-        options: Optional[Collection[str]] = None,
+        few_shot_retriever: t.Optional[
+            t.Callable[[str], t.List[AnnotatedQAExample]]
+        ] = None,
+        options: t.Optional[Collection[str]] = None,
         modifier: ModifierType = None,
-        output_type: Optional[Union[DataType, str]] = None,
-        regex: Optional[str] = None,
-        context: Optional[pd.DataFrame] = None,
-        value_limit: Optional[int] = None,
+        output_type: t.Optional[t.Union[DataType, str]] = None,
+        regex: t.Optional[str] = None,
+        context: t.Optional[pd.DataFrame] = None,
+        value_limit: t.Optional[int] = None,
         long_answer: bool = False,
         **kwargs,
-    ) -> Union[str, int, float, tuple]:
+    ) -> t.Union[str, int, float, tuple]:
         """
         Args:
             question: The question to map onto the values. Will also be the new column name
@@ -216,7 +222,7 @@ class LLMQA(QAIngredient):
                 "output_type": output_type,
             }
         )
-        few_shot_examples: List[AnnotatedQAExample] = few_shot_retriever(
+        few_shot_examples: t.List[AnnotatedQAExample] = few_shot_retriever(
             current_example.to_string(context_formatter)
         )
 
@@ -240,7 +246,7 @@ class LLMQA(QAIngredient):
 
             def get_modifier_wrapper(
                 modifier: ModifierType,
-            ) -> Callable[[guidance.models.Model], guidance.models.Model]:
+            ) -> t.Callable[[guidance.models.Model], guidance.models.Model]:
                 modifier_wrapper = lambda x: x
                 if modifier is not None:
                     if modifier == "*":
@@ -267,8 +273,8 @@ class LLMQA(QAIngredient):
                 lm,
                 force_quotes: bool,
                 modifier=None,
-                options: Optional[List[str]] = None,
-                regex: Optional[str] = None,
+                options: t.Optional[t.List[str]] = None,
+                regex: t.Optional[str] = None,
             ):
                 if options:
                     single_item = guidance.select(
@@ -412,7 +418,7 @@ class LLMQA(QAIngredient):
         # Map from modified options to original, as they appear in DB
         if not isinstance(response, (list, tuple, set)):
             response = [response]
-        response: List[str] = [
+        response: t.List[str] = [
             options_alias_to_original.get(str(r), r) for r in response
         ]
         if len(response) == 1 and not is_list_output:

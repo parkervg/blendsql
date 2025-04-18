@@ -1,6 +1,5 @@
 from pathlib import Path
-from typing import Optional, List, Dict, Type
-from collections.abc import Collection
+import typing as t
 from string import Template
 from colorama import Fore
 
@@ -10,7 +9,7 @@ from .._constants import IngredientType
 from .minEarley.parser import EarleyParser
 
 
-def format_ingredient_names_to_lark(names: List[str]) -> str:
+def format_ingredient_names_to_lark(names: t.List[str]) -> str:
     """Formats list of ingredient names the way our Lark grammar expects.
 
     Examples:
@@ -23,7 +22,7 @@ def format_ingredient_names_to_lark(names: List[str]) -> str:
 
 
 def load_cfg_parser(
-    ingredients: Optional[Collection[Type[Ingredient]]] = None,
+    ingredients: t.Optional[t.Collection[t.Type[Ingredient]]] = None,
 ) -> EarleyParser:
     """Loads BlendSQL CFG parser.
     Dynamically modifies grammar string to include only valid ingredients.
@@ -36,10 +35,10 @@ def load_cfg_parser(
         ingredients = set()
     with open(Path(__file__).parent / "./_cfg_grammar.lark", encoding="utf-8") as f:
         cfg_grammar = Template(f.read())
-    blendsql_join_functions: List[str] = []
-    blendsql_aggregate_functions: List[str] = []
-    blendsql_scalar_functions: List[str] = []
-    ingredient_type_to_function_type: Dict[str, List[str]] = {
+    blendsql_join_functions: t.List[str] = []
+    blendsql_aggregate_functions: t.List[str] = []
+    blendsql_scalar_functions: t.List[str] = []
+    ingredient_type_to_function_type: t.Dict[str, t.List[str]] = {
         IngredientType.JOIN: blendsql_join_functions,
         IngredientType.QA: blendsql_aggregate_functions,
         IngredientType.MAP: blendsql_scalar_functions,

@@ -1,6 +1,6 @@
 import re
 import pandas as pd
-from typing import Callable, Optional
+import typing as t
 from attr import attrs, attrib
 
 
@@ -12,7 +12,7 @@ class LazyTable:
     """
 
     tablename: str = attrib()
-    collect: Callable[..., pd.DataFrame] = attrib()
+    collect: t.Callable[..., pd.DataFrame] = attrib()
 
     def __str__(self):
         return self.tablename
@@ -47,7 +47,7 @@ def escape(s):
     return single_quote_escape(double_quote_escape(s))
 
 
-def format_tuple(value: tuple, wrap_in_parentheses: Optional[bool] = True):
+def format_tuple(value: tuple, wrap_in_parentheses: t.Optional[bool] = True):
     formatted = ",".join(repr(v) for v in value)
     if wrap_in_parentheses:
         formatted = "(" + formatted + ")"

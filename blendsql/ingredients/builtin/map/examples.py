@@ -1,6 +1,5 @@
 from attr import attrs, attrib, Factory
-from typing import Optional, List, Dict
-from collections.abc import Collection
+import typing as t
 
 from blendsql.ingredients.few_shot import Example
 from blendsql._constants import DataType, STR_TO_DATATYPE
@@ -15,10 +14,10 @@ class _MapExample(Example):
         converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
         default=None,
     )
-    options: Optional[Collection[str]] = attrib(default=None)
-    example_outputs: Optional[List[str]] = attrib(default=None)
-    values: Optional[List[str]] = attrib(default=None)
-    mapping: Optional[Dict[str, str]] = attrib(default=None)
+    options: t.Optional[t.Collection[str]] = attrib(default=None)
+    example_outputs: t.Optional[t.List[str]] = attrib(default=None)
+    values: t.Optional[t.List[str]] = attrib(default=None)
+    mapping: t.Optional[t.Dict[str, str]] = attrib(default=None)
 
     def to_string(
         self, include_values: bool = True, list_options: bool = True, *args, **kwargs
@@ -49,9 +48,9 @@ class _MapExample(Example):
 
 @attrs(kw_only=True)
 class MapExample(_MapExample):
-    values: List[str] = attrib(default=None)
+    values: t.List[str] = attrib(default=None)
 
 
 @attrs(kw_only=True)
 class AnnotatedMapExample(_MapExample):
-    mapping: Dict[str, str] = attrib(default=Factory(dict))
+    mapping: t.Dict[str, str] = attrib(default=Factory(dict))

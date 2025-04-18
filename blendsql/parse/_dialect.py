@@ -1,5 +1,4 @@
-from typing import Dict
-
+import typing as t
 import itertools
 import sqlglot.dialects
 from sqlglot.dialects import SQLite, Postgres, DuckDB
@@ -14,7 +13,7 @@ import string
 
 from blendsql.parse._checks import INGREDIENT_PATTERN, is_ingredient_node
 
-INGREDIENT_TOKEN_TYPE_MAPPING: Dict[str, TokenType] = {
+INGREDIENT_TOKEN_TYPE_MAPPING: t.Dict[str, TokenType] = {
     "{{" + f"{letter}()" + "}}": TokenType.FUNCTION for letter in string.ascii_uppercase
 }
 

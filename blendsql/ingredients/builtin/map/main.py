@@ -1,6 +1,6 @@
 import copy
 import os
-from typing import Union, Optional, List, Callable
+import typing as t
 from collections.abc import Collection
 from pathlib import Path
 import json
@@ -25,7 +25,7 @@ from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_I
 from blendsql._constants import DataType
 from .examples import AnnotatedMapExample, MapExample
 
-DEFAULT_MAP_FEW_SHOT: List[AnnotatedMapExample] = [
+DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
     AnnotatedMapExample(**d)
     for d in json.loads(
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
@@ -53,7 +53,7 @@ class LLMMap(MapIngredient):
         `{{LLMMap('question', 'table::column')}}`
     """
     model: Model = attrib(default=None)
-    few_shot_retriever: Callable[[str], List[AnnotatedMapExample]] = attrib(
+    few_shot_retriever: t.Callable[[str], t.List[AnnotatedMapExample]] = attrib(
         default=None
     )
     list_options_in_prompt: bool = attrib(default=True)
@@ -62,13 +62,13 @@ class LLMMap(MapIngredient):
     @classmethod
     def from_args(
         cls,
-        model: Optional[Model] = None,
-        few_shot_examples: Optional[
-            Union[List[dict], List[AnnotatedMapExample]]
+        model: t.Optional[Model] = None,
+        few_shot_examples: t.Optional[
+            t.Union[t.List[dict], t.List[AnnotatedMapExample]]
         ] = None,
         list_options_in_prompt: bool = True,
-        batch_size: Optional[int] = DEFAULT_MAP_BATCH_SIZE,
-        k: Optional[int] = None,
+        batch_size: t.Optional[int] = DEFAULT_MAP_BATCH_SIZE,
+        k: t.Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -137,10 +137,10 @@ class LLMMap(MapIngredient):
 
     def __call__(
         self,
-        question: Optional[str] = None,
-        context: Optional[str] = None,
-        options: Optional[Union[list, str]] = None,
-        batch_size: Optional[int] = DEFAULT_MAP_BATCH_SIZE,
+        question: t.Optional[str] = None,
+        context: t.Optional[str] = None,
+        options: t.Optional[t.Union[list, str]] = None,
+        batch_size: t.Optional[int] = DEFAULT_MAP_BATCH_SIZE,
         *args,
         **kwargs,
     ) -> tuple:
@@ -157,16 +157,18 @@ class LLMMap(MapIngredient):
         self,
         model: Model,
         question: str,
-        values: List[str],
+        values: t.List[str],
         list_options_in_prompt: bool,
-        few_shot_retriever: Optional[Callable[[str], List[AnnotatedMapExample]]] = None,
-        options: Optional[Collection[str]] = None,
-        value_limit: Optional[int] = None,
-        example_outputs: Optional[str] = None,
-        output_type: Optional[Union[DataType, str]] = None,
+        few_shot_retriever: t.Optional[
+            t.Callable[[str], t.List[AnnotatedMapExample]]
+        ] = None,
+        options: t.Optional[Collection[str]] = None,
+        value_limit: t.Optional[int] = None,
+        example_outputs: t.Optional[str] = None,
+        output_type: t.Optional[t.Union[DataType, str]] = None,
         batch_size: int = DEFAULT_MAP_BATCH_SIZE,
         **kwargs,
-    ) -> List[Union[float, int, str, bool]]:
+    ) -> t.List[t.Union[float, int, str, bool]]:
         """For each value in a given column, calls a Model and retrieves the output.
 
         Args:
@@ -208,7 +210,7 @@ class LLMMap(MapIngredient):
                 "values": values[:10],
             }
         )
-        few_shot_examples: List[AnnotatedMapExample] = few_shot_retriever(
+        few_shot_examples: t.List[AnnotatedMapExample] = few_shot_retriever(
             current_example.to_string()
         )
         regex = None
@@ -316,14 +318,14 @@ class LLMMap(MapIngredient):
                         lm._variables.update(generated_batch_variables)
                     if model.caching:
                         model.cache[key] = generated_batch_variables  # type: ignore
-            lm_mapping: List[str] = [lm[value] for value in values]  # type: ignore
+            lm_mapping: t.List[str] = [lm[value] for value in values]  # type: ignore
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
             mapped_values = cast_responses_to_datatypes(lm_mapping)
         else:
-            messages_list: List[List[dict]] = []
-            batch_sizes: List[int] = []
+            messages_list: t.List[t.List[dict]] = []
+            batch_sizes: t.List[int] = []
             for i in range(0, len(sorted_values), batch_size):
                 messages = []
                 curr_batch_values = sorted_values[i : i + batch_size]
@@ -347,7 +349,7 @@ class LLMMap(MapIngredient):
                 )
                 messages_list.append(messages)
 
-            responses: List[str] = model.generate(
+            responses: t.List[str] = model.generate(
                 messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
             )
 
@@ -356,7 +358,7 @@ class LLMMap(MapIngredient):
             total_missing_values = 0
             for idx, r in enumerate(responses):
                 expected_len = batch_sizes[idx]
-                predictions: List[Union[str, None]] = r.split(CONST.DEFAULT_ANS_SEP)  # type: ignore
+                predictions: t.List[Union[str, None]] = r.split(CONST.DEFAULT_ANS_SEP)  # type: ignore
                 while len(predictions) < expected_len:
                     total_missing_values += 1
                     predictions.append(None)

@@ -1,4 +1,4 @@
-from typing import List
+import typing as t
 from attr import attrs, attrib
 
 from blendsql.models import Model, TransformersVisionModel
@@ -32,7 +32,7 @@ class ImageCaption(MapIngredient):
             question=None, context=context, options=None, *args, **kwargs
         )
 
-    def run(self, model: Model, values: List[bytes], **kwargs):
+    def run(self, model: Model, values: t.List[bytes], **kwargs):
         """Generates a caption for all byte images passed to it."""
         if model is None:
             raise IngredientException(

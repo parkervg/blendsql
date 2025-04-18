@@ -1,6 +1,6 @@
 import os
 from attr import attrs, attrib, Factory
-from typing import List, Dict, TypeVar, Union
+import typing as t
 import haystack.document_stores.types
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.components.embedders import (
@@ -12,13 +12,13 @@ from haystack import Document, Pipeline
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-ReturnObj = TypeVar("ReturnObj")
+ReturnObj = t.TypeVar("ReturnObj")
 
 
 @attrs
 class Retriever:
-    documents: List[str] = attrib()
-    return_objs: List[ReturnObj] = attrib(default=None)
+    documents: t.List[str] = attrib()
+    return_objs: t.List[ReturnObj] = attrib(default=None)
     document_store: haystack.document_stores.types.DocumentStore = attrib(
         default=Factory(
             lambda: InMemoryDocumentStore(embedding_similarity_function="dot_product")
@@ -39,7 +39,7 @@ class Retriever:
         )
     )
 
-    id_to_return_obj: Dict[str, ReturnObj] = attrib(init=False)
+    id_to_return_obj: t.Dict[str, ReturnObj] = attrib(init=False)
     query_pipeline: Pipeline = attrib(init=False)
 
     def __attrs_post_init__(self):
@@ -64,7 +64,7 @@ class Retriever:
             "text_embedder.embedding", "retriever.query_embedding"
         )
 
-    def retrieve_top_k(self, query: str, k: int) -> List[Union[str, ReturnObj]]:
+    def retrieve_top_k(self, query: str, k: int) -> t.List[t.Union[str, ReturnObj]]:
         result = self.query_pipeline.run(
             {"text_embedder": {"text": query}, "retriever": {"top_k": k}}
         )

@@ -1,5 +1,4 @@
-from typing import Generator, Union, List, Callable, Optional
-from collections.abc import Collection
+import typing as t
 import pandas as pd
 from attr import attrib
 from sqlalchemy.engine import URL
@@ -9,7 +8,7 @@ from .utils import LazyTables
 
 
 class Database(ABC):
-    db_url: Union[URL, str] = attrib()
+    db_url: t.Union[URL, str] = attrib()
     lazy_tables: LazyTables = LazyTables()
 
     def __str__(self):
@@ -47,17 +46,17 @@ class Database(ABC):
         ...
 
     @abstractmethod
-    def tables(self) -> List[str]:
+    def tables(self) -> t.List[str]:
         """Get all table names associated with a database."""
         ...
 
     @abstractmethod
-    def iter_columns(self, tablename: str) -> Generator[str, None, None]:
+    def iter_columns(self, tablename: str) -> t.Generator[str, None, None]:
         """Yield all column names associated with a tablename."""
         ...
 
     @abstractmethod
-    def schema_string(self, use_tables: Optional[Collection[str]] = None) -> str:
+    def schema_string(self, use_tables: t.Optional[t.Collection[str]] = None) -> str:
         """Converts the database to a series of 'CREATE TABLE' statements."""
 
     @abstractmethod
@@ -66,7 +65,9 @@ class Database(ABC):
         ...
 
     @abstractmethod
-    def execute_to_df(self, query: str, params: Optional[dict] = None) -> pd.DataFrame:
+    def execute_to_df(
+        self, query: str, params: t.Optional[dict] = None
+    ) -> pd.DataFrame:
         """
         Execute the given query and return results as dataframe.
 
@@ -88,7 +89,7 @@ class Database(ABC):
         ...
 
     @abstractmethod
-    def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
+    def execute_to_list(self, query: str, to_type: t.Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.
         Returns results as a list.
         """
