@@ -29,7 +29,7 @@ class QAExample(Example):
     ) -> str:
         s = f"Question: {self.question}\n"
         if self.output_type is not None:
-            if self.output_type.name not in {"Any", "default"}:
+            if self.output_type._name not in {"Any"}:
                 s += f"Output datatype: {self.output_type.name}\n"
         if list_options:
             if self.options is not None:

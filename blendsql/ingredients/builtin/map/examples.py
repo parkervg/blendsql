@@ -28,7 +28,7 @@ class _MapExample(Example):
         # if self.column_name is not None:
         #     s += f"Source column: {self.column_name}\n"
         if self.output_type is not None:
-            if self.output_type.name not in {"Any", "default"}:
+            if self.output_type._name not in {"Any"}:
                 s += f"Output datatype: {self.output_type.name}\n"
         if self.example_outputs is not None:
             s += f"Example outputs: {';'.join(self.example_outputs)}\n"

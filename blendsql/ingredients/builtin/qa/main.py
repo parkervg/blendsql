@@ -361,8 +361,8 @@ class LLMQA(QAIngredient):
                 model.prompt_tokens += len(model.tokenizer.encode(lm._current_prompt()))
                 with guidance.assistant():
                     lm += gen_f(**gen_kwargs)
-                if is_list_output and modifier == "*":
-                    response: list = lm.get("response", [])  # type: ignore
+                if is_list_output:
+                    response: list = lm.get("response", [])[::-1]  # type: ignore
                 else:
                     response: str = lm["response"]  # type: ignore
                 model.completion_tokens += len(model.tokenizer.encode(str(response)))
@@ -413,7 +413,12 @@ class LLMQA(QAIngredient):
                         ]
                     )
             else:
-                response = current_example.output_type.coerce_fn(response)
+                if isinstance(response, str):
+                    response = current_example.output_type.coerce_fn(response)
+                elif isinstance(response, list):
+                    response = [
+                        current_example.output_type.coerce_fn(r) for r in response
+                    ]
         # Map from modified options to original, as they appear in DB
         if not isinstance(response, (list, tuple, set)):
             response = [response]

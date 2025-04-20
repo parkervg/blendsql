@@ -59,7 +59,8 @@ def str_to_numeric(s: t.Union[str, None]) -> t.Union[float, int, str, None]:
 
 @dataclass
 class DataTypes:
-    DEFAULT = lambda modifier=None: DataType("default", None, modifier, lambda s: s)
+    DEFAULT = lambda modifier=None: DataType("str", None, modifier, lambda s: s)
+    STR = lambda modifier=None: DataType("str", None, modifier, lambda s: s)
     BOOL = lambda modifier=None: DataType(
         "bool", r"(t|f|true|false|True|False)", modifier, str_to_bool
     )
@@ -70,7 +71,6 @@ class DataTypes:
     ISO_8601_DATE = lambda modifier=None: DataType(
         "date", r"\d{4}-\d{2}-\d{2}", modifier, lambda s: s
     )
-    STR = lambda modifier=None: DataType("str", None, modifier, lambda s: s)
     ANY = lambda modifier=None: DataType(
         "Any", None, modifier, lambda s: str_to_numeric(str_to_bool(s))
     )
