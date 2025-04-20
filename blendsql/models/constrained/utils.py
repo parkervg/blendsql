@@ -1,6 +1,6 @@
 from typing import Union
 
-from .._model import ModelObj, Model
+from ..model import ModelObj, Model
 
 
 class LMString(str):

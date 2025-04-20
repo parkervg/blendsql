@@ -2,9 +2,9 @@ from dataclasses import dataclass, field
 import typing as t
 import pandas as pd
 
-from .ingredients import Ingredient
-from .utils import tabulate
-from .db.utils import truncate_df_content
+from blendsql.ingredients import Ingredient
+from blendsql.common.utils import tabulate
+from blendsql.db.utils import truncate_df_content
 
 
 class PrettyDataFrame(pd.DataFrame):

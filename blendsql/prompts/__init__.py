@@ -1,1 +1,1 @@
-from ._prompts import FewShot
+from .prompts import FewShot

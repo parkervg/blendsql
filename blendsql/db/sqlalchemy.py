@@ -10,9 +10,9 @@ from sqlalchemy.sql import text
 from sqlalchemy.engine import Engine, Connection, URL
 from pandas.io.sql import get_schema
 
-from ._database import Database
-from .._logger import logger
-from .utils import double_quote_escape, truncate_df_content, LazyTables
+from .database import Database
+from blendsql.common.logger import logger
+from blendsql.db.utils import double_quote_escape, truncate_df_content, LazyTables
 
 
 @attrs(auto_detect=True)

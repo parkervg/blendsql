@@ -8,21 +8,19 @@ import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
 
-from blendsql._logger import logger
+from blendsql.common.logger import logger
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
-from blendsql.models._utils import user, assistant
-from blendsql import _constants as CONST
+from blendsql.models.utils import user, assistant
+from blendsql.common import constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._exceptions import IngredientException
+from blendsql.common.exceptions import IngredientException
 from blendsql.ingredients.utils import (
     initialize_retriever,
-    cast_responses_to_datatypes,
-    prepare_datatype,
     partialclass,
 )
-from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql._constants import DataType
+from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+from blendsql.type_constraints import DataType, prepare_datatype
 from .examples import AnnotatedMapExample, MapExample
 
 DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
@@ -322,7 +320,10 @@ class LLMMap(MapIngredient):
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
-            mapped_values = cast_responses_to_datatypes(lm_mapping)
+            # For each value, call the DataType's `coerce_fn()`
+            mapped_values = [
+                current_example.output_type.coerce_fn(s) for s in lm_mapping
+            ]
         else:
             messages_list: t.List[t.List[dict]] = []
             batch_sizes: t.List[int] = []
@@ -363,7 +364,9 @@ class LLMMap(MapIngredient):
                     total_missing_values += 1
                     predictions.append(None)
                 # Try to map to booleans, `None`, and numeric datatypes
-                mapped_values.extend(cast_responses_to_datatypes(predictions))
+                mapped_values.extend(
+                    [current_example.output_type.coerce_fn(s) for s in predictions]
+                )
 
             mapping = {k: v for k, v in zip(sorted_values, mapped_values)}
             mapped_values = [mapping[value] for value in values]

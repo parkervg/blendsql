@@ -4,7 +4,7 @@ from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
 from blendsql.models import LiteLLM, LlamaCpp
 
-USE_LOCAL_CONSTRAINED_MODEL = False
+USE_LOCAL_CONSTRAINED_MODEL = True
 
 # Load model, either a local transformers model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
@@ -86,6 +86,32 @@ print(smoothie.summary())
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
 # │    1.25158 │                    1 │             296 │                  16 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
+smoothie = bsql.execute(
+    """
+    SELECT * FROM People P
+    WHERE P.Name IN {{
+        LLMQA('First 3 presidents of the U.S?', modifier='{3}')
+    }}
+    """,
+    infer_gen_constraints=True,
+)
+
+print(smoothie.df)
+# ┌───────────────────┬───────────────────────────────────────────────────────┐
+# │ Name              │ Known_For                                             │
+# ├───────────────────┼───────────────────────────────────────────────────────┤
+# │ George Washington │ Established federal government, First U.S. Preside... │
+# │ John Adams        │ XYZ Affair, Alien and Sedition Acts                   │
+# │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
+# └───────────────────┴───────────────────────────────────────────────────────┘
+print(smoothie.summary())
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    1.25158 │                    1 │             296 │                  16 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
 
 smoothie = bsql.execute(
     """

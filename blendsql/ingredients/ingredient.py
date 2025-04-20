@@ -9,17 +9,17 @@ import uuid
 from colorama import Fore
 from typeguard import check_type
 
-from .._exceptions import IngredientException
-from .._logger import logger
-from .. import utils
-from .._constants import (
+from blendsql.common.exceptions import IngredientException
+from blendsql.common.logger import logger
+from blendsql.common import utils
+from blendsql.common.constants import (
     IngredientKwarg,
     IngredientType,
 )
-from ..db import Database
-from ..db.utils import select_all_from_table_query, format_tuple
-from ..utils import get_tablename_colname
-from .few_shot import Example
+from blendsql.db import Database
+from blendsql.db.utils import select_all_from_table_query, format_tuple
+from blendsql.common.utils import get_tablename_colname
+from blendsql.ingredients.few_shot import Example
 
 
 def unpack_default_kwargs(**kwargs):

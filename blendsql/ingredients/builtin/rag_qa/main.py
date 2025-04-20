@@ -2,12 +2,12 @@ import typing as t
 from collections.abc import Collection
 from textwrap import dedent
 
-from blendsql._constants import ModifierType
+from blendsql.type_constraints import ModifierType
 from blendsql.db.utils import double_quote_escape
 from blendsql.ingredients.ingredient import AliasIngredient, Ingredient
 from blendsql.ingredients.builtin.web_search import BingWebSearch
 from blendsql.ingredients.builtin.qa import LLMQA
-from blendsql._exceptions import IngredientException
+from blendsql.common.exceptions import IngredientException
 
 
 class RAGQA(AliasIngredient):

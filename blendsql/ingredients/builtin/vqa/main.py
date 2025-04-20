@@ -3,7 +3,7 @@ from attr import attrs, attrib
 
 from blendsql.models import Model, TransformersVisionModel
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._exceptions import IngredientException
+from blendsql.common.exceptions import IngredientException
 from blendsql.ingredients.utils import partialclass
 
 

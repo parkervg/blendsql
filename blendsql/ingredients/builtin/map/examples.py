@@ -2,7 +2,7 @@ from attr import attrs, attrib, Factory
 import typing as t
 
 from blendsql.ingredients.few_shot import Example
-from blendsql._constants import DataType, STR_TO_DATATYPE
+from blendsql.type_constraints import DataType, DataTypes, STR_TO_DATATYPE
 
 
 @attrs(kw_only=True)
@@ -10,14 +10,14 @@ class _MapExample(Example):
     question: str = attrib()
     table_name: str = attrib(default=None)
     column_name: str = attrib(default=None)
-    output_type: DataType = attrib(
-        converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
-        default=None,
-    )
     options: t.Optional[t.Collection[str]] = attrib(default=None)
     example_outputs: t.Optional[t.List[str]] = attrib(default=None)
     values: t.Optional[t.List[str]] = attrib(default=None)
     mapping: t.Optional[t.Dict[str, str]] = attrib(default=None)
+    output_type: DataType = attrib(
+        converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
+        default=DataTypes.STR(),
+    )
 
     def to_string(
         self, include_values: bool = True, list_options: bool = True, *args, **kwargs
@@ -28,7 +28,7 @@ class _MapExample(Example):
         # if self.column_name is not None:
         #     s += f"Source column: {self.column_name}\n"
         if self.output_type is not None:
-            if self.output_type.name != "Any":
+            if self.output_type.name not in {"Any", "default"}:
                 s += f"Output datatype: {self.output_type.name}\n"
         if self.example_outputs is not None:
             s += f"Example outputs: {';'.join(self.example_outputs)}\n"

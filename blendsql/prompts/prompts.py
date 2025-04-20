@@ -4,7 +4,7 @@ from attr import attrs, attrib
 import typing as t
 
 from ..ingredients import Ingredient
-from ..grammars._peg_grammar import grammar as peg_grammar
+from ..grammars.peg_grammar import grammar as peg_grammar
 
 
 @attrs

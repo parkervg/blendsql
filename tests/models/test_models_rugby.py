@@ -1,8 +1,8 @@
 import pytest
 
 from blendsql import BlendSQL
-from blendsql._smoothie import Smoothie
-from blendsql.utils import fetch_from_hub
+from blendsql.smoothie import Smoothie
+from blendsql.common.utils import fetch_from_hub
 from blendsql.models import LiteLLM
 
 

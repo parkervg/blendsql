@@ -3,8 +3,8 @@ from sqlalchemy.engine import make_url, URL
 from functools import cached_property
 from typing import Dict
 
-from .utils import double_quote_escape
-from ._sqlalchemy import SQLAlchemyDatabase
+from blendsql.db.utils import double_quote_escape
+from blendsql.db.sqlalchemy import SQLAlchemyDatabase
 
 
 class SQLite(SQLAlchemyDatabase):

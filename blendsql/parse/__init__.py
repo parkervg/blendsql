@@ -1,6 +1,6 @@
-from ._parse import QueryContextManager, SubqueryContextManager
-from ._dialect import get_dialect, _parse_one
-from . import _transforms as transform
-from . import _checks as check
-from ._parse import get_reversed_subqueries, get_scope_nodes
-from ._utils import get_first_child
+from .parse import QueryContextManager, SubqueryContextManager
+from .dialect import get_dialect, _parse_one
+from . import transforms as transform
+from . import checks as check
+from .parse import get_reversed_subqueries, get_scope_nodes
+from .utils import get_first_child

@@ -8,7 +8,7 @@ from tests.utils import (
     return_aapl,
     get_table_size,
 )
-from blendsql.utils import fetch_from_hub
+from blendsql.common.utils import fetch_from_hub
 from blendsql.ingredients import Ingredient
 from blendsql.db import Database, SQLite
 

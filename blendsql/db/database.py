@@ -4,7 +4,7 @@ from attr import attrib
 from sqlalchemy.engine import URL
 from abc import abstractmethod, ABC
 
-from .utils import LazyTables
+from blendsql.db.utils import LazyTables
 
 
 class Database(ABC):

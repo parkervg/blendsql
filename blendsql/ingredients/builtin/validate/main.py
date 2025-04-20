@@ -3,9 +3,9 @@ import pandas as pd
 
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
-from blendsql.models._utils import user
+from blendsql.models.utils import user
 from blendsql.ingredients.ingredient import QAIngredient
-from blendsql._exceptions import IngredientException
+from blendsql.common.exceptions import IngredientException
 
 
 class LLMValidate(QAIngredient):

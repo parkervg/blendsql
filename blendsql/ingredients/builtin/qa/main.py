@@ -10,21 +10,19 @@ import json
 from colorama import Fore
 from attr import attrs, attrib
 
-from blendsql._logger import logger
+from blendsql.common.logger import logger
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import maybe_load_lm, LMString
-from blendsql.models._utils import user, assistant
+from blendsql.models.utils import user, assistant
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
-from blendsql._exceptions import IngredientException
+from blendsql.common.exceptions import IngredientException
 from blendsql.ingredients.utils import (
     initialize_retriever,
-    cast_responses_to_datatypes,
-    prepare_datatype,
     partialclass,
 )
-from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql._constants import ModifierType, DataType
+from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+from blendsql.type_constraints import DataType, ModifierType, prepare_datatype
 from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
@@ -226,7 +224,7 @@ class LLMQA(QAIngredient):
             current_example.to_string(context_formatter)
         )
 
-        is_list_output = "list" in current_example.output_type.name.lower()
+        is_list_output = current_example.output_type.modifier is not None
         regex = regex or current_example.output_type.regex
         options = current_example.options
         modifier = current_example.output_type.modifier
@@ -405,16 +403,17 @@ class LLMQA(QAIngredient):
                     response = tuple(response)
                 except (ValueError, SyntaxError, AssertionError):
                     response = [i.strip() for i in response.strip("[]()").split(",")]
+                    response = [
+                        current_example.output_type.coerce_fn(r) for r in response
+                    ]
                     response = tuple(
                         [
-                            single_quote_escape(val)
-                            # "'{}'".format(single_quote_escape(val.strip()))
-                            if isinstance(val, str) else val
-                            for val in cast_responses_to_datatypes(response)
+                            single_quote_escape(val) if isinstance(val, str) else val
+                            for val in response
                         ]
                     )
             else:
-                response = cast_responses_to_datatypes([response])[0]
+                response = current_example.output_type.coerce_fn(response)
         # Map from modified options to original, as they appear in DB
         if not isinstance(response, (list, tuple, set)):
             response = [response]
