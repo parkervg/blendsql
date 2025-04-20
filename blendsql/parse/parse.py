@@ -275,6 +275,17 @@ class SubqueryContextManager:
         # Happens with {{LLMQA()}} cases, where we get 'SELECT *'
         if abstracted_query.find(exp.Table) is None:
             return
+        # Check here to see if we have no other predicates other than 'WHERE TRUE'
+        # There's no point in creating a temporary table in this situation
+        where_node = abstracted_query.find(exp.Where)
+        join_node = abstracted_query.find(exp.Join)
+        if where_node and not join_node:
+            if where_node.args["this"] == exp.true():
+                return
+            elif isinstance(where_node.args["this"], exp.Column):
+                return
+            elif check.all_terminals_are_true(where_node):
+                return
         # TODO: Re-add logic where we check if there's no informative predicates here
         #   e.g. just 'WHERE TRUE'
         for tablename, columnnames in self.columns_referenced_by_ingredients.items():

@@ -581,8 +581,8 @@ class QAIngredient(Ingredient):
         **kwargs,
     ) -> t.Tuple[t.Union[str, int, float, tuple], t.Optional[exp.Expression]]:
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
-        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
+        aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: t.Callable = kwargs["get_temp_subquery_table"]
 
         subtable: t.Union[pd.DataFrame, None] = None
         if context is not None:
@@ -591,9 +591,9 @@ class QAIngredient(Ingredient):
                 tablename = aliases_to_tablenames.get(tablename, tablename)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
-                    subtable: pd.DataFrame = self.db.lazy_tables.pop(
-                        tablename
-                    ).collect()[colname]
+                    subtable: pd.DataFrame = pd.DataFrame(
+                        self.db.lazy_tables.pop(tablename).collect()[colname]
+                    )
                 else:
                     subtable: pd.DataFrame = self.db.execute_to_df(
                         f'SELECT "{colname}" FROM "{tablename}"'

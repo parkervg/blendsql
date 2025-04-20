@@ -260,11 +260,13 @@ class LLMMap(MapIngredient):
             example_str = ""
             if len(few_shot_examples) > 0:
                 example_str += "\n\nExamples:"
-                for example in few_shot_examples:
+                for idx, example in enumerate(few_shot_examples):
                     example_str += example.to_string(include_values=False)
                     for k, v in example.mapping.items():
                         example_str += f"\n{k} -> {v}"
-                    example_str += "\n\n---"
+                    example_str += "\n\n" + (
+                        "---" if idx + 1 != len(few_shot_examples) else ""
+                    )
 
             loaded_lm = False
             # Due to guidance's prefix caching, this is a one-time cost
@@ -276,7 +278,9 @@ class LLMMap(MapIngredient):
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = [str(i) for i in curr_batch_values]
                 current_example_str = current_example.to_string(
-                    include_values=False, list_options=list_options_in_prompt
+                    include_values=False,
+                    list_options=list_options_in_prompt,
+                    add_leading_newlines=False,
                 )
 
                 # First check - do we need to load the model?

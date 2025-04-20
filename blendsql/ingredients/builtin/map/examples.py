@@ -20,9 +20,15 @@ class _MapExample(Example):
     )
 
     def to_string(
-        self, include_values: bool = True, list_options: bool = True, *args, **kwargs
+        self,
+        include_values: bool = True,
+        list_options: bool = True,
+        add_leading_newlines: bool = True,
+        *args,
+        **kwargs,
     ) -> str:
-        s = f"\n\nQuestion: {self.question}\n"
+        s = "\n\n" if add_leading_newlines else ""
+        s += f"Question: {self.question}\n"
         # if self.table_name is not None:
         #     s += f"Source table: {self.table_name}\n"
         # if self.column_name is not None:
