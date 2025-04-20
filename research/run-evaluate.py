@@ -82,7 +82,7 @@ if __name__ == "__main__":
         curr_pred_data = item.copy()
         if item["BlendSQL"] is None:
             continue
-        if item["Query ID"] != 18:
+        if item["Query ID"] != 3:
             continue
         bsql = load_bsql(load_tag_db_path(item["DB used"]))
         smoothie = bsql.execute(item["BlendSQL"])
