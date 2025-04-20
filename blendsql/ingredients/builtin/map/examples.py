@@ -1,5 +1,6 @@
 from attr import attrs, attrib, Factory
 import typing as t
+from textwrap import dedent
 
 from blendsql.ingredients.few_shot import Example
 from blendsql.type_constraints import DataType, DataTypes, STR_TO_DATATYPE
@@ -28,19 +29,28 @@ class _MapExample(Example):
         **kwargs,
     ) -> str:
         s = "\n\n" if add_leading_newlines else ""
-        s += f"Question: {self.question}\n"
+        if list_options and self.options is not None:
+            type_annotation = (
+                f"t.Literal["
+                + ", ".join([f'"{option}"' for option in self.options])
+                + "]"
+            )
+        else:
+            type_annotation = self.output_type.name
+
+        s += dedent(
+            f"""
+        def f(s: str) -> {type_annotation}:
+            \"\"\"{self.question}
+                        
+            Returns:
+                {self.output_type.name}: Answer to the above question for the value `s`."""
+        )
+        # s += '\n\t"""\n\t...\n\n'
         # if self.table_name is not None:
         #     s += f"Source table: {self.table_name}\n"
         # if self.column_name is not None:
         #     s += f"Source column: {self.column_name}\n"
-        if self.output_type is not None:
-            if self.output_type._name not in {"Any"}:
-                s += f"Output datatype: {self.output_type.name}\n"
-        if self.example_outputs is not None:
-            s += f"Example outputs: {';'.join(self.example_outputs)}\n"
-        if list_options:
-            if self.options is not None:
-                s += f"Options: {','.join(sorted(self.options))}\n"
         if include_values:
             s += "\nValues:\n"
             values = self.values
@@ -48,7 +58,6 @@ class _MapExample(Example):
                 values = self.mapping.keys()
             for _idx, k in enumerate(values):
                 s += f"{k}\n"
-        s += "\nAnswer: "
         return s
 
 

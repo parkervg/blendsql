@@ -29,16 +29,14 @@ DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-main_instruction = (
-    "Given a set of values from a database, answer the question for each value. "
-)
+main_instruction = "Complete the docstring for the provided Python function. The output should correctly answer the question provided for each input value."
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     main_instruction
     + "Your output should be separated by ';', answering for each of the values left-to-right.\n"
 )
 CONSTRAINED_MAIN_INSTRUCTION = (
     main_instruction
-    + "On each newline, you will follow the format of {value} -> {answer}.\n"
+    + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
 DEFAULT_MAP_BATCH_SIZE = 100
@@ -251,20 +249,23 @@ class LLMMap(MapIngredient):
             def make_predictions(lm, values, gen_f) -> guidance.models.Model:
                 gen_str = "\n".join(
                     [
-                        f"{value} -> {guidance.capture(gen_f(value), name=value)}"
-                        for value in values
+                        f'f("{value}") == {guidance.capture(gen_f(value), name=value)}'
+                        for idx, value in enumerate(values)
                     ]
                 )
                 return lm + gen_str
 
             example_str = ""
             if len(few_shot_examples) > 0:
-                example_str += "\n\nExamples:"
                 for idx, example in enumerate(few_shot_examples):
                     example_str += example.to_string(include_values=False)
+                    example_str += "\n\n\tExamples:\n\t\t```"
                     for k, v in example.mapping.items():
-                        example_str += f"\n{k} -> {v}"
-                    example_str += "\n\n" + (
+                        example_str += f'\n\t\tf("{k}") == ' + (
+                            f'"{v}"' if isinstance(v, str) else f"{v}"
+                        )
+                    example_str += '''\n\t\t```\n\t"""\n\t...'''
+                    example_str += "\n" + (
                         "---" if idx + 1 != len(few_shot_examples) else ""
                     )
 
