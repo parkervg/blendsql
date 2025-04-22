@@ -8,7 +8,7 @@ from attr import attrs, attrib
 
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.constants import IngredientKwarg
-from ..type_constraints import ModifierType, DataTypes
+from ..types import ModifierType, DataTypes
 from .dialect import _parse_one
 from . import checks as check
 from . import transforms as transform
@@ -478,7 +478,7 @@ class SubqueryContextManager:
             )  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
         elif modifier:
             # Fallback to a generic list datatype
-            output_type = DataTypes.DEFAULT(modifier)
+            output_type = DataTypes.STR(modifier)
         else:
             output_type = None
         added_kwargs[IngredientKwarg.OUTPUT_TYPE] = output_type

@@ -3,7 +3,7 @@ import typing as t
 from textwrap import dedent
 
 from blendsql.ingredients.few_shot import Example
-from blendsql.type_constraints import DataType, DataTypes, STR_TO_DATATYPE
+from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
 
 
 @attrs(kw_only=True)
@@ -22,7 +22,6 @@ class _MapExample(Example):
 
     def to_string(
         self,
-        include_values: bool = True,
         list_options: bool = True,
         add_leading_newlines: bool = True,
         *args,
@@ -38,26 +37,27 @@ class _MapExample(Example):
         else:
             type_annotation = self.output_type.name
 
+        if self.table_name and self.column_name:
+            args_str = f'Value from the "{self.table_name}"."{self.column_name}" column in a SQL database.'
+        else:
+            args_str = "Value from a column in a SQL database."
+
         s += dedent(
             f"""
         def f(s: str) -> {type_annotation}:
             \"\"\"{self.question}
-                        
+            
+            Args:
+                s (str): {args_str}
+            
             Returns:
-                {self.output_type.name}: Answer to the above question for the value `s`."""
+                {self.output_type.name}: Answer to the above question for each value `s`.
+            
+            Examples:
+            ```python
+            # f() returns the output to the question '{self.question}'
+            """
         )
-        # s += '\n\t"""\n\t...\n\n'
-        # if self.table_name is not None:
-        #     s += f"Source table: {self.table_name}\n"
-        # if self.column_name is not None:
-        #     s += f"Source column: {self.column_name}\n"
-        if include_values:
-            s += "\nValues:\n"
-            values = self.values
-            if self.values is None:
-                values = self.mapping.keys()
-            for _idx, k in enumerate(values):
-                s += f"{k}\n"
         return s
 
 

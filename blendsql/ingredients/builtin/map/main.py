@@ -20,7 +20,7 @@ from blendsql.ingredients.utils import (
     partialclass,
 )
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql.type_constraints import DataType, prepare_datatype
+from blendsql.types import DataType, prepare_datatype
 from .examples import AnnotatedMapExample, MapExample
 
 DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [

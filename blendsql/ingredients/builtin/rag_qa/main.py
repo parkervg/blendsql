@@ -2,7 +2,7 @@ import typing as t
 from collections.abc import Collection
 from textwrap import dedent
 
-from blendsql.type_constraints import ModifierType
+from blendsql.types import ModifierType
 from blendsql.db.utils import double_quote_escape
 from blendsql.ingredients.ingredient import AliasIngredient, Ingredient
 from blendsql.ingredients.builtin.web_search import BingWebSearch

@@ -22,7 +22,7 @@ from blendsql.ingredients.utils import (
     partialclass,
 )
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql.type_constraints import DataType, ModifierType, prepare_datatype
+from blendsql.types import DataType, ModifierType, prepare_datatype
 from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
