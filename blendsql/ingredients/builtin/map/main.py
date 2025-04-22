@@ -32,11 +32,11 @@ DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
 main_instruction = "Complete the docstring for the provided Python function. The output should correctly answer the question provided for each input value."
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     main_instruction
-    + "Your output should be separated by ';', answering for each of the values left-to-right.\n"
+    + " Your output should be separated by ';', answering for each of the values left-to-right.\n"
 )
 CONSTRAINED_MAIN_INSTRUCTION = (
     main_instruction
-    + "On each newline, you will follow the format of f({value}) == {answer}.\n"
+    + " On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
 DEFAULT_MAP_BATCH_SIZE = 100
@@ -241,33 +241,37 @@ class LLMMap(MapIngredient):
             else:
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
-                    stop=["\n"] if regex is not None else None,
+                    stop=["\n\t"] + ['"']
+                    if current_example.output_type.name == "str"
+                    else [],
                     regex=regex,
                 )  # type: ignore
 
             @guidance(stateless=True, dedent=False)  # type: ignore
-            def make_predictions(lm, values, gen_f) -> guidance.models.Model:
+            def make_predictions(
+                lm, values, str_output: bool, gen_f
+            ) -> guidance.models.Model:
+                quotes = [
+                    '"""' if any(c in value for c in ["\n", '"']) else '"'
+                    for value in values
+                ]
                 gen_str = "\n".join(
                     [
-                        f'f("{value}") == {guidance.capture(gen_f(value), name=value)}'
-                        for idx, value in enumerate(values)
+                        f"""\tf({quote}{value}{quote}) == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
+                        for value, quote in zip(values, quotes)
                     ]
                 )
                 return lm + gen_str
 
             example_str = ""
             if len(few_shot_examples) > 0:
-                for idx, example in enumerate(few_shot_examples):
-                    example_str += example.to_string(include_values=False)
-                    example_str += "\n\n\tExamples:\n\t\t```"
+                for example in few_shot_examples:
+                    example_str += example.to_string()
                     for k, v in example.mapping.items():
-                        example_str += f'\n\t\tf("{k}") == ' + (
+                        example_str += f'\n\tf("{k}") == ' + (
                             f'"{v}"' if isinstance(v, str) else f"{v}"
                         )
-                    example_str += '''\n\t\t```\n\t"""\n\t...'''
-                    example_str += "\n" + (
-                        "---" if idx + 1 != len(few_shot_examples) else ""
-                    )
+                    example_str += '''\n\t```\n\t"""\n\t...'''
 
             loaded_lm = False
             # Due to guidance's prefix caching, this is a one-time cost
@@ -279,7 +283,6 @@ class LLMMap(MapIngredient):
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = [str(i) for i in curr_batch_values]
                 current_example_str = current_example.to_string(
-                    include_values=False,
                     list_options=list_options_in_prompt,
                     add_leading_newlines=False,
                 )
@@ -313,7 +316,9 @@ class LLMMap(MapIngredient):
                     model.num_generation_calls += 1
                     with guidance.assistant():
                         batch_lm += make_predictions(
-                            values=current_batch_example.values, gen_f=gen_f
+                            values=current_batch_example.values,
+                            str_output=(current_example.output_type.name == "str"),
+                            gen_f=gen_f,
                         )  # type: ignore
                         generated_batch_variables = {
                             k: batch_lm.get(k) for k in current_batch_example.values
