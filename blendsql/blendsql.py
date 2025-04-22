@@ -1158,11 +1158,12 @@ class BlendSQL:
             for handler in logger.handlers:
                 handler.setLevel(logging.DEBUG)
         start = time.time()
+        model_in_use = model or self.model
         try:
             smoothie = _blend(
                 query=query,
                 db=self.db,
-                default_model=model or self.model,
+                default_model=model_in_use,
                 ingredients=ingredients or self.ingredients,
                 infer_gen_constraints=infer_gen_constraints
                 if infer_gen_constraints is not None
@@ -1180,4 +1181,7 @@ class BlendSQL:
             #   the final base case is fulfilled.
             self.db._reset_connection()
         smoothie.meta.process_time_seconds = time.time() - start
+        # Reset model stats, so future executions don't add here
+        if model_in_use is not None:
+            model_in_use.reset_stats()
         return smoothie
