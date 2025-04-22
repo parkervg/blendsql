@@ -257,7 +257,7 @@ class LLMMap(MapIngredient):
                 ]
                 gen_str = "\n".join(
                     [
-                        f"""\tf({quote}{value}{quote}) == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
+                        f"""\t\tf({quote}{value}{quote}) == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
                         for value, quote in zip(values, quotes)
                     ]
                 )
@@ -268,10 +268,10 @@ class LLMMap(MapIngredient):
                 for example in few_shot_examples:
                     example_str += example.to_string()
                     for k, v in example.mapping.items():
-                        example_str += f'\n\tf("{k}") == ' + (
+                        example_str += f'\n\t\tf("{k}") == ' + (
                             f'"{v}"' if isinstance(v, str) else f"{v}"
                         )
-                    example_str += '''\n\t```\n\t"""\n\t...'''
+                    example_str += '''\n\t\t```\n\t"""\n\t...'''
 
             loaded_lm = False
             # Due to guidance's prefix caching, this is a one-time cost

@@ -54,9 +54,8 @@ class _MapExample(Example):
                 {self.output_type.name}: Answer to the above question for each value `s`.
             
             Examples:
-            ```python
-            # f() returns the output to the question '{self.question}'
-            """
+                ```python
+                # f() returns the output to the question '{self.question}'"""
         )
         return s
 
