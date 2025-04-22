@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 from blendsql import BlendSQL
 from blendsql.db import Pandas
-from blendsql._exceptions import IngredientException, InvalidBlendSQL
+from blendsql.common.exceptions import IngredientException, InvalidBlendSQL
 from tests.utils import select_first_option
 
 

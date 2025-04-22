@@ -10,9 +10,9 @@ import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.scope import find_in_scope
 
-from . import _checks as check
-from ._constants import SUBQUERY_EXP
-from ._dialect import _parse_one
+from . import checks as check
+from .constants import SUBQUERY_EXP
+from .dialect import _parse_one
 
 
 def extract_multi_table_predicates(

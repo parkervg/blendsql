@@ -2,10 +2,9 @@ import os
 import argparse
 import importlib
 
-from blendsql import blend
 from blendsql.db import SQLite
 from blendsql.db.utils import truncate_df_content
-from blendsql.utils import tabulate
+from blendsql.common.utils import tabulate
 from blendsql.models import (
     OpenaiLLM,
     TransformersLLM,

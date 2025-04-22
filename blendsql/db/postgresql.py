@@ -4,7 +4,7 @@ from colorama import Fore
 import logging
 from functools import cached_property
 
-from ._sqlalchemy import SQLAlchemyDatabase
+from blendsql.db.sqlalchemy import SQLAlchemyDatabase
 
 _has_psycopg2 = importlib.util.find_spec("psycopg2") is not None
 

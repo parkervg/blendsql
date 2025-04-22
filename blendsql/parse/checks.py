@@ -3,8 +3,8 @@ from sqlglot import exp
 from functools import lru_cache
 import re
 
-from ._constants import SUBQUERY_EXP
-from ._utils import get_first_child
+from .constants import SUBQUERY_EXP
+from .utils import get_first_child
 
 INGREDIENT_PATTERN = re.compile("{{[A-Z]\(\)}}")
 

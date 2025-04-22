@@ -3,9 +3,9 @@ import typing as t
 from string import Template
 from colorama import Fore
 
-from .._logger import logger
+from blendsql.common.logger import logger
 from ..ingredients import Ingredient
-from .._constants import IngredientType
+from blendsql.common.constants import IngredientType
 from .minEarley.parser import EarleyParser
 
 
@@ -33,7 +33,7 @@ def load_cfg_parser(
             + "No ingredients passed to `load_cfg_parser()`!\nWas this on purpose?"
         )
         ingredients = set()
-    with open(Path(__file__).parent / "./_cfg_grammar.lark", encoding="utf-8") as f:
+    with open(Path(__file__).parent / "./cfg_grammar.lark", encoding="utf-8") as f:
         cfg_grammar = Template(f.read())
     blendsql_join_functions: t.List[str] = []
     blendsql_aggregate_functions: t.List[str] = []

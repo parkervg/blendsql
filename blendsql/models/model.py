@@ -23,9 +23,9 @@ from textwrap import dedent
 from abc import abstractmethod
 from attr import attrs, attrib
 
-from .._constants import IngredientKwarg
+from blendsql.common.constants import IngredientKwarg
 from ..db.utils import truncate_df_content
-from .._logger import logger
+from blendsql.common.logger import logger
 
 CONTEXT_TRUNCATION_LIMIT = 100
 ModelObj = TypeVar("ModelObj")

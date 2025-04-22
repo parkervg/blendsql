@@ -2,7 +2,7 @@ import importlib.util
 from typing import Optional
 from functools import cached_property
 
-from .._model import UnconstrainedModel, ModelObj
+from blendsql.models.model import UnconstrainedModel, ModelObj
 
 DEFAULT_KWARGS = {"do_sample": False}
 

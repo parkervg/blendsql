@@ -5,9 +5,9 @@ from pathlib import Path
 from attr import attrs, attrib
 
 from blendsql.models import Model, ConstrainedModel
-from blendsql.models._utils import user, assistant
+from blendsql.models.utils import user, assistant
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
-from blendsql._logger import logger
+from blendsql.common.logger import logger
 from blendsql.ingredients.ingredient import JoinIngredient
 from blendsql.ingredients.utils import initialize_retriever, partialclass
 

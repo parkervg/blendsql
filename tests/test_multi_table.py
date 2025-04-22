@@ -1,7 +1,7 @@
 import pytest
 from blendsql import BlendSQL
 from blendsql.db import SQLite, DuckDB
-from blendsql.utils import fetch_from_hub
+from blendsql.common.utils import fetch_from_hub
 from tests.utils import (
     assert_equality,
     starts_with,
@@ -657,7 +657,7 @@ def test_materialize_ctes_multi_exec(bsql):
     SELECT * FROM a WHERE {{starts_with('F', 'a::Symbol')}} = TRUE
     """
     # Need to get the lower level function so we can see what tables got created
-    from blendsql.blend import _blend
+    from blendsql.blendsql import _blend
 
     _ = _blend(
         query=blendsql,

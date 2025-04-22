@@ -4,7 +4,7 @@ import typing as t
 from collections.abc import Collection
 
 from blendsql.ingredients.few_shot import Example
-from blendsql._constants import DataType, STR_TO_DATATYPE
+from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
 
 
 @attrs(kw_only=True)
@@ -17,7 +17,7 @@ class QAExample(Example):
     options: t.Optional[Collection[str]] = attrib(default=None)
     output_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
-        default=None,
+        default=DataTypes.STR(),
     )
 
     def to_string(
@@ -29,7 +29,7 @@ class QAExample(Example):
     ) -> str:
         s = f"Question: {self.question}\n"
         if self.output_type is not None:
-            if self.output_type.name != "Any":
+            if self.output_type._name not in {"Any"}:
                 s += f"Output datatype: {self.output_type.name}\n"
         if list_options:
             if self.options is not None:

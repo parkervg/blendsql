@@ -1,7 +1,7 @@
 from attr import attrs, attrib
 import typing as t
 
-from blendsql.utils import newline_dedent
+from blendsql.common.utils import newline_dedent
 from blendsql.ingredients.few_shot import Example
 
 

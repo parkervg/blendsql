@@ -3,8 +3,8 @@ from typing import Optional
 from colorama import Fore
 from functools import cached_property
 
-from ..._logger import logger
-from .._model import ConstrainedModel, ModelObj
+from blendsql.common.logger import logger
+from blendsql.models.model import ConstrainedModel, ModelObj
 
 DEFAULT_KWARGS = {"do_sample": False}
 

@@ -1,6 +1,6 @@
-from ._database import Database
-from ._duckdb import DuckDB
-from ._sqlite import SQLite
-from ._pandas import Pandas
-from ._postgresql import PostgreSQL
+from .database import Database
+from .duckdb import DuckDB
+from .sqlite import SQLite
+from .pandas import Pandas
+from .postgresql import PostgreSQL
 from .utils import single_quote_escape, double_quote_escape

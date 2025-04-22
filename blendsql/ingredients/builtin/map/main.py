@@ -8,21 +8,19 @@ import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
 
-from blendsql._logger import logger
+from blendsql.common.logger import logger
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
-from blendsql.models._utils import user, assistant
-from blendsql import _constants as CONST
+from blendsql.models.utils import user, assistant
+from blendsql.common import constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql._exceptions import IngredientException
+from blendsql.common.exceptions import IngredientException
 from blendsql.ingredients.utils import (
     initialize_retriever,
-    cast_responses_to_datatypes,
-    prepare_datatype,
     partialclass,
 )
-from blendsql._configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql._constants import DataType
+from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+from blendsql.types import DataType, prepare_datatype
 from .examples import AnnotatedMapExample, MapExample
 
 DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
@@ -31,16 +29,14 @@ DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-main_instruction = (
-    "Given a set of values from a database, answer the question for each value. "
-)
+main_instruction = "Complete the docstring for the provided Python function. The output should correctly answer the question provided for each input value."
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     main_instruction
-    + "Your output should be separated by ';', answering for each of the values left-to-right.\n"
+    + " Your output should be separated by ';', answering for each of the values left-to-right.\n"
 )
 CONSTRAINED_MAIN_INSTRUCTION = (
     main_instruction
-    + "On each newline, you will follow the format of {value} -> {answer}.\n"
+    + " On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
 DEFAULT_MAP_BATCH_SIZE = 100
@@ -245,28 +241,37 @@ class LLMMap(MapIngredient):
             else:
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
-                    stop=["\n"] if regex is not None else None,
+                    stop=["\n\t"] + ['"']
+                    if current_example.output_type.name == "str"
+                    else [],
                     regex=regex,
                 )  # type: ignore
 
             @guidance(stateless=True, dedent=False)  # type: ignore
-            def make_predictions(lm, values, gen_f) -> guidance.models.Model:
+            def make_predictions(
+                lm, values, str_output: bool, gen_f
+            ) -> guidance.models.Model:
+                quotes = [
+                    '"""' if any(c in value for c in ["\n", '"']) else '"'
+                    for value in values
+                ]
                 gen_str = "\n".join(
                     [
-                        f"{value} -> {guidance.capture(gen_f(value), name=value)}"
-                        for value in values
+                        f"""\tf({quote}{value}{quote}) == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
+                        for value, quote in zip(values, quotes)
                     ]
                 )
                 return lm + gen_str
 
             example_str = ""
             if len(few_shot_examples) > 0:
-                example_str += "\n\nExamples:"
                 for example in few_shot_examples:
-                    example_str += example.to_string(include_values=False)
+                    example_str += example.to_string()
                     for k, v in example.mapping.items():
-                        example_str += f"\n{k} -> {v}"
-                    example_str += "\n\n---"
+                        example_str += f'\n\tf("{k}") == ' + (
+                            f'"{v}"' if isinstance(v, str) else f"{v}"
+                        )
+                    example_str += '''\n\t```\n\t"""\n\t...'''
 
             loaded_lm = False
             # Due to guidance's prefix caching, this is a one-time cost
@@ -278,7 +283,8 @@ class LLMMap(MapIngredient):
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = [str(i) for i in curr_batch_values]
                 current_example_str = current_example.to_string(
-                    include_values=False, list_options=list_options_in_prompt
+                    list_options=list_options_in_prompt,
+                    add_leading_newlines=False,
                 )
 
                 # First check - do we need to load the model?
@@ -310,7 +316,9 @@ class LLMMap(MapIngredient):
                     model.num_generation_calls += 1
                     with guidance.assistant():
                         batch_lm += make_predictions(
-                            values=current_batch_example.values, gen_f=gen_f
+                            values=current_batch_example.values,
+                            str_output=(current_example.output_type.name == "str"),
+                            gen_f=gen_f,
                         )  # type: ignore
                         generated_batch_variables = {
                             k: batch_lm.get(k) for k in current_batch_example.values
@@ -322,7 +330,10 @@ class LLMMap(MapIngredient):
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
-            mapped_values = cast_responses_to_datatypes(lm_mapping)
+            # For each value, call the DataType's `coerce_fn()`
+            mapped_values = [
+                current_example.output_type.coerce_fn(s) for s in lm_mapping
+            ]
         else:
             messages_list: t.List[t.List[dict]] = []
             batch_sizes: t.List[int] = []
@@ -363,7 +374,9 @@ class LLMMap(MapIngredient):
                     total_missing_values += 1
                     predictions.append(None)
                 # Try to map to booleans, `None`, and numeric datatypes
-                mapped_values.extend(cast_responses_to_datatypes(predictions))
+                mapped_values.extend(
+                    [current_example.output_type.coerce_fn(s) for s in predictions]
+                )
 
             mapping = {k: v for k, v in zip(sorted_values, mapped_values)}
             mapped_values = [mapping[value] for value in values]

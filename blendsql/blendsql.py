@@ -14,17 +14,21 @@ from sqlglot import exp
 from colorama import Fore
 import string
 
-from ._logger import logger
-from .utils import (
+from blendsql.common.logger import logger
+from blendsql.common.utils import (
     get_temp_session_table,
     get_temp_subquery_table,
     get_tablename_colname,
 )
-from ._exceptions import InvalidBlendSQL
-from .db._database import Database
-from .db._duckdb import DuckDB
-from .db.utils import double_quote_escape, select_all_from_table_query, LazyTable
-from .parse import (
+from blendsql.common.exceptions import InvalidBlendSQL
+from blendsql.db.database import Database
+from blendsql.db.duckdb import DuckDB
+from blendsql.db.utils import (
+    double_quote_escape,
+    select_all_from_table_query,
+    LazyTable,
+)
+from blendsql.parse import (
     get_dialect,
     QueryContextManager,
     SubqueryContextManager,
@@ -35,12 +39,12 @@ from .parse import (
     get_scope_nodes,
     get_first_child,
 )
-from .parse._constants import MODIFIERS
-from .grammars._peg_grammar import grammar
-from .ingredients.ingredient import Ingredient, IngredientException
-from ._smoothie import Smoothie, SmoothieMeta
-from ._constants import IngredientType, IngredientKwarg
-from .models._model import Model
+from blendsql.parse.constants import MODIFIERS
+from blendsql.grammars.peg_grammar import grammar
+from blendsql.ingredients.ingredient import Ingredient, IngredientException
+from blendsql.smoothie import Smoothie, SmoothieMeta
+from blendsql.common.constants import IngredientType, IngredientKwarg
+from blendsql.models.model import Model
 
 
 @attrs
@@ -1011,21 +1015,21 @@ class BlendSQL:
         from pathlib import Path
 
         if df_or_db_path is None:
-            from .db._pandas import Pandas
+            from .db.pandas import Pandas
 
             return Pandas({})  # Load an empty DuckDB connection
 
         elif isinstance(df_or_db_path, (pd.DataFrame, dict)):
-            from .db._pandas import Pandas
+            from .db.pandas import Pandas
 
             return Pandas(df_or_db_path)
         elif isinstance(df_or_db_path, (str, Path)):
             if Path(df_or_db_path).exists():
-                from .db._sqlite import SQLite
+                from .db.sqlite import SQLite
 
                 return SQLite(df_or_db_path)
             else:
-                from .db._postgresql import PostgreSQL
+                from .db.postgresql import PostgreSQL
 
                 return PostgreSQL(df_or_db_path)
         else:

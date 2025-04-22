@@ -1,7 +1,7 @@
 import typing as t
 import pandas as pd
 
-from ._duckdb import DuckDB
+from blendsql.db.duckdb import DuckDB
 
 
 def Pandas(

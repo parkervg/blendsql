@@ -103,7 +103,7 @@ def test_alphabet(bsql, constrained_model):
             """,
         model=constrained_model,
     )
-    assert set(smoothie.df.values.flat) == {"A", "B"}
+    assert list(smoothie.df.values.flat) == ["A", "B"]
 
     smoothie = bsql.execute(
         """

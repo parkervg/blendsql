@@ -1,6 +1,6 @@
 from typing import Tuple, Type, Set
 
-from blendsql.utils import fetch_from_hub
+from blendsql.common.utils import fetch_from_hub
 from blendsql.ingredients import Ingredient, LLMQA, LLMMap, LLMJoin
 from blendsql.db import Database, SQLite
 

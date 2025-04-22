@@ -9,17 +9,17 @@ import uuid
 from colorama import Fore
 from typeguard import check_type
 
-from .._exceptions import IngredientException
-from .._logger import logger
-from .. import utils
-from .._constants import (
+from blendsql.common.exceptions import IngredientException
+from blendsql.common.logger import logger
+from blendsql.common import utils
+from blendsql.common.constants import (
     IngredientKwarg,
     IngredientType,
 )
-from ..db import Database
-from ..db.utils import select_all_from_table_query, format_tuple
-from ..utils import get_tablename_colname
-from .few_shot import Example
+from blendsql.db import Database
+from blendsql.db.utils import select_all_from_table_query, format_tuple
+from blendsql.common.utils import get_tablename_colname
+from blendsql.ingredients.few_shot import Example
 
 
 def unpack_default_kwargs(**kwargs):
@@ -581,8 +581,8 @@ class QAIngredient(Ingredient):
         **kwargs,
     ) -> t.Tuple[t.Union[str, int, float, tuple], t.Optional[exp.Expression]]:
         # Unpack kwargs
-        aliases_to_tablenames: Dict[str, str] = kwargs["aliases_to_tablenames"]
-        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
+        aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
+        get_temp_subquery_table: t.Callable = kwargs["get_temp_subquery_table"]
 
         subtable: t.Union[pd.DataFrame, None] = None
         if context is not None:
@@ -591,9 +591,9 @@ class QAIngredient(Ingredient):
                 tablename = aliases_to_tablenames.get(tablename, tablename)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
-                    subtable: pd.DataFrame = self.db.lazy_tables.pop(
-                        tablename
-                    ).collect()[colname]
+                    subtable: pd.DataFrame = pd.DataFrame(
+                        self.db.lazy_tables.pop(tablename).collect()[colname]
+                    )
                 else:
                     subtable: pd.DataFrame = self.db.execute_to_df(
                         f'SELECT "{colname}" FROM "{tablename}"'

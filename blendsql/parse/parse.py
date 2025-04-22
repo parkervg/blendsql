@@ -6,14 +6,15 @@ from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
-from ..utils import get_tablename_colname
-from .._constants import IngredientKwarg, ModifierType, DataTypes
-from ._dialect import _parse_one
-from . import _checks as check
-from . import _transforms as transform
-from ._constants import SUBQUERY_EXP
-from ._utils import set_select_to
-from .._logger import logger
+from blendsql.common.utils import get_tablename_colname
+from blendsql.common.constants import IngredientKwarg
+from ..types import ModifierType, DataTypes
+from .dialect import _parse_one
+from . import checks as check
+from . import transforms as transform
+from .constants import SUBQUERY_EXP
+from .utils import set_select_to
+from blendsql.common.logger import logger
 
 
 def get_predicate_literals(node) -> t.List[str]:
@@ -274,6 +275,17 @@ class SubqueryContextManager:
         # Happens with {{LLMQA()}} cases, where we get 'SELECT *'
         if abstracted_query.find(exp.Table) is None:
             return
+        # Check here to see if we have no other predicates other than 'WHERE TRUE'
+        # There's no point in creating a temporary table in this situation
+        where_node = abstracted_query.find(exp.Where)
+        join_node = abstracted_query.find(exp.Join)
+        if where_node and not join_node:
+            if where_node.args["this"] == exp.true():
+                return
+            elif isinstance(where_node.args["this"], exp.Column):
+                return
+            elif check.all_terminals_are_true(where_node):
+                return
         for tablename, columnnames in self.columns_referenced_by_ingredients.items():
             # TODO: execute query once, and then separate out the results to their respective tables
             yield (
@@ -377,7 +389,7 @@ class SubqueryContextManager:
                 - options: Optional str default to pass to `options` argument in a QAIngredient
                     - Will have the form '{table}::{column}'
         """
-        added_kwargs: t.Dict[str, Any] = {}
+        added_kwargs: t.Dict[str, t.Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end], dialect=self.dialect)
         if isinstance(ingredient_node, exp.Column):
             ingredient_node = ingredient_node.find(exp.Identifier)
@@ -464,7 +476,7 @@ class SubqueryContextManager:
             )  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
         elif modifier:
             # Fallback to a generic list datatype
-            output_type = DataTypes.LIST(modifier)
+            output_type = DataTypes.STR(modifier)
         else:
             output_type = None
         added_kwargs[IngredientKwarg.OUTPUT_TYPE] = output_type

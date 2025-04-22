@@ -4,8 +4,8 @@ from asyncio import Semaphore
 import asyncio
 from litellm import acompletion
 
-from ..._configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
-from .._model import UnconstrainedModel
+from blendsql.configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
+from blendsql.models.model import UnconstrainedModel
 
 DEFAULT_CONFIG = {"temperature": 0.0}
 

@@ -1,2 +1,2 @@
-from .blend import BlendSQL
-from . import _configure as config
+from .blendsql import BlendSQL
+from . import configure as config

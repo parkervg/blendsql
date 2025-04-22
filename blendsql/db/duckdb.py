@@ -6,9 +6,9 @@ from attr import attrs, attrib
 from pathlib import Path
 from functools import cached_property
 
-from .utils import double_quote_escape
-from ._database import Database
-from .._logger import logger
+from blendsql.db.utils import double_quote_escape
+from blendsql.db.database import Database
+from blendsql.common.logger import logger
 
 _has_duckdb = importlib.util.find_spec("duckdb") is not None
 

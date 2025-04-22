@@ -2,7 +2,7 @@ from typing import Tuple
 from tabulate import tabulate
 from functools import partial
 
-from ._constants import HF_REPO_ID
+from blendsql.common.constants import HF_REPO_ID
 
 tabulate = partial(
     tabulate, headers="keys", showindex="never", tablefmt="simple_outline"
