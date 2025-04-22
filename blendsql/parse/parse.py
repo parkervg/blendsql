@@ -286,8 +286,6 @@ class SubqueryContextManager:
                 return
             elif check.all_terminals_are_true(where_node):
                 return
-        # TODO: Re-add logic where we check if there's no informative predicates here
-        #   e.g. just 'WHERE TRUE'
         for tablename, columnnames in self.columns_referenced_by_ingredients.items():
             # TODO: execute query once, and then separate out the results to their respective tables
             yield (
