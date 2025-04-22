@@ -29,7 +29,7 @@ class DataType:
         return self._coerce_fn(s)
 
 
-def str_to_bool(s: t.Union[str, None]) -> bool:
+def str_to_bool(s: t.Union[str, None]) -> t.Union[bool, str, None]:
     if isinstance(s, str):
         return {
             "t": True,
@@ -59,7 +59,6 @@ def str_to_numeric(s: t.Union[str, None]) -> t.Union[float, int, str, None]:
 
 @dataclass
 class DataTypes:
-    DEFAULT = lambda modifier=None: DataType("str", None, modifier, lambda s: s)
     STR = lambda modifier=None: DataType("str", None, modifier, lambda s: s)
     BOOL = lambda modifier=None: DataType(
         "bool", r"(t|f|true|false|True|False)", modifier, str_to_bool

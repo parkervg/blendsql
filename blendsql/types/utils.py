@@ -4,7 +4,7 @@ from colorama import Fore
 from collections.abc import Collection
 
 from blendsql.common.exceptions import IngredientException
-from blendsql.type_constraints.types import (
+from blendsql.types.types import (
     ModifierType,
     DataType,
     DataTypes,
@@ -19,7 +19,7 @@ def prepare_datatype(
     modifier: t.Optional[ModifierType] = None,
 ) -> DataType:
     if output_type is None:
-        resolved_output_type = DataTypes.DEFAULT()
+        resolved_output_type = DataTypes.STR()
     elif isinstance(output_type, str):
         # The user has passed us an output type in the BlendSQL query
         # That should take precedence
