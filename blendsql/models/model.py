@@ -137,6 +137,11 @@ class Model:
             response = self.cache.get(key)  # type: ignore
         return (response, key)
 
+    def reset_stats(self):
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.num_generation_calls = 0
+
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
         d: Dict[str, Any] = {"answer": response}
