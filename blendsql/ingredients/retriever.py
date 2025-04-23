@@ -53,7 +53,7 @@ class Retriever:
             }
         self.document_embedder.warm_up()
         documents_with_embeddings = self.document_embedder.run(documents)["documents"]
-        self.document_store.write_documents(documents_with_embeddings)
+        self.document_store.write_documents(documents_with_embeddings, policy="skip")
 
         self.query_pipeline = Pipeline()
         self.query_pipeline.add_component("text_embedder", self.text_embedder)
