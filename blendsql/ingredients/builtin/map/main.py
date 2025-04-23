@@ -11,7 +11,7 @@ from attr import attrs, attrib
 from blendsql.common.logger import logger
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
-from blendsql.models.utils import user, assistant
+from blendsql.models.utils import user
 from blendsql.common import constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
@@ -21,7 +21,14 @@ from blendsql.ingredients.utils import (
 )
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
 from blendsql.types import DataType, prepare_datatype
-from .examples import AnnotatedMapExample, MapExample
+from .examples import (
+    MapExample,
+    AnnotatedMapExample,
+    ConstrainedMapExample,
+    ConstrainedAnnotatedMapExample,
+    UnconstrainedMapExample,
+    UnconstrainedAnnotatedMapExample,
+)
 
 DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
     AnnotatedMapExample(**d)
@@ -29,17 +36,23 @@ DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-main_instruction = "Complete the docstring for the provided Python function. The output should correctly answer the question provided for each input value."
+CONSTRAINED_MAIN_INSTRUCTION = "Complete the docstring for the provided Python function. The output should correctly answer the question provided for each input value. "
+CONSTRAINED_MAIN_INSTRUCTION = (
+    CONSTRAINED_MAIN_INSTRUCTION
+    + "On each newline, you will follow the format of f({value}) == {answer}.\n"
+)
+DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 100
+
 UNCONSTRAINED_MAIN_INSTRUCTION = (
-    main_instruction
+    "Given a set of values from a database, answer the question for each value. "
+)
+UNCONSTRAINED_MAIN_INSTRUCTION = (
+    UNCONSTRAINED_MAIN_INSTRUCTION
     + " Your output should be separated by ';', answering for each of the values left-to-right.\n"
 )
-CONSTRAINED_MAIN_INSTRUCTION = (
-    main_instruction
-    + " On each newline, you will follow the format of f({value}) == {answer}.\n"
-)
+DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE = 5
+
 OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
-DEFAULT_MAP_BATCH_SIZE = 100
 
 
 @attrs
@@ -53,7 +66,7 @@ class LLMMap(MapIngredient):
         default=None
     )
     list_options_in_prompt: bool = attrib(default=True)
-    batch_size: int = attrib(default=DEFAULT_MAP_BATCH_SIZE)
+    batch_size: int = attrib(default=None)
 
     @classmethod
     def from_args(
@@ -63,7 +76,7 @@ class LLMMap(MapIngredient):
             t.Union[t.List[dict], t.List[AnnotatedMapExample]]
         ] = None,
         list_options_in_prompt: bool = True,
-        batch_size: t.Optional[int] = DEFAULT_MAP_BATCH_SIZE,
+        batch_size: t.Optional[int] = None,
         k: t.Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -136,7 +149,7 @@ class LLMMap(MapIngredient):
         question: t.Optional[str] = None,
         context: t.Optional[str] = None,
         options: t.Optional[t.Union[list, str]] = None,
-        batch_size: t.Optional[int] = DEFAULT_MAP_BATCH_SIZE,
+        batch_size: t.Optional[int] = None,
         *args,
         **kwargs,
     ) -> tuple:
@@ -162,7 +175,7 @@ class LLMMap(MapIngredient):
         value_limit: t.Optional[int] = None,
         example_outputs: t.Optional[str] = None,
         output_type: t.Optional[t.Union[DataType, str]] = None,
-        batch_size: int = DEFAULT_MAP_BATCH_SIZE,
+        batch_size: int = None,
         **kwargs,
     ) -> t.List[t.Union[float, int, str, bool]]:
         """For each value in a given column, calls a Model and retrieves the output.
@@ -206,9 +219,20 @@ class LLMMap(MapIngredient):
                 "values": values[:10],
             }
         )
-        few_shot_examples: t.List[AnnotatedMapExample] = few_shot_retriever(
-            current_example.to_string()
-        )
+        if isinstance(model, ConstrainedModel):
+            batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
+            current_example = ConstrainedMapExample(**current_example.__dict__)
+            few_shot_examples: t.List[ConstrainedAnnotatedMapExample] = [
+                ConstrainedAnnotatedMapExample(**example.__dict__)
+                for example in few_shot_retriever(current_example.to_string())
+            ]
+        else:
+            batch_size = batch_size or DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE
+            current_example = UnconstrainedMapExample(**current_example.__dict__)
+            few_shot_examples: t.List[UnconstrainedAnnotatedMapExample] = [
+                UnconstrainedAnnotatedMapExample(**example.__dict__)
+                for example in few_shot_retriever(current_example.to_string())
+            ]
         regex = None
         if current_example.output_type is not None:
             regex = current_example.output_type.regex
@@ -267,11 +291,11 @@ class LLMMap(MapIngredient):
             if len(few_shot_examples) > 0:
                 for example in few_shot_examples:
                     example_str += example.to_string()
-                    for k, v in example.mapping.items():
-                        example_str += f'\n\t\tf("{k}") == ' + (
-                            f'"{v}"' if isinstance(v, str) else f"{v}"
-                        )
-                    example_str += '''\n\t\t```\n\t"""\n\t...'''
+                    # for k, v in example.mapping.items():
+                    #     example_str += f'\n\t\tf("{k}") == ' + (
+                    #         f'"{v}"' if isinstance(v, str) else f"{v}"
+                    #     )
+                    # example_str += '''\n\t\t```\n\t"""\n\t...'''
 
             loaded_lm = False
             # Due to guidance's prefix caching, this is a one-time cost
@@ -338,32 +362,26 @@ class LLMMap(MapIngredient):
             messages_list: t.List[t.List[dict]] = []
             batch_sizes: t.List[int] = []
             for i in range(0, len(sorted_values), batch_size):
-                messages = []
                 curr_batch_values = sorted_values[i : i + batch_size]
                 batch_sizes.append(len(curr_batch_values))
                 current_batch_example = copy.deepcopy(current_example)
                 current_batch_example.values = curr_batch_values
-                messages.append(user(UNCONSTRAINED_MAIN_INSTRUCTION))
+                user_msg_str = ""
+                user_msg_str += UNCONSTRAINED_MAIN_INSTRUCTION
                 # Add few-shot examples
                 for example in few_shot_examples:
-                    messages.append(user(example.to_string()))
-                    messages.append(
-                        assistant(CONST.DEFAULT_ANS_SEP.join(example.mapping.values()))
-                    )
+                    user_msg_str += example.to_string(include_values=False)
                 # Add the current question + context for inference
-                messages.append(
-                    user(
-                        current_batch_example.to_string(
-                            list_options=list_options_in_prompt
-                        )
-                    )
+                user_msg_str += current_batch_example.to_string(
+                    list_options=list_options_in_prompt, include_values=True
                 )
-                messages_list.append(messages)
+                messages_list.append([user(user_msg_str)])
 
             responses: t.List[str] = model.generate(
                 messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
             )
 
+            print("\n".join(responses))
             # Post-process language model response
             mapped_values = []
             total_missing_values = 0
