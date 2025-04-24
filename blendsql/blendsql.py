@@ -1044,6 +1044,7 @@ class BlendSQL:
         model: t.Optional[str] = None,
         infer_gen_constraints: t.Optional[bool] = None,
         schema_qualify: t.Optional[bool] = None,
+        verbose: t.Optional[bool] = None,
     ) -> Smoothie:
         '''The `execute()` function is used to execute a BlendSQL query against a database and
         return the final result, in addition to the intermediate reasoning steps taken.
@@ -1153,10 +1154,18 @@ class BlendSQL:
             # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
             ```
         '''
-        if self.verbose:
-            logger.setLevel(logging.DEBUG)
+
+        def set_level(l: int):
+            logger.setLevel(l)
             for handler in logger.handlers:
-                handler.setLevel(logging.DEBUG)
+                handler.setLevel(l)
+
+        verbose_in_use = verbose or self.verbose
+        if verbose_in_use:
+            set_level(logging.DEBUG)
+        else:
+            set_level(logging.ERROR)
+
         start = time.time()
         model_in_use = model or self.model
         try:

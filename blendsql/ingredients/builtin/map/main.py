@@ -291,11 +291,6 @@ class LLMMap(MapIngredient):
             if len(few_shot_examples) > 0:
                 for example in few_shot_examples:
                     example_str += example.to_string()
-                    # for k, v in example.mapping.items():
-                    #     example_str += f'\n\t\tf("{k}") == ' + (
-                    #         f'"{v}"' if isinstance(v, str) else f"{v}"
-                    #     )
-                    # example_str += '''\n\t\t```\n\t"""\n\t...'''
 
             loaded_lm = False
             # Due to guidance's prefix caching, this is a one-time cost
