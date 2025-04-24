@@ -38,14 +38,14 @@ CONSTRAINED_MODEL_CONFIGS = [
         "name": "llama",
         "class": TransformersLLM,
         "path": "meta-llama/Llama-3.2-1B-Instruct",
-        "config": {"device_map": "auto"},
+        "config": {"device_map": "cuda"},
         "requires_cuda": True,
     },
     {
         "name": "smollm",
         "class": TransformersLLM,
         "path": "HuggingFaceTB/SmolLM2-135M-Instruct",
-        "config": {"device_map": "cpu"},
+        "config": {"device_map": "cuda" if torch.cuda.is_available() else "cpu"},
         "requires_cuda": False,
     },
     # {
