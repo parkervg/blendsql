@@ -4,6 +4,6 @@ hide:
 ---
 # SQLite 
 
-::: blendsql.db._sqlite.SQLite
+::: blendsql.db.sqlite.SQLite
     handler: python
     show_source: true

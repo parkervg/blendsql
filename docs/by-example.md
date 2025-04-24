@@ -16,7 +16,7 @@ ORDER BY {{
     )
 }} DESC LIMIT 1
 ```
-By virtue of the `ORDER BY` clause, we assume that the output of the `{{LLMMap}` ingredient should be a numeric. BlendSQL constrains the generation of the language model, then, to the regular expression corresponding to a integer (or floating point) `(((\d|\.)+|-);){n}`, where `n` is the number of values in the `Area` column, and `-` represents a null value.
+By virtue of the `ORDER BY` clause, we assume that the output of the `{{LLMMap}` ingredient should be a numeric. BlendSQL constrains the generation of the language model, then, to the regular expression corresponding to a integer (or floating point) `(\d+(\.\d+)?){n}`, where `n` is the number of values in the `Area` column, and `-` represents a null value.
 
 ### Automatic `options` Injection
 ```sql

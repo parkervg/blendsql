@@ -13,6 +13,6 @@ Currently, the following are supported.
 - [DuckDB](./duckdb.md)
 - [Pandas](./pandas.md)
 
-::: blendsql.db._database.Database
+::: blendsql.db.database.Database
     handler: python
     show_source: true

@@ -11,6 +11,6 @@ hide:
 
 ## TransformersLLM
 
-::: blendsql.models.constrained._guidance.TransformersLLM
+::: blendsql.models.constrained.guidance.TransformersLLM
     handler: python
     show_source: false

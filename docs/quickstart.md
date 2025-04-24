@@ -7,81 +7,141 @@ hide:
 ```python
 import pandas as pd
 
-import blendsql
+from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
-from blendsql.db import Pandas
-from blendsql.models import TransformersLLM, OpenaiLLM, AnthropicLLM
+from blendsql.models import TransformersLLM, LiteLLM
 
-# Optionally set how many async calls to allow concurrently
-# This depends on your OpenAI/Anthropic/etc. rate limits
-blendsql.config.set_async_limit(10)
+USE_LOCAL_CONSTRAINED_MODEL = False
 
-# Load model
-model = OpenaiLLM("gpt-4o-mini") # requires .env file with `OPENAI_API_KEY`
-# model = AnthropicLLM("claude-3-haiku-20240307") # requires .env file with `ANTHROPIC_API_KEY`
-# model = TransformersLLM('Qwen/Qwen1.5-0.5B') # run with any local Transformers model
+# Load model, either a local transformers model, or remote provider via LiteLLM
+if USE_LOCAL_CONSTRAINED_MODEL:
+    model = TransformersLLM(
+        "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
+    )  # Local models enable BlendSQL's predicate-guided constrained decoding
+else:
+    model = LiteLLM("openai/gpt-4o-mini")
 
-# Prepare our local database
-db = Pandas(
-  {
-    "w": pd.DataFrame(
-      (
-        ['11 jun', 'western districts', 'bathurst', 'bathurst ground', '11-0'],
-        ['12 jun', 'wallaroo & university nsq', 'sydney', 'cricket ground',
-         '23-10'],
-        ['5 jun', 'northern districts', 'newcastle', 'sports ground', '29-0']
-      ),
-      columns=['date', 'rival', 'city', 'venue', 'score']
-    ),
-    "documents": pd.DataFrame(
-      (
-        ['bathurst, new south wales',
-         'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about 200 kilometres ( 120 mi ) west-northwest of sydney and is the seat of the bathurst regional council .'],
-        ['sydney',
-         'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in australia and oceania . located on australia s east coast , the metropolis surrounds port jackson.'],
-        ['newcastle, new south wales',
-         'the newcastle ( /ˈnuːkɑːsəl/ new-kah-səl ) metropolitan area is the second most populated area in the australian state of new south wales and includes the newcastle and lake macquarie local government areas .']
-      ),
-      columns=['title', 'content']
-    )
-  }
+# Prepare our BlendSQL connection
+bsql = BlendSQL(
+    {
+        "People": pd.DataFrame(
+            {
+                "Name": [
+                    "George Washington",
+                    "John Adams",
+                    "Thomas Jefferson",
+                    "James Madison",
+                    "James Monroe",
+                    "Alexander Hamilton",
+                    "Sabrina Carpenter",
+                    "Charli XCX",
+                    "Elon Musk",
+                    "Michelle Obama",
+                    "Elvis Presley",
+                ],
+                "Known_For": [
+                    "Established federal government, First U.S. President",
+                    "XYZ Affair, Alien and Sedition Acts",
+                    "Louisiana Purchase, Declaration of Independence",
+                    "War of 1812, Constitution",
+                    "Monroe Doctrine, Missouri Compromise",
+                    "Created national bank, Federalist Papers",
+                    "Nonsense, Emails I Cant Send, Mean Girls musical",
+                    "Crash, How Im Feeling Now, Boom Clap",
+                    "Tesla, SpaceX, Twitter/X acquisition",
+                    "Lets Move campaign, Becoming memoir",
+                    "14 Grammys, King of Rock n Roll",
+                ],
+            }
+        ),
+        "Eras": pd.DataFrame({"Years": ["1700-1800", "1800-1900", "1900-2000", "2000-Now"]}),
+    },
+    ingredients={LLMMap, LLMQA, LLMJoin},
+    model=model,
+    verbose=True,
 )
 
-# Write BlendSQL query
-query = """
-SELECT * FROM w
-WHERE city = {{
-    LLMQA(
-        'Which city is located 120 miles west of Sydney?',
-        (SELECT * FROM documents WHERE content LIKE '%sydney%'),
-        options='w::city'
-    )
-}}
-"""
-smoothie = blendsql.blend(
-  query=query,
-  db=db,
-  ingredients={LLMMap, LLMQA, LLMJoin},
-  default_model=model,
-  # Optional args below
-  infer_gen_constraints=True,
-  verbose=True
+smoothie = bsql.execute(
+    """
+    SELECT * FROM People P
+    WHERE P.Name IN {{
+        LLMQA('First 3 presidents of the U.S?', modifier='{3}')
+    }}
+    """,
+    infer_gen_constraints=True,
 )
+
 print(smoothie.df)
-# ┌────────┬───────────────────┬──────────┬─────────────────┬─────────┐
-# │ date   │ rival             │ city     │ venue           │ score   │
-# ├────────┼───────────────────┼──────────┼─────────────────┼─────────┤
-# │ 11 jun │ western districts │ bathurst │ bathurst ground │ 11-0    │
-# └────────┴───────────────────┴──────────┴─────────────────┴─────────┘
-print(smoothie.meta.prompts)
-# [
-#   {
-#       'answer': 'bathurst',
-#       'question': 'Which city is located 120 miles west of Sydney?',
-#       'context': [
-#           {'title': 'bathurst, new south wales', 'content': 'bathurst /ˈbæθərst/ is a city in the central tablelands of new south wales , australia . it is about...'},
-#           {'title': 'sydney', 'content': 'sydney ( /ˈsɪdni/ ( listen ) sid-nee ) is the state capital of new south wales and the most populous city in...'}
-#       ]
-#    }
-# ]
+# ┌───────────────────┬───────────────────────────────────────────────────────┐
+# │ Name              │ Known_For                                             │
+# ├───────────────────┼───────────────────────────────────────────────────────┤
+# │ George Washington │ Established federal government, First U.S. Preside... │
+# │ John Adams        │ XYZ Affair, Alien and Sedition Acts                   │
+# │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
+# └───────────────────┴───────────────────────────────────────────────────────┘
+print(smoothie.summary())
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    1.25158 │                    1 │             296 │                  16 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
+
+smoothie = bsql.execute(
+    """
+    SELECT GROUP_CONCAT(Name, ', ') AS 'Names',
+    {{
+        LLMMap(
+            'In which time period was this person born?',
+            'People::Name',
+            options='Eras::Years'
+        )
+    }} AS Born
+    FROM People
+    GROUP BY Born
+    """,
+)
+
+print(smoothie.df)
+# ┌───────────────────────────────────────────────────────┬───────────┐
+# │ Names                                                 │ Born      │
+# ├───────────────────────────────────────────────────────┼───────────┤
+# │ George Washington, John Adams, Thomas Jefferson, J... │ 1700-1800 │
+# │ Sabrina Carpenter, Charli XCX, Elon Musk, Michelle... │ 2000-Now  │
+# │ Elvis Presley                                         │ 1900-2000 │
+# └───────────────────────────────────────────────────────┴───────────┘
+print(smoothie.summary())
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    1.03858 │                    2 │             544 │                  75 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
+smoothie = bsql.execute("""
+    SELECT {{
+        LLMQA(
+            'Describe BlendSQL in 50 words',
+            (
+                SELECT content[0:5000] AS "README"
+                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md');
+            )
+        )
+    }} AS answer
+""")
+
+print(smoothie.df)
+# ┌─────────────────────────────────────────────────────┐
+# │ answer                                              │
+# ├─────────────────────────────────────────────────────┤
+# │ BlendSQL is a Python library that combines SQL a... │
+# └─────────────────────────────────────────────────────┘
+
+print(smoothie.summary())
+
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    4.07617 │                    1 │            1921 │                  50 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
 ```

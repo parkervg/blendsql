@@ -9,7 +9,7 @@ hide:
     You need to install the `duckdb` library to use this in blendsql.
 
 
-::: blendsql.db._duckdb.DuckDB
+::: blendsql.db.duckdb.DuckDB
     handler: python
     options:
       members:

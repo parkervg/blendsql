@@ -14,6 +14,6 @@ hide:
 
 #### preprocess_blendsql()
 
-::: blendsql.blend.preprocess_blendsql
+::: blendsql.blendsql.preprocess_blendsql
     handler: python
     show_source: false

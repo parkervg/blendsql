@@ -10,6 +10,6 @@ Certain models may be better geared towards some BlendSQL tasks than others, so 
 
 
 ## `Model`
-::: blendsql.models._model.Model
+::: blendsql.models.model.Model
     handler: python
     show_source: true

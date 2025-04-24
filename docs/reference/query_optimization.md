@@ -4,16 +4,16 @@ hide:
 ---
 ### QueryContextManager
 
-::: blendsql.parse._parse.QueryContextManager
+::: blendsql.parse.parse.QueryContextManager
     handler: python
     show_source: true
 
 ### SubqueryContextManager
-:::blendsql.parse._parse.SubqueryContextManager
+:::blendsql.parse.parse.SubqueryContextManager
     handler: python
     show_source: true
     options:
       members:
       - abstracted_table_selects
-      - _table_star_queries
+      - __gather_alias_mappings
       - infer_gen_constraints
