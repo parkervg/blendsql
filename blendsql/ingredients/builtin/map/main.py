@@ -381,7 +381,6 @@ class LLMMap(MapIngredient):
                 messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
             )
 
-            print("\n".join(responses))
             # Post-process language model response
             mapped_values = []
             total_missing_values = 0
