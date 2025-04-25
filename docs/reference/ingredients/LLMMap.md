@@ -6,16 +6,15 @@ hide:
 ![ingredients](../../img/
 /LLMMap.jpg)
 
-## Usage 
+## Usage
 ### `LLMMap`
 ::: blendsql.ingredients.builtin.map.main.LLMMap
     handler: python
     options:
       show_source: false
-      show_root_heading: false    
+      show_root_heading: false
       members:
       - from_args
-      - run
 
 ## Description
 This type of ingredient applies a function on a given column to create a new column containing the function's output.
@@ -38,4 +37,3 @@ SELECT merchant FROM transactions
 | Target   | 0                     |
 
 The temporary table shown above is then combined with the original "transactions" table with an `INNER JOIN` on the "merchant" column.
-

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from blendsql.common.constants import DEFAULT_NAN_ANS
 
 # The 'modifier' arg can be either '*' or '+',
-#   or any string matching '{\d+}'
+#   or any string matching '{\d(,\d)?}'
 ModifierType = t.Union[t.Literal["*", "+"], str, None]
 
 

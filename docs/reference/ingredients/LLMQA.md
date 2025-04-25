@@ -6,16 +6,15 @@ hide:
 ![ingredients](../../img/
 /LLMQA.jpg)
 
-## Usage 
+## Usage
 ### `LLMQA`
 ::: blendsql.ingredients.builtin.qa.main.LLMQA
     handler: python
     options:
       show_source: false
-      show_root_heading: false    
+      show_root_heading: false
       members:
       - from_args
-      - run
 
 ## Description
 Sometimes, simply selecting data from a given database is not enough to sufficiently answer a user's question.
@@ -25,14 +24,14 @@ The `QAIngredient` is designed to return data of variable types, and is best use
 2) Complex, unintuitive relationships extracted from table subsets ("How many consecutive days did I spend in coffee?")
 3) Multi-hop reasoning from unstructured data, grounded in a structured schema (using the `options` arg)
 
-Formally, this is an [aggregate function](https://www.sqlite.org/lang_aggfunc.html) which transforms a table subset into a single value. 
+Formally, this is an [aggregate function](https://www.sqlite.org/lang_aggfunc.html) which transforms a table subset into a single value.
 
 The following query demonstrates usage of the builtin `LLMQA` ingredient.
 
 ```sql
 {{
     LLMQA(
-        'How many consecutive days did I buy stocks in Financials?', 
+        'How many consecutive days did I buy stocks in Financials?',
         (
             SELECT account_history."Run Date", account_history.Symbol, constituents."Sector"
               FROM account_history
@@ -41,12 +40,12 @@ The following query demonstrates usage of the builtin `LLMQA` ingredient.
               ORDER BY "Run Date" LIMIT 5
         )
     )
-}} 
+}}
 ```
-This is slightly more complicated than the rest of the ingredients. 
+This is slightly more complicated than the rest of the ingredients.
 
 Behind the scenes, we wrap the call to `LLMQA` in a `SELECT` clause, ensuring that the ingredient's output gets returned.
-```sql 
+```sql
 SELECT {{QAIngredient}}
 ```
 The LLM gets both the question asked, alongside the subset of the SQL database fetched by our subquery.
@@ -65,13 +64,13 @@ The LLM answers the question in an end-to-end manner, returning the result `2`.
 
 The `QAIngredient` can be used as a standalone end-to-end QA tool, or as a component within a larger BlendSQL query.
 
-For example, the BlendSQL query below translates to the valid (but rather confusing) question: 
+For example, the BlendSQL query below translates to the valid (but rather confusing) question:
 
 "Show me stocks in my portfolio, whose price is greater than the number of consecutive days I bought Financial stocks multiplied by 10. Only display those companies which offer a media streaming service."
 ```sql
  SELECT Symbol, "Last Price" FROM portfolio WHERE "Last Price" > {{
   LLMQA(
-        'How many consecutive days did I buy stocks in Financials?', 
+        'How many consecutive days did I buy stocks in Financials?',
         (
             SELECT account_history."Run Date", account_history.Symbol, constituents."Sector"
               FROM account_history
@@ -89,7 +88,7 @@ Perhaps we want the answer to the above question in a different format. We call 
 ```sql
 {{
     LLMQA(
-        'How many consecutive days did I buy stocks in Financials?', 
+        'How many consecutive days did I buy stocks in Financials?',
         (
             SELECT account_history."Run Date", account_history.Symbol, constituents."Sector"
               FROM account_history
@@ -106,9 +105,9 @@ Running the above BlendSQL query, we get the output `two consecutive days!`.
 
 This `options` argument can also be a reference to a given column.
 
-For example (from the [HybridQA dataset](https://hybridqa.github.io/)): 
+For example (from the [HybridQA dataset](https://hybridqa.github.io/)):
 
-```sql 
+```sql
  SELECT capacity FROM w WHERE venue = {{
         LLMQA(
             'Which venue is named in honor of Juan Antonio Samaranch?',

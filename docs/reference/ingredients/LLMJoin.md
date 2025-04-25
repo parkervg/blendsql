@@ -6,19 +6,18 @@ hide:
 ![ingredients](../../img/
 /LLMJoin.jpg)
 
-## Usage 
+## Usage
 ### `LLMJoin`
 ::: blendsql.ingredients.builtin.join.main.LLMJoin
     handler: python
     options:
       show_source: false
-      show_root_heading: false    
+      show_root_heading: false
       members:
       - from_args
-      - run
 
 ## Description
-This ingredient handles the logic of semantic `JOIN` clauses between tables. 
+This ingredient handles the logic of semantic `JOIN` clauses between tables.
 
 In other words, it creates a custom mapping between a pair of value sets. Behind the scenes, this mapping is then used to create an auxiliary table to use in carrying out an [`INNER JOIN`](https://www.sqlite.org/optoverview.html#joins).
 
