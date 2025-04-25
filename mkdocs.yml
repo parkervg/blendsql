@@ -70,7 +70,7 @@ nav:
           - Custom VQA Ingredient with LLaVA: reference/examples/vqa-ingredient.ipynb
           - Teaching BlendSQL via In-Context Learning: reference/examples/teaching-blendsql-via-in-context-learning.ipynb
   - Documentation:
-      - BlendSQL Functions: functions.md
+      - BlendSQL Functions: reference/functions.md
       - Execute a BlendSQL Query: reference/execute-blendsql.md
       - Ingredients:
           - reference/ingredients/ingredients.md
