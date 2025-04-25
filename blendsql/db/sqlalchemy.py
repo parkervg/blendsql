@@ -59,6 +59,9 @@ class SQLAlchemyDatabase(Database):
         include_content: t.Union[str, Collection[str]] = "all",
         use_bridge_encoder: bool = False,
         question: t.Optional[str] = None,
+        context_formatter: t.Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
+            index=False
+        ),
     ) -> str:
         """Returns a string representation of the database, with example rows."""
         from .bridge_content_encoder import get_database_matches
@@ -90,7 +93,7 @@ class SQLAlchemyDatabase(Database):
                 # Truncate long strings
                 rows = truncate_df_content(rows, truncate_content)
                 serialized_db.append(get_rows_query)
-            serialized_db.append(f"{rows.to_string(index=False)}")
+            serialized_db.append(f"{context_formatter(rows)}")
             serialized_db.append("*/\n")
             if use_bridge_encoder:
                 bridge_hints = []
