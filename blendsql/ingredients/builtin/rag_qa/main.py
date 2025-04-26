@@ -2,7 +2,7 @@ import typing as t
 from collections.abc import Collection
 from textwrap import dedent
 
-from blendsql.types import ModifierType
+from blendsql.types import QuantifierType
 from blendsql.db.utils import double_quote_escape
 from blendsql.ingredients.ingredient import AliasIngredient, Ingredient
 from blendsql.ingredients.builtin.web_search import BingWebSearch
@@ -16,7 +16,7 @@ class RAGQA(AliasIngredient):
         question: str,
         source: t.Literal["bing"] = "bing",
         options: t.Optional[Collection[str]] = None,
-        modifier: ModifierType = None,
+        quantifier: QuantifierType = None,
         output_type: t.Optional[str] = None,
         *args,
         **kwargs,
@@ -53,8 +53,8 @@ class RAGQA(AliasIngredient):
         llmqa_args_str = ""
         if options is not None:
             llmqa_args.append(f"options='{options}'")
-        if modifier is not None:
-            llmqa_args.append(f"modifier='{modifier}'")
+        if quantifier is not None:
+            llmqa_args.append(f"quantifier='{quantifier}'")
         if output_type is not None:
             llmqa_args.append(f"output_type='{output_type}'")
         if len(llmqa_args) > 0:

@@ -91,7 +91,7 @@ smoothie = bsql.execute(
     """
     SELECT * FROM People P
     WHERE P.Name IN {{
-        LLMQA('First 3 presidents of the U.S?', modifier='{3}')
+        LLMQA('First 3 presidents of the U.S?', quantifier='{3}')
     }}
     """,
     infer_gen_constraints=True,

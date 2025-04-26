@@ -4,21 +4,21 @@ from dataclasses import dataclass
 
 from blendsql.common.constants import DEFAULT_NAN_ANS
 
-# The 'modifier' arg can be either '*' or '+',
+# The 'quantifier' arg can be either '*' or '+',
 #   or any string matching '{\d(,\d)?}'
-ModifierType = t.Union[t.Literal["*", "+"], str, None]
+QuantifierType = t.Union[t.Literal["*", "+"], str, None]
 
 
 @dataclass
 class DataType:
     _name: str
     regex: t.Optional[str]
-    modifier: t.Optional[ModifierType]
+    quantifier: t.Optional[QuantifierType]
     _coerce_fn: t.Callable
 
     @property
     def name(self) -> str:
-        if self._name != "list" and self.modifier is not None:
+        if self._name != "list" and self.quantifier is not None:
             return f"List[{self._name}]"
         return self._name
 
@@ -59,19 +59,19 @@ def str_to_numeric(s: t.Union[str, None]) -> t.Union[float, int, str, None]:
 
 @dataclass
 class DataTypes:
-    STR = lambda modifier=None: DataType("str", None, modifier, lambda s: s)
-    BOOL = lambda modifier=None: DataType(
-        "bool", r"(t|f|true|false|True|False)", modifier, str_to_bool
+    STR = lambda quantifier=None: DataType("str", None, quantifier, lambda s: s)
+    BOOL = lambda quantifier=None: DataType(
+        "bool", r"(t|f|true|false|True|False)", quantifier, str_to_bool
     )
-    INT = lambda modifier=None: DataType("int", r"(\d+)", modifier, str_to_numeric)
-    FLOAT = lambda modifier=None: DataType(
-        "float", r"(\d+(\.\d+)?)", modifier, str_to_numeric
+    INT = lambda quantifier=None: DataType("int", r"(\d+)", quantifier, str_to_numeric)
+    FLOAT = lambda quantifier=None: DataType(
+        "float", r"(\d+(\.\d+)?)", quantifier, str_to_numeric
     )
-    ISO_8601_DATE = lambda modifier=None: DataType(
-        "date", r"\d{4}-\d{2}-\d{2}", modifier, lambda s: s
+    ISO_8601_DATE = lambda quantifier=None: DataType(
+        "date", r"\d{4}-\d{2}-\d{2}", quantifier, lambda s: s
     )
-    ANY = lambda modifier=None: DataType(
-        "Any", None, modifier, lambda s: str_to_numeric(str_to_bool(s))
+    ANY = lambda quantifier=None: DataType(
+        "Any", None, quantifier, lambda s: str_to_numeric(str_to_bool(s))
     )
 
 

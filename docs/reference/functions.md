@@ -32,9 +32,9 @@ WHERE {{
 
 The `LLMQA` is an aggregate function that returns a single scalar value.
 
-### `Modifier`
+### `Quantifier`
 
-An optional `modifier` argument can be passed, which will be used to modify the regular expression pattern powering the constrained decoding. The following are valid:
+An optional `quantifier` argument can be passed, which will be used to modify the regular expression pattern powering the constrained decoding. The following [greedy quantifiers](https://learn.microsoft.com/en-us/dotnet/standard/base-types/quantifiers-in-regular-expressions) are valid:
 
 - `'*'`, meaning 'zero-or-more'
 - `'+`', meaning 'one-or-more'
@@ -47,7 +47,7 @@ def LLMQA(
     options: t.Optional[ValueArray] = None,
     output_type: t.Optional[OutputType] = None,
     regex: t.Optional[str] = None,
-    modifier: t.Optional[Modifier] = None
+    quantifier: t.Optional[Quantifier] = None
 ):
     ...
 ```
@@ -78,7 +78,7 @@ WHERE state = {{
 
 ```sql
 -- Generate 3 values in our generated tuple
-SELECT * FROM VALUES {{LLMQA('What are the first 3 letters of the alphabet?', modifier='{3}')}}
+SELECT * FROM VALUES {{LLMQA('What are the first 3 letters of the alphabet?', quantifier='{3}')}}
 ```
 
 ## LLMMap

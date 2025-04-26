@@ -35,16 +35,16 @@ class QAExample(Example):
             if self.options is not None:
                 s += f"Options: {', '.join(sorted(self.options))}\n"
         if self.output_type is not None:
-            modifier = self.output_type.modifier
-            if modifier is not None:
-                if modifier == "*":
+            quantifier = self.output_type.quantifier
+            if quantifier is not None:
+                if quantifier == "*":
                     s += "You may generate zero or more responses in your list.\n"
-                elif modifier == "+":
+                elif quantifier == "+":
                     s += "You may generate one or more responses in your list.\n"
                 else:
                     repeats = [
                         int(i)
-                        for i in modifier.replace("}", "").replace("{", "").split(",")
+                        for i in quantifier.replace("}", "").replace("{", "").split(",")
                     ]
                     if len(repeats) == 1:
                         repeats = repeats * 2

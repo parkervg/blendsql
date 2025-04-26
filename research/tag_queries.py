@@ -789,7 +789,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                     SELECT * FROM filtered_posts
                 ),
                 options='filtered_posts::Id',
-                modifier='{2}'
+                quantifier='{2}'
             )
         }}
         """,
@@ -836,7 +836,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                     SELECT * FROM yevgeny_posts
                 ),
                 options='yevgeny_posts::Id',
-                modifier='{3}'
+                quantifier='{3}'
             )
         }}""",
         "Notes": "Very long context passed to LLMQA here.",
@@ -861,7 +861,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         LLMQA(
             "Which 3 of these names could be said to be the 'most unique'?", 
             options="top_players::player_name", 
-            modifier="{3}"
+            quantifier="{3}"
             )
         }}
         """,
@@ -885,7 +885,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                     GROUP BY u.DisplayName 
                     HAVING COUNT(*) >= 200
                 ),
-                modifier='{2}'
+                quantifier='{2}'
             )
         }}""",
         "Notes": "Subjective question - why is 'Glen_b' more based off of a real name than 'whuber'?",
@@ -927,7 +927,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                     SELECT * FROM harvey_comments
                 ),
                 options='harvey_comments::PostId'
-                modifier='{3}'
+                quantifier='{3}'
             )
         }}""",
         "Notes": "Subjective - what is 'most helpful'?",
@@ -1044,7 +1044,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             LLMQA(
                 'Which 2 California cities are the most popular to visit?',
                 options='lowest_enrollment::City',
-                modifier='{2}'
+                quantifier='{2}'
             )
         }}""",
         "Notes": """'Most popular cities to visit' is subjective? But, looking at online resources, it also seems wrong. 

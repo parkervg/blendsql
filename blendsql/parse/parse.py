@@ -8,7 +8,7 @@ from attr import attrs, attrib
 
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.constants import IngredientKwarg
-from ..types import ModifierType, DataTypes
+from ..types import QuantifierType, DataTypes
 from .dialect import _parse_one
 from . import checks as check
 from . import transforms as transform
@@ -409,7 +409,7 @@ class SubqueryContextManager:
         else:
             start_node = child.parent
         predicate_literals: t.List[str] = []
-        modifier: ModifierType = None
+        quantifier: QuantifierType = None
         # Check for instances like `{column} = {QAIngredient}`
         # where we can infer the space of possible options for QAIngredient
         if isinstance(start_node, (exp.EQ, exp.In)):
@@ -434,26 +434,26 @@ class SubqueryContextManager:
             field_val = start_node.args.get("field", None)
             if field_val is not None:
                 if child == field_val:
-                    modifier = "+"
+                    quantifier = "+"
             expressions_val = start_node.args.get("expressions")
             if expressions_val is not None:
                 if len(expressions_val) > 0:
                     if child == expressions_val[0]:
-                        modifier = "+"
+                        quantifier = "+"
         if start_node is not None:
             predicate_literals = get_predicate_literals(start_node)
         # Try to infer output type given the literals we've been given
         # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
         if len(predicate_literals) > 0:
             if all(isinstance(x, bool) for x in predicate_literals):
-                output_type = DataTypes.BOOL(modifier)
+                output_type = DataTypes.BOOL(quantifier)
             elif all(isinstance(x, float) for x in predicate_literals):
-                output_type = DataTypes.FLOAT(modifier)
+                output_type = DataTypes.FLOAT(quantifier)
             elif all(isinstance(x, int) for x in predicate_literals):
-                output_type = DataTypes.INT(modifier)
+                output_type = DataTypes.INT(quantifier)
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
-                added_kwargs[IngredientKwarg.OUTPUT_TYPE] = DataTypes.STR(modifier)
+                added_kwargs[IngredientKwarg.OUTPUT_TYPE] = DataTypes.STR(quantifier)
                 if len(predicate_literals) == 1:
                     predicate_literals = predicate_literals + [predicate_literals[0]]
                 added_kwargs[IngredientKwarg.EXAMPLE_OUTPUTS] = predicate_literals
@@ -472,11 +472,11 @@ class SubqueryContextManager:
             ),
         ):
             output_type = DataTypes.FLOAT(
-                modifier
+                quantifier
             )  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
-        elif modifier:
+        elif quantifier:
             # Fallback to a generic list datatype
-            output_type = DataTypes.STR(modifier)
+            output_type = DataTypes.STR(quantifier)
         else:
             output_type = None
         added_kwargs[IngredientKwarg.OUTPUT_TYPE] = output_type

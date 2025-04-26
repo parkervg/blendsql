@@ -60,7 +60,7 @@ def test_singers(bsql, model):
         """
         SELECT * FROM People p
         WHERE p.Name IN {{
-            LLMQA('First 3 presidents of the U.S?', modifier='{3}')
+            LLMQA('First 3 presidents of the U.S?', quantifier='{3}')
         }}
         """,
         model=model,
@@ -99,7 +99,7 @@ def test_alphabet(bsql, constrained_model):
 
     smoothie = bsql.execute(
         """
-            SELECT * FROM ( VALUES {{LLMQA('What are the first capital letters of the alphabet?', options='A;B;C', modifier="{2}")}} )
+            SELECT * FROM ( VALUES {{LLMQA('What are the first capital letters of the alphabet?', options='A;B;C', quantifier="{2}")}} )
             """,
         model=constrained_model,
     )
@@ -107,7 +107,7 @@ def test_alphabet(bsql, constrained_model):
 
     smoothie = bsql.execute(
         """
-            SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options='α;β;γ', modifier="{3}")}} )
+            SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options='α;β;γ', quantifier="{3}")}} )
             """,
         model=constrained_model,
     )
@@ -118,8 +118,8 @@ def test_alphabet(bsql, constrained_model):
             SELECT {{
                 LLMQA(
                     'What is the first letter of the alphabet?',
-                    options=(SELECT * FROM (VALUES {{LLMQA('List some greek letters', modifier='{1,3}', options='alpha')}})),
-                    modifier='{1,3}'
+                    options=(SELECT * FROM (VALUES {{LLMQA('List some greek letters', quantifier='{1,3}', options='alpha')}})),
+                    quantifier='{1,3}'
                 )
             }} AS 'response'
             """,
@@ -130,7 +130,7 @@ def test_alphabet(bsql, constrained_model):
     smoothie = bsql.execute(
         """
             WITH greek_letters AS (
-                SELECT * FROM (VALUES {{LLMQA('List some greek letters', modifier='{1,3}', options='alpha')}})
+                SELECT * FROM (VALUES {{LLMQA('List some greek letters', quantifier='{1,3}', options='alpha')}})
             ) SELECT {{
                 LLMQA(
                     'What is the first letter of the alphabet?',

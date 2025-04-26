@@ -18,12 +18,12 @@
 </div>
 <br/>
 
-# Installation
+# 💻 Installation
 ```
 pip install blendsql
 ```
 
-# Quickstart
+# ⭐ Quickstart
 ```python
 import pandas as pd
 
@@ -85,7 +85,7 @@ smoothie = bsql.execute(
     """
     SELECT * FROM People P
     WHERE P.Name IN {{
-        LLMQA('First 3 presidents of the U.S?', modifier='{3}')
+        LLMQA('First 3 presidents of the U.S?', quantifier='{3}')
     }}
     """,
     infer_gen_constraints=True,
@@ -166,7 +166,7 @@ print(smoothie.summary())
 
 ```
 
-# ✨ News
+# 📰 News
 - (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
 - (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
 - (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
@@ -193,7 +193,7 @@ As a result, we can *Blend* together...
   - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
 - Supports local & remote models ✨
   - Transformers, OpenAI, Anthropic, Ollama, and 100+ more!
-- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
+- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀

@@ -5,7 +5,7 @@ from collections.abc import Collection
 
 from blendsql.common.exceptions import IngredientException
 from blendsql.types.types import (
-    ModifierType,
+    QuantifierType,
     DataType,
     DataTypes,
     STR_TO_DATATYPE,
@@ -16,7 +16,7 @@ from blendsql.common.logger import logger
 def prepare_datatype(
     options: t.Optional[Collection[str]],
     output_type: t.Optional[t.Union[str, DataType]] = None,
-    modifier: t.Optional[ModifierType] = None,
+    quantifier: t.Optional[QuantifierType] = None,
 ) -> DataType:
     if output_type is None:
         resolved_output_type = DataTypes.STR()
@@ -28,13 +28,13 @@ def prepare_datatype(
                 f"{output_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
             )
         resolved_output_type = STR_TO_DATATYPE[output_type]
-        if modifier:  # User passed modifier takes precedence
-            resolved_output_type.modifier = modifier
+        if quantifier:  # User passed quantifier takes precedence
+            resolved_output_type.quantifier = quantifier
     elif isinstance(output_type, DataType):
         resolved_output_type = output_type
-    if modifier:
-        # The user has passed us a modifier that should take precedence
-        resolved_output_type.modifier = modifier
+    if quantifier:
+        # The user has passed us a quantifier that should take precedence
+        resolved_output_type.quantifier = quantifier
     if resolved_output_type.regex is not None:
         if options is not None:
             logger.debug(

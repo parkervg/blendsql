@@ -204,7 +204,7 @@ class LLMMap(MapIngredient):
             values = values[:value_limit]
         values = [value if not pd.isna(value) else "-" for value in values]
         resolved_output_type: DataType = prepare_datatype(
-            output_type=output_type, options=options, modifier=None
+            output_type=output_type, options=options, quantifier=None
         )
         current_example = MapExample(
             **{

@@ -22,7 +22,7 @@ from blendsql.ingredients.utils import (
     partialclass,
 )
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql.types import DataType, ModifierType, prepare_datatype
+from blendsql.types import DataType, QuantifierType, prepare_datatype
 from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
@@ -171,7 +171,7 @@ class LLMQA(QAIngredient):
             t.Callable[[str], t.List[AnnotatedQAExample]]
         ] = None,
         options: t.Optional[Collection[str]] = None,
-        modifier: ModifierType = None,
+        quantifier: QuantifierType = None,
         output_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
         context: t.Optional[pd.DataFrame] = None,
@@ -188,7 +188,7 @@ class LLMQA(QAIngredient):
             few_shot_retriever: Callable which takes a string, and returns n most similar few-shot examples
             options: Optional collection with which we try to constrain generation.
             list_options_in_prompt: Defines whether we include options in the prompt for the current inference example
-            modifier: If we expect an array of scalars, this defines the regex we want to apply.
+            quantifier: If we expect an array of scalars, this defines the regex we want to apply.
                 Used directly for constrained decoding at inference time if we have a guidance model.
             output_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
             regex: Optional regex to constrain answer generation. Takes precedence over `output_type`
@@ -198,7 +198,7 @@ class LLMQA(QAIngredient):
 
         Returns:
             Union[str, int, float, tuple] containing the response from the model.
-                Response will only be a tuple if `modifier` is not None.
+                Response will only be a tuple if `quantifier` is not None.
         """
         if model is None:
             raise IngredientException(
@@ -210,7 +210,7 @@ class LLMQA(QAIngredient):
             if value_limit is not None:
                 context = context.iloc[:value_limit]
         output_type: DataType = prepare_datatype(
-            output_type=output_type, options=options, modifier=modifier
+            output_type=output_type, options=options, quantifier=quantifier
         )
         current_example = QAExample(
             **{
@@ -224,10 +224,10 @@ class LLMQA(QAIngredient):
             current_example.to_string(context_formatter)
         )
 
-        is_list_output = current_example.output_type.modifier is not None
+        is_list_output = current_example.output_type.quantifier is not None
         regex = regex or current_example.output_type.regex
         options = current_example.options
-        modifier = current_example.output_type.modifier
+        quantifier = current_example.output_type.quantifier
         options_with_aliases, options_alias_to_original = get_option_aliases(options)
         if options is not None and list_options_in_prompt:
             max_options_in_prompt = os.getenv(
@@ -242,35 +242,35 @@ class LLMQA(QAIngredient):
         if isinstance(model, ConstrainedModel):
             import guidance
 
-            def get_modifier_wrapper(
-                modifier: ModifierType,
+            def get_quantifier_wrapper(
+                quantifier: QuantifierType,
             ) -> t.Callable[[guidance.models.Model], guidance.models.Model]:
-                modifier_wrapper = lambda x: x
-                if modifier is not None:
-                    if modifier == "*":
-                        modifier_wrapper = guidance.zero_or_more
-                    elif modifier == "+":
-                        modifier_wrapper = guidance.one_or_more
-                    elif re.match("{\d+}", modifier):
+                quantifier_wrapper = lambda x: x
+                if quantifier is not None:
+                    if quantifier == "*":
+                        quantifier_wrapper = guidance.zero_or_more
+                    elif quantifier == "+":
+                        quantifier_wrapper = guidance.one_or_more
+                    elif re.match("{\d+}", quantifier):
                         repeats = [
                             int(i)
-                            for i in modifier.replace("}", "")
+                            for i in quantifier.replace("}", "")
                             .replace("{", "")
                             .split(",")
                         ]
                         if len(repeats) == 1:
                             repeats = repeats * 2
                         min_length, max_length = repeats
-                        modifier_wrapper = lambda f: guidance.sequence(
+                        quantifier_wrapper = lambda f: guidance.sequence(
                             f, min_length=min_length, max_length=max_length
                         )  # type: ignore
-                return modifier_wrapper  # type: ignore
+                return quantifier_wrapper  # type: ignore
 
             @guidance(stateless=True, dedent=False)
             def gen_list(
                 lm,
                 force_quotes: bool,
-                modifier=None,
+                quantifier=None,
                 options: t.Optional[t.List[str]] = None,
                 regex: t.Optional[str] = None,
             ):
@@ -291,7 +291,7 @@ class LLMQA(QAIngredient):
                     quote = guidance.optional(quote)  # type: ignore
                 single_item = quote + single_item + quote
                 single_item += guidance.optional(", ")  # type: ignore
-                return lm + "[" + get_modifier_wrapper(modifier)(single_item) + "]"
+                return lm + "[" + get_quantifier_wrapper(quantifier)(single_item) + "]"
 
             lm = LMString()  # type: ignore
 
@@ -310,7 +310,7 @@ class LLMQA(QAIngredient):
                     "force_quotes": bool("str" in current_example.output_type.name),
                     "regex": regex,
                     "options": options_with_aliases,
-                    "modifier": modifier,
+                    "quantifier": quantifier,
                 }
                 gen_f = gen_list
             else:
@@ -394,7 +394,7 @@ class LLMQA(QAIngredient):
                 max_tokens=kwargs.get("max_tokens", None),
             )[0].strip()
         if isinstance(response, str):  # type: ignore
-            # If we have specified a modifier, we try to parse it to a tuple
+            # If we have specified a quantifier, we try to parse it to a tuple
             if is_list_output:
                 try:
                     response = response.strip("'")
