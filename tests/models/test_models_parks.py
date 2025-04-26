@@ -2,7 +2,7 @@ import pytest
 import os
 
 from blendsql import BlendSQL
-from blendsql.ingredients import ImageCaption, LLMMap, LLMQA, RAGQA
+from blendsql.ingredients import ImageCaption, RAGQA
 from blendsql.smoothie import Smoothie
 from blendsql.common.utils import fetch_from_hub
 from blendsql.models import LiteLLM
@@ -10,7 +10,7 @@ from blendsql.common.exceptions import IngredientException
 
 
 @pytest.fixture(scope="session")
-def bsql(vision_model) -> BlendSQL:
+def bsql() -> BlendSQL:
     return BlendSQL(fetch_from_hub("national_parks.db"))
 
 
@@ -42,7 +42,7 @@ def test_image_caption(bsql, vision_model):
 
 @pytest.mark.long
 def test_mixed_models(bsql, vision_model, model):
-    ingredients = {ImageCaption.from_args(model=vision_model), LLMMap}
+    ingredients = {ImageCaption.from_args(model=vision_model)}
     res = bsql.execute(
         """
         SELECT "Name",
@@ -67,7 +67,7 @@ def test_mixed_models_no_default_error(bsql, vision_model):
     """If we don't pass a model and don't specify one in `.from_args`,
     we should raise the appropriate IngredientException error.
     """
-    ingredients = {ImageCaption.from_args(model=vision_model), LLMMap}
+    ingredients = {ImageCaption.from_args(model=vision_model)}
     with pytest.raises(IngredientException):
         _ = bsql.execute(
             """
@@ -88,7 +88,6 @@ def test_mixed_models_no_default_error(bsql, vision_model):
 
 @pytest.mark.long
 def test_readme_example_1(bsql, model):
-    ingredients = {LLMMap}
     res = bsql.execute(
         """
             SELECT "Name", "Description" FROM parks
@@ -100,14 +99,12 @@ def test_readme_example_1(bsql, model):
             }} = FALSE
             """,
         model=model,
-        ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
 
 
 @pytest.mark.long
 def test_readme_example_2(bsql, model):
-    ingredients = {LLMQA}
     res = bsql.execute(
         """
             SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
@@ -120,21 +117,18 @@ def test_readme_example_2(bsql, model):
           }}
             """,
         model=model,
-        ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
 
 
 @pytest.mark.long
 def test_readme_example_3(bsql, model):
-    ingredients = {LLMMap}
     res = bsql.execute(
         """
         SELECT COUNT(*) FROM parks
             WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
             """,
         model=model,
-        ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
 

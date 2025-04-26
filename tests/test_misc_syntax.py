@@ -2,7 +2,6 @@ import pytest
 import pandas as pd
 
 from blendsql import BlendSQL, config
-from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 from blendsql.models import LlamaCpp
 from .utils import starts_with
 
@@ -40,7 +39,7 @@ def bsql() -> BlendSQL:
                 ]
             ),
         },
-        ingredients={LLMQA, LLMMap, LLMJoin, starts_with},
+        ingredients={starts_with},
     )
 
 

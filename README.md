@@ -28,7 +28,6 @@ pip install blendsql
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
 from blendsql.models import TransformersLLM, LiteLLM
 
 USE_LOCAL_CONSTRAINED_MODEL = False
@@ -76,7 +75,6 @@ bsql = BlendSQL(
         ),
         "Eras": pd.DataFrame({"Years": ["1700-1800", "1800-1900", "1900-2000", "2000-Now"]}),
     },
-    ingredients={LLMMap, LLMQA, LLMJoin},
     model=model,
     verbose=True,
 )

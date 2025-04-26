@@ -1011,6 +1011,20 @@ class BlendSQL:
             raise ValueError("df_or_db_path must be provided")
 
     @staticmethod
+    def merge_default_ingredients(
+        ingredients: t.Optional[Collection[t.Type[Ingredient]]],
+    ):
+        from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
+
+        DEFAULT_INGREDIENTS = {LLMQA, LLMMap, LLMJoin}
+        ingredients = set(ingredients)
+        ingredient_names = {i.__name__ for i in ingredients}
+        for default_ingredient in DEFAULT_INGREDIENTS:
+            if default_ingredient.__name__ not in ingredient_names:
+                ingredients.add(default_ingredient)
+        return ingredients
+
+    @staticmethod
     def infer_db_type(df_or_db_path) -> Database:
         from pathlib import Path
 
@@ -1173,7 +1187,9 @@ class BlendSQL:
                 query=query,
                 db=self.db,
                 default_model=model_in_use,
-                ingredients=ingredients or self.ingredients,
+                ingredients=self.merge_default_ingredients(
+                    ingredients or self.ingredients
+                ),
                 infer_gen_constraints=infer_gen_constraints
                 if infer_gen_constraints is not None
                 else self.infer_gen_constraints,

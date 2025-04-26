@@ -2,7 +2,6 @@ import pytest
 import pandas as pd
 
 from blendsql import BlendSQL, config
-from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 
 config.set_async_limit(1)
 
@@ -43,7 +42,6 @@ def bsql() -> BlendSQL:
             ),
             "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
         },
-        ingredients={LLMQA, LLMMap, LLMJoin},
     )
 
 
