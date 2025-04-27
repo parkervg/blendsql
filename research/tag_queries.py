@@ -83,7 +83,7 @@ TAG_DATASET = [
         ) SELECT name FROM top_names 
         WHERE {{LLMMap('Is this a female name?', 'top_names::name')}} = TRUE
         ORDER BY count DESC LIMIT 2""",
-        "Notes": "Works, assuming that two of the top 20 names are female names. Otherwise would need to apply LLM function over entire table.",
+        "Notes": "Works, assuming that two of the top 20 names are female names. Otherwise would need to apply LLM function over entire table - but, that's the 'correct' interpretation of the query. TAG bench uses only the top 20 names, like we do here.",
     },
     {
         "Query ID": 6,
