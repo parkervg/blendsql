@@ -4,6 +4,8 @@ import json
 import typing as t
 from dataclasses import dataclass, field, asdict
 
+import torch
+
 from tag_queries import TAG_DATASET
 
 from blendsql import BlendSQL
@@ -42,15 +44,15 @@ if __name__ == "__main__":
     CONFIG = ExperimentConfig(
         repo_id="QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
         filename="Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
-        experiment_name="no_llmqa_examples",
+        experiment_name="orient_dict_fmt_code_map_prompt",
     )
 
     # CONFIG = ExperimentConfig(
-    #     repo_id="meta-llama/Llama-3.2-1B-Instruct",
+    #     repo_id="microsoft/Phi-3.5-mini-instruct",
     #     experiment_name="no_llmqa_examples"
     # )
     ingredients = {
-        LLMQA.from_args(k=0),
+        LLMQA.from_args(k=0, context_formatter=lambda df: df.to_dict(orient="records")),
         LLMMap,
         LLMJoin,
         RAGQA,
@@ -60,12 +62,14 @@ if __name__ == "__main__":
         model = LlamaCpp(
             CONFIG.filename,
             CONFIG.repo_id,
-            config={"n_gpu_layers": -1, "n_ctx": 9600},
+            config={"n_gpu_layers": -1, "n_ctx": 9600, "seed": 100},
             caching=False,
         )
     else:
         model = TransformersLLM(
-            CONFIG.repo_id, config={"device_map": "auto"}, caching=True
+            CONFIG.repo_id,
+            config={"device_map": "auto", "torch_dtype": torch.bfloat16},
+            caching=True,
         )
     # Pre-load model obj
     _ = model.model_obj
@@ -82,10 +86,13 @@ if __name__ == "__main__":
         curr_pred_data = item.copy()
         if item["BlendSQL"] is None:
             continue
-        if item["Query ID"] != 3:
-            continue
+        # if "LLMMap" not in item["BlendSQL"]:
+        #     continue
+        # if item["Query ID"] != 108:
+        #     continue
         bsql = load_bsql(load_tag_db_path(item["DB used"]))
         smoothie = bsql.execute(item["BlendSQL"])
+        print(smoothie.df)
         curr_pred_data["latency"] = smoothie.meta.process_time_seconds
         curr_pred_data["completion_tokens"] = smoothie.meta.completion_tokens
         curr_pred_data["prompt_tokens"] = smoothie.meta.prompt_tokens

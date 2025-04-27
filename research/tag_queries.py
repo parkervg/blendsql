@@ -44,7 +44,7 @@ TAG_DATASET = [
         JOIN schools ON schools.CDSCode = satscores.cds
         WHERE {{
             LLMMap(
-                'Approximately, what is the population of this California county? Give your best guess.',
+                'What is the population of this California county? Give your best guess.',
                 'schools::County'
             )
         }} > 2000000""",
@@ -60,7 +60,7 @@ TAG_DATASET = [
         "Answer": "K-5",
         "BlendSQL": """SELECT GSoffered
             FROM schools 
-            WHERE {{LLMMap('Is this county in Silicon Valley in California?', 'schools::County')}} = TRUE
+            WHERE {{LLMMap('Is this county in Silicon Valley?', 'schools::County')}} = TRUE
             ORDER BY "Longitude" DESC 
             LIMIT 1""",
         "Notes": None,
@@ -111,7 +111,7 @@ TAG_DATASET = [
         "BlendSQL": """SELECT COUNT(*) 
         FROM comments 
         WHERE Score = 17 
-        AND {{LLMMap('Is this about statistics?', 'comments::Text')}} = TRUE""",
+        AND {{LLMMap('Is this text about statistics?', 'comments::Text')}} = TRUE""",
         "Notes": None,
     },
     {
@@ -125,7 +125,7 @@ TAG_DATASET = [
         "BlendSQL": """SELECT COUNT(*) 
         FROM posts 
         WHERE ViewCount > 80000 
-        AND {{LLMMap('Does this discuss the R programming language?', 'posts::Body')}} = TRUE""",
+        AND {{LLMMap('Does this text discuss the R programming language?', 'posts::Body')}} = TRUE""",
         "Notes": None,
     },
     {
@@ -146,7 +146,7 @@ TAG_DATASET = [
         "BlendSQL": """SELECT DISTINCT r.name 
         FROM races r 
         JOIN circuits c ON r.circuitId = c.circuitId 
-        WHERE {{LLMMap('Is this country in the Middle East?', 'c::country')}} = TRUE""",
+        WHERE {{LLMMap('Is this a country in the Middle East?', 'c::country')}} = TRUE""",
         "Notes": "Is Europe in the Middle East?",
     },
     {
@@ -248,7 +248,12 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Query type": "Match",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "2013",
-        "BlendSQL": None,
+        "BlendSQL": """SELECT ym.Date / 100 AS "year" FROM customers c
+        JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
+        WHERE c.Currency = {{LLMQA('Which currency is the higher value?')}}
+        GROUP BY "year"
+        ORDER BY SUM(ym.Consumption) DESC LIMIT 1
+        """,
         "Notes": None,
     },
     {
@@ -309,7 +314,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "(TAG baseline) Text2SQL Input": None,
         "Query type": "Match",
         "Knowledge/Reasoning Type": "Reasoning",
-        "Answer": "TRUE",
+        "Answer": "True",
         "BlendSQL": """{{
             LLMQA(
                 'Is the content in "Body" true or false?',
@@ -318,7 +323,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                     JOIN tags t ON t.ExcerptPostId = p.Id 
                     WHERE t.TagName = 'bayesian'
                 ), 
-                output_type='bool'
+                options='True;False'
             )
         }}
         """,
@@ -677,8 +682,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             SELECT Title FROM posts p 
             ORDER BY p.ViewCount DESC 
             LIMIT 5
-        ) SELECT Title FROM top_posts 
-        ORDER BY {{LLMMap('How technical is this article? Give an approximate ranking out of 10.', 'top_posts::Title')}}
+        ) SELECT * FROM VALUES {{LLMQA('Order the article titles, from most technical to least technical', options='top_posts::Title')}} 
         """,
         "Notes": "Again, 'Most technical' is very subjective.",
     },
@@ -784,7 +788,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             WHERE u.Age > 65 AND p.Score > 10
         ) SELECT * FROM VALUES {{
             LLMQA(
-                'Which 2 `Id` values are attached to the 2 posts could be said to be written with the least expertise?',
+                'Which 2 `Id` values are attached to the 2 posts whose authors have the least expertise?',
                 context=(
                     SELECT * FROM filtered_posts
                 ),
@@ -995,12 +999,12 @@ ORDER BY away_team_goal DESC LIMIT 3
             ORDER BY frpm_rate ASC LIMIT 3
         ) SELECT * FROM VALUES {{
             LLMQA(
-                'Rank the schools, from most affordable city to least affordable city.',
-                context=(SELECT * FROM top_schools),
+                'Rank the schools, from least affordable city to most affordable city.',
+                context=(SELECT City, School FROM top_schools),
                 options='top_schools::School'
             )
         }}""",
-        "Notes": None,
+        "Notes": "Doesn't specify whether ranking should be increasing or decreasing",
     },
     {
         "Query ID": 64,
@@ -1019,10 +1023,10 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT {{
             LLMQA(
                 'Which county has the strongest academic reputation?',
-                'top_schools::County'
+                options='top_schools::County'
             )
         }}""",
-        "Notes": "'Strongest academic reputations' is subjective. Also, question asks for a ranked list, but gold answer (and written TAG program) returns the top.",
+        "Notes": "'Strongest academic reputations' is subjective - wouldn't Los Angeles be above Santa Clara?. Also, question asks for a ranked list, but gold answer (and written TAG program) returns the top.",
     },
     {
         "Query ID": 65,
@@ -1067,7 +1071,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             WHERE r.rank = 1 AND ra.year = 2014
         ) SELECT {{
             LLMQA(
-                'Which logo looks the most like the horse Secretariat?',
+                "Which company's logo looks the most like Secretariat?",
                 options='top_constructors::name'
             )
         }}""",
