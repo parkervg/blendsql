@@ -21,7 +21,7 @@ class ImageCaption(MapIngredient):
 
     def __call__(
         self,
-        context: str = None,
+        values: str = None,
         *args,
         **kwargs,
     ) -> tuple:
@@ -29,7 +29,7 @@ class ImageCaption(MapIngredient):
         This allows us to call this ingredient via `{{ImageCaption('table::col')}}`.
         """
         return super().__call__(
-            question=None, context=context, options=None, *args, **kwargs
+            question=None, values=values, options=None, *args, **kwargs
         )
 
     def run(self, model: Model, values: t.List[bytes], **kwargs):
