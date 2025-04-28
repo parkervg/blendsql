@@ -48,6 +48,14 @@ def infer_chat_template(model_name_or_path: str) -> dict:
         from guidance.chat import Phi3MiniChatTemplate
 
         chat_template = Phi3MiniChatTemplate
+
+    elif "qwen2.5" in model_name_or_path.lower():
+        # https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/tokenizer_config.json
+        # Uses ChatML
+        from guidance.chat import ChatMLTemplate
+
+        chat_template = ChatMLTemplate
+
     if chat_template is not None:
         logger.debug(
             Fore.MAGENTA
@@ -100,7 +108,7 @@ class TransformersLLM(ConstrainedModel):
 
     def _load_model(self) -> ModelObj:
         # https://huggingface.co/blog/how-to-generate
-        from guidance.models import Transformers
+        from ._guidance._transformers import Transformers
 
         if "chat_template" not in self.config:
             self.config["chat_template"] = infer_chat_template(self.model_name_or_path)
