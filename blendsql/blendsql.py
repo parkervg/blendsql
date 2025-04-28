@@ -1016,7 +1016,12 @@ class BlendSQL:
 
         DEFAULT_INGREDIENTS = {LLMQA, LLMMap, LLMJoin}
         ingredients = set(ingredients)
-        ingredient_names = {i.__name__ for i in ingredients}
+        try:
+            ingredient_names = {i.__name__ for i in ingredients}
+        except AttributeError as e:
+            raise IngredientException(
+                "All arguments passed to `ingredients` should be `Ingredient` classes!"
+            ) from e
         for default_ingredient in DEFAULT_INGREDIENTS:
             if default_ingredient.__name__ not in ingredient_names:
                 ingredients.add(default_ingredient)
