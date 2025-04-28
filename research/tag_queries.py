@@ -265,7 +265,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Knowledge/Reasoning Type": "Reasoning",
         "Answer": ["YES", "YES", "YES"],
         "order_insensitive_answer": True,
-        "BlendSQL": """SELECT {{LLMMap('Is the post relevant to Machine Learning?', context='posts::Body', options='YES;NO')}} 
+        "BlendSQL": """SELECT {{LLMMap('Is the post relevant to Machine Learning?', 'posts::Body', options='YES;NO')}} 
         FROM posts JOIN votes v ON posts.Id = v.PostId WHERE v.UserId = 1465
         """,
         "Notes": None,

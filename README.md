@@ -219,7 +219,7 @@ SELECT "Name", "Description" FROM parks
   WHERE {{
       LLMMap(
           'Does this location have park facilities?',
-          context='parks::Description'
+          values='parks::Description'
       )
   }} = FALSE
 ```
@@ -236,7 +236,7 @@ SELECT "Name",
 {{
     LLMMap(
         question='Size in km2?',
-        context='parks::Area'
+        values='parks::Area'
     )
 }} as "Size in km" FROM parks
 WHERE "Location" = 'Alaska'
@@ -256,7 +256,7 @@ SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
     WHERE "Name" = {{
       LLMQA(
         'Which park protects an ash flow?',
-        context=(SELECT "Name", "Description" FROM parks),
+        values=(SELECT "Name", "Description" FROM parks),
         options="parks::Name"
       )
   }}
