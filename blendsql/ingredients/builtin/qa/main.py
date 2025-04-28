@@ -24,6 +24,7 @@ from blendsql.ingredients.utils import (
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
 from blendsql.types import DataType, QuantifierType, prepare_datatype
 from .examples import QAExample, AnnotatedQAExample
+from ...faiss_vector_store import FaissVectorStore
 
 MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
 LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
@@ -90,6 +91,7 @@ class LLMQA(QAIngredient):
         ),
         list_options_in_prompt: bool = True,
         k: t.Optional[int] = None,
+        vector_store: t.Optional[FaissVectorStore] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -159,6 +161,7 @@ class LLMQA(QAIngredient):
             few_shot_retriever=few_shot_retriever,
             context_formatter=context_formatter,
             list_options_in_prompt=list_options_in_prompt,
+            vector_store=vector_store,
         )
 
     def run(
@@ -170,6 +173,7 @@ class LLMQA(QAIngredient):
         few_shot_retriever: t.Optional[
             t.Callable[[str], t.List[AnnotatedQAExample]]
         ] = None,
+        vector_store: t.Optional[FaissVectorStore] = None,
         options: t.Optional[Collection[str]] = None,
         quantifier: QuantifierType = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
@@ -206,9 +210,12 @@ class LLMQA(QAIngredient):
             )
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT
+        # If we explicitly passed `context`, this should take precedence over the vector store.
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
+        elif vector_store is not None:
+            context = pd.DataFrame(vector_store(question), columns=["content"])
         return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
         )
