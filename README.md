@@ -338,17 +338,15 @@ ingredients = {
             {
                 "question": "Is this a sport?",
                 "mapping": {
-                    "Soccer": "t",
-                    "Chair": "f",
-                    "Banana": "f",
-                    "Golf": "t"
+                    "Soccer": True,
+                    "Chair": False,
+                    "Banana": False,
+                    "Golf": True
                 },
                 # Below are optional
                 "column_name": "Items",
                 "table_name": "Table",
-                "example_outputs": ["t", "f"],
-                "options": ["t", "f"],
-                "output_type": "boolean"
+                "return_type": "boolean"
             }
         ],
         # Will fetch `k` most relevant few-shot examples using embedding-based retriever

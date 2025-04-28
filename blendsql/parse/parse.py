@@ -7,7 +7,6 @@ from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 
 from blendsql.common.utils import get_tablename_colname
-from blendsql.common.constants import IngredientKwarg
 from ..types import QuantifierType, DataTypes
 from .dialect import _parse_one
 from . import checks as check
@@ -166,8 +165,9 @@ class SubqueryContextManager:
             for arg in {
                 # Below lists all arguments where a table may be referenced
                 # We omit `options`, since this should not take into account the
-                #   state of the subquery.
+                #   state of the filtered database.
                 kwargs_dict.get("context", None),
+                kwargs_dict.get("values", None),
                 kwargs_dict.get("left_on", None),
                 kwargs_dict.get("right_on", None),
             }:
@@ -423,7 +423,7 @@ class SubqueryContextManager:
                 else:
                     # This is valid for a default `options` set
                     added_kwargs[
-                        IngredientKwarg.OPTIONS
+                        "options"
                     ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
         if isinstance(start_node, (exp.In, exp.Tuple, exp.Values)):
             if isinstance(start_node, (exp.Tuple, exp.Values)):
@@ -453,10 +453,10 @@ class SubqueryContextManager:
                 output_type = DataTypes.INT(quantifier)
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
-                added_kwargs[IngredientKwarg.OUTPUT_TYPE] = DataTypes.STR(quantifier)
+                added_kwargs["return_type"] = DataTypes.STR(quantifier)
                 if len(predicate_literals) == 1:
                     predicate_literals = predicate_literals + [predicate_literals[0]]
-                added_kwargs[IngredientKwarg.EXAMPLE_OUTPUTS] = predicate_literals
+                added_kwargs["example_outputs"] = predicate_literals
                 return added_kwargs
         elif len(predicate_literals) == 0 and isinstance(
             start_node,
@@ -479,7 +479,7 @@ class SubqueryContextManager:
             output_type = DataTypes.STR(quantifier)
         else:
             output_type = None
-        added_kwargs[IngredientKwarg.OUTPUT_TYPE] = output_type
+        added_kwargs["return_type"] = output_type
         return added_kwargs
 
     def sql(self):

@@ -3,7 +3,7 @@
           "question": "Total penalty count?",
           "column_name": "Penalties (P+P+S+S)",
           "table_name": "Biathlon World Championships 2013",
-          "output_type": "int",
+          "return_type": "int",
           "mapping": {
               "1 (0+0+0+1)": 1,
               "10 (5+3+2+0)": 10,
@@ -14,7 +14,7 @@
           "question": "Is the time less than a week?",
           "column_name": "Length of use",
           "table_name": "Crest Whitestrips",
-          "output_type": "bool",
+          "return_type": "bool",
           "mapping": {
             "14 days": false,
             "10 days": true,
@@ -24,7 +24,7 @@
       },
       {
           "question": "Basketball team?",
-          "output_type": "bool",
+          "return_type": "bool",
           "mapping": {
               "Lakers": true,
               "Nuggets": true,

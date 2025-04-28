@@ -5,6 +5,12 @@ from colorama import Fore
 from .few_shot import Example
 from blendsql.common.logger import logger
 
+# Can be:
+# - '{value1};{value2}...' syntax
+# - '{table}::{column}' syntax
+# - A BlendSQL query which returns a 1d array of values ((SELECT value FROM table WHERE ...))
+ValueArray = t.NewType("ValueArray", str)
+
 
 def initialize_retriever(
     examples: t.List[Example], k: t.Optional[int] = None, **to_string_args

@@ -23,7 +23,6 @@ from textwrap import dedent
 from abc import abstractmethod
 from attr import attrs, attrib
 
-from blendsql.common.constants import IngredientKwarg
 from ..db.utils import truncate_df_content
 from blendsql.common.logger import logger
 
@@ -145,15 +144,15 @@ class Model:
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
         d: Dict[str, Any] = {"answer": response}
-        if IngredientKwarg.QUESTION in kwargs:
-            d[IngredientKwarg.QUESTION] = kwargs.get(IngredientKwarg.QUESTION)
-        if IngredientKwarg.CONTEXT in kwargs:
-            context = kwargs.get(IngredientKwarg.CONTEXT)
+        if "question" in kwargs:
+            d["question"] = kwargs.get("question")
+        if "context" in kwargs:
+            context = kwargs.get("context")
             if isinstance(context, pd.DataFrame):
                 context = truncate_df_content(context, CONTEXT_TRUNCATION_LIMIT)
-                d[IngredientKwarg.CONTEXT] = context.to_dict(orient="records")
-        if IngredientKwarg.VALUES in kwargs:
-            d[IngredientKwarg.VALUES] = kwargs.get(IngredientKwarg.VALUES)
+                d["context"] = context.to_dict(orient="records")
+        if "values" in kwargs:
+            d["values"] = kwargs.get("values")
         return d
 
     @abstractmethod

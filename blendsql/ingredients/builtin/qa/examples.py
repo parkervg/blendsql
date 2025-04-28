@@ -15,7 +15,7 @@ class QAExample(Example):
         default=None,
     )
     options: t.Optional[Collection[str]] = attrib(default=None)
-    output_type: DataType = attrib(
+    return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
         default=DataTypes.STR(),
     )
@@ -28,14 +28,14 @@ class QAExample(Example):
         **kwargs,
     ) -> str:
         s = f"Question: {self.question}\n"
-        if self.output_type is not None:
-            if self.output_type._name not in {"Any"}:
-                s += f"Output datatype: {self.output_type.name}\n"
+        if self.return_type is not None:
+            if self.return_type._name not in {"Any"}:
+                s += f"Output datatype: {self.return_type.name}\n"
         if list_options:
             if self.options is not None:
                 s += f"Options: {', '.join(sorted(self.options))}\n"
-        if self.output_type is not None:
-            quantifier = self.output_type.quantifier
+        if self.return_type is not None:
+            quantifier = self.return_type.quantifier
             if quantifier is not None:
                 if quantifier == "*":
                     s += "You may generate zero or more responses in your list.\n"

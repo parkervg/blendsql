@@ -13,13 +13,13 @@ from blendsql.common.exceptions import IngredientException
 from blendsql.common.logger import logger
 from blendsql.common import utils
 from blendsql.common.constants import (
-    IngredientKwarg,
     IngredientType,
 )
 from blendsql.db import Database
 from blendsql.db.utils import select_all_from_table_query, format_tuple
 from blendsql.common.utils import get_tablename_colname
 from blendsql.ingredients.few_shot import Example
+from blendsql.ingredients.utils import ValueArray
 
 
 def unpack_default_kwargs(**kwargs):
@@ -73,7 +73,7 @@ class Ingredient:
 
     def unpack_options(
         self,
-        options: t.Union[t.List[str], str],
+        options: t.Union[ValueArray],
         aliases_to_tablenames: t.Dict[str, str],
     ) -> t.Union[t.Set[str], None]:
         unpacked_options = options
@@ -210,8 +210,8 @@ class MapIngredient(Ingredient):
     def __call__(
         self,
         question: t.Optional[str] = None,
-        context: t.Optional[str] = None,
-        options: t.Optional[t.Union[list, str]] = None,
+        values: t.Optional[ValueArray] = None,
+        options: t.Optional[ValueArray] = None,
         *args,
         **kwargs,
     ) -> tuple:
@@ -222,10 +222,10 @@ class MapIngredient(Ingredient):
         get_temp_session_table: t.Callable = kwargs["get_temp_session_table"]
         prev_subquery_map_columns: t.Set[str] = kwargs["prev_subquery_map_columns"]
 
-        tablename, colname = utils.get_tablename_colname(context)
+        # TODO: make sure we support all types of ValueArray references here
+        tablename, colname = utils.get_tablename_colname(values)
         tablename = aliases_to_tablenames.get(tablename, tablename)
-        kwargs["tablename"] = tablename
-        kwargs["colname"] = colname
+
         # Check for previously created temporary tables
         value_source_tablename, _ = self.maybe_get_temp_table(
             temp_table_func=get_temp_subquery_table, tablename=tablename
@@ -259,46 +259,49 @@ class MapIngredient(Ingredient):
             # We don't need to run this function on everything,
             #   if a previous subquery already got to certain values
             if new_arg_column in temp_session_table.columns:
-                values = self.db.execute_to_list(
+                unpacked_values = self.db.execute_to_list(
                     f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
                 )
             # Base case: this is the first time we've used this particular ingredient
             # BUT, temp_session_tablename still exists
             else:
-                values = self.db.execute_to_list(
+                unpacked_values = self.db.execute_to_list(
                     f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"',
                 )
         else:
-            values = self.db.execute_to_list(
+            unpacked_values = self.db.execute_to_list(
                 f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"',
             )
 
         # No need to run ingredient if we have no values to map onto
-        if len(values) == 0:
+        if len(unpacked_values) == 0:
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
 
         if options is not None:
             # Override any pattern with our new unpacked options
-            kwargs[IngredientKwarg.OPTIONS] = self.unpack_options(
+            unpacked_options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
             )
         else:
-            kwargs[IngredientKwarg.OPTIONS] = None
+            unpacked_options = None
 
-        kwargs[IngredientKwarg.VALUES] = values
-        kwargs[IngredientKwarg.QUESTION] = question
-        mapped_values: Collection[t.Any] = self._run(*args, **self.__dict__ | kwargs)
+        mapped_values: Collection[t.Any] = self._run(
+            question=question,
+            values=unpacked_values,
+            options=unpacked_options,
+            tablename=tablename,
+            colname=colname,
+            *args,
+            **self.__dict__ | kwargs,
+        )
         self.num_values_passed += len(mapped_values)
         df_as_dict: t.Dict[str, list] = {colname: [], new_arg_column: []}
-        for value, mapped_value in zip(values, mapped_values):
+        for value, mapped_value in zip(unpacked_values, mapped_values):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
         subtable = pd.DataFrame(df_as_dict)
-        # if kwargs.get("output_type") == "boolean":
-        #     subtable[new_arg_column] = subtable[new_arg_column].astype(bool)
-        # else:
         if all(
             isinstance(x, (int, type(None))) and not isinstance(x, bool)
             for x in mapped_values
@@ -357,7 +360,7 @@ class JoinIngredient(Ingredient):
         self,
         left_on: t.Optional[str] = None,
         right_on: t.Optional[str] = None,
-        question: t.Optional[str] = None,
+        join_criteria: t.Optional[str] = None,
         *args,
         **kwargs,
     ) -> tuple:
@@ -390,7 +393,7 @@ class JoinIngredient(Ingredient):
         # check swapping only once, at the beginning
         if sorted_values != values:
             swapped = True
-        if question is None:
+        if join_criteria is None:
             # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
             # First, make sure outer loop is shorter of the two lists
@@ -447,9 +450,8 @@ class JoinIngredient(Ingredient):
             # len(_outer) <= len(inner)
             sorted_values = [_outer, inner]
 
+        # Now, we have our final values to process.
         left_values, right_values = sorted_values
-        kwargs["left_values"] = left_values
-        kwargs["right_values"] = right_values
 
         (left_tablename, left_colname), (
             right_tablename,
@@ -462,13 +464,14 @@ class JoinIngredient(Ingredient):
 
         if all(len(x) > 0 for x in [left_values, right_values]):
             # Some alignment still left to do
-            self.num_values_passed += len(kwargs["left_values"]) + len(
-                kwargs["right_values"]
-            )
+            self.num_values_passed += len(left_values) + len(right_values)
 
-            kwargs[IngredientKwarg.QUESTION] = question
             _predicted_mapping: t.Dict[str, str] = self._run(
-                *args, **self.__dict__ | kwargs
+                left_values=left_values,
+                right_values=right_values,
+                join_criteria=join_criteria,
+                *args,
+                **self.__dict__ | kwargs,
             )
             mapping = mapping | _predicted_mapping
         # Using mapped left/right values, create intermediary mapping table
@@ -582,7 +585,6 @@ class QAIngredient(Ingredient):
     ) -> t.Tuple[t.Union[str, int, float, tuple], t.Optional[exp.Expression]]:
         # Unpack kwargs
         aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
-        get_temp_subquery_table: t.Callable = kwargs["get_temp_subquery_table"]
 
         subtable: t.Union[pd.DataFrame, None] = None
         if context is not None:
@@ -608,18 +610,21 @@ class QAIngredient(Ingredient):
                 raise IngredientException("Empty subtable passed to QAIngredient!")
 
         if options is not None:
-            kwargs[IngredientKwarg.OPTIONS] = self.unpack_options(
+            unpacked_options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
             )
         else:
-            kwargs[IngredientKwarg.OPTIONS] = None
+            unpacked_options = None
 
         self.num_values_passed += len(subtable) if subtable is not None else 0
-        kwargs[IngredientKwarg.CONTEXT] = subtable
-        kwargs[IngredientKwarg.QUESTION] = question
+
         response: t.Union[str, int, float, tuple] = self._run(
-            *args, **self.__dict__ | kwargs
+            question=question,
+            context=subtable,
+            options=unpacked_options,
+            *args,
+            **self.__dict__ | kwargs,
         )
         if isinstance(response, tuple):
             response = format_tuple(

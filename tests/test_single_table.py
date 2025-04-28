@@ -608,7 +608,7 @@ def test_group_by_with_ingredient_alias(bsql):
     smoothie = bsql.execute(
         """
         SELECT SUM(amount) AS "total amount",
-        {{get_length(context='transactions::merchant')}} AS "Merchant Length"
+        {{get_length(values='transactions::merchant')}} AS "Merchant Length"
         FROM transactions
         GROUP BY "Merchant Length"
         ORDER BY "total amount"

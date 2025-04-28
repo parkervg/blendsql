@@ -144,24 +144,6 @@ class LLMMap(MapIngredient):
             batch_size=batch_size,
         )
 
-    def __call__(
-        self,
-        question: t.Optional[str] = None,
-        context: t.Optional[str] = None,
-        options: t.Optional[t.Union[list, str]] = None,
-        batch_size: t.Optional[int] = None,
-        *args,
-        **kwargs,
-    ) -> tuple:
-        return super().__call__(
-            question=question,
-            context=context,
-            options=options,
-            batch_size=batch_size,
-            *args,
-            **kwargs,
-        )
-
     def run(
         self,
         model: Model,
@@ -174,7 +156,7 @@ class LLMMap(MapIngredient):
         options: t.Optional[Collection[str]] = None,
         value_limit: t.Optional[int] = None,
         example_outputs: t.Optional[str] = None,
-        output_type: t.Optional[t.Union[DataType, str]] = None,
+        return_type: t.Optional[t.Union[DataType, str]] = None,
         batch_size: int = None,
         **kwargs,
     ) -> t.List[t.Union[float, int, str, bool]]:
@@ -186,7 +168,7 @@ class LLMMap(MapIngredient):
             values: The list of values to apply question to.
             value_limit: Optional limit on the number of values to pass to the Model
             example_outputs: This gives the Model an example of the output we expect.
-            output_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
+            return_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
             regex: Optional regex to constrain answer generation.
 
         Returns:
@@ -203,21 +185,19 @@ class LLMMap(MapIngredient):
         if value_limit is not None:
             values = values[:value_limit]
         values = [value if not pd.isna(value) else "-" for value in values]
-        resolved_output_type: DataType = prepare_datatype(
-            output_type=output_type, options=options, quantifier=None
+        resolved_return_type: DataType = prepare_datatype(
+            return_type=return_type, options=options, quantifier=None
         )
         current_example = MapExample(
-            **{
-                "question": question,
-                "column_name": column_name,
-                "table_name": table_name,
-                "output_type": resolved_output_type,
-                "example_outputs": example_outputs,
-                "options": options,
-                # Random subset of values for few-shot example retrieval
-                # these will get replaced during batching later
-                "values": values[:10],
-            }
+            question=question,
+            column_name=column_name,
+            table_name=table_name,
+            return_type=resolved_return_type,
+            example_outputs=example_outputs,
+            options=options,
+            # Random subset of values for few-shot example retrieval
+            # these will get replaced during batching later
+            values=values[:10],
         )
         if isinstance(model, ConstrainedModel):
             batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
@@ -234,8 +214,8 @@ class LLMMap(MapIngredient):
                 for example in few_shot_retriever(current_example.to_string())
             ]
         regex = None
-        if current_example.output_type is not None:
-            regex = current_example.output_type.regex
+        if current_example.return_type is not None:
+            regex = current_example.return_type.regex
         options = current_example.options
         if options is not None and list_options_in_prompt:
             if len(options) > int(
@@ -259,14 +239,14 @@ class LLMMap(MapIngredient):
 
             if options is not None:
                 gen_f = lambda _: guidance.select(options=options)  # type: ignore
-            elif output_type == "substring":
+            elif return_type == "substring":
                 # Special case for substring datatypes
                 gen_f = lambda s: guidance.substring(target_string=s)
             else:
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
                     stop=["\n\t"] + ['"']
-                    if current_example.output_type.name == "str"
+                    if current_example.return_type.name == "str"
                     else [],
                     regex=regex,
                 )  # type: ignore
@@ -336,7 +316,7 @@ class LLMMap(MapIngredient):
                     with guidance.assistant():
                         batch_lm += make_predictions(
                             values=current_batch_example.values,
-                            str_output=(current_example.output_type.name == "str"),
+                            str_output=(current_example.return_type.name == "str"),
                             gen_f=gen_f,
                         )  # type: ignore
                         generated_batch_variables = {
@@ -351,7 +331,7 @@ class LLMMap(MapIngredient):
             )
             # For each value, call the DataType's `coerce_fn()`
             mapped_values = [
-                current_example.output_type.coerce_fn(s) for s in lm_mapping
+                current_example.return_type.coerce_fn(s) for s in lm_mapping
             ]
         else:
             messages_list: t.List[t.List[dict]] = []
@@ -387,7 +367,7 @@ class LLMMap(MapIngredient):
                     predictions.append(None)
                 # Try to map to booleans, `None`, and numeric datatypes
                 mapped_values.extend(
-                    [current_example.output_type.coerce_fn(s) for s in predictions]
+                    [current_example.return_type.coerce_fn(s) for s in predictions]
                 )
 
             mapping = {k: v for k, v in zip(sorted_values, mapped_values)}

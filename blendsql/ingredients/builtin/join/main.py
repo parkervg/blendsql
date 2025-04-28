@@ -104,18 +104,18 @@ class LLMJoin(JoinIngredient):
         model: Model,
         left_values: t.List[str],
         right_values: t.List[str],
-        question: t.Optional[str] = None,
+        join_criteria: t.Optional[str] = None,
         few_shot_retriever: t.Callable[[str], t.List[AnnotatedJoinExample]] = None,
         **kwargs,
     ) -> dict:
-        if question is None:
-            question = "Join to same topics."
+        if join_criteria is None:
+            join_criteria = "Join to same topics."
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: DEFAULT_JOIN_FEW_SHOT
 
         current_example = JoinExample(
             **{
-                "join_criteria": question,
+                "join_criteria": join_criteria,
                 "left_values": sorted(left_values),
                 "right_values": sorted(right_values),
             }

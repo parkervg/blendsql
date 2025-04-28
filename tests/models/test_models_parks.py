@@ -50,7 +50,7 @@ def test_mixed_models(bsql, vision_model, model):
         {{
             LLMMap(
                 question='Size in km2?',
-                context='parks::Area'
+                values='parks::Area'
             )
         }} as "Size in km" FROM parks
         WHERE "Location" = 'Alaska'
@@ -76,7 +76,7 @@ def test_mixed_models_no_default_error(bsql, vision_model):
             {{
                 LLMMap(
                     question='Size in km2?',
-                    context='parks::Area'
+                    values='parks::Area'
                 )
             }} as "Size in km" FROM parks
             WHERE "Location" = 'Alaska'
@@ -94,7 +94,7 @@ def test_readme_example_1(bsql, model):
             WHERE {{
                 LLMMap(
                     'Does this location have park facilities?',
-                    context='parks::Description'
+                    values='parks::Description'
                 )
             }} = FALSE
             """,

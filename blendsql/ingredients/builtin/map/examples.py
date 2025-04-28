@@ -16,7 +16,7 @@ class MapExample(Example):
     example_outputs: t.Optional[t.List[str]] = attrib(default=None)
     values: t.Optional[t.List[str]] = attrib(default=None)
     mapping: t.Optional[t.Dict[str, str]] = attrib(default=None)
-    output_type: DataType = attrib(
+    return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
         default=DataTypes.STR(),
     )
@@ -44,7 +44,7 @@ class ConstrainedMapExample(MapExample):
                 + "]"
             )
         else:
-            type_annotation = self.output_type.name
+            type_annotation = self.return_type.name
 
         if self.table_name and self.column_name:
             args_str = f'Value from the "{self.table_name}"."{self.column_name}" column in a SQL database.'
@@ -60,7 +60,7 @@ class ConstrainedMapExample(MapExample):
                 s (str): {args_str}
 
             Returns:
-                {self.output_type.name}: Answer to the above question for each value `s`.
+                {self.return_type.name}: Answer to the above question for each value `s`.
 
             Examples:
                 ```python
@@ -97,9 +97,9 @@ class UnconstrainedMapExample(MapExample):
             s += f"Source table: {self.table_name}\n"
         if self.column_name is not None:
             s += f"Source column: {self.column_name}\n"
-        if self.output_type is not None:
-            if self.output_type.name != "Any":
-                s += f"Output datatype: {self.output_type.name}\n"
+        if self.return_type is not None:
+            if self.return_type.name != "Any":
+                s += f"Output datatype: {self.return_type.name}\n"
         # if self.example_outputs is not None:
         #     s += f"Example outputs: {';'.join(self.example_outputs)}\n"
         if list_options:

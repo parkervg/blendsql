@@ -172,7 +172,7 @@ class LLMQA(QAIngredient):
         ] = None,
         options: t.Optional[Collection[str]] = None,
         quantifier: QuantifierType = None,
-        output_type: t.Optional[t.Union[DataType, str]] = None,
+        return_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
         context: t.Optional[pd.DataFrame] = None,
         value_limit: t.Optional[int] = None,
@@ -190,8 +190,8 @@ class LLMQA(QAIngredient):
             list_options_in_prompt: Defines whether we include options in the prompt for the current inference example
             quantifier: If we expect an array of scalars, this defines the regex we want to apply.
                 Used directly for constrained decoding at inference time if we have a guidance model.
-            output_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
-            regex: Optional regex to constrain answer generation. Takes precedence over `output_type`
+            return_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
+            regex: Optional regex to constrain answer generation. Takes precedence over `return_type`
             value_limit: Optional limit on how many rows from context we use
             long_answer: If true, we more closely mimic long-form end-to-end question answering.
                 If false, we just give the answer with no explanation or context
@@ -209,25 +209,23 @@ class LLMQA(QAIngredient):
         if context is not None:
             if value_limit is not None:
                 context = context.iloc[:value_limit]
-        output_type: DataType = prepare_datatype(
-            output_type=output_type, options=options, quantifier=quantifier
+        return_type: DataType = prepare_datatype(
+            return_type=return_type, options=options, quantifier=quantifier
         )
         current_example = QAExample(
-            **{
-                "question": question,
-                "context": context,
-                "options": options,
-                "output_type": output_type,
-            }
+            question=question,
+            context=context,
+            options=options,
+            return_type=return_type,
         )
         few_shot_examples: t.List[AnnotatedQAExample] = few_shot_retriever(
             current_example.to_string(context_formatter)
         )
 
-        is_list_output = current_example.output_type.quantifier is not None
-        regex = regex or current_example.output_type.regex
+        is_list_output = current_example.return_type.quantifier is not None
+        regex = regex or current_example.return_type.regex
         options = current_example.options
-        quantifier = current_example.output_type.quantifier
+        quantifier = current_example.return_type.quantifier
         options_with_aliases, options_alias_to_original = get_option_aliases(options)
         if options is not None and list_options_in_prompt:
             max_options_in_prompt = os.getenv(
@@ -307,7 +305,7 @@ class LLMQA(QAIngredient):
 
             if is_list_output:
                 gen_kwargs = {
-                    "force_quotes": bool("str" in current_example.output_type.name),
+                    "force_quotes": bool("str" in current_example.return_type.name),
                     "regex": regex,
                     "options": options_with_aliases,
                     "quantifier": quantifier,
@@ -404,7 +402,7 @@ class LLMQA(QAIngredient):
                 except (ValueError, SyntaxError, AssertionError):
                     response = [i.strip() for i in response.strip("[]()").split(",")]
                     response = [
-                        current_example.output_type.coerce_fn(r) for r in response
+                        current_example.return_type.coerce_fn(r) for r in response
                     ]
                     response = tuple(
                         [
@@ -414,10 +412,10 @@ class LLMQA(QAIngredient):
                     )
             else:
                 if isinstance(response, str):
-                    response = current_example.output_type.coerce_fn(response)
+                    response = current_example.return_type.coerce_fn(response)
                 elif isinstance(response, list):
                     response = [
-                        current_example.output_type.coerce_fn(r) for r in response
+                        current_example.return_type.coerce_fn(r) for r in response
                     ]
         # Map from modified options to original, as they appear in DB
         if not isinstance(response, (list, tuple, set)):

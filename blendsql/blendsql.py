@@ -43,7 +43,7 @@ from blendsql.parse.constants import MODIFIERS
 from blendsql.grammars.peg_grammar import grammar
 from blendsql.ingredients.ingredient import Ingredient, IngredientException
 from blendsql.smoothie import Smoothie, SmoothieMeta
-from blendsql.common.constants import IngredientType, IngredientKwarg
+from blendsql.common.constants import IngredientType
 from blendsql.models.model import Model
 
 
@@ -262,7 +262,7 @@ def preprocess_blendsql(
             # So we need to parse by indices in dict expression
             # maybe if I was better at pp.Suppress we wouldn't need this
             kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
-            kwargs_dict[IngredientKwarg.MODEL] = default_model
+            kwargs_dict["model"] = default_model
 
             # Bind arguments to function
             from inspect import signature
@@ -713,9 +713,7 @@ def _blend(
 
             # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
-            for i, unpack_kwarg in enumerate(
-                [IngredientKwarg.CONTEXT, IngredientKwarg.OPTIONS]
-            ):
+            for i, unpack_kwarg in enumerate(["context", "options"]):
                 unpack_value = kwargs_dict.get(
                     unpack_kwarg,
                     (
@@ -743,7 +741,7 @@ def _blend(
                     )
                     _prev_passed_values = _smoothie.meta.num_values_passed
                     subtable = _smoothie.df
-                    if unpack_kwarg == IngredientKwarg.OPTIONS:
+                    if unpack_kwarg == "options":
                         if len(subtable.columns) == 1 or len(subtable) == 1:
                             # Here, we need to format as a flat set
                             kwargs_dict[unpack_kwarg] = list(subtable.values.flat)

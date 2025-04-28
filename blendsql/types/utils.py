@@ -15,23 +15,23 @@ from blendsql.common.logger import logger
 
 def prepare_datatype(
     options: t.Optional[Collection[str]],
-    output_type: t.Optional[t.Union[str, DataType]] = None,
+    return_type: t.Optional[t.Union[str, DataType]] = None,
     quantifier: t.Optional[QuantifierType] = None,
 ) -> DataType:
-    if output_type is None:
+    if return_type is None:
         resolved_output_type = DataTypes.STR()
-    elif isinstance(output_type, str):
+    elif isinstance(return_type, str):
         # The user has passed us an output type in the BlendSQL query
         # That should take precedence
-        if output_type not in STR_TO_DATATYPE:
+        if return_type not in STR_TO_DATATYPE:
             raise IngredientException(
-                f"{output_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
+                f"{return_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
             )
-        resolved_output_type = STR_TO_DATATYPE[output_type]
+        resolved_output_type = STR_TO_DATATYPE[return_type]
         if quantifier:  # User passed quantifier takes precedence
             resolved_output_type.quantifier = quantifier
-    elif isinstance(output_type, DataType):
-        resolved_output_type = output_type
+    elif isinstance(return_type, DataType):
+        resolved_output_type = return_type
     if quantifier:
         # The user has passed us a quantifier that should take precedence
         resolved_output_type.quantifier = quantifier

@@ -45,7 +45,7 @@ def LLMQA(
     question: str,
     context: t.Optional[Query] = None,
     options: t.Optional[ValueArray] = None,
-    output_type: t.Optional[OutputType] = None,
+    return_type: t.Optional[ReturnType] = None,
     regex: t.Optional[str] = None,
     quantifier: t.Optional[Quantifier] = None
 ):
@@ -90,7 +90,7 @@ def LLMMap(
     question: str,
     values: ValueArray,
     options: t.Optional[ValueArray] = None,
-    output_type: t.Optional[OutputType] = None,
+    return_type: t.Optional[ReturnType] = None,
     regex: t.Optional[str] = None
 ):
     ...
