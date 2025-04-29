@@ -213,10 +213,7 @@ class LLMQA(QAIngredient):
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT
         # If we explicitly passed `context`, this should take precedence over the vector store.
-        if context is not None:
-            if value_limit is not None:
-                context = context.iloc[:value_limit]
-        elif vector_store is not None:
+        if vector_store is not None and context is None:
             context = pd.DataFrame(vector_store(question), columns=["content"])
         return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
