@@ -3,6 +3,7 @@ import pandas as pd
 from blendsql import BlendSQL
 from blendsql.db import Pandas
 from blendsql.common.exceptions import IngredientException, InvalidBlendSQL
+from blendsql.ingredients import LLMQA
 from tests.utils import select_first_option
 
 
@@ -59,3 +60,15 @@ def test_error_on_bad_options_subquery(bsql):
             """,
             ingredients={select_first_option},
         )
+
+
+def test_replacement_scan(bsql, constrained_model):
+    NewIngredient = LLMQA.from_args(k=2)
+    _ = bsql.execute(
+        """
+        SELECT * FROM w 
+        WHERE w.Name = {{NewIngredient('Will this work?')}}
+        """,
+        ingredients={NewIngredient},
+        model=constrained_model,
+    )
