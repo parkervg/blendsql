@@ -86,10 +86,12 @@ class Ingredient:
                             flags=re.DOTALL,
                         )
                         if variable_declaration:
-                            variable_name = variable_declaration.split("=")[0].strip()
+                            variable_name = (
+                                variable_declaration.group().split("=")[0].strip()
+                            )
                             logger.debug(
-                                Fore.CYAN
-                                + f"Loading {partial_cls.__name__} with name '{variable_name}'..."
+                                Fore.MAGENTA
+                                + f"Loading custom {partial_cls.__name__} with name '{variable_name}'..."
                                 + Fore.RESET
                             )
                             # Store the name in a class attribute

@@ -76,11 +76,11 @@ class FaissVectorStore:
 
         if curr_index_path.is_file():
             logger.debug(
-                Fore.CYAN + "Loading faiss vectors from cached index..." + Fore.RESET
+                Fore.MAGENTA + "Loading faiss vectors from cached index..." + Fore.RESET
             )
             self.index = faiss.read_index(str(curr_index_path))
         else:
-            logger.debug(Fore.CYAN + "Creating faiss vectors..." + Fore.RESET)
+            logger.debug(Fore.MAGENTA + "Creating faiss vectors..." + Fore.RESET)
             self.index = faiss.index_factory(
                 self.embedding_model.get_sentence_embedding_dimension(),
                 self.factory_str,
