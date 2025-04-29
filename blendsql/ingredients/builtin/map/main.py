@@ -136,12 +136,14 @@ class LLMMap(MapIngredient):
                 for d in few_shot_examples
             ]
         few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
-        return partialclass(
-            cls,
-            model=model,
-            few_shot_retriever=few_shot_retriever,
-            list_options_in_prompt=list_options_in_prompt,
-            batch_size=batch_size,
+        return cls._maybe_set_name_to_var_name(
+            partialclass(
+                cls,
+                model=model,
+                few_shot_retriever=few_shot_retriever,
+                list_options_in_prompt=list_options_in_prompt,
+                batch_size=batch_size,
+            )
         )
 
     def run(

@@ -63,6 +63,37 @@ class Ingredient:
     def _run(self, *args, **kwargs):
         return check_type(self.run(*args, **kwargs), self.allowed_output_types)
 
+    @staticmethod
+    def _maybe_set_name_to_var_name(partial_cls):
+        """Allows us to do a poor-man's replacement scan
+        https://duckdb.org/docs/stable/clients/c/replacement_scans.html
+        """
+        # Get the name from the caller's frame
+        import inspect
+
+        try:
+            frame = inspect.currentframe()
+            if frame and frame.f_back.f_back:
+                calling_frame = frame.f_back.f_back
+                context = inspect.getframeinfo(calling_frame).code_context
+                if context:
+                    for line in context:
+                        assignment = line.strip()
+                        if (
+                            "=" in assignment
+                            and f"{partial_cls.__name__}.from_args" in assignment
+                        ):
+                            variable_name = assignment.split("=")[0].strip()
+                            # Store the name in a class attribute
+                            partial_cls.__name__ = variable_name
+                            break
+        except Exception as e:
+            logger.debug(f"Failed to determine class name: {e}")
+        finally:
+            # Clean up references to frames to prevent reference cycles
+            del frame
+        return partial_cls
+
     def maybe_get_temp_table(
         self, temp_table_func: t.Callable, tablename: str
     ) -> t.Tuple[str, bool]:

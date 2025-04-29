@@ -155,13 +155,15 @@ class LLMQA(QAIngredient):
         few_shot_retriever = initialize_retriever(
             examples=few_shot_examples, k=k, context_formatter=context_formatter
         )
-        return partialclass(
-            cls,
-            model=model,
-            few_shot_retriever=few_shot_retriever,
-            context_formatter=context_formatter,
-            list_options_in_prompt=list_options_in_prompt,
-            vector_store=vector_store,
+        return cls._maybe_set_name_to_var_name(
+            partialclass(
+                cls,
+                model=model,
+                few_shot_retriever=few_shot_retriever,
+                context_formatter=context_formatter,
+                list_options_in_prompt=list_options_in_prompt,
+                vector_store=vector_store,
+            )
         )
 
     def run(

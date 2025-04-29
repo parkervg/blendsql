@@ -92,11 +92,13 @@ class LLMJoin(JoinIngredient):
                 for d in few_shot_examples
             ]
         few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
-        return partialclass(
-            cls,
-            model=model,
-            few_shot_retriever=few_shot_retriever,
-            use_skrub_joiner=use_skrub_joiner,
+        return cls._maybe_set_name_to_var_name(
+            partialclass(
+                cls,
+                model=model,
+                few_shot_retriever=few_shot_retriever,
+                use_skrub_joiner=use_skrub_joiner,
+            )
         )
 
     def run(
