@@ -38,8 +38,6 @@ class FaissVectorStore:
     def __post_init__(self):
         self.id_to_return_obj = {}
         if self.return_objs is not None:
-            # print(self.return_objs)
-            # print(self.documents)
             self.return_objs, self.documents = zip(
                 *sorted(
                     [(r, d) for r, d in zip(self.return_objs, self.documents)],
