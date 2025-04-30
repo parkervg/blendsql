@@ -107,7 +107,7 @@ class Ingredient:
     def unpack_value_array(
         self, v: ValueArray, aliases_to_tablenames: t.Dict[str, str]
     ) -> t.Collection:
-        try:
+        if "::" in v:
             tablename, colname = get_tablename_colname(v)
             tablename = aliases_to_tablenames.get(tablename, tablename)
             # IMPORTANT: Below was commented out, since it would cause:
@@ -132,7 +132,7 @@ class Ingredient:
                         f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
                     )
                 ]
-        except ValueError:
+        else:
             unpacked_values = v.split(";")
         return unpacked_values
 
