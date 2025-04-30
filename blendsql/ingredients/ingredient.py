@@ -104,6 +104,38 @@ class Ingredient:
             del frame
         return partial_cls
 
+    def unpack_value_array(
+        self, v: ValueArray, aliases_to_tablenames: t.Dict[str, str]
+    ) -> t.Collection:
+        try:
+            tablename, colname = get_tablename_colname(v)
+            tablename = aliases_to_tablenames.get(tablename, tablename)
+            # IMPORTANT: Below was commented out, since it would cause:
+            #   `SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1`
+            #   ...to always select the result of the `LIMIT 1`.
+            # Check for previously created temporary tables
+            # value_source_tablename, _ = self.maybe_get_temp_table(
+            #     temp_table_func=get_temp_subquery_table, tablename=tablename
+            # )
+            # Optionally materialize a CTE
+            if tablename in self.db.lazy_tables:
+                unpacked_values: list = [
+                    str(i)
+                    for i in self.db.lazy_tables.pop(tablename)
+                    .collect()[colname]
+                    .unique()
+                ]
+            else:
+                unpacked_values: list = [
+                    str(i)
+                    for i in self.db.execute_to_list(
+                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                    )
+                ]
+        except ValueError:
+            unpacked_values = v.split(";")
+        return unpacked_values
+
     def maybe_get_temp_table(
         self, temp_table_func: t.Callable, tablename: str
     ) -> t.Tuple[str, bool]:
@@ -116,38 +148,12 @@ class Ingredient:
 
     def unpack_options(
         self,
-        options: t.Union[ValueArray],
+        options: t.Union[ValueArray, list],
         aliases_to_tablenames: t.Dict[str, str],
     ) -> t.Union[t.Set[str], None]:
         unpacked_options = options
         if not isinstance(options, list):
-            try:
-                tablename, colname = get_tablename_colname(options)
-                tablename = aliases_to_tablenames.get(tablename, tablename)
-                # IMPORTANT: Below was commented out, since it would cause:
-                #   `SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1`
-                #   ...to always select the result of the `LIMIT 1`.
-                # Check for previously created temporary tables
-                # value_source_tablename, _ = self.maybe_get_temp_table(
-                #     temp_table_func=get_temp_subquery_table, tablename=tablename
-                # )
-                # Optionally materialize a CTE
-                if tablename in self.db.lazy_tables:
-                    unpacked_options: list = [
-                        str(i)
-                        for i in self.db.lazy_tables.pop(tablename)
-                        .collect()[colname]
-                        .unique()
-                    ]
-                else:
-                    unpacked_options: list = [
-                        str(i)
-                        for i in self.db.execute_to_list(
-                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                        )
-                    ]
-            except ValueError:
-                unpacked_options = options.split(";")
+            unpacked_options = self.unpack_value_array(options, aliases_to_tablenames)
         if len(unpacked_options) == 0:
             logger.debug(
                 Fore.LIGHTRED_EX
@@ -155,6 +161,43 @@ class Ingredient:
                 + Fore.RESET
             )
         return set(unpacked_options) if len(unpacked_options) > 0 else None
+
+    def unpack_question(
+        self,
+        question: str,
+        aliases_to_tablenames: t.Dict[str, str],
+    ) -> str:
+        """Unpack any f-string ValueArray references in question.
+
+        Example:
+            'Where is {city::name} located?'
+        """
+
+        def replace_fstring_templates(s, replacement_func):
+            def replacer(match):
+                template = match.group(1)
+                return replacement_func(template)
+
+            return re.sub(r"{([^{}]*)}", replacer, s)
+
+        def get_first_value(template):
+            values = self.unpack_value_array(template, aliases_to_tablenames)
+            if len(values) == 0:
+                raise IngredientException(f"No values found in {template}")
+            if len(values) > 1:
+                logger.debug(
+                    Fore.RED
+                    + f"More than 1 value found in {template}: {values[:10]}\nThis could be a sign of a malformed query."
+                    + Fore.RESET
+                )
+            return values[0]
+
+        unpacked_question = replace_fstring_templates(question, get_first_value)
+        if unpacked_question != question:
+            logger.debug(
+                Fore.CYAN + f"Unpacked question to '{unpacked_question}'" + Fore.RESET
+            )
+        return unpacked_question
 
 
 @attrs
@@ -323,17 +366,20 @@ class MapIngredient(Ingredient):
 
         if options is not None:
             # Override any pattern with our new unpacked options
-            unpacked_options = self.unpack_options(
+            options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
             )
-        else:
-            unpacked_options = None
+
+        if question is not None:
+            question = self.unpack_question(
+                question=question, aliases_to_tablenames=aliases_to_tablenames
+            )
 
         mapped_values: Collection[t.Any] = self._run(
             question=question,
             values=unpacked_values,
-            options=unpacked_options,
+            options=options,
             tablename=tablename,
             colname=colname,
             *args,
@@ -659,20 +705,23 @@ class QAIngredient(Ingredient):
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
 
+        self.num_values_passed += len(subtable) if subtable is not None else 0
+
         if options is not None:
-            unpacked_options = self.unpack_options(
+            options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
             )
-        else:
-            unpacked_options = None
 
-        self.num_values_passed += len(subtable) if subtable is not None else 0
+        if question is not None:
+            question = self.unpack_question(
+                question=question, aliases_to_tablenames=aliases_to_tablenames
+            )
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,
             context=subtable,
-            options=unpacked_options,
+            options=options,
             *args,
             **self.__dict__ | kwargs,
         )
