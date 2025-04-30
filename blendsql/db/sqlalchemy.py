@@ -53,7 +53,7 @@ class SQLAlchemyDatabase(Database):
                 if table.name not in use_tables:
                     continue
             create_table_stmt = str(CreateTable(table)).strip()
-            description = table_to_description.get(table, None)
+            description = table_to_description.get(table.name, None)
             if description:
                 create_table_stmt = f"-- {description}\n" + create_table_stmt
             create_table_stmts.append(create_table_stmt)
