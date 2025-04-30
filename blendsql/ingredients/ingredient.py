@@ -419,9 +419,16 @@ class JoinIngredient(Ingredient):
         modified_lr_identifiers = []
         mapping: t.Dict[str, str] = {}
         for on_arg in [left_on, right_on]:
-            tablename, colname = utils.get_tablename_colname(on_arg)
-            tablename = aliases_to_tablenames.get(tablename, tablename)
-            original_lr_identifiers.append((tablename, colname))
+            # Since LLMJoin is unique, in that we need to inject the referenced tablenames back to the query,
+            #   make sure we keep the `referenced_tablename` variable.
+            # So the below works:
+            #     SELECT f.name, colors.name FROM fruits f
+            #     JOIN {{LLMJoin('f::name', 'colors::name', join_criteria='Align the fruit to its color')}}
+            referenced_tablename, colname = utils.get_tablename_colname(on_arg)
+            tablename = aliases_to_tablenames.get(
+                referenced_tablename, referenced_tablename
+            )
+            original_lr_identifiers.append((referenced_tablename, colname))
             tablename, _ = self.maybe_get_temp_table(
                 temp_table_func=get_temp_subquery_table,
                 tablename=tablename,
