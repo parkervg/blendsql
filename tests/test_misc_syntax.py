@@ -76,3 +76,20 @@ def test_llmqa_options_precedence(bsql, model):
     )
     if isinstance(model, LlamaCpp):
         assert smoothie.df.empty
+
+
+def test_llmjoin_with_alias(bsql, model):
+    """1c3e4bf"""
+    _ = bsql.execute(
+        """
+        SELECT l.name, Country.name FROM League l
+        JOIN {{
+            LLMJoin(
+                'l::name', 
+                'Country::name', 
+                join_criteria='Align the league to its country'
+            )
+        }}
+        """,
+        model=model,
+    )
