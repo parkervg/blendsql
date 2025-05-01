@@ -1007,6 +1007,7 @@ class BlendSQL:
             self.db = self._infer_db_type(self.db)
         if self.db is None:
             raise ValueError("df_or_db_path must be provided")
+        self.ingredients = self._merge_default_ingredients(self.ingredients)
         self._toggle_verbosity(self.verbose)
 
     @staticmethod
@@ -1194,9 +1195,9 @@ class BlendSQL:
                 query=query,
                 db=self.db,
                 default_model=model_in_use,
-                ingredients=self._merge_default_ingredients(
-                    ingredients or self.ingredients
-                ),
+                ingredients=self._merge_default_ingredients(ingredients)
+                if ingredients is not None
+                else self.ingredients,
                 infer_gen_constraints=infer_gen_constraints
                 if infer_gen_constraints is not None
                 else self.infer_gen_constraints,
