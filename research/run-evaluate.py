@@ -52,7 +52,12 @@ if __name__ == "__main__":
     #     experiment_name="no_llmqa_examples"
     # )
     ingredients = {
-        LLMQA.from_args(k=0, context_formatter=lambda df: df.to_dict(orient="records")),
+        LLMQA.from_args(
+            k=0,
+            context_formatter=lambda df: json.dumps(
+                df.to_dict(orient="records"), indent=4
+            ),
+        ),
         LLMMap,
         LLMJoin,
         RAGQA,
@@ -62,7 +67,7 @@ if __name__ == "__main__":
         model = LlamaCpp(
             CONFIG.filename,
             CONFIG.repo_id,
-            config={"n_gpu_layers": -1, "n_ctx": 9600, "seed": 100},
+            config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
             caching=False,
         )
     else:
@@ -78,7 +83,7 @@ if __name__ == "__main__":
         path,
         model=model,
         ingredients=ingredients,
-        verbose=True,
+        verbose=False,
     )
 
     prediction_data = []
@@ -88,11 +93,11 @@ if __name__ == "__main__":
             continue
         # if "LLMMap" not in item["BlendSQL"]:
         #     continue
-        # if item["Query ID"] != 108:
+        # if item["Query ID"] != 56:
         #     continue
         bsql = load_bsql(load_tag_db_path(item["DB used"]))
         smoothie = bsql.execute(item["BlendSQL"])
-        print(smoothie.df)
+        # print(smoothie.df)
         curr_pred_data["latency"] = smoothie.meta.process_time_seconds
         curr_pred_data["completion_tokens"] = smoothie.meta.completion_tokens
         curr_pred_data["prompt_tokens"] = smoothie.meta.prompt_tokens
