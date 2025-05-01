@@ -1195,9 +1195,9 @@ class BlendSQL:
                 query=query,
                 db=self.db,
                 default_model=model_in_use,
-                ingredients=self._merge_default_ingredients(ingredients)
-                if ingredients is not None
-                else self.ingredients,
+                ingredients=self._merge_default_ingredients(
+                    ingredients or self.ingredients
+                ),
                 infer_gen_constraints=infer_gen_constraints
                 if infer_gen_constraints is not None
                 else self.infer_gen_constraints,

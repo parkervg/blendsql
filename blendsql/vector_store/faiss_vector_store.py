@@ -4,10 +4,6 @@ import hashlib
 import numpy as np
 import platformdirs
 import typing as t
-import faiss
-import torch
-from numpy.typing import NDArray
-from sentence_transformers import SentenceTransformer
 from colorama import Fore
 
 from blendsql.common.logger import logger
@@ -25,18 +21,23 @@ class FaissVectorStore:
     documents: t.List[str] = field()
     # https://github.com/facebookresearch/faiss/wiki/The-index-factory
     factory_str: str = field(default="Flat")
-    model_name_or_path: str = field(default="answerdotai/answerai-colbert-small-v1")
+    model_name_or_path: str = field(default="sentence-transformers/all-mpnet-base-v2")
     index_dir: Path = field(
         default=Path(platformdirs.user_cache_dir("blendsql")) / "faiss_vectors"
     )
     return_objs: t.List[ReturnObj] = field(default=None)
     st_encode_kwargs: t.Optional[dict[str, t.Any]] = field(default=None)
 
-    index: faiss.Index = field(init=False)
-    embedding_model: SentenceTransformer = field(init=False)
+    index: "faiss.Index" = field(init=False)
+    embedding_model: "SentenceTransformer" = field(init=False)
     idx_to_return_obj: t.Dict[int, ReturnObj] = field(init=False)
 
     def __post_init__(self):
+        import faiss
+        import torch
+        from numpy.typing import NDArray
+        from sentence_transformers import SentenceTransformer
+
         self.id_to_return_obj = {}
         if self.return_objs is not None:
             self.return_objs, self.documents = zip(
@@ -103,11 +104,3 @@ class FaissVectorStore:
             k,
         )
         return [self.idx_to_return_obj[i] for i in indices[0, :]]
-
-
-if __name__ == "__main__":
-    vs = FaissVectorStore(
-        docs=["This is a story about golf and soccer", "Politics are messy"],
-        # return_objs=["a", "B"]
-    )
-    print(vs("I like basketball", 1))

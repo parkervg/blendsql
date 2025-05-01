@@ -19,7 +19,7 @@ from blendsql.common.constants import (
 from blendsql.db import Database
 from blendsql.db.utils import select_all_from_table_query, format_tuple
 from blendsql.common.utils import get_tablename_colname
-from blendsql.ingredients.faiss_vector_store import FaissVectorStore
+from blendsql.vector_store.faiss_vector_store import FaissVectorStore
 from blendsql.ingredients.few_shot import Example
 from blendsql.ingredients.utils import ValueArray
 

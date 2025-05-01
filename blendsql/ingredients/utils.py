@@ -23,7 +23,7 @@ def initialize_retriever(
     assert k <= len(
         examples
     ), f"The `k` argument to an ingredient must be less than `len(few_shot_examples)`!\n`k` is {k}, `len(few_shot_examples)` is {len(examples)}"
-    from .faiss_vector_store import FaissVectorStore
+    from blendsql.vector_store.faiss_vector_store import FaissVectorStore
 
     retriever = FaissVectorStore(
         documents=[example.to_string(**to_string_args) for example in examples],
