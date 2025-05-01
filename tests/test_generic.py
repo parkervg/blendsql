@@ -11,8 +11,17 @@ from tests.utils import select_first_option
 def bsql() -> BlendSQL:
     return BlendSQL(
         db=Pandas(
-            pd.DataFrame({"Name": ["Danny", "Emma", "Tony"], "Age": [23, 26, 19]}),
-            tablename="w",
+            {
+                "w": pd.DataFrame(
+                    {"Name": ["Danny", "Emma", "Tony"], "Age": [23, 26, 19]}
+                ),
+                "classes": pd.DataFrame(
+                    {
+                        "Id": [4532, 1234, 6653],
+                        "Title": ["Computer Science", "Discrete Math", "Philosophy"],
+                    }
+                ),
+            }
         ),
     )
 
@@ -75,7 +84,7 @@ def test_replacement_scan(bsql, constrained_model):
     )
 
 
-def test_question_f_strings(bsql, constrained_model):
+def test_llmqa_question_f_strings(bsql, constrained_model):
     """0218f7f"""
     res = bsql.execute(
         """
@@ -89,3 +98,13 @@ def test_question_f_strings(bsql, constrained_model):
         model=constrained_model,
     )
     assert list(res.df.values.flat) == ["Danny"]
+
+
+def test_llmmap_question_f_strings(bsql, constrained_model):
+    """0218f7f"""
+    _ = bsql.execute(
+        """
+        WITH t AS (SELECT * FROM w WHERE Age = 23)
+        SELECT c.Title, {{LLMMap('Would someone named {t::Name} be good at this subject?', 'c::Title')}} AS "answer" FROM classes c
+        """
+    )

@@ -195,7 +195,9 @@ class Ingredient:
         unpacked_question = replace_fstring_templates(question, get_first_value)
         if unpacked_question != question:
             logger.debug(
-                Fore.CYAN + f"Unpacked question to '{unpacked_question}'" + Fore.RESET
+                Fore.LIGHTBLACK_EX
+                + f"Unpacked question to '{unpacked_question}'"
+                + Fore.RESET
             )
         return unpacked_question
 
@@ -400,7 +402,7 @@ class MapIngredient(Ingredient):
         new_table = original_table.merge(subtable, how="left", on=colname)
         if new_table.shape[0] != original_table.shape[0]:
             raise IngredientException(
-                f"subtable from run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
+                f"subtable from MapIngredient.run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
             )
         # Now, new table has original columns + column with the name of the question we answered
         return (new_arg_column, tablename, colname, new_table)
