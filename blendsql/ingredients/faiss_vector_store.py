@@ -25,7 +25,7 @@ class FaissVectorStore:
     documents: t.List[str] = field()
     # https://github.com/facebookresearch/faiss/wiki/The-index-factory
     factory_str: str = field(default="Flat")
-    model_name_or_path: str = field(default="sentence-transformers/all-mpnet-base-v2")
+    model_name_or_path: str = field(default="answerdotai/answerai-colbert-small-v1")
     index_dir: Path = field(
         default=Path(platformdirs.user_cache_dir("blendsql")) / "faiss_vectors"
     )
