@@ -172,13 +172,14 @@ class Ingredient:
         Example:
             'Where is {city::name} located?'
         """
+        F_STRING_PATTERN = re.compile(r"{([^{}]*)}")
 
         def replace_fstring_templates(s, replacement_func):
             def replacer(match):
                 template = match.group(1)
                 return replacement_func(template)
 
-            return re.sub(r"{([^{}]*)}", replacer, s)
+            return F_STRING_PATTERN.sub(replacer, s)
 
         def get_first_value(template):
             values = self.unpack_value_array(template, aliases_to_tablenames)
