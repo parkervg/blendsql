@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blendsql"
-description = "Query language for blending SQL logic and LLM reasoning across multi-modal data. [Findings of ACL 2024]"
+description = "Query language for blending SQL and LLMs across structured + unstructured data, with type constraints. "
 authors = [{ "name" = "Parker Glenn", "email" = "parkervg5@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.9"
@@ -45,7 +45,7 @@ dependencies = [
     "setuptools",            # For python 3.12
     "numpy<2",
 ]
-version = "0.0.37"
+version = "0.0.40"
 
 [project.urls]
 Documentation = "https://parkervg.github.io/blendsql/"
