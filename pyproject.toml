@@ -33,7 +33,6 @@ dependencies = [
     "scikit-learn==1.4.2",
     "duckdb==0.10.3",
     "rapidfuzz",
-    "haystack-ai>2.0.0",
     "sentence_transformers",
     "huggingface_hub",
     "platformdirs",

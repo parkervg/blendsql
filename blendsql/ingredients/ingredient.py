@@ -1,3 +1,4 @@
+import re
 from attr import attrs, attrib
 from abc import abstractmethod
 import pandas as pd
@@ -18,6 +19,7 @@ from blendsql.common.constants import (
 from blendsql.db import Database
 from blendsql.db.utils import select_all_from_table_query, format_tuple
 from blendsql.common.utils import get_tablename_colname
+from blendsql.ingredients.faiss_vector_store import FaissVectorStore
 from blendsql.ingredients.few_shot import Example
 from blendsql.ingredients.utils import ValueArray
 
@@ -38,6 +40,7 @@ class Ingredient:
 
     few_shot_retriever: t.Callable[[str], t.List[Example]] = attrib(default=None)
     list_options_in_prompt: bool = attrib(default=True)
+    vector_store: t.Optional[FaissVectorStore] = attrib(default=None)
 
     ingredient_type: str = attrib(init=False)
     allowed_output_types: t.Tuple[t.Type] = attrib(init=False)
@@ -61,6 +64,78 @@ class Ingredient:
     def _run(self, *args, **kwargs):
         return check_type(self.run(*args, **kwargs), self.allowed_output_types)
 
+    @staticmethod
+    def _maybe_set_name_to_var_name(partial_cls):
+        """Allows us to do a poor-man's replacement scan
+        https://duckdb.org/docs/stable/clients/c/replacement_scans.html
+        """
+        # Get the name from the caller's frame
+        import inspect
+
+        try:
+            frame = inspect.currentframe()
+            if frame and frame.f_back.f_back:
+                calling_frame = frame.f_back.f_back
+                context = inspect.getframeinfo(calling_frame).code_context
+                if context:
+                    for line in context:
+                        variable_declaration = re.search(
+                            r"(.*?)\s*=\s*"
+                            + re.escape(f"{partial_cls.__name__}.from_args"),
+                            line.strip(),
+                            flags=re.DOTALL,
+                        )
+                        if variable_declaration:
+                            variable_name = (
+                                variable_declaration.group().split("=")[0].strip()
+                            )
+                            logger.debug(
+                                Fore.MAGENTA
+                                + f"Loading custom {partial_cls.__name__} with name '{variable_name}'..."
+                                + Fore.RESET
+                            )
+                            # Store the name in a class attribute
+                            partial_cls.__name__ = variable_name
+                            break
+        except Exception as e:
+            logger.debug(f"Failed to determine class name: {e}")
+        finally:
+            # Clean up references to frames to prevent reference cycles
+            del frame
+        return partial_cls
+
+    def unpack_value_array(
+        self, v: ValueArray, aliases_to_tablenames: t.Dict[str, str]
+    ) -> t.Collection:
+        if "::" in v:
+            tablename, colname = get_tablename_colname(v)
+            tablename = aliases_to_tablenames.get(tablename, tablename)
+            # IMPORTANT: Below was commented out, since it would cause:
+            #   `SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1`
+            #   ...to always select the result of the `LIMIT 1`.
+            # Check for previously created temporary tables
+            # value_source_tablename, _ = self.maybe_get_temp_table(
+            #     temp_table_func=get_temp_subquery_table, tablename=tablename
+            # )
+            # Optionally materialize a CTE
+            if tablename in self.db.lazy_tables:
+                unpacked_values: list = [
+                    str(i)
+                    for i in self.db.lazy_tables.pop(tablename)
+                    .collect()[colname]
+                    .unique()
+                ]
+            else:
+                unpacked_values: list = [
+                    str(i)
+                    for i in self.db.execute_to_list(
+                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                    )
+                ]
+        else:
+            unpacked_values = v.split(";")
+        return unpacked_values
+
     def maybe_get_temp_table(
         self, temp_table_func: t.Callable, tablename: str
     ) -> t.Tuple[str, bool]:
@@ -73,38 +148,12 @@ class Ingredient:
 
     def unpack_options(
         self,
-        options: t.Union[ValueArray],
+        options: t.Union[ValueArray, list],
         aliases_to_tablenames: t.Dict[str, str],
     ) -> t.Union[t.Set[str], None]:
         unpacked_options = options
         if not isinstance(options, list):
-            try:
-                tablename, colname = get_tablename_colname(options)
-                tablename = aliases_to_tablenames.get(tablename, tablename)
-                # IMPORTANT: Below was commented out, since it would cause:
-                #   `SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1`
-                #   ...to always select the result of the `LIMIT 1`.
-                # Check for previously created temporary tables
-                # value_source_tablename, _ = self.maybe_get_temp_table(
-                #     temp_table_func=get_temp_subquery_table, tablename=tablename
-                # )
-                # Optionally materialize a CTE
-                if tablename in self.db.lazy_tables:
-                    unpacked_options: list = [
-                        str(i)
-                        for i in self.db.lazy_tables.pop(tablename)
-                        .collect()[colname]
-                        .unique()
-                    ]
-                else:
-                    unpacked_options: list = [
-                        str(i)
-                        for i in self.db.execute_to_list(
-                            f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                        )
-                    ]
-            except ValueError:
-                unpacked_options = options.split(";")
+            unpacked_options = self.unpack_value_array(options, aliases_to_tablenames)
         if len(unpacked_options) == 0:
             logger.debug(
                 Fore.LIGHTRED_EX
@@ -112,6 +161,46 @@ class Ingredient:
                 + Fore.RESET
             )
         return set(unpacked_options) if len(unpacked_options) > 0 else None
+
+    def unpack_question(
+        self,
+        question: str,
+        aliases_to_tablenames: t.Dict[str, str],
+    ) -> str:
+        """Unpack any f-string ValueArray references in question.
+
+        Example:
+            'Where is {city::name} located?'
+        """
+        F_STRING_PATTERN = re.compile(r"{([^{}]*)}")
+
+        def replace_fstring_templates(s, replacement_func):
+            def replacer(match):
+                template = match.group(1)
+                return replacement_func(template)
+
+            return F_STRING_PATTERN.sub(replacer, s)
+
+        def get_first_value(template):
+            values = self.unpack_value_array(template, aliases_to_tablenames)
+            if len(values) == 0:
+                raise IngredientException(f"No values found in {template}")
+            if len(values) > 1:
+                logger.debug(
+                    Fore.RED
+                    + f"More than 1 value found in {template}: {values[:10]}\nThis could be a sign of a malformed query."
+                    + Fore.RESET
+                )
+            return values[0]
+
+        unpacked_question = replace_fstring_templates(question, get_first_value)
+        if unpacked_question != question:
+            logger.debug(
+                Fore.LIGHTBLACK_EX
+                + f"Unpacked question to '{unpacked_question}'"
+                + Fore.RESET
+            )
+        return unpacked_question
 
 
 @attrs
@@ -280,17 +369,20 @@ class MapIngredient(Ingredient):
 
         if options is not None:
             # Override any pattern with our new unpacked options
-            unpacked_options = self.unpack_options(
+            options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
             )
-        else:
-            unpacked_options = None
+
+        if question is not None:
+            question = self.unpack_question(
+                question=question, aliases_to_tablenames=aliases_to_tablenames
+            )
 
         mapped_values: Collection[t.Any] = self._run(
             question=question,
             values=unpacked_values,
-            options=unpacked_options,
+            options=options,
             tablename=tablename,
             colname=colname,
             *args,
@@ -311,7 +403,7 @@ class MapIngredient(Ingredient):
         new_table = original_table.merge(subtable, how="left", on=colname)
         if new_table.shape[0] != original_table.shape[0]:
             raise IngredientException(
-                f"subtable from run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
+                f"subtable from MapIngredient.run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
             )
         # Now, new table has original columns + column with the name of the question we answered
         return (new_arg_column, tablename, colname, new_table)
@@ -376,9 +468,16 @@ class JoinIngredient(Ingredient):
         modified_lr_identifiers = []
         mapping: t.Dict[str, str] = {}
         for on_arg in [left_on, right_on]:
-            tablename, colname = utils.get_tablename_colname(on_arg)
-            tablename = aliases_to_tablenames.get(tablename, tablename)
-            original_lr_identifiers.append((tablename, colname))
+            # Since LLMJoin is unique, in that we need to inject the referenced tablenames back to the query,
+            #   make sure we keep the `referenced_tablename` variable.
+            # So the below works:
+            #     SELECT f.name, colors.name FROM fruits f
+            #     JOIN {{LLMJoin('f::name', 'colors::name', join_criteria='Align the fruit to its color')}}
+            referenced_tablename, colname = utils.get_tablename_colname(on_arg)
+            tablename = aliases_to_tablenames.get(
+                referenced_tablename, referenced_tablename
+            )
+            original_lr_identifiers.append((referenced_tablename, colname))
             tablename, _ = self.maybe_get_temp_table(
                 temp_table_func=get_temp_subquery_table,
                 tablename=tablename,
@@ -609,20 +708,23 @@ class QAIngredient(Ingredient):
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
 
+        self.num_values_passed += len(subtable) if subtable is not None else 0
+
         if options is not None:
-            unpacked_options = self.unpack_options(
+            options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
             )
-        else:
-            unpacked_options = None
 
-        self.num_values_passed += len(subtable) if subtable is not None else 0
+        if question is not None:
+            question = self.unpack_question(
+                question=question, aliases_to_tablenames=aliases_to_tablenames
+            )
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,
             context=subtable,
-            options=unpacked_options,
+            options=options,
             *args,
             **self.__dict__ | kwargs,
         )

@@ -17,7 +17,7 @@ class ImageCaption(MapIngredient):
 
     @classmethod
     def from_args(cls, model: Model = None):
-        return partialclass(cls, model=model)
+        return cls._maybe_set_name_to_var_name(partialclass(cls, model=model))
 
     def __call__(
         self,

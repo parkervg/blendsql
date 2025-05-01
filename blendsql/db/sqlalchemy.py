@@ -42,13 +42,21 @@ class SQLAlchemyDatabase(Database):
             for column_data in inspect(self.engine).get_columns(tablename):
                 yield column_data["name"]
 
-    def schema_string(self, use_tables: t.Optional[t.Collection[str]] = None) -> str:
+    def schema_string(
+        self,
+        table_to_description: t.Dict[str, str],
+        use_tables: t.Optional[t.Collection[str]] = None,
+    ) -> str:
         create_table_stmts = []
         for table in self.metadata.sorted_tables:
             if use_tables:
                 if table.name not in use_tables:
                     continue
-            create_table_stmts.append(str(CreateTable(table)).strip())
+            create_table_stmt = str(CreateTable(table)).strip()
+            description = table_to_description.get(table.name, None)
+            if description:
+                create_table_stmt = f"-- {description}\n" + create_table_stmt
+            create_table_stmts.append(create_table_stmt)
         return "\n\n".join(create_table_stmts)
 
     def to_serialized(
@@ -56,6 +64,7 @@ class SQLAlchemyDatabase(Database):
         num_rows: int = 3,
         truncate_content: int = 300,
         use_tables: t.Optional[t.Collection[str]] = None,
+        table_to_description: t.Optional[t.Dict[str, str]] = None,
         include_content: t.Union[str, Collection[str]] = "all",
         use_bridge_encoder: bool = False,
         question: t.Optional[str] = None,
@@ -66,12 +75,19 @@ class SQLAlchemyDatabase(Database):
         """Returns a string representation of the database, with example rows."""
         from .bridge_content_encoder import get_database_matches
 
+        if table_to_description is None:
+            table_to_description = {}
+
         serialized_db = []
         for tablename in self.tables():
             if use_tables is not None:
                 if tablename not in use_tables:
                     continue
-            serialized_db.append(self.schema_string(use_tables=[tablename]))
+            serialized_db.append(
+                self.schema_string(
+                    table_to_description=table_to_description, use_tables=[tablename]
+                )
+            )
             if include_content != "all":
                 if tablename not in include_content:
                     serialized_db.append("\n")

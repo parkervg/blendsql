@@ -1,9 +1,7 @@
 import typing as t
 from functools import partialmethod, partial
-from colorama import Fore
 
 from .few_shot import Example
-from blendsql.common.logger import logger
 
 # Can be:
 # - '{value1};{value2}...' syntax
@@ -25,14 +23,13 @@ def initialize_retriever(
     assert k <= len(
         examples
     ), f"The `k` argument to an ingredient must be less than `len(few_shot_examples)`!\n`k` is {k}, `len(few_shot_examples)` is {len(examples)}"
-    from .retriever import Retriever
+    from .faiss_vector_store import FaissVectorStore
 
-    logger.debug(Fore.YELLOW + "Processing documents with haystack..." + Fore.RESET)
-    retriever = Retriever(
+    retriever = FaissVectorStore(
         documents=[example.to_string(**to_string_args) for example in examples],
         return_objs=examples,
     )
-    return partial(retriever.retrieve_top_k, k=k)
+    return partial(retriever, k=k)
 
 
 def partialclass(cls, *args, **kwds):

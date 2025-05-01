@@ -131,17 +131,31 @@ class LLMMap(MapIngredient):
         if few_shot_examples is None:
             few_shot_examples = DEFAULT_MAP_FEW_SHOT
         else:
-            few_shot_examples = [
-                AnnotatedMapExample(**d) if isinstance(d, dict) else d
-                for d in few_shot_examples
-            ]
+            # Sort of guessing here - the user could change the `model` type later,
+            #   or pass the model at the `BlendSQL(...)` level instead of the ingredient level.
+            if model is not None and isinstance(model, ConstrainedModel):
+                few_shot_examples = [
+                    ConstrainedAnnotatedMapExample(**d)
+                    if isinstance(d, dict)
+                    else ConstrainedAnnotatedMapExample(**d.__dict__)
+                    for d in few_shot_examples
+                ]
+            else:
+                few_shot_examples = [
+                    UnconstrainedAnnotatedMapExample(**d)
+                    if isinstance(d, dict)
+                    else UnconstrainedAnnotatedMapExample(**d.__dict__)
+                    for d in few_shot_examples
+                ]
         few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
-        return partialclass(
-            cls,
-            model=model,
-            few_shot_retriever=few_shot_retriever,
-            list_options_in_prompt=list_options_in_prompt,
-            batch_size=batch_size,
+        return cls._maybe_set_name_to_var_name(
+            partialclass(
+                cls,
+                model=model,
+                few_shot_retriever=few_shot_retriever,
+                list_options_in_prompt=list_options_in_prompt,
+                batch_size=batch_size,
+            )
         )
 
     def run(

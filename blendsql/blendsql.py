@@ -1004,12 +1004,26 @@ class BlendSQL:
 
     def __post_init__(self):
         if not isinstance(self.db, Database):
-            self.db = self.infer_db_type(self.db)
+            self.db = self._infer_db_type(self.db)
         if self.db is None:
             raise ValueError("df_or_db_path must be provided")
+        self.ingredients = self._merge_default_ingredients(self.ingredients)
+        self._toggle_verbosity(self.verbose)
 
     @staticmethod
-    def merge_default_ingredients(
+    def _toggle_verbosity(verbose_in_use: bool):
+        def set_level(l: int):
+            logger.setLevel(l)
+            for handler in logger.handlers:
+                handler.setLevel(l)
+
+        if verbose_in_use:
+            set_level(logging.DEBUG)
+        else:
+            set_level(logging.ERROR)
+
+    @staticmethod
+    def _merge_default_ingredients(
         ingredients: t.Optional[Collection[t.Type[Ingredient]]],
     ):
         from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
@@ -1028,7 +1042,7 @@ class BlendSQL:
         return ingredients
 
     @staticmethod
-    def infer_db_type(df_or_db_path) -> Database:
+    def _infer_db_type(df_or_db_path) -> Database:
         from pathlib import Path
 
         if df_or_db_path is None:
@@ -1172,16 +1186,7 @@ class BlendSQL:
             ```
         '''
 
-        def set_level(l: int):
-            logger.setLevel(l)
-            for handler in logger.handlers:
-                handler.setLevel(l)
-
-        verbose_in_use = verbose or self.verbose
-        if verbose_in_use:
-            set_level(logging.DEBUG)
-        else:
-            set_level(logging.ERROR)
+        self._toggle_verbosity(verbose if verbose is not None else self.verbose)
 
         start = time.time()
         model_in_use = model or self.model
@@ -1190,9 +1195,9 @@ class BlendSQL:
                 query=query,
                 db=self.db,
                 default_model=model_in_use,
-                ingredients=self.merge_default_ingredients(
-                    ingredients or self.ingredients
-                ),
+                ingredients=self._merge_default_ingredients(ingredients)
+                if ingredients is not None
+                else self.ingredients,
                 infer_gen_constraints=infer_gen_constraints
                 if infer_gen_constraints is not None
                 else self.infer_gen_constraints,
