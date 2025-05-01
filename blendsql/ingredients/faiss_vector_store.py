@@ -30,6 +30,7 @@ class FaissVectorStore:
         default=Path(platformdirs.user_cache_dir("blendsql")) / "faiss_vectors"
     )
     return_objs: t.List[ReturnObj] = field(default=None)
+    st_encode_kwargs: t.Optional[dict[str, t.Any]] = field(default=None)
 
     index: faiss.Index = field(init=False)
     embedding_model: SentenceTransformer = field(init=False)
@@ -51,10 +52,15 @@ class FaissVectorStore:
         else:
             self.documents = sorted(self.documents)
             self.idx_to_return_obj = {i: doc for i, doc in enumerate(self.documents)}
+
+        # Load SentenceTransformer and any kwargs we need to pass on encode
         self.embedding_model = SentenceTransformer(
             self.model_name_or_path,
             device="cuda" if torch.cuda.is_available() else "cpu",
         )
+        if self.st_encode_kwargs is None:
+            self.st_encode_kwargs = {}
+
         self.embedding_dimension = (
             self.embedding_model.get_sentence_embedding_dimension()
         )
@@ -93,7 +99,8 @@ class FaissVectorStore:
 
     def __call__(self, query: str, k: int = 3) -> t.List[str]:
         _, indices = self.index.search(
-            self.embedding_model.encode(query).reshape(1, -1), k
+            self.embedding_model.encode(query, **self.st_encode_kwargs).reshape(1, -1),
+            k,
         )
         return [self.idx_to_return_obj[i] for i in indices[0, :]]
 
