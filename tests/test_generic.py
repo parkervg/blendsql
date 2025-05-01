@@ -63,6 +63,7 @@ def test_error_on_bad_options_subquery(bsql):
 
 
 def test_replacement_scan(bsql, constrained_model):
+    """ad94437"""
     NewIngredient = LLMQA.from_args(k=2)
     _ = bsql.execute(
         """
@@ -72,3 +73,19 @@ def test_replacement_scan(bsql, constrained_model):
         ingredients={NewIngredient},
         model=constrained_model,
     )
+
+
+def test_question_f_strings(bsql, constrained_model):
+    """0218f7f"""
+    res = bsql.execute(
+        """
+        WITH t AS (SELECT * FROM w WHERE Age = 23)
+        SELECT {{
+            LLMQA(
+                'Please say "{t::Name}"'
+            )    
+        }}
+        """,
+        model=constrained_model,
+    )
+    assert list(res.df.values.flat) == ["Danny"]
