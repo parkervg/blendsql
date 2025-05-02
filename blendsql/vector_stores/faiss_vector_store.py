@@ -1,9 +1,11 @@
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 import hashlib
 import numpy as np
 import platformdirs
 import typing as t
+
 from colorama import Fore
 
 from blendsql.common.logger import logger
@@ -14,6 +16,30 @@ ReturnObj = t.TypeVar("ReturnObj")
 def maybe_make_dir(dir_path: Path):
     if not dir_path.is_dir():
         dir_path.mkdir(parents=True)
+
+
+def dependable_faiss_import(no_avx2: t.Optional[bool] = None) -> t.Any:
+    """
+    https://python.langchain.com/v0.2/api_reference/_modules/langchain_community/vectorstores/faiss.html#dependable_faiss_import
+    Import faiss if available, otherwise raise error.
+    If FAISS_NO_AVX2 environment variable is set, it will be considered
+    to load FAISS with no AVX2 optimization.
+
+    Args:
+        no_avx2: Load FAISS strictly with no AVX2 optimization
+            so that the vectorstore is portable and compatible with other devices.
+    """
+    if no_avx2 is None and "FAISS_NO_AVX2" in os.environ:
+        no_avx2 = bool(os.getenv("FAISS_NO_AVX2"))
+
+    try:
+        if no_avx2:
+            from faiss import swigfaiss as faiss
+        else:
+            import faiss
+    except ImportError as e:
+        raise e from None
+    return faiss
 
 
 @dataclass
@@ -33,7 +59,7 @@ class FaissVectorStore:
     idx_to_return_obj: t.Dict[int, ReturnObj] = field(init=False)
 
     def __post_init__(self):
-        import faiss
+        faiss = dependable_faiss_import()
         import torch
         from numpy.typing import NDArray
         from sentence_transformers import SentenceTransformer
