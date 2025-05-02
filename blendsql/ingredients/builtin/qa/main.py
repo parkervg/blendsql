@@ -214,7 +214,14 @@ class LLMQA(QAIngredient):
             few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if vector_store is not None and context is None:
-            context = pd.DataFrame(vector_store(question), columns=["content"])
+            docs = vector_store(question)
+            context = pd.DataFrame(docs, columns=["content"])
+            logger.debug(
+                Fore.LIGHTBLACK_EX
+                + f"Retrieved contexts '{[doc[:50] + '...' for doc in context]}'"
+                + Fore.RESET
+            )
+
         return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
         )
