@@ -57,6 +57,7 @@ if __name__ == "__main__":
     blendsql_token_counts = get_blendsql_token_counts(
         BLENDSQL_ANNOTATED_TAG_DATASET, tokenizer
     )
+    assert len(lotus_token_counts) == len(blendsql_token_counts)
 
     print(f"BlendSQL average token count: {np.mean(blendsql_token_counts)}")
     print(f"LOTUS average token count: {np.mean(lotus_token_counts)}")
