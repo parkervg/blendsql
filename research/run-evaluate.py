@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, asdict
 
 import torch
 
-from tag_queries import TAG_DATASET
+from tag_queries import BLENDSQL_ANNOTATED_TAG_DATASET
 
 from blendsql import BlendSQL
 from blendsql.models import LlamaCpp, TransformersLLM
@@ -87,14 +87,10 @@ if __name__ == "__main__":
     )
 
     prediction_data = []
-    for item in TAG_DATASET:
+    for item in BLENDSQL_ANNOTATED_TAG_DATASET:
         curr_pred_data = item.copy()
         if item["BlendSQL"] is None:
             continue
-        # if "LLMMap" not in item["BlendSQL"]:
-        #     continue
-        # if item["Query ID"] != 56:
-        #     continue
         bsql = load_bsql(load_tag_db_path(item["DB used"]))
         smoothie = bsql.execute(item["BlendSQL"])
         # print(smoothie.df)
