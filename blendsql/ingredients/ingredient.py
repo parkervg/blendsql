@@ -105,7 +105,10 @@ class Ingredient:
         return partial_cls
 
     def unpack_value_array(
-        self, v: ValueArray, aliases_to_tablenames: t.Dict[str, str]
+        self,
+        v: ValueArray,
+        aliases_to_tablenames: t.Dict[str, str],
+        allow_semicolon_list: t.Optional[bool] = True,
     ) -> t.Collection:
         if "::" in v:
             tablename, colname = get_tablename_colname(v)
@@ -133,6 +136,11 @@ class Ingredient:
                     )
                 ]
         else:
+            if not allow_semicolon_list:
+                raise IngredientException(
+                    f"Error trying to unpack '{v}'!"
+                    + "\nExpected something in the format '{tablename}::{columnname}'."
+                )
             unpacked_values = v.split(";")
         return unpacked_values
 
@@ -182,7 +190,9 @@ class Ingredient:
             return F_STRING_PATTERN.sub(replacer, s)
 
         def get_first_value(template):
-            values = self.unpack_value_array(template, aliases_to_tablenames)
+            values = self.unpack_value_array(
+                template, aliases_to_tablenames, allow_semicolon_list=False
+            )
             if len(values) == 0:
                 raise IngredientException(f"No values found in {template}")
             if len(values) > 1:
