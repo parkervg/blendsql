@@ -1,4 +1,4 @@
-TAG_DATASET = [
+BLENDSQL_ANNOTATED_TAG_DATASET = [
     {
         "Query ID": 0,
         "DB used": "california_schools",
@@ -971,7 +971,18 @@ ORDER BY away_team_goal DESC LIMIT 3
             "Carmichael",
         ],
         "order_insensitive_answer": False,
-        "BlendSQL": None,
+        "BlendSQL": """WITH top_schools AS (
+            SELECT City FROM schools s 
+            JOIN frpm f ON f.CDSCode = s.CDSCode
+            ORDER BY f."Enrollment (K-12)" DESC LIMIT 5
+        ) SELECT * FROM VALUES {{
+            LLMQA(
+                'Rank the cities, in order of most diverse to least diverse.', 
+                options='top_schools::City',
+                quantifier='{5}'
+            )
+        }}
+        """,
         "Notes": "What does 'most diverse' mean?",
     },
     {
