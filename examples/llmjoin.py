@@ -1,8 +1,8 @@
 import pandas as pd
+import torch.cuda
 
 from blendsql import BlendSQL
-from blendsql.ingredients import LLMJoin, LLMQA
-from blendsql.models import LiteLLM
+from blendsql.models import LiteLLM, LlamaCpp
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -14,8 +14,13 @@ if __name__ == "__main__":
                 {"name": ["orange", "blue", "yellow", "red", "yellow"]}
             ),
         },
-        ingredients={LLMJoin, LLMQA},
-        model=LiteLLM("openai/gpt-4o-mini", caching=False),
+        model=LlamaCpp(
+            "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
+            "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
+            config={"n_gpu_layers": -1},
+        )
+        if torch.cuda.is_available()
+        else LiteLLM("openai/gpt-4o"),
         verbose=True,
     )
     smoothie = bsql.execute(
