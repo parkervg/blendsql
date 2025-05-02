@@ -53,6 +53,7 @@ class FaissVectorStore:
     )
     return_objs: t.List[ReturnObj] = field(default=None)
     st_encode_kwargs: t.Optional[dict[str, t.Any]] = field(default=None)
+    k: t.Optional[int] = field(default=3)
 
     index: "faiss.Index" = field(init=False)
     embedding_model: "SentenceTransformer" = field(init=False)
@@ -124,9 +125,9 @@ class FaissVectorStore:
             self.index.add(embeddings)
             faiss.write_index(self.index, str(curr_index_path))
 
-    def __call__(self, query: str, k: int = 3) -> t.List[str]:
+    def __call__(self, query: str, k: t.Optional[int] = None) -> t.List[str]:
         _, indices = self.index.search(
             self.embedding_model.encode(query, **self.st_encode_kwargs).reshape(1, -1),
-            k,
+            k or self.k,
         )
         return [self.idx_to_return_obj[i] for i in indices[0, :]]

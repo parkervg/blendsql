@@ -218,7 +218,7 @@ class LLMQA(QAIngredient):
             context = pd.DataFrame(docs, columns=["content"])
             logger.debug(
                 Fore.LIGHTBLACK_EX
-                + f"Retrieved contexts '{[doc[:50] + '...' for doc in context]}'"
+                + f"Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"
                 + Fore.RESET
             )
 
