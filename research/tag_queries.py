@@ -39,13 +39,13 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Query type": "Match",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "244742",
-        "BlendSQL": """SELECT SUM("NumTstTakr") AS TotalTestTakers
-        FROM satscores
-        JOIN schools ON schools.CDSCode = satscores.cds
+        "BlendSQL": """SELECT SUM(ss.NumTstTakr)
+        FROM satscores ss
+        JOIN schools s ON s.CDSCode = ss.cds
         WHERE {{
             LLMMap(
                 'What is the population of this California county? Give your best guess.',
-                'schools::County'
+                's::County'
             )
         }} > 2000000""",
         "Notes": None,
@@ -59,8 +59,8 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "K-5",
         "BlendSQL": """SELECT GSoffered
-            FROM schools 
-            WHERE {{LLMMap('Is this county in Silicon Valley?', 'schools::County')}} = TRUE
+            FROM schools s
+            WHERE {{LLMMap('Is this county in Silicon Valley?', 's::County')}} = TRUE
             ORDER BY "Longitude" DESC 
             LIMIT 1""",
         "Notes": None,
@@ -94,10 +94,11 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Reasoning",
         "Answer": "4",
         "BlendSQL": """SELECT COUNT(*)
-        FROM posts 
-        WHERE OwnerUserId = (SELECT Id FROM users WHERE DisplayName = 'csgillespie') 
+        FROM posts p
+        JOIN users u ON u.Id = p.OwnerUserId
+        WHERE u.DisplayName = 'csgillespie'
         AND ParentId IS NULL 
-        AND {{LLMMap('Does this post mention academic papers?', 'posts::Body')}} = TRUE""",
+        AND {{LLMMap('Does this post mention academic papers?', 'p::Body')}} = TRUE""",
         "Notes": None,
     },
     {
@@ -172,7 +173,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Query type": "Match",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "left",
-        "BlendSQL": """SELECT preferred_foot FROM Player JOIN Player_Attributes ON Player.player_api_id = Player_Attributes.player_api_id
+        "BlendSQL": """SELECT preferred_foot FROM Player p JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
             WHERE player_name = {{
                 LLMQA(
                     "Which player has the most Ballon d'Or awards?"
@@ -951,7 +952,8 @@ ORDER BY away_team_goal DESC LIMIT 3
                 options=(
                     SELECT DISTINCT City FROM schools
                     WHERE Virtual = 'F'
-                )
+                ),
+                quantifier='{3}'
             )
         }}""",
         "Notes": "Subjective question - 'safest place to live' by what standard?",
