@@ -74,7 +74,7 @@ if __name__ == "__main__":
         model = TransformersLLM(
             CONFIG.repo_id,
             config={"device_map": "auto", "torch_dtype": torch.bfloat16},
-            caching=True,
+            caching=False,
         )
     # Pre-load model obj
     _ = model.model_obj
@@ -93,7 +93,6 @@ if __name__ == "__main__":
             continue
         bsql = load_bsql(load_tag_db_path(item["DB used"]))
         smoothie = bsql.execute(item["BlendSQL"])
-        # print(smoothie.df)
         curr_pred_data["latency"] = smoothie.meta.process_time_seconds
         curr_pred_data["completion_tokens"] = smoothie.meta.completion_tokens
         curr_pred_data["prompt_tokens"] = smoothie.meta.prompt_tokens
