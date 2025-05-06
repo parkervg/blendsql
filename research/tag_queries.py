@@ -40,12 +40,12 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "244742",
         "BlendSQL": """SELECT SUM("NumTstTakr") AS TotalTestTakers
-        FROM satscores
-        JOIN schools ON schools.CDSCode = satscores.cds
+        FROM satscores ss
+        JOIN schools s ON s.CDSCode = ss.cds
         WHERE {{
             LLMMap(
-                'What is the population of this California county? Give your best guess.',
-                'schools::County'
+                'Approximately, what is the population of this California county?',
+                's::County'
             )
         }} > 2000000""",
         "Notes": None,
