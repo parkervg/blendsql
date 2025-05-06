@@ -17,14 +17,20 @@ hide:
 <br>
     <i> SQL 🤝 LLMs </i>
 <br><br>
-[Paper :simple-arxiv:](https://arxiv.org/pdf/2402.17882.pdf){ .md-button } [GitHub :simple-github:](https://github.com/parkervg/blendsql){ .md-button }
+</center>
 
+<div style="text-align: center" markdown="1">
+[Paper :simple-arxiv:](https://arxiv.org/pdf/2402.17882.pdf){ .md-button } [GitHub :simple-github:](https://github.com/parkervg/blendsql){ .md-button }
+</div>
+
+<center>
 <div class="index-pre-code">
 ```bash
 pip install blendsql
 ```
 </div>
 </center>
+
 
 ### ✨ News
 - (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
