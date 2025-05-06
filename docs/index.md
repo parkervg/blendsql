@@ -17,7 +17,6 @@ hide:
 <br>
     <i> SQL 🤝 LLMs </i>
 <br><br>
-
 [Paper :simple-arxiv:](https://arxiv.org/pdf/2402.17882.pdf){ .md-button } [GitHub :simple-github:](https://github.com/parkervg/blendsql){ .md-button }
 
 <div class="index-pre-code">
@@ -28,12 +27,12 @@ pip install blendsql
 </center>
 
 ### ✨ News
+- (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
+- (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
 - (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
 - (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
 - (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
   - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
-- (10/15/24) As of version 0.0.27, there is a new pattern for defining + retrieving few-shot prompts; check out [Few-Shot Prompting](#few-shot-prompting) in the README for more info
-- (10/15/24) Check out [Some Cool Things by Example](https://parkervg.github.io/blendsql/by-example/) for some recent language updates!
 
 ### Features
 
