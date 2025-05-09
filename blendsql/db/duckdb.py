@@ -163,7 +163,11 @@ class DuckDB(Database):
         """
         # DuckDB has this cool 'CREATE OR REPLACE' syntax
         # https://duckdb.org/docs/sql/statements/create_table.html#create-or-replace
-        self.con.sql(f'CREATE OR REPLACE TEMP TABLE "{tablename}" AS SELECT * FROM df')
+        create_table_stmt = (
+            f'CREATE OR REPLACE TEMP TABLE "{tablename}" AS SELECT * FROM df'
+        )
+        logger.debug(Fore.LIGHTBLACK_EX + create_table_stmt + Fore.RESET)
+        self.con.sql(create_table_stmt)
         self.temp_tables.add(tablename)
         logger.debug(Fore.CYAN + f"Created temp table {tablename}" + Fore.RESET)
 

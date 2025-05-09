@@ -2,6 +2,9 @@ import re
 import pandas as pd
 import typing as t
 from attr import attrs, attrib
+from colorama import Fore
+
+from blendsql.common.logger import logger
 
 
 @attrs(frozen=True)
@@ -12,10 +15,16 @@ class LazyTable:
     """
 
     tablename: str = attrib()
-    collect: t.Callable[..., pd.DataFrame] = attrib()
+    collect_fn: t.Callable[..., pd.DataFrame] = attrib()
 
     def __str__(self):
         return self.tablename
+
+    def collect(self):
+        logger.debug(
+            Fore.CYAN + f"Materializing CTE `{self.tablename}`..." + Fore.RESET
+        )
+        self.collect_fn()
 
 
 class LazyTables(dict):
