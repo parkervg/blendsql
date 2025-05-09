@@ -279,13 +279,21 @@ class SubqueryContextManager:
         # There's no point in creating a temporary table in this situation
         where_node = abstracted_query.find(exp.Where)
         join_node = abstracted_query.find(exp.Join)
-        if where_node and not join_node:
+        # If we have a join_node that's a cross join ('JOIN "colors" ON TRUE'),
+        #   this was likely created by a LLMJoin ingredient.
+        #   We don't need to create temp tables for these.
+        # TODO: This cross join is inefficient, make it a union
+        is_cross_join = lambda node: node.args.get("on", None) == exp.true()
+        ignore_join = bool(not join_node or is_cross_join(join_node))
+        if where_node and ignore_join:
             if where_node.args["this"] == exp.true():
                 return
             elif isinstance(where_node.args["this"], exp.Column):
                 return
             elif check.all_terminals_are_true(where_node):
                 return
+        elif where_node is None and not ignore_join:
+            return
         for tablename, columnnames in self.columns_referenced_by_ingredients.items():
             # TODO: execute query once, and then separate out the results to their respective tables
             yield (
