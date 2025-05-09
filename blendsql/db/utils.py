@@ -24,7 +24,7 @@ class LazyTable:
         logger.debug(
             Fore.CYAN + f"Materializing CTE `{self.tablename}`..." + Fore.RESET
         )
-        self.collect_fn()
+        return self.collect_fn()
 
 
 class LazyTables(dict):
