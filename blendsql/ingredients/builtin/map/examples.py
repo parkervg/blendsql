@@ -1,6 +1,5 @@
 from attr import attrs, attrib
 import typing as t
-from textwrap import dedent
 
 from blendsql.ingredients.few_shot import Example
 from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
@@ -9,17 +8,18 @@ from blendsql.common.constants import DEFAULT_ANS_SEP
 
 @attrs(kw_only=True)
 class MapExample(Example):
-    question: str = attrib()
+    question: str = attrib(default=None)
+    context: t.Optional[str] = attrib(default=None)
     table_name: str = attrib(default=None)
     column_name: str = attrib(default=None)
     options: t.Optional[t.Collection[str]] = attrib(default=None)
     example_outputs: t.Optional[t.List[str]] = attrib(default=None)
-    values: t.Optional[t.List[str]] = attrib(default=None)
     mapping: t.Optional[t.Dict[str, str]] = attrib(default=None)
     return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
         default=DataTypes.STR(),
     )
+    use_context: t.Optional[bool] = attrib(default=False)
 
 
 @attrs(kw_only=True)
@@ -51,20 +51,18 @@ class ConstrainedMapExample(MapExample):
         else:
             args_str = "Value from a column in a SQL database."
 
-        s += dedent(
-            f"""
-        def f(s: str) -> {type_annotation}:
-            \"\"\"{self.question}
-
-            Args:
-                s (str): {args_str}
-
-            Returns:
-                {self.return_type.name}: Answer to the above question for each value `s`.
-
-            Examples:
-                ```python
-                # f() returns the output to the question '{self.question}'"""
+        s += (
+            f"""\ndef f(s: str"""
+            + (", context: str" if self.use_context else "")
+            + f') -> {type_annotation}:\n\t"""{self.question}'
+        )
+        s += f"""\n\n\tArgs:\n\t\ts (str): {args_str}"""
+        if self.use_context:
+            s += f"""\n\t\tcontext (str): Context to use in answering the question."""
+        s += f"""\n\n\tReturns:\n\t\t{self.return_type.name}: Answer to the above question for each value `s`."""
+        s += """\n\n\tExamples:\n\t\t```python"""
+        s += f"\n\t\t# f() returns the output to the question '{self.question}'" + (
+            "" if self.context is None else f" given the supplied context"
         )
         return s
 

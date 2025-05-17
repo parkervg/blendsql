@@ -181,7 +181,6 @@ class LLMQA(QAIngredient):
         return_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
         context: t.Optional[pd.DataFrame] = None,
-        value_limit: t.Optional[int] = None,
         long_answer: bool = False,
         **kwargs,
     ) -> t.Union[str, int, float, tuple]:
@@ -198,7 +197,6 @@ class LLMQA(QAIngredient):
                 Used directly for constrained decoding at inference time if we have a guidance model.
             return_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
             regex: Optional regex to constrain answer generation. Takes precedence over `return_type`
-            value_limit: Optional limit on how many rows from context we use
             long_answer: If true, we more closely mimic long-form end-to-end question answering.
                 If false, we just give the answer with no explanation or context
 
@@ -214,7 +212,7 @@ class LLMQA(QAIngredient):
             few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if vector_store is not None and context is None:
-            docs = vector_store(question)
+            docs = vector_store(question)[0]
             context = pd.DataFrame(docs, columns=["content"])
             logger.debug(
                 Fore.LIGHTBLACK_EX

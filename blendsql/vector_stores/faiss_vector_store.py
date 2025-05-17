@@ -54,6 +54,7 @@ class FaissVectorStore:
     return_objs: t.List[ReturnObj] = field(default=None)
     st_encode_kwargs: t.Optional[dict[str, t.Any]] = field(default=None)
     k: t.Optional[int] = field(default=3)
+    batch_size: t.Optional[int] = field(default=32)
 
     index: "faiss.Index" = field(init=False)
     embedding_model: "SentenceTransformer" = field(init=False)
@@ -125,9 +126,28 @@ class FaissVectorStore:
             self.index.add(embeddings)
             faiss.write_index(self.index, str(curr_index_path))
 
-    def __call__(self, query: str, k: t.Optional[int] = None) -> t.List[str]:
-        _, indices = self.index.search(
-            self.embedding_model.encode(query, **self.st_encode_kwargs).reshape(1, -1),
-            k or self.k,
+    def __call__(self, query: str, k: t.Optional[int] = None) -> t.List[t.List[str]]:
+        is_single_query = isinstance(query, str)
+        queries = [query] if is_single_query else query
+
+        # Encode all queries in batch
+        query_embeddings = self.embedding_model.encode(
+            queries, batch_size=self.batch_size, **self.st_encode_kwargs
         )
-        return [self.idx_to_return_obj[i] for i in indices[0, :]]
+
+        # Reshape if single query to match FAISS expected dimensions
+        if is_single_query:
+            query_embeddings = query_embeddings.reshape(1, -1)
+
+        # Perform batch search
+        distances, indices = self.index.search(query_embeddings, k or self.k)
+
+        # Convert indices to return objects
+        results = []
+        for batch_indices in indices:
+            batch_results = [
+                self.idx_to_return_obj[int(i)] for i in batch_indices if i >= 0
+            ]
+            results.append(batch_results)
+
+        return results

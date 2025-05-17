@@ -173,8 +173,9 @@ class Ingredient:
     def unpack_question(
         self,
         question: str,
-        aliases_to_tablenames: t.Dict[str, str],
-    ) -> str:
+        aliases_to_tablenames: t.Optional[t.Dict[str, str]],
+        warn_on_many_values: bool = False,
+    ) -> t.List[str]:
         """Unpack any f-string ValueArray references in question.
 
         Example:
@@ -183,28 +184,54 @@ class Ingredient:
         F_STRING_PATTERN = re.compile(r"{([^{}]*)}")
 
         def replace_fstring_templates(s, replacement_func):
-            def replacer(match):
-                template = match.group(1)
-                return replacement_func(template)
+            """
+            Replaces each template in the string with values returned by replacement_func.
+            For each template found, creates a new version of the string for each replacement value.
 
-            return F_STRING_PATTERN.sub(replacer, s)
+            Args:
+                s (str): The template string (e.g., "Say {name}")
+                replacement_func (callable): A function that takes a template name and returns a list of values
 
-        def get_first_value(template):
+            Returns:
+                list: A list of strings with all possible replacements
+            """
+            matches = list(F_STRING_PATTERN.finditer(s))
+
+            if not matches:
+                return [s]
+
+            # Get the first template match
+            match = matches[0]
+            template = match.group(1)
+            replacement_values = replacement_func(template)
+
+            # Create a base result for each replacement value
+            results = []
+            for value in replacement_values:
+                # Replace just this first occurrence
+                new_s = s[: match.start()] + str(value) + s[match.end() :]
+                # Recursively process any remaining templates in the new string
+                for result in replace_fstring_templates(new_s, replacement_func):
+                    results.append(result)
+
+            return results
+
+        def get_db_values(template):
             values = self.unpack_value_array(
                 template, aliases_to_tablenames, allow_semicolon_list=False
             )
             if len(values) == 0:
                 raise IngredientException(f"No values found in {template}")
-            if len(values) > 1:
+            if len(values) > 1 and warn_on_many_values:
                 logger.debug(
                     Fore.RED
                     + f"More than 1 value found in {template}: {values[:10]}\nThis could be a sign of a malformed query."
                     + Fore.RESET
                 )
-            return values[0]
+            return values
 
-        unpacked_question = replace_fstring_templates(question, get_first_value)
-        if unpacked_question != question:
+        unpacked_question = replace_fstring_templates(question, get_db_values)
+        if len(unpacked_question) > 1 or unpacked_question[0] != question:
             logger.debug(
                 Fore.LIGHTBLACK_EX
                 + f"Unpacked question to '{unpacked_question}'"
@@ -386,8 +413,10 @@ class MapIngredient(Ingredient):
 
         if question is not None:
             question = self.unpack_question(
-                question=question, aliases_to_tablenames=aliases_to_tablenames
-            )
+                question=question,
+                aliases_to_tablenames=aliases_to_tablenames,
+                warn_on_many_values=True,
+            )[0]
 
         mapped_values: Collection[t.Any] = self._run(
             question=question,
@@ -728,8 +757,10 @@ class QAIngredient(Ingredient):
 
         if question is not None:
             question = self.unpack_question(
-                question=question, aliases_to_tablenames=aliases_to_tablenames
-            )
+                question=question,
+                aliases_to_tablenames=aliases_to_tablenames,
+                warn_on_many_values=True,
+            )[0]
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,
