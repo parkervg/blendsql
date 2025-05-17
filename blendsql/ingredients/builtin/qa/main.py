@@ -71,7 +71,7 @@ class LLMQA(QAIngredient):
     """
     model: Model = attrib(default=None)
     context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
-        default=lambda df: df.to_markdown(index=False)
+        default=lambda df: json.dumps(df.to_dict(orient="records"), indent=4),
     )
     list_options_in_prompt: bool = attrib(default=True)
     few_shot_retriever: t.Callable[[str], t.List[AnnotatedQAExample]] = attrib(

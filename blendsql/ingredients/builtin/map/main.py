@@ -66,6 +66,12 @@ class LLMMap(MapIngredient):
         default=None
     )
     list_options_in_prompt: bool = attrib(default=True)
+    few_shot_retriever: t.Callable[[str], t.List[AnnotatedMapExample]] = attrib(
+        default=None
+    )
+    context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
+        default=lambda df: json.dumps(df.to_dict(orient="records"), indent=4),
+    )
     batch_size: int = attrib(default=None)
 
     @classmethod
