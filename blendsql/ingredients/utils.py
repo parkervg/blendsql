@@ -1,5 +1,5 @@
 import typing as t
-from functools import partialmethod, partial
+from functools import partialmethod
 
 from .few_shot import Example
 
@@ -28,8 +28,9 @@ def initialize_retriever(
     retriever = FaissVectorStore(
         documents=[example.to_string(**to_string_args) for example in examples],
         return_objs=examples,
+        k=k,
     )
-    return partial(retriever, k=k)
+    return retriever
 
 
 def partialclass(cls, *args, **kwds):
