@@ -63,7 +63,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
             WHERE {{LLMMap('Is this county in Silicon Valley?', 's::County')}} = TRUE
             ORDER BY "Longitude" DESC 
             LIMIT 1""",
-        "Notes": None,
+        "Notes": "This is changed to 'counties' in hand_written.py",
     },
     {
         "Query ID": 5,

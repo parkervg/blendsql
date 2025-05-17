@@ -24,7 +24,7 @@ from blendsql.ingredients.utils import (
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
 from blendsql.types import DataType, QuantifierType, prepare_datatype
 from .examples import QAExample, AnnotatedQAExample
-from blendsql.vector_stores.faiss_vector_store import FaissVectorStore
+from blendsql.search.faiss_vector_store import FaissVectorStore
 
 MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
 LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"

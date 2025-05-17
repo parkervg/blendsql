@@ -27,7 +27,7 @@ from .examples import (
     ConstrainedAnnotatedMapExample,
     UnconstrainedAnnotatedMapExample,
 )
-from blendsql.vector_stores.faiss_vector_store import FaissVectorStore
+from blendsql.search.faiss_vector_store import FaissVectorStore
 
 DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
     AnnotatedMapExample(**d)
