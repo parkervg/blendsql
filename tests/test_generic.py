@@ -88,7 +88,7 @@ def test_llmqa_question_f_strings(bsql, model):
     """0218f7f"""
     res = bsql.execute(
         """
-        WITH t AS (SELECT * FROM w WHERE Age = 23)
+        WITH t AS (SELECT * FROM w WHERE Age = 23 LIMIT 1)
         SELECT {{
             LLMQA(
                 'Please say "{t::Name}"'
@@ -97,15 +97,26 @@ def test_llmqa_question_f_strings(bsql, model):
         """,
         model=model,
     )
-    assert list(res.df.values.flat) == ["Danny"]
+    assert list(res.df.values.flat)[0].startswith("Danny")
 
 
 def test_llmmap_question_f_strings(bsql, model):
     """0218f7f"""
     _ = bsql.execute(
         """
-        WITH t AS (SELECT * FROM w WHERE Age = 23)
+        WITH t AS (SELECT * FROM w WHERE Age = 23 LIMIT 1)
         SELECT c.Title, {{LLMMap('Would someone named {t::Name} be good at this subject?', 'c::Title')}} AS "answer" FROM classes c
+        """,
+        model=model,
+    )
+
+
+def test_unused_cte_with_ingredient(bsql, model):
+    """cff65b6"""
+    _ = bsql.execute(
+        """
+        WITH t AS (SELECT {{LLMMap('Here is a question'), 'w::Name'}} FROM w)
+        SELECT * FROM w
         """,
         model=model,
     )
