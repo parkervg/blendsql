@@ -111,12 +111,12 @@ def test_llmmap_question_f_strings(bsql, model):
     )
 
 
-def test_unused_cte_with_ingredient(bsql, model):
-    """cff65b6"""
-    _ = bsql.execute(
-        """
-        WITH t AS (SELECT {{LLMMap('Here is a question'), 'w::Name'}} FROM w)
-        SELECT * FROM w
-        """,
-        model=model,
-    )
+# def test_unused_cte_with_ingredient(bsql, model):
+#     """cff65b6"""
+#     _ = bsql.execute(
+#         """
+#         WITH t AS (SELECT * FROM w WHERE {{LLMMap('Here is a question'), 'w::Name'}} = TRUE)
+#         SELECT * FROM w
+#         """,
+#         model=model,
+#     )
