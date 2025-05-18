@@ -182,6 +182,7 @@ class LLMQA(QAIngredient):
         regex: t.Optional[str] = None,
         context: t.Optional[pd.DataFrame] = None,
         long_answer: bool = False,
+        use_option_aliases: bool = False,
         **kwargs,
     ) -> t.Union[str, int, float, tuple]:
         """
@@ -220,24 +221,33 @@ class LLMQA(QAIngredient):
                 + Fore.RESET
             )
 
-        return_type: DataType = prepare_datatype(
+        resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
         )
         current_example = QAExample(
             question=question,
             context=context,
             options=options,
-            return_type=return_type,
+            return_type=resolved_return_type,
         )
         few_shot_examples: t.List[AnnotatedQAExample] = few_shot_retriever(
             current_example.to_string(context_formatter)
         )
 
-        is_list_output = current_example.return_type.quantifier is not None
-        regex = regex or current_example.return_type.regex
-        options = current_example.options
-        quantifier = current_example.return_type.quantifier
-        options_with_aliases, options_alias_to_original = get_option_aliases(options)
+        is_list_output = resolved_return_type.quantifier is not None
+        regex = regex or resolved_return_type.regex
+        quantifier = resolved_return_type.quantifier
+
+        options_with_aliases, options_alias_to_original = None, dict()
+        if use_option_aliases:
+            options_with_aliases, options_alias_to_original = get_option_aliases(
+                options
+            )
+        elif options is not None:
+            options_with_aliases, options_alias_to_original = options, {
+                o: o for o in options
+            }
+
         if options is not None and list_options_in_prompt:
             max_options_in_prompt = os.getenv(
                 MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
@@ -246,8 +256,10 @@ class LLMQA(QAIngredient):
                 logger.debug(
                     Fore.YELLOW
                     + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
+                    + Fore.RESET
                 )
                 list_options_in_prompt = False
+
         if isinstance(model, ConstrainedModel):
             import guidance
 
@@ -316,7 +328,7 @@ class LLMQA(QAIngredient):
 
             if is_list_output:
                 gen_kwargs = {
-                    "force_quotes": bool("str" in current_example.return_type.name),
+                    "force_quotes": bool("str" in resolved_return_type.name),
                     "regex": regex,
                     "options": options_with_aliases,
                     "quantifier": quantifier,
@@ -324,6 +336,8 @@ class LLMQA(QAIngredient):
                 gen_f = gen_list
             else:
                 if options:
+                    # Too many options here raises:
+                    # ValueError: Parser Error: Current row has 10850 items; max is 2000; consider making your grammar left-recursive if it's right-recursive
                     gen_kwargs = {"options": options, "name": "response"}
                     gen_f = guidance.select
                 else:
@@ -331,7 +345,8 @@ class LLMQA(QAIngredient):
                         "max_tokens": kwargs.get("max_tokens", 200),
                         "regex": regex,
                         "name": "response",
-                        "stop": ["\n"] if regex is not None else None,
+                        # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                        "stop": ["\n"] if regex is None else None,
                     }
                     gen_f = guidance.gen
 

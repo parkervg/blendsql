@@ -40,7 +40,7 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     CONSTRAINED_MAIN_INSTRUCTION
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
-DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 100
+DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 1000
 
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     "Given a set of values from a database, answer the question for each value. "
@@ -273,40 +273,23 @@ class LLMMap(MapIngredient):
 
             if options is not None:
                 gen_f = lambda _: guidance.select(options=options)  # type: ignore
-            elif return_type == "substring":
+            elif resolved_return_type.name == "substring":
                 # Special case for substring datatypes
                 gen_f = lambda s: guidance.substring(target_string=s)
             else:
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
-                    stop=["\n\t"] + ['"'] if resolved_return_type.name == "str" else [],
+                    # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                    stop=[")"] if regex is None else None,
                     regex=regex,
                 )  # type: ignore
 
-            # @guidance(stateless=True, dedent=False)  # type: ignore
-            # def make_predictions(
-            #     lm, values, str_output: bool, gen_f
-            # ) -> guidance.models.Model:
-            #     quotes = [
-            #         '"""' if any(c in value for c in ["\n", '"']) else '"'
-            #         for value in values
-            #     ]
-            #     gen_str = "\n".join(
-            #         [
-            #             f"""\t\tf({quote}{value}{quote}) == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
-            #             for value, quote in zip(values, quotes)
-            #         ]
-            #     )
-            #     return lm + gen_str
-
-            @guidance(stateless=True, dedent=False)  # type: ignore
             def make_prediction(
-                lm,
                 value: str,
                 context: t.Optional[str],
                 str_output: bool,
                 gen_f: t.Callable,
-            ) -> guidance.models.Model:
+            ) -> str:
                 def get_quote(s: str):
                     return '"""' if any(c in s for c in ["\n", '"']) else '"'
 
@@ -316,7 +299,7 @@ class LLMMap(MapIngredient):
                     context_quote = get_quote(context)
                     gen_str += f""", {context_quote}{context}{context_quote}"""
                 gen_str += f""") == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
-                return lm + gen_str
+                return gen_str
 
             example_str = ""
             if len(few_shot_examples) > 0:
@@ -324,15 +307,14 @@ class LLMMap(MapIngredient):
                     example_str += example.to_string()
 
             loaded_lm = False
+            batch_inference_strings = []
+            cache_keys = []
             # Due to guidance's prefix caching, this is a one-time cost
             model.prompt_tokens += len(
                 model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
             )
             # for i in range(0, len(sorted_values), batch_size):
             for c, v in zip(context, values):
-                # curr_batch_values = sorted_values[i : i + batch_size]
-                # current_batch_example = copy.deepcopy(current_example)
-                # current_batch_example.values = [str(i) for i in curr_batch_values]
                 current_example.context = c
                 current_example_str = current_example.to_string(
                     list_options=list_options_in_prompt,
@@ -352,8 +334,12 @@ class LLMMap(MapIngredient):
                         funcs=[make_prediction, gen_f],
                     )
                     if responses is not None:
-                        lm._variables.update(responses)  # type: ignore
+                        for k, v in responses.items():
+                            lm.set(k, v)
                         in_cache = True
+                        cache_keys.append(None)
+                    else:
+                        cache_keys.append(key)
                 if not in_cache and not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
                     loaded_lm = True
@@ -366,16 +352,30 @@ class LLMMap(MapIngredient):
 
                 if not in_cache:
                     model.num_generation_calls += 1
-                    with guidance.assistant():
-                        batch_lm = lm + make_prediction(
+                    batch_inference_strings.append(
+                        make_prediction(
                             value=v,
                             context=c,
                             str_output=(resolved_return_type.name == "str"),
                             gen_f=gen_f,
                         )
-                        lm._variables[v] = batch_lm.get(v)
-                    if model.caching:
-                        model.cache[key] = generated_batch_variables  # type: ignore
+                    )
+
+            with guidance.assistant():
+                # lm += "\n".join(batch_inference_strings)
+                for i in range(0, len(batch_inference_strings), batch_size):
+                    batch_lm = lm + "\n".join(
+                        batch_inference_strings[i : i + batch_size]
+                    )
+                lm._variables.update(batch_lm._variables)
+                # for k, v in batch_lm._state.captures.items():
+                #     lm = lm.set(k, v['value'])
+            if model.caching:
+                for cache_key, value in zip(cache_keys, values):
+                    if cache_key is None:
+                        continue
+                    model.cache[cache_key] = {value: lm.get(value)}  # type: ignore
+
             lm_mapping: t.List[str] = [lm[value] for value in values]  # type: ignore
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]

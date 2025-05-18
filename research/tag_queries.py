@@ -285,7 +285,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             "Kolmogorov-Smirnov statistic",
         ],
         "order_insensitive_answer": True,
-        "BlendSQL": """SELECT {{LLMMap('Extract the most statistical term from the title', 'p::Title', output_type='substring')}}
+        "BlendSQL": """SELECT {{LLMMap('Extract the most statistical term from the title', 'p::Title', return_type='substring')}}
         FROM posts p JOIN users u ON p.OwnerUserId = u.Id WHERE u.DisplayName = 'Vebjorn Ljosa'""",
         "Notes": None,
     },
@@ -476,7 +476,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         WHERE ra.name = 'Australian Grand Prix'
         AND ra.year = 2008 
         ) SELECT COUNT(*) FROM "2008_gp_drivers"
-        WHERE {{LLMMap('What year did this driver debut?', '2008_gp_drivers::name', output_type='int')}} > {{LLMQA('What year did Lewis Hamilton debut in F1?', output_type='int')}}
+        WHERE {{LLMMap('What year did this driver debut?', '2008_gp_drivers::name', return_type='int')}} > {{LLMQA('What year did Lewis Hamilton debut in F1?', return_type='int')}}
         """,
         "Notes": "TAG seems wrong? No mention of Lewis Hamilton.",
     },
