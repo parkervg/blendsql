@@ -362,14 +362,11 @@ class LLMMap(MapIngredient):
                     )
 
             with guidance.assistant():
-                # lm += "\n".join(batch_inference_strings)
                 for i in range(0, len(batch_inference_strings), batch_size):
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
-                lm._variables.update(batch_lm._variables)
-                # for k, v in batch_lm._state.captures.items():
-                #     lm = lm.set(k, v['value'])
+                    lm._variables.update(batch_lm._variables)
             if model.caching:
                 for cache_key, value in zip(cache_keys, values):
                     if cache_key is None:
