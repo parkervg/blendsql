@@ -394,7 +394,8 @@ def disambiguate_and_submit_blend(
     Used to disambiguate anonymized BlendSQL function and execute in a recursive context.
     """
     for alias, d in ingredient_alias_to_parsed_dict.items():
-        query = re.sub(re.escape(alias), d["raw"], query)
+        # https://stackoverflow.com/a/12127534
+        query = re.sub(re.escape(alias), lambda _: d["raw"], query)  # noqa
     logger.debug(
         Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`" + Fore.RESET
     )
