@@ -771,3 +771,52 @@ def test_null_negation(bsql):
         """
     )
     assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
+@pytest.mark.parametrize("bsql", bsql_connections)
+def test_not_double_executing_cte(bsql, model):
+    """ """
+    smoothie = bsql.execute(
+        """
+        WITH t AS (
+            SELECT Symbol FROM account_history a
+            WHERE {{starts_with('F', 'a::Account')}} = TRUE
+            AND a.Account IS NOT NULL
+        ) SELECT COUNT(*) FROM t 
+        WHERE t.Symbol IS NOT NULL
+        AND {{get_length('length', 't::Symbol')}} > 3
+        """,
+        model=model,
+    )
+    sql_df = bsql.db.execute_to_df(
+        """
+         WITH t AS (
+            SELECT Symbol FROM account_history a
+            WHERE Account LIKE 'F%'
+            AND Account IS NOT NULL
+        ) SELECT COUNT(*) FROM t 
+        WHERE t.Symbol IS NOT NULL
+        AND LENGTH(t.Symbol) > 3
+        """
+    )
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient_1 = bsql.db.execute_to_list(
+        """
+        SELECT COUNT(DISTINCT Account)
+        FROM account_history
+        WHERE Account IS NOT NULL
+        """
+    )[0]
+    passed_to_ingredient_2 = bsql.db.execute_to_list(
+        """
+        SELECT COUNT(DISTINCT Symbol)
+        FROM account_history 
+        WHERE Account LIKE 'F%'
+        AND Symbol IS NOT NULL
+        """
+    )[0]
+    assert (
+        smoothie.meta.num_values_passed
+        == passed_to_ingredient_1 + passed_to_ingredient_2
+    )
