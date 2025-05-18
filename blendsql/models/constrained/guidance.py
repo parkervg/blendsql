@@ -1,3 +1,4 @@
+import os
 import importlib.util
 from typing import Optional
 from colorama import Fore
@@ -5,6 +6,8 @@ from functools import cached_property
 
 from blendsql.common.logger import logger
 from blendsql.models.model import ConstrainedModel, ModelObj
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 DEFAULT_KWARGS = {"do_sample": False}
 
@@ -108,6 +111,7 @@ class TransformersLLM(ConstrainedModel):
 
     def _load_model(self) -> ModelObj:
         # https://huggingface.co/blog/how-to-generate
+        # from guidance.models._transformers import Transformers
         from ._guidance._transformers import Transformers
 
         if "chat_template" not in self.config:
@@ -179,14 +183,24 @@ class LlamaCpp(ConstrainedModel):
         from llama_cpp import Llama
 
         if model_name_or_path:
-            return Llama.from_pretrained(
+            _config = config if not vocab_only else {}
+            model = Llama.from_pretrained(
                 repo_id=model_name_or_path,
                 filename=filename,
                 verbose=False,
                 vocab_only=vocab_only,
-                **config,
+                **_config,
             )
-        return Llama(filename, verbose=False, vocab_only=vocab_only, **config)
+        else:
+            model = Llama(filename, verbose=False, vocab_only=vocab_only, **config)
+
+        # https://github.com/abetlen/llama-cpp-python/issues/1610
+        # import atexit
+        # @atexit.register
+        # def free_model():
+        #     model.close()
+
+        return model
 
     @cached_property
     def model_obj(self) -> ModelObj:
@@ -195,6 +209,14 @@ class LlamaCpp(ConstrainedModel):
 
     def _load_model(self) -> ModelObj:
         from guidance.models import LlamaCpp as GuidanceLlamaCpp
+        import logging
+
+        logging.getLogger("guidance").setLevel(logging.CRITICAL)
+        logging.getLogger("llama_cpp").setLevel(logging.CRITICAL)
+
+        # Guidance's llama.cpp server doesn't like when we have two running simultaneously
+        #   so we do a little switcheroo with the tokenizer here
+        self.__delattr__("tokenizer")
 
         if "chat_template" not in self.config:
             self.config["chat_template"] = infer_chat_template(self.model_name_or_path)
@@ -208,4 +230,5 @@ class LlamaCpp(ConstrainedModel):
             echo=False,
             chat_template=self.config.get("chat_template"),
         )
+        self.tokenizer = lm.engine.model_obj.tokenizer_
         return lm
