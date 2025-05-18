@@ -305,14 +305,15 @@ def materialize_cte(
     **kwargs,
 ) -> pd.DataFrame:
     str_subquery = subquery.sql(dialect=query_context.dialect)
-    materialized_cte_df: pd.DataFrame = disambiguate_and_submit_blend(
+    materialized_smoothie: pd.DataFrame = disambiguate_and_submit_blend(
         ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         query=str_subquery,
         db=db,
         default_model=default_model,
         aliasname=aliasname,
         **kwargs,
-    ).df
+    )
+    materialized_cte_df = materialized_smoothie.df
     db.to_temp_table(
         df=materialized_cte_df,
         tablename=aliasname,
@@ -326,7 +327,7 @@ def materialize_cte(
         subquery=subquery.parent,
         aliasname=aliasname,
     ).transform(transform.prune_with)
-    return materialized_cte_df
+    return materialized_smoothie
 
 
 def get_sorted_grammar_matches(
@@ -459,7 +460,8 @@ def _blend(
         try:
             for tablename in [i.name for i in query_context.node.find_all(exp.Table)]:
                 if tablename not in db.tables():
-                    db.lazy_tables.pop(tablename).collect()
+                    materialized_smoothie = db.lazy_tables.pop(tablename).collect()
+                    _prev_passed_values += materialized_smoothie.meta.num_values_passed
         except Exception as e:
             logger.error(f"Error while materializing tables: {e}")
         logger.debug(
@@ -591,7 +593,8 @@ def _blend(
                 )
             if abstracted_query_str is not None:
                 if tablename in db.lazy_tables:
-                    db.lazy_tables.pop(tablename).collect()
+                    materialized_smoothie = db.lazy_tables.pop(tablename).collect()
+                    _prev_passed_values += materialized_smoothie.meta.num_values_passed
                 logger.debug(
                     Fore.CYAN
                     + "Executing "
@@ -664,6 +667,9 @@ def _blend(
             )
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(transform.maybe_set_subqueries_to_true))
+
+        if in_cte:
+            continue
 
         # lazy_limit: Union[int, None] = scm.get_lazy_limit()
         # After above processing of AST, sync back to string repr
@@ -739,7 +745,7 @@ def _blend(
                         verbose=verbose,
                         _prev_passed_values=_prev_passed_values,
                     )
-                    _prev_passed_values = _smoothie.meta.num_values_passed
+                    _prev_passed_values += _smoothie.meta.num_values_passed
                     subtable = _smoothie.df
                     if unpack_kwarg == "options":
                         if len(subtable.columns) == 1 or len(subtable) == 1:
@@ -903,7 +909,7 @@ def _blend(
     # Now insert the function outputs to the original query
     # We need to re-sync if we did some operation on the underlying query,
     #   like with a JoinIngredient
-    query = query_context.to_string()
+    query = str(query_context.node.transform(transform.remove_ctes))
     for function_str, res in function_call_to_res.items():
         # The post-processing on the JoinIngredient will sometimes leave 'AS {{A()}}' sort of artifacts
         # We remove them below
@@ -927,7 +933,8 @@ def _blend(
         nodetype=exp.Table, node=query_context.node, restrict_scope=False
     ):
         if table.name in db.lazy_tables:
-            db.lazy_tables.pop(table.name).collect()
+            materialized_smoothie = db.lazy_tables.pop(table.name).collect()
+            _prev_passed_values += materialized_smoothie.meta.num_values_passed
 
     logger.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
 

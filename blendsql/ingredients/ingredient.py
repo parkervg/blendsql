@@ -122,11 +122,10 @@ class Ingredient:
             # )
             # Optionally materialize a CTE
             if tablename in self.db.lazy_tables:
-                unpacked_values: list = [
-                    str(i)
-                    for i in self.db.lazy_tables.pop(tablename)
-                    .collect()[colname]
-                    .unique()
+                materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+                self.num_values_passed += materialized_smoothie.meta.num_values_passed
+                unpacked_values = [
+                    str(i) for i in materialized_smoothie.df[colname].unique()
                 ]
             else:
                 unpacked_values: list = [
@@ -362,7 +361,9 @@ class MapIngredient(Ingredient):
 
         # Optionally materialize a CTE
         if tablename in self.db.lazy_tables:
-            original_table = self.db.lazy_tables.pop(tablename).collect()
+            materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+            self.num_values_passed += materialized_smoothie.meta.num_values_passed
+            original_table = materialized_smoothie.df
         else:
             original_table = self.db.execute_to_df(
                 select_all_from_table_query(tablename)
@@ -731,8 +732,12 @@ class QAIngredient(Ingredient):
                 tablename = aliases_to_tablenames.get(tablename, tablename)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
+                    materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+                    self.num_values_passed += (
+                        materialized_smoothie.meta.num_values_passed
+                    )
                     subtable: pd.DataFrame = pd.DataFrame(
-                        self.db.lazy_tables.pop(tablename).collect()[colname]
+                        materialized_smoothie.df[colname]
                     )
                 else:
                     subtable: pd.DataFrame = self.db.execute_to_df(
