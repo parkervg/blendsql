@@ -106,9 +106,10 @@ def in_subquery(node: exp.Expression) -> bool:
 def in_cte(node: exp.Expression, return_name: bool = False):
     p = node.parent
     if p is not None:
-        table_alias = p.find(exp.TableAlias)
-        if table_alias is not None:
-            return (True, table_alias.name) if return_name else True
+        if p.find(exp.CTE):
+            table_alias = p.find(exp.TableAlias)
+            if table_alias is not None:
+                return (True, table_alias.name) if return_name else True
     return (False, None) if return_name else False
 
 

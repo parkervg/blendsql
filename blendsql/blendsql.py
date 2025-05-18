@@ -36,7 +36,6 @@ from blendsql.parse import (
     transform,
     check,
     get_reversed_subqueries,
-    get_scope_nodes,
     get_first_child,
 )
 from blendsql.parse.constants import MODIFIERS
@@ -545,14 +544,14 @@ def _blend(
         else:
             subquery_str = subquery.sql(dialect=dialect)
 
-        in_cte, table_alias_name = check.in_cte(subquery, return_name=True)
+        in_cte, cte_table_alias_name = check.in_cte(subquery, return_name=True)
         scm = SubqueryContextManager(
             dialect=dialect,
             node=_parse_one(
                 subquery_str, dialect=dialect
             ),  # Need to do this so we don't track parents into construct_abstracted_selects
             prev_subquery_has_ingredient=prev_subquery_has_ingredient,
-            alias_to_subquery={table_alias_name: subquery} if in_cte else {},
+            alias_to_subquery={cte_table_alias_name: subquery} if in_cte else {},
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
         )
         for (
@@ -560,6 +559,8 @@ def _blend(
             postprocess_columns,
             abstracted_query_str,
         ) in scm.abstracted_table_selects():
+            if in_cte:  # Don't execute CTEs until we need them
+                continue
             # # If this table isn't being used in any ingredient calls, there's no
             # #   need to create a temporary session table
             # if (tablename not in tables_in_ingredients) and (
@@ -596,13 +597,16 @@ def _blend(
                 if tablename in db.lazy_tables:
                     materialized_smoothie = db.lazy_tables.pop(tablename).collect()
                     _prev_passed_values += materialized_smoothie.meta.num_values_passed
+
+                tablename_to_write = _get_temp_subquery_table(tablename)
+
                 logger.debug(
                     Fore.CYAN
                     + "Executing "
                     + Fore.LIGHTCYAN_EX
                     + f"`{abstracted_query_str}` "
                     + Fore.CYAN
-                    + f"and setting to `{_get_temp_subquery_table(tablename)}`..."
+                    + f"and setting to `{tablename_to_write}`..."
                     + Fore.RESET
                 )
                 try:
@@ -635,7 +639,7 @@ def _blend(
                             ]
                     db.to_temp_table(
                         df=abstracted_df,
-                        tablename=_get_temp_subquery_table(tablename),
+                        tablename=tablename_to_write,
                     )
                 except Exception as e:
                     # Fallback to naive execution
@@ -669,9 +673,6 @@ def _blend(
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(transform.maybe_set_subqueries_to_true))
 
-        if in_cte:
-            continue
-
         # lazy_limit: Union[int, None] = scm.get_lazy_limit()
         # After above processing of AST, sync back to string repr
         subquery_str = scm.sql()
@@ -690,6 +691,8 @@ def _blend(
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
             kitchen=kitchen,
         ):
+            if in_cte:  # Don't execute CTEs until we need them
+                continue
             prev_subquery_has_ingredient = True
             if alias_function_str in executed_subquery_ingredients:
                 # Don't execute same ingredient twice
@@ -910,7 +913,8 @@ def _blend(
     # Now insert the function outputs to the original query
     # We need to re-sync if we did some operation on the underlying query,
     #   like with a JoinIngredient
-    query = str(query_context.node.transform(transform.remove_ctes))
+    query = query_context.to_string()
+    # query = str(query_context.node.transform(transform.remove_ctes))
     for function_str, res in function_call_to_res.items():
         # The post-processing on the JoinIngredient will sometimes leave 'AS {{A()}}' sort of artifacts
         # We remove them below
@@ -928,14 +932,14 @@ def _blend(
                 query_context.node = query_context.node.transform(
                     transform.replace_tablename, a, _get_temp_session_table(t)
                 )
-    query = query_context.to_string()
+
     # Finally, iter through tables in query and see if we need to collect LazyTable
-    for table in get_scope_nodes(
-        nodetype=exp.Table, node=query_context.node, restrict_scope=False
-    ):
+    for table in query_context.node.find_all((exp.Table, exp.TableAlias)):
         if table.name in db.lazy_tables:
             materialized_smoothie = db.lazy_tables.pop(table.name).collect()
             _prev_passed_values += materialized_smoothie.meta.num_values_passed
+
+    query = query_context.to_string()
 
     logger.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
 
