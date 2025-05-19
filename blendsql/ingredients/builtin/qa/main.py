@@ -346,7 +346,7 @@ class LLMQA(QAIngredient):
                         "regex": regex,
                         "name": "response",
                         # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                        "stop": ["\n"] if regex is None else None,
+                        # "stop": ["\n"] if regex is None else None,
                     }
                     gen_f = guidance.gen
 
