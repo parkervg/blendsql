@@ -285,7 +285,7 @@ class LLMMap(MapIngredient):
             lm = LMString()  # type: ignore
 
             if options is not None:
-                gen_f = lambda _: guidance.select(options=options)  # type: ignore
+                gen_f = lambda _: guidance.select(options=list(options))  # type: ignore
             elif resolved_return_type.name == "substring":
                 # Special case for substring datatypes
                 gen_f = lambda s: guidance.substring(target_string=s)

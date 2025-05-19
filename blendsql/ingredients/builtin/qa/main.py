@@ -297,7 +297,7 @@ class LLMQA(QAIngredient):
             ):
                 if options:
                     single_item = guidance.select(
-                        options, list_append=True, name="response"
+                        list(options), list_append=True, name="response"
                     )
                 else:
                     single_item = guidance.gen(
