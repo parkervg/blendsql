@@ -110,9 +110,10 @@ if __name__ == "__main__":
         WITH t AS (
             SELECT Name FROM "world_aquatic_championships" wc
             WHERE {{LLMMap('Is this a team event?', 'wc::Event')}} = FALSE
-            AND CAST(instr("time/score", ':') AS INT) >= 2
+            /* Use DuckDB functions to parse minutes */
+            AND TRY_CAST(REGEXP_EXTRACT("time/score", '^([0-9]+):', 1) AS INT) >= 2
         ) SELECT Name FROM t
-        ORDER BY {{WikipediaSearchMap('What year were they born?', values='t::Name')}} ASC LIMIT 1
+        ORDER BY {{LLMMap('What year were they born?', values='t::Name')}} ASC LIMIT 1
         """
     )
 
