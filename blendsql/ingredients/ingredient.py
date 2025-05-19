@@ -412,12 +412,12 @@ class MapIngredient(Ingredient):
                 aliases_to_tablenames=aliases_to_tablenames,
             )
 
-        if question is not None:
-            question = self.unpack_question(
-                question=question,
-                aliases_to_tablenames=aliases_to_tablenames,
-                warn_on_many_values=True,
-            )[0]
+        # if question is not None:
+        #     question = self.unpack_question(
+        #         question=question,
+        #         aliases_to_tablenames=aliases_to_tablenames,
+        #         warn_on_many_values=True,
+        #     )[0]
 
         mapped_values: Collection[t.Any] = self._run(
             question=question,
