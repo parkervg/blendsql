@@ -26,6 +26,7 @@ from .examples import (
     ConstrainedMapExample,
     ConstrainedAnnotatedMapExample,
     UnconstrainedAnnotatedMapExample,
+    UnconstrainedMapExample,
 )
 from blendsql.search.faiss_vector_store import FaissVectorStore
 
@@ -226,15 +227,27 @@ class LLMMap(MapIngredient):
             return_type=return_type, options=options, quantifier=None
         )
 
-        current_example = ConstrainedMapExample(
-            question=question,
-            column_name=column_name,
-            table_name=table_name,
-            return_type=resolved_return_type,
-            example_outputs=example_outputs,
-            options=options,
-            use_context=use_context,
-        )
+        if isinstance(model, ConstrainedModel):
+            current_example = ConstrainedMapExample(
+                question=question,
+                column_name=column_name,
+                table_name=table_name,
+                return_type=resolved_return_type,
+                example_outputs=example_outputs,
+                options=options,
+                use_context=use_context,
+            )
+        else:
+            current_example = UnconstrainedMapExample(
+                question=question,
+                column_name=column_name,
+                table_name=table_name,
+                return_type=resolved_return_type,
+                example_outputs=example_outputs,
+                options=options,
+                use_context=use_context,
+                values=values,
+            )
 
         regex = regex or resolved_return_type.regex
 
@@ -280,7 +293,8 @@ class LLMMap(MapIngredient):
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
                     # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    stop=[")"] if regex is None else None,
+                    stop=["\n\t", ")"]
+                    + (['"'] if current_example.return_type.name == "str" else []),
                     regex=regex,
                 )  # type: ignore
 
