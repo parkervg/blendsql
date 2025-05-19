@@ -207,7 +207,7 @@ class LLMMap(MapIngredient):
         if vector_store is not None and context is None:
             # Concatenate each value to the front of the questions
             # E.g. 'What year were they born?' -> 'Ryan Lochte What year were they born?'
-            docs = vector_store([f"{v} {question}" for v in values])
+            docs = vector_store([f"{v} {question}" for v in values], values=values)
             context = ["\n\n".join(d) for d in docs]
             logger.debug(
                 Fore.LIGHTBLACK_EX
@@ -334,8 +334,7 @@ class LLMMap(MapIngredient):
                         funcs=[make_prediction, gen_f],
                     )
                     if responses is not None:
-                        for k, v in responses.items():
-                            lm.set(k, v)
+                        lm._variables.update(responses)
                         in_cache = True
                         cache_keys.append(None)
                     else:
@@ -366,7 +365,10 @@ class LLMMap(MapIngredient):
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
-                    lm._variables.update(batch_lm._variables)
+                    generated_batch_variables = {
+                        v: batch_lm.get(v) for v in values[i : i + batch_size]
+                    }
+                    lm._variables.update(generated_batch_variables)
             if model.caching:
                 for cache_key, value in zip(cache_keys, values):
                     if cache_key is None:
