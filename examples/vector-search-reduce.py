@@ -110,7 +110,7 @@ bsql = BlendSQL(
     model=LlamaCpp(
         "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
         "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-        config={"n_gpu_layers": -1},
+        config={"n_gpu_layers": -1, "n_ctx": 9600},
     )
     if torch.cuda.is_available()
     else LiteLLM("openai/gpt-4o"),
