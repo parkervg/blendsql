@@ -110,7 +110,7 @@ if __name__ == "__main__":
         WITH t AS (
             SELECT Name FROM "world_aquatic_championships" wc
             WHERE {{LLMMap('Is this a team event?', 'wc::Event')}} = FALSE
-            AND {{LLMMap('Is this time over 2 minutes?', 'wc::Time/Score')}} = TRUE
+            AND CAST(instr("time/score", ':') AS INT) >= 2
         ) SELECT Name FROM t
         ORDER BY {{WikipediaSearchMap('What year were they born?', values='t::Name')}} ASC LIMIT 1
         """
