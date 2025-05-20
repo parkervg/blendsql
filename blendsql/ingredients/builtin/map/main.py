@@ -25,6 +25,7 @@ from .examples import (
     ConstrainedMapExample,
     ConstrainedAnnotatedMapExample,
     UnconstrainedAnnotatedMapExample,
+    UnconstrainedMapExample,
 )
 from blendsql.search.searcher import Searcher
 
@@ -225,15 +226,27 @@ class LLMMap(MapIngredient):
             return_type=return_type, options=options, quantifier=None
         )
 
-        current_example = ConstrainedMapExample(
-            question=question,
-            column_name=column_name,
-            table_name=table_name,
-            return_type=resolved_return_type,
-            example_outputs=example_outputs,
-            options=options,
-            use_context=use_context,
-        )
+        if isinstance(model, ConstrainedModel):
+            current_example = ConstrainedMapExample(
+                question=question,
+                column_name=column_name,
+                table_name=table_name,
+                return_type=resolved_return_type,
+                example_outputs=example_outputs,
+                options=options,
+                use_context=use_context,
+            )
+        else:
+            current_example = UnconstrainedMapExample(
+                question=question,
+                column_name=column_name,
+                table_name=table_name,
+                return_type=resolved_return_type,
+                example_outputs=example_outputs,
+                options=options,
+                use_context=use_context,
+                values=values,
+            )
 
         regex = regex or resolved_return_type.regex
 
