@@ -93,7 +93,7 @@ if __name__ == "__main__":
     _ = bsql.model.model_obj
 
     WikipediaSearchMap = LLMMap.from_args(
-        vector_store=FaissVectorStore(
+        searcher=FaissVectorStore(
             documents=bsql.db.execute_to_list("SELECT content FROM documents;"),
             k=1,  # Retrieve 1 document for each scalar value on the map call
         ),

@@ -26,7 +26,7 @@ from .examples import (
     ConstrainedAnnotatedMapExample,
     UnconstrainedAnnotatedMapExample,
 )
-from blendsql.search.faiss_vector_store import FaissVectorStore
+from blendsql.search.searcher import Searcher
 
 DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
     AnnotatedMapExample(**d)
@@ -82,7 +82,7 @@ class LLMMap(MapIngredient):
         list_options_in_prompt: bool = True,
         batch_size: t.Optional[int] = None,
         k: t.Optional[int] = None,
-        vector_store: t.Optional[FaissVectorStore] = None,
+        searcher: t.Optional[Searcher] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -160,7 +160,7 @@ class LLMMap(MapIngredient):
                 few_shot_retriever=few_shot_retriever,
                 list_options_in_prompt=list_options_in_prompt,
                 batch_size=batch_size,
-                vector_store=vector_store,
+                searcher=searcher,
             )
         )
 
@@ -171,7 +171,7 @@ class LLMMap(MapIngredient):
         values: t.List[str],
         context_formatter: t.Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
-        vector_store: t.Optional[FaissVectorStore] = None,
+        searcher: t.Optional[Searcher] = None,
         options: t.Optional[t.List[str]] = None,
         value_limit: t.Optional[int] = None,
         example_outputs: t.Optional[str] = None,
@@ -201,12 +201,12 @@ class LLMMap(MapIngredient):
             )
         # if few_shot_retriever is None:
         few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
-        use_context = context is not None or vector_store is not None
+        use_context = context is not None or searcher is not None
         # If we explicitly passed `context`, this should take precedence over the vector store.
-        if vector_store is not None and context is None:
+        if searcher is not None and context is None:
             # Concatenate each value to the front of the questions
             # E.g. 'What year were they born?' -> 'Ryan Lochte What year were they born?'
-            docs = vector_store([f"{v} {question}" for v in values])
+            docs = searcher([f"{v} {question}" for v in values])
             context = ["\n\n".join(d) for d in docs]
             logger.debug(
                 Fore.LIGHTBLACK_EX

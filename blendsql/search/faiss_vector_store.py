@@ -60,6 +60,7 @@ class FaissVectorStore(Searcher):
     index: "faiss.Index" = field(init=False)
     embedding_model: "SentenceTransformer" = field(init=False)
     idx_to_return_obj: t.Dict[int, ReturnObj] = field(init=False)
+    hashed_documents_str: str = field(init=False)
 
     def __post_init__(self):
         faiss = dependable_faiss_import()
@@ -100,13 +101,13 @@ class FaissVectorStore(Searcher):
         # Check - do we already have these vectors stored somewhere?
         hasher = hashlib.md5()
         hasher.update(str(sorted(str(self.documents))).encode())
-        hashed = hasher.hexdigest()
+        self.hashed_documents_str = hasher.hexdigest()
 
         curr_index_path = (
             self.index_dir
             / self.model_name_or_path.replace("/", "_")
             / self.factory_str
-            / f"{hashed}.bin"
+            / f"{self.hashed_documents_str}.bin"
         )
         maybe_make_dir(curr_index_path.parent)
 
@@ -116,7 +117,7 @@ class FaissVectorStore(Searcher):
             )
             self.index = faiss.read_index(str(curr_index_path))
         else:
-            logger.debug(Fore.MAGENTA + "Creating faiss vectors..." + Fore.RESET)
+            logger.debug(Fore.YELLOW + "Creating faiss vectors..." + Fore.RESET)
             self.index = faiss.index_factory(
                 self.embedding_model.get_sentence_embedding_dimension(),
                 self.factory_str,
@@ -127,7 +128,9 @@ class FaissVectorStore(Searcher):
             self.index.add(embeddings)
             faiss.write_index(self.index, str(curr_index_path))
 
-    def __call__(self, query: str, k: t.Optional[int] = None) -> t.List[t.List[str]]:
+    def __call__(
+        self, query: str, k: t.Optional[int] = None, scores_only: bool = False
+    ) -> t.List[t.List[str]]:
         is_single_query = isinstance(query, str)
         queries = [query] if is_single_query else query
 
@@ -142,6 +145,9 @@ class FaissVectorStore(Searcher):
 
         # Perform batch search
         distances, indices = self.index.search(query_embeddings, k or self.k)
+
+        if scores_only:
+            return (indices, distances)
 
         # Convert indices to return objects
         results = []

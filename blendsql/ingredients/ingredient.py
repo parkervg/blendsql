@@ -19,7 +19,7 @@ from blendsql.common.constants import (
 from blendsql.db import Database
 from blendsql.db.utils import select_all_from_table_query, format_tuple
 from blendsql.common.utils import get_tablename_colname
-from blendsql.search.faiss_vector_store import FaissVectorStore
+from blendsql.search.searcher import Searcher
 from blendsql.ingredients.few_shot import Example
 from blendsql.ingredients.utils import ValueArray
 
@@ -40,7 +40,7 @@ class Ingredient:
 
     few_shot_retriever: t.Callable[[str], t.List[Example]] = attrib(default=None)
     list_options_in_prompt: bool = attrib(default=True)
-    vector_store: t.Optional[FaissVectorStore] = attrib(default=None)
+    searcher: t.Optional[Searcher] = attrib(default=None)
 
     ingredient_type: str = attrib(init=False)
     allowed_output_types: t.Tuple[t.Type] = attrib(init=False)
