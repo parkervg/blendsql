@@ -1,7 +1,6 @@
 import copy
 import os
 import typing as t
-from collections.abc import Collection
 from pathlib import Path
 import json
 import pandas as pd
@@ -173,7 +172,7 @@ class LLMMap(MapIngredient):
         context_formatter: t.Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
         vector_store: t.Optional[FaissVectorStore] = None,
-        options: t.Optional[Collection[str]] = None,
+        options: t.Optional[t.List[str]] = None,
         value_limit: t.Optional[int] = None,
         example_outputs: t.Optional[str] = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
@@ -280,7 +279,8 @@ class LLMMap(MapIngredient):
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
                     # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    stop=[")"] if regex is None else None,
+                    stop=[")", "\n\t"]
+                    + (['"'] if resolved_return_type.name == "str" else []),
                     regex=regex,
                 )  # type: ignore
 
@@ -308,7 +308,7 @@ class LLMMap(MapIngredient):
 
             loaded_lm = False
             batch_inference_strings = []
-            cache_keys = []
+            value_to_cache_key = {}
             # Due to guidance's prefix caching, this is a one-time cost
             model.prompt_tokens += len(
                 model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
@@ -324,7 +324,7 @@ class LLMMap(MapIngredient):
                 # First check - do we need to load the model?
                 in_cache = False
                 if model.caching:
-                    responses, key = model.check_cache(
+                    cached_response, cache_key = model.check_cache(
                         CONSTRAINED_MAIN_INSTRUCTION,
                         example_str,
                         current_example_str,
@@ -333,13 +333,11 @@ class LLMMap(MapIngredient):
                         v,
                         funcs=[make_prediction, gen_f],
                     )
-                    if responses is not None:
-                        for k, v in responses.items():
-                            lm.set(k, v)
+                    if cached_response is not None:
+                        lm.set(v, cached_response)
                         in_cache = True
-                        cache_keys.append(None)
                     else:
-                        cache_keys.append(key)
+                        value_to_cache_key[v] = cache_key
                 if not in_cache and not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
                     loaded_lm = True
@@ -351,7 +349,6 @@ class LLMMap(MapIngredient):
                 model.prompt_tokens += len(model.tokenizer.encode(current_example_str))
 
                 if not in_cache:
-                    model.num_generation_calls += 1
                     batch_inference_strings.append(
                         make_prediction(
                             value=v,
@@ -363,15 +360,14 @@ class LLMMap(MapIngredient):
 
             with guidance.assistant():
                 for i in range(0, len(batch_inference_strings), batch_size):
+                    model.num_generation_calls += 1
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
                     lm._variables.update(batch_lm._variables)
             if model.caching:
-                for cache_key, value in zip(cache_keys, values):
-                    if cache_key is None:
-                        continue
-                    model.cache[cache_key] = {value: lm.get(value)}  # type: ignore
+                for value, cache_key in value_to_cache_key.items():
+                    model.cache[cache_key] = lm.get(value)  # type: ignore
 
             lm_mapping: t.List[str] = [lm[value] for value in values]  # type: ignore
             model.completion_tokens += sum(

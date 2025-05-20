@@ -4,7 +4,6 @@ import re
 from ast import literal_eval
 from pathlib import Path
 import typing as t
-from collections.abc import Collection
 import pandas as pd
 import json
 from colorama import Fore
@@ -176,7 +175,7 @@ class LLMQA(QAIngredient):
             t.Callable[[str], t.List[AnnotatedQAExample]]
         ] = None,
         vector_store: t.Optional[FaissVectorStore] = None,
-        options: t.Optional[Collection[str]] = None,
+        options: t.Optional[t.List[str]] = None,
         quantifier: QuantifierType = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
@@ -346,7 +345,7 @@ class LLMQA(QAIngredient):
                         "regex": regex,
                         "name": "response",
                         # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                        "stop": ["\n"] if regex is None else None,
+                        # "stop": ["\n"] if regex is None else None,
                     }
                     gen_f = guidance.gen
 

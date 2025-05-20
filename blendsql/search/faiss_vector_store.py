@@ -9,6 +9,7 @@ import typing as t
 from colorama import Fore
 
 from blendsql.common.logger import logger
+from blendsql.search.searcher import Searcher
 
 ReturnObj = t.TypeVar("ReturnObj")
 
@@ -43,7 +44,7 @@ def dependable_faiss_import(no_avx2: t.Optional[bool] = None) -> t.Any:
 
 
 @dataclass
-class FaissVectorStore:
+class FaissVectorStore(Searcher):
     documents: t.List[str] = field()
     # https://github.com/facebookresearch/faiss/wiki/The-index-factory
     factory_str: str = field(default="Flat")

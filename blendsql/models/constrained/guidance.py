@@ -195,10 +195,11 @@ class LlamaCpp(ConstrainedModel):
             model = Llama(filename, verbose=False, vocab_only=vocab_only, **config)
 
         # https://github.com/abetlen/llama-cpp-python/issues/1610
-        # import atexit
-        # @atexit.register
-        # def free_model():
-        #     model.close()
+        import atexit
+
+        @atexit.register
+        def free_model():
+            model.close()
 
         return model
 
@@ -214,7 +215,7 @@ class LlamaCpp(ConstrainedModel):
         logging.getLogger("guidance").setLevel(logging.CRITICAL)
         logging.getLogger("llama_cpp").setLevel(logging.CRITICAL)
 
-        # Guidance's llama.cpp server doesn't like when we have two running simultaneously
+        # llama.cpp doesn't like when we have two running simultaneously
         #   so we do a little switcheroo with the tokenizer here
         self.__delattr__("tokenizer")
 

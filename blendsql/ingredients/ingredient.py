@@ -109,7 +109,7 @@ class Ingredient:
         v: ValueArray,
         aliases_to_tablenames: t.Dict[str, str],
         allow_semicolon_list: t.Optional[bool] = True,
-    ) -> t.Collection:
+    ) -> t.List[str]:
         if "::" in v:
             tablename, colname = get_tablename_colname(v)
             tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -141,7 +141,7 @@ class Ingredient:
                     + "\nExpected something in the format '{tablename}::{columnname}'."
                 )
             unpacked_values = v.split(";")
-        return unpacked_values
+        return list(set(unpacked_values))
 
     def maybe_get_temp_table(
         self, temp_table_func: t.Callable, tablename: str
@@ -157,7 +157,7 @@ class Ingredient:
         self,
         options: t.Union[ValueArray, list],
         aliases_to_tablenames: t.Dict[str, str],
-    ) -> t.Union[t.Set[str], None]:
+    ) -> t.Union[t.List[str], None]:
         unpacked_options = options
         if not isinstance(options, list):
             unpacked_options = self.unpack_value_array(options, aliases_to_tablenames)
@@ -167,7 +167,7 @@ class Ingredient:
                 + f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
                 + Fore.RESET
             )
-        return set(unpacked_options) if len(unpacked_options) > 0 else None
+        return list(unpacked_options) if len(unpacked_options) > 0 else None
 
     def unpack_question(
         self,
@@ -229,14 +229,8 @@ class Ingredient:
                 )
             return values
 
-        unpacked_question = replace_fstring_templates(question, get_db_values)
-        if len(unpacked_question) > 1 or unpacked_question[0] != question:
-            logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Unpacked question to '{unpacked_question}'"
-                + Fore.RESET
-            )
-        return unpacked_question
+        unpacked_questions = replace_fstring_templates(question, get_db_values)
+        return unpacked_questions
 
 
 @attrs
@@ -413,11 +407,18 @@ class MapIngredient(Ingredient):
             )
 
         if question is not None:
-            question = self.unpack_question(
+            unpacked_questions = self.unpack_question(
                 question=question,
                 aliases_to_tablenames=aliases_to_tablenames,
                 warn_on_many_values=True,
-            )[0]
+            )
+            if unpacked_questions[0] != question:
+                logger.debug(
+                    Fore.LIGHTBLACK_EX
+                    + f"Unpacked question to '{unpacked_questions[0]}'"
+                    + Fore.RESET
+                )
+            question = unpacked_questions[0]
 
         mapped_values: Collection[t.Any] = self._run(
             question=question,
@@ -761,11 +762,18 @@ class QAIngredient(Ingredient):
             )
 
         if question is not None:
-            question = self.unpack_question(
+            unpacked_questions = self.unpack_question(
                 question=question,
                 aliases_to_tablenames=aliases_to_tablenames,
                 warn_on_many_values=True,
-            )[0]
+            )
+            if unpacked_questions[0] != question:
+                logger.debug(
+                    Fore.LIGHTBLACK_EX
+                    + f"Unpacked question to '{unpacked_questions[0]}'"
+                    + Fore.RESET
+                )
+            question = unpacked_questions[0]
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,

@@ -1,13 +1,14 @@
-from blendsql.ingredients import LLMMap
+import pytest
 import pandas as pd
+
 from blendsql import BlendSQL
+from blendsql.ingredients import LLMMap
 from blendsql.search import FaissVectorStore
-from blendsql.models import LlamaCpp, LiteLLM
-import torch
 
 
-if __name__ == "__main__":
-    bsql = BlendSQL(
+@pytest.fixture(scope="session")
+def bsql() -> BlendSQL:
+    return BlendSQL(
         {
             "world_aquatic_championships": pd.DataFrame(
                 [
@@ -81,46 +82,29 @@ if __name__ == "__main__":
                 ]
             ),
         },
-        model=LlamaCpp(
-            "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
-            "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-            config={"n_gpu_layers": -1, "n_ctx": 9600},
-        )
-        if torch.cuda.is_available()
-        else LiteLLM("openai/gpt-4o"),
-        verbose=True,
     )
-    _ = bsql.model.model_obj
 
+
+def test_faiss_search(bsql, model):
     WikipediaSearchMap = LLMMap.from_args(
         vector_store=FaissVectorStore(
-            documents=bsql.db.execute_to_list("SELECT content FROM documents;"),
-            k=1,  # Retrieve 1 document for each scalar value on the map call
+            documents=bsql.db.execute_to_list(
+                "SELECT CONCAT(title, ' | ', content) FROM documents;"
+            ),
+            k=1,
         ),
     )
     bsql.ingredients = {
         WikipediaSearchMap,
     }
-
-    # What is the name of the oldest person whose result, not including team race, was above 2 minutes?
-    # The `WikipediaSearchMap` will aggregate context for each entry using the FaissVectorStore,
-    #   passing it as context to yield an integer
-    smoothie = bsql.execute(
+    _ = bsql.execute(
         """
-        WITH t AS (
-            SELECT Name FROM "world_aquatic_championships" wc
-            WHERE {{LLMMap('Is this a team event?', 'wc::Event')}} = FALSE
-            /* Use DuckDB functions to parse minutes */
-            AND TRY_CAST(REGEXP_EXTRACT("time/score", '^([0-9]+):', 1) AS INT) >= 2
-        )
-        SELECT Name FROM t
-        ORDER BY {{LLMMap('What year were they born?', values ='t::Name')}} ASC LIMIT 1
-        """
+         WITH t AS (
+            SELECT Name FROM "world_aquatic_championships"
+            WHERE {{LLMMap('Is this a team event?', 'world_aquatic_championships::Event')}} = FALSE
+            AND {{LLMMap('Is this time over 2 minutes?', 'world_aquatic_championships::Time/Score')}} = TRUE
+        ) SELECT Name FROM t
+        ORDER BY {{LLMMap('What year was {t::Name} born?', values='t::Name')}} ASC LIMIT 1
+        """,
+        model=model,
     )
-
-    print(smoothie.df)
-    # ┌─────────────┐
-    # │ Name        │
-    # ├─────────────┤
-    # │ Ryan Lochte │
-    # └─────────────┘
