@@ -4,7 +4,7 @@ import torch.cuda
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMQA
 from blendsql.models import LlamaCpp, LiteLLM
-from blendsql.vector_stores import FaissVectorStore
+from blendsql.search import FaissVectorStore
 
 bsql = BlendSQL(
     {
@@ -110,7 +110,7 @@ bsql = BlendSQL(
     model=LlamaCpp(
         "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
         "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-        config={"n_gpu_layers": -1},
+        config={"n_gpu_layers": -1, "n_ctx": 9600},
     )
     if torch.cuda.is_available()
     else LiteLLM("openai/gpt-4o"),
@@ -119,7 +119,7 @@ bsql = BlendSQL(
 
 # Create embeddings for the concatenation of `title` and `content` columns
 DocumentSearch = LLMQA.from_args(
-    vector_store=FaissVectorStore(
+    searcher=FaissVectorStore(
         documents=bsql.db.execute_to_list(
             "SELECT CONCAT(title, ' | ', content) FROM documents;"
         ),

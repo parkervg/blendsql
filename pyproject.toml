@@ -44,6 +44,7 @@ dependencies = [
     "httpx",
     "setuptools",            # For python 3.12
     "numpy<2",
+    "bm25s"
 ]
 version = "0.0.40"
 

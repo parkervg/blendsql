@@ -4,7 +4,6 @@ import re
 from ast import literal_eval
 from pathlib import Path
 import typing as t
-from collections.abc import Collection
 import pandas as pd
 import json
 from colorama import Fore
@@ -24,7 +23,7 @@ from blendsql.ingredients.utils import (
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
 from blendsql.types import DataType, QuantifierType, prepare_datatype
 from .examples import QAExample, AnnotatedQAExample
-from blendsql.vector_stores.faiss_vector_store import FaissVectorStore
+from blendsql.search.searcher import Searcher
 
 MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
 LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
@@ -71,7 +70,7 @@ class LLMQA(QAIngredient):
     """
     model: Model = attrib(default=None)
     context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
-        default=lambda df: df.to_markdown(index=False)
+        default=lambda df: json.dumps(df.to_dict(orient="records"), indent=4),
     )
     list_options_in_prompt: bool = attrib(default=True)
     few_shot_retriever: t.Callable[[str], t.List[AnnotatedQAExample]] = attrib(
@@ -91,7 +90,7 @@ class LLMQA(QAIngredient):
         ),
         list_options_in_prompt: bool = True,
         k: t.Optional[int] = None,
-        vector_store: t.Optional[FaissVectorStore] = None,
+        searcher: t.Optional[Searcher] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -162,7 +161,7 @@ class LLMQA(QAIngredient):
                 few_shot_retriever=few_shot_retriever,
                 context_formatter=context_formatter,
                 list_options_in_prompt=list_options_in_prompt,
-                vector_store=vector_store,
+                searcher=searcher,
             )
         )
 
@@ -175,14 +174,14 @@ class LLMQA(QAIngredient):
         few_shot_retriever: t.Optional[
             t.Callable[[str], t.List[AnnotatedQAExample]]
         ] = None,
-        vector_store: t.Optional[FaissVectorStore] = None,
-        options: t.Optional[Collection[str]] = None,
+        searcher: t.Optional[Searcher] = None,
+        options: t.Optional[t.List[str]] = None,
         quantifier: QuantifierType = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
         context: t.Optional[pd.DataFrame] = None,
-        value_limit: t.Optional[int] = None,
         long_answer: bool = False,
+        use_option_aliases: bool = False,
         **kwargs,
     ) -> t.Union[str, int, float, tuple]:
         """
@@ -198,7 +197,6 @@ class LLMQA(QAIngredient):
                 Used directly for constrained decoding at inference time if we have a guidance model.
             return_type: In the absence of example_outputs, give the Model some signal as to what we expect as output.
             regex: Optional regex to constrain answer generation. Takes precedence over `return_type`
-            value_limit: Optional limit on how many rows from context we use
             long_answer: If true, we more closely mimic long-form end-to-end question answering.
                 If false, we just give the answer with no explanation or context
 
@@ -213,8 +211,8 @@ class LLMQA(QAIngredient):
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT
         # If we explicitly passed `context`, this should take precedence over the vector store.
-        if vector_store is not None and context is None:
-            docs = vector_store(question)
+        if searcher is not None and context is None:
+            docs = searcher(question)[0]
             context = pd.DataFrame(docs, columns=["content"])
             logger.debug(
                 Fore.LIGHTBLACK_EX
@@ -222,24 +220,33 @@ class LLMQA(QAIngredient):
                 + Fore.RESET
             )
 
-        return_type: DataType = prepare_datatype(
+        resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
         )
         current_example = QAExample(
             question=question,
             context=context,
             options=options,
-            return_type=return_type,
+            return_type=resolved_return_type,
         )
         few_shot_examples: t.List[AnnotatedQAExample] = few_shot_retriever(
             current_example.to_string(context_formatter)
         )
 
-        is_list_output = current_example.return_type.quantifier is not None
-        regex = regex or current_example.return_type.regex
-        options = current_example.options
-        quantifier = current_example.return_type.quantifier
-        options_with_aliases, options_alias_to_original = get_option_aliases(options)
+        is_list_output = resolved_return_type.quantifier is not None
+        regex = regex or resolved_return_type.regex
+        quantifier = resolved_return_type.quantifier
+
+        options_with_aliases, options_alias_to_original = None, dict()
+        if use_option_aliases:
+            options_with_aliases, options_alias_to_original = get_option_aliases(
+                options
+            )
+        elif options is not None:
+            options_with_aliases, options_alias_to_original = options, {
+                o: o for o in options
+            }
+
         if options is not None and list_options_in_prompt:
             max_options_in_prompt = os.getenv(
                 MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
@@ -248,8 +255,10 @@ class LLMQA(QAIngredient):
                 logger.debug(
                     Fore.YELLOW
                     + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
+                    + Fore.RESET
                 )
                 list_options_in_prompt = False
+
         if isinstance(model, ConstrainedModel):
             import guidance
 
@@ -318,7 +327,7 @@ class LLMQA(QAIngredient):
 
             if is_list_output:
                 gen_kwargs = {
-                    "force_quotes": bool("str" in current_example.return_type.name),
+                    "force_quotes": bool("str" in resolved_return_type.name),
                     "regex": regex,
                     "options": options_with_aliases,
                     "quantifier": quantifier,
@@ -326,6 +335,8 @@ class LLMQA(QAIngredient):
                 gen_f = gen_list
             else:
                 if options:
+                    # Too many options here raises:
+                    # ValueError: Parser Error: Current row has 10850 items; max is 2000; consider making your grammar left-recursive if it's right-recursive
                     gen_kwargs = {"options": options, "name": "response"}
                     gen_f = guidance.select
                 else:
@@ -333,7 +344,8 @@ class LLMQA(QAIngredient):
                         "max_tokens": kwargs.get("max_tokens", 200),
                         "regex": regex,
                         "name": "response",
-                        "stop": ["\n"] if regex is not None else None,
+                        # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                        # "stop": ["\n"] if regex is None else None,
                     }
                     gen_f = guidance.gen
 

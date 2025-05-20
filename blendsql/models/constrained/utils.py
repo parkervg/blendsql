@@ -14,6 +14,9 @@ class LMString(str):
         instance._variables = variables if variables is not None else {}
         return instance
 
+    def set(self, key, value):
+        self._variables[key] = value
+
     def _current_prompt(self):
         return str(self)
 
@@ -28,6 +31,7 @@ class LMString(str):
 def maybe_load_lm(model: Model, lm: Union[LMString, ModelObj]) -> ModelObj:
     if isinstance(lm, LMString):
         new_lm = model.model_obj + lm
-        new_lm._variables = lm._variables
+        for k, v in lm._variables.items():
+            new_lm.set(k, v)
         return new_lm
     return lm

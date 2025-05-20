@@ -1,5 +1,5 @@
 import typing as t
-from functools import partialmethod, partial
+from functools import partialmethod
 
 from .few_shot import Example
 
@@ -14,22 +14,28 @@ def initialize_retriever(
     examples: t.List[Example], k: t.Optional[int] = None, **to_string_args
 ) -> t.Callable[[str], t.List[Example]]:
     """Initializes a DPR retriever over the few-shot examples provided."""
-    if k is None or k == len(examples):
-        # Just return all the examples everytime this is called
-        return lambda *_: examples
-    elif k == 0:
+    if k == 0:
         return lambda *_: []
-
-    assert k <= len(
-        examples
-    ), f"The `k` argument to an ingredient must be less than `len(few_shot_examples)`!\n`k` is {k}, `len(few_shot_examples)` is {len(examples)}"
-    from blendsql.vector_stores.faiss_vector_store import FaissVectorStore
-
-    retriever = FaissVectorStore(
-        documents=[example.to_string(**to_string_args) for example in examples],
-        return_objs=examples,
-    )
-    return partial(retriever, k=k)
+    else:
+        return lambda *_: examples
+    #
+    # if k is None or k == len(examples):
+    #     # Just return all the examples everytime this is called
+    #     return lambda *_: examples
+    # elif k == 0:
+    #     return lambda *_: []
+    #
+    # assert k <= len(
+    #     examples
+    # ), f"The `k` argument to an ingredient must be less than `len(few_shot_examples)`!\n`k` is {k}, `len(few_shot_examples)` is {len(examples)}"
+    # from blendsql.search.faiss_vector_store import FaissVectorStore
+    #
+    # retriever = FaissVectorStore(
+    #     documents=[example.to_string(**to_string_args) for example in examples],
+    #     return_objs=examples,
+    #     k=k,
+    # )
+    # return retriever
 
 
 def partialclass(cls, *args, **kwds):

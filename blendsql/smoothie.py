@@ -17,23 +17,25 @@ class PrettyDataFrame(pd.DataFrame):
 
 @dataclass
 class SmoothieMeta:
-    num_values_passed: int  # Number of values passed to a Map/Join/QA ingredient
-    num_generation_calls: int  # Number of generation calls made to the model
-    prompt_tokens: int
-    completion_tokens: int
-    prompts: t.List[dict]  # Log of prompts submitted to model
-    raw_prompts: t.List[str]
-    ingredients: t.Iterable[t.Type[Ingredient]]
-    query: str
-    db_url: str
-    contains_ingredient: bool = True
-    process_time_seconds: float = field(init=False)
+    num_values_passed: int = (
+        field()
+    )  # Number of values passed to a Map/Join/QA ingredient
+    num_generation_calls: int = field()  # Number of generation calls made to the model
+    prompt_tokens: int = field()
+    completion_tokens: int = field()
+    prompts: t.List[dict] = field()  # Log of prompts submitted to model
+    raw_prompts: t.List[str] = field()
+    ingredients: t.Iterable[t.Type[Ingredient]] = field()
+    query: str = field()
+    db_url: str = field()
+    contains_ingredient: bool = field(default=True)
+    process_time_seconds: float = field(default="N.A.")
 
 
 @dataclass
 class Smoothie:
-    df: pd.DataFrame
-    meta: SmoothieMeta
+    df: pd.DataFrame = field()
+    meta: SmoothieMeta = field()
 
     def __post_init__(self):
         self.df = PrettyDataFrame(self.df)
@@ -44,7 +46,9 @@ class Smoothie:
         s += tabulate(
             pd.DataFrame(
                 {
-                    "Time (s)": self.meta.process_time_seconds,
+                    "Time (s)": self.meta.process_time_seconds
+                    if hasattr(self.meta, "process_time_seconds")
+                    else "N.A.",
                     "# Generation Calls": self.meta.num_generation_calls,
                     "Prompt Tokens": self.meta.prompt_tokens,
                     "Completion Tokens": self.meta.completion_tokens,
