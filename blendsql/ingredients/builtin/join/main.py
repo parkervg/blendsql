@@ -200,6 +200,7 @@ class LLMJoin(JoinIngredient):
                         right_values=current_example.right_values,
                     )  # type: ignore
                 mapping: dict = lm._variables
+                # mapping: dict = {k: v['value'] for k, v in lm._state.captures.items()}
                 if model.caching:
                     model.cache[key] = mapping  # type: ignore
             model.completion_tokens += sum(

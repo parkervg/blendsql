@@ -4,7 +4,7 @@ import torch.cuda
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMQA
 from blendsql.models import LlamaCpp, LiteLLM
-from blendsql.vector_stores import FaissVectorStore
+from blendsql.search import FaissVectorStore
 
 bsql = BlendSQL(
     {

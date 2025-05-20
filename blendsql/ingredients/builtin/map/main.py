@@ -1,7 +1,6 @@
 import copy
 import os
 import typing as t
-from collections.abc import Collection
 from pathlib import Path
 import json
 import pandas as pd
@@ -22,13 +21,13 @@ from blendsql.ingredients.utils import (
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
 from blendsql.types import DataType, prepare_datatype
 from .examples import (
-    MapExample,
     AnnotatedMapExample,
     ConstrainedMapExample,
     ConstrainedAnnotatedMapExample,
-    UnconstrainedMapExample,
     UnconstrainedAnnotatedMapExample,
+    UnconstrainedMapExample,
 )
+from blendsql.search.searcher import Searcher
 
 DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
     AnnotatedMapExample(**d)
@@ -66,6 +65,12 @@ class LLMMap(MapIngredient):
         default=None
     )
     list_options_in_prompt: bool = attrib(default=True)
+    few_shot_retriever: t.Callable[[str], t.List[AnnotatedMapExample]] = attrib(
+        default=None
+    )
+    context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
+        default=lambda df: json.dumps(df.to_dict(orient="records"), indent=4),
+    )
     batch_size: int = attrib(default=None)
 
     @classmethod
@@ -78,6 +83,7 @@ class LLMMap(MapIngredient):
         list_options_in_prompt: bool = True,
         batch_size: t.Optional[int] = None,
         k: t.Optional[int] = None,
+        searcher: t.Optional[Searcher] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -155,6 +161,7 @@ class LLMMap(MapIngredient):
                 few_shot_retriever=few_shot_retriever,
                 list_options_in_prompt=list_options_in_prompt,
                 batch_size=batch_size,
+                searcher=searcher,
             )
         )
 
@@ -163,21 +170,22 @@ class LLMMap(MapIngredient):
         model: Model,
         question: str,
         values: t.List[str],
+        context_formatter: t.Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
-        few_shot_retriever: t.Optional[
-            t.Callable[[str], t.List[AnnotatedMapExample]]
-        ] = None,
-        options: t.Optional[Collection[str]] = None,
+        searcher: t.Optional[Searcher] = None,
+        options: t.Optional[t.List[str]] = None,
         value_limit: t.Optional[int] = None,
         example_outputs: t.Optional[str] = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
+        regex: t.Optional[str] = None,
+        context: t.Optional[pd.DataFrame] = None,
         batch_size: int = None,
         **kwargs,
     ) -> t.List[t.Union[float, int, str, bool]]:
         """For each value in a given column, calls a Model and retrieves the output.
 
         Args:
-            question: The question to map onto the values. Will also be the new column name
+            question: The question(s) to map onto the values. Will also be the new column name
             model: The Model (blender) we will make calls to.
             values: The list of values to apply question to.
             value_limit: Optional limit on the number of values to pass to the Model
@@ -192,8 +200,23 @@ class LLMMap(MapIngredient):
             raise IngredientException(
                 "LLMMap requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
-        if few_shot_retriever is None:
-            few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
+        # if few_shot_retriever is None:
+        few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
+        use_context = context is not None or searcher is not None
+        # If we explicitly passed `context`, this should take precedence over the vector store.
+        if searcher is not None and context is None:
+            # Concatenate each value to the front of the questions
+            # E.g. 'What year were they born?' -> 'Ryan Lochte What year were they born?'
+            docs = searcher([f"{v} {question}" for v in values])
+            context = ["\n\n".join(d) for d in docs]
+            logger.debug(
+                Fore.LIGHTBLACK_EX
+                + f"Retrieved contexts '{[d[:50] + '...' for d in context]}'"
+                + Fore.RESET
+            )
+        elif context is None:
+            context = [None] * len(values)
+
         # Unpack default kwargs
         table_name, column_name = self.unpack_default_kwargs(**kwargs)
         if value_limit is not None:
@@ -202,35 +225,44 @@ class LLMMap(MapIngredient):
         resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=None
         )
-        current_example = MapExample(
-            question=question,
-            column_name=column_name,
-            table_name=table_name,
-            return_type=resolved_return_type,
-            example_outputs=example_outputs,
-            options=options,
-            # Random subset of values for few-shot example retrieval
-            # these will get replaced during batching later
-            values=values[:10],
-        )
+
+        if isinstance(model, ConstrainedModel):
+            current_example = ConstrainedMapExample(
+                question=question,
+                column_name=column_name,
+                table_name=table_name,
+                return_type=resolved_return_type,
+                example_outputs=example_outputs,
+                options=options,
+                use_context=use_context,
+            )
+        else:
+            current_example = UnconstrainedMapExample(
+                question=question,
+                column_name=column_name,
+                table_name=table_name,
+                return_type=resolved_return_type,
+                example_outputs=example_outputs,
+                options=options,
+                use_context=use_context,
+                values=values,
+            )
+
+        regex = regex or resolved_return_type.regex
+
         if isinstance(model, ConstrainedModel):
             batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
-            current_example = ConstrainedMapExample(**current_example.__dict__)
             few_shot_examples: t.List[ConstrainedAnnotatedMapExample] = [
                 ConstrainedAnnotatedMapExample(**example.__dict__)
-                for example in few_shot_retriever(current_example.to_string())
+                for example in few_shot_retriever()
             ]
         else:
             batch_size = batch_size or DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE
-            current_example = UnconstrainedMapExample(**current_example.__dict__)
             few_shot_examples: t.List[UnconstrainedAnnotatedMapExample] = [
                 UnconstrainedAnnotatedMapExample(**example.__dict__)
-                for example in few_shot_retriever(current_example.to_string())
+                for example in few_shot_retriever()
             ]
-        regex = None
-        if current_example.return_type is not None:
-            regex = current_example.return_type.regex
-        options = current_example.options
+
         if options is not None and list_options_in_prompt:
             if len(options) > int(
                 os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
@@ -240,7 +272,7 @@ class LLMMap(MapIngredient):
                     + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
                 )
                 list_options_in_prompt = False
-        sorted_values = sorted(values)  # Sort, to maximize cache hit rate
+
         if isinstance(model, ConstrainedModel):
             import guidance
 
@@ -253,33 +285,34 @@ class LLMMap(MapIngredient):
 
             if options is not None:
                 gen_f = lambda _: guidance.select(options=options)  # type: ignore
-            elif return_type == "substring":
+            elif resolved_return_type.name == "substring":
                 # Special case for substring datatypes
                 gen_f = lambda s: guidance.substring(target_string=s)
             else:
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
-                    stop=["\n\t"] + ['"']
-                    if current_example.return_type.name == "str"
-                    else [],
+                    # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                    stop=[")", "\n\t"]
+                    + (['"'] if resolved_return_type.name == "str" else []),
                     regex=regex,
                 )  # type: ignore
 
-            @guidance(stateless=True, dedent=False)  # type: ignore
-            def make_predictions(
-                lm, values, str_output: bool, gen_f
-            ) -> guidance.models.Model:
-                quotes = [
-                    '"""' if any(c in value for c in ["\n", '"']) else '"'
-                    for value in values
-                ]
-                gen_str = "\n".join(
-                    [
-                        f"""\t\tf({quote}{value}{quote}) == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
-                        for value, quote in zip(values, quotes)
-                    ]
-                )
-                return lm + gen_str
+            def make_prediction(
+                value: str,
+                context: t.Optional[str],
+                str_output: bool,
+                gen_f: t.Callable,
+            ) -> str:
+                def get_quote(s: str):
+                    return '"""' if any(c in s for c in ["\n", '"']) else '"'
+
+                value_quote = get_quote(value)
+                gen_str = f"""\t\tf({value_quote}{value}{value_quote}"""
+                if context is not None:
+                    context_quote = get_quote(context)
+                    gen_str += f""", {context_quote}{context}{context_quote}"""
+                gen_str += f""") == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
+                return gen_str
 
             example_str = ""
             if len(few_shot_examples) > 0:
@@ -287,67 +320,76 @@ class LLMMap(MapIngredient):
                     example_str += example.to_string()
 
             loaded_lm = False
+            batch_inference_strings = []
+            value_to_cache_key = {}
             # Due to guidance's prefix caching, this is a one-time cost
             model.prompt_tokens += len(
                 model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
             )
-            for i in range(0, len(sorted_values), batch_size):
-                curr_batch_values = sorted_values[i : i + batch_size]
-                current_batch_example = copy.deepcopy(current_example)
-                current_batch_example.values = [str(i) for i in curr_batch_values]
+            # for i in range(0, len(sorted_values), batch_size):
+            for c, v in zip(context, values):
+                current_example.context = c
                 current_example_str = current_example.to_string(
                     list_options=list_options_in_prompt,
-                    add_leading_newlines=False,
+                    add_leading_newlines=True,
                 )
 
                 # First check - do we need to load the model?
                 in_cache = False
                 if model.caching:
-                    responses, key = model.check_cache(
+                    cached_response, cache_key = model.check_cache(
                         CONSTRAINED_MAIN_INSTRUCTION,
                         example_str,
                         current_example_str,
-                        current_batch_example.values,
-                        funcs=[make_predictions, gen_f],
+                        question,
+                        c,
+                        v,
+                        funcs=[make_prediction, gen_f],
                     )
-                    if responses is not None:
-                        lm._variables.update(responses)  # type: ignore
+                    if cached_response is not None:
+                        lm.set(v, cached_response)
                         in_cache = True
+                    else:
+                        value_to_cache_key[v] = cache_key
                 if not in_cache and not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
                     loaded_lm = True
                     with guidance.user():
                         lm += CONSTRAINED_MAIN_INSTRUCTION
                         lm += example_str
-
-                with guidance.user():
-                    batch_lm = lm + current_example_str
+                        lm += current_example_str
 
                 model.prompt_tokens += len(model.tokenizer.encode(current_example_str))
 
                 if not in_cache:
-                    model.num_generation_calls += 1
-                    with guidance.assistant():
-                        batch_lm += make_predictions(
-                            values=current_batch_example.values,
-                            str_output=(current_example.return_type.name == "str"),
+                    batch_inference_strings.append(
+                        make_prediction(
+                            value=v,
+                            context=c,
+                            str_output=(resolved_return_type.name == "str"),
                             gen_f=gen_f,
-                        )  # type: ignore
-                        generated_batch_variables = {
-                            k: batch_lm.get(k) for k in current_batch_example.values
-                        }
-                        lm._variables.update(generated_batch_variables)
-                    if model.caching:
-                        model.cache[key] = generated_batch_variables  # type: ignore
+                        )
+                    )
+
+            with guidance.assistant():
+                for i in range(0, len(batch_inference_strings), batch_size):
+                    model.num_generation_calls += 1
+                    batch_lm = lm + "\n".join(
+                        batch_inference_strings[i : i + batch_size]
+                    )
+                    lm._variables.update(batch_lm._variables)
+            if model.caching:
+                for value, cache_key in value_to_cache_key.items():
+                    model.cache[cache_key] = lm.get(value)  # type: ignore
+
             lm_mapping: t.List[str] = [lm[value] for value in values]  # type: ignore
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
             # For each value, call the DataType's `coerce_fn()`
-            mapped_values = [
-                current_example.return_type.coerce_fn(s) for s in lm_mapping
-            ]
+            mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
         else:
+            sorted_values = sorted(values)
             messages_list: t.List[t.List[dict]] = []
             batch_sizes: t.List[int] = []
             for i in range(0, len(sorted_values), batch_size):

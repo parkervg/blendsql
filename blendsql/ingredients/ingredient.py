@@ -19,7 +19,7 @@ from blendsql.common.constants import (
 from blendsql.db import Database
 from blendsql.db.utils import select_all_from_table_query, format_tuple
 from blendsql.common.utils import get_tablename_colname
-from blendsql.vector_stores.faiss_vector_store import FaissVectorStore
+from blendsql.search.searcher import Searcher
 from blendsql.ingredients.few_shot import Example
 from blendsql.ingredients.utils import ValueArray
 
@@ -40,7 +40,7 @@ class Ingredient:
 
     few_shot_retriever: t.Callable[[str], t.List[Example]] = attrib(default=None)
     list_options_in_prompt: bool = attrib(default=True)
-    vector_store: t.Optional[FaissVectorStore] = attrib(default=None)
+    searcher: t.Optional[Searcher] = attrib(default=None)
 
     ingredient_type: str = attrib(init=False)
     allowed_output_types: t.Tuple[t.Type] = attrib(init=False)
@@ -109,7 +109,7 @@ class Ingredient:
         v: ValueArray,
         aliases_to_tablenames: t.Dict[str, str],
         allow_semicolon_list: t.Optional[bool] = True,
-    ) -> t.Collection:
+    ) -> t.List[str]:
         if "::" in v:
             tablename, colname = get_tablename_colname(v)
             tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -122,11 +122,10 @@ class Ingredient:
             # )
             # Optionally materialize a CTE
             if tablename in self.db.lazy_tables:
-                unpacked_values: list = [
-                    str(i)
-                    for i in self.db.lazy_tables.pop(tablename)
-                    .collect()[colname]
-                    .unique()
+                materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+                self.num_values_passed += materialized_smoothie.meta.num_values_passed
+                unpacked_values = [
+                    str(i) for i in materialized_smoothie.df[colname].unique()
                 ]
             else:
                 unpacked_values: list = [
@@ -142,7 +141,7 @@ class Ingredient:
                     + "\nExpected something in the format '{tablename}::{columnname}'."
                 )
             unpacked_values = v.split(";")
-        return unpacked_values
+        return list(set(unpacked_values))
 
     def maybe_get_temp_table(
         self, temp_table_func: t.Callable, tablename: str
@@ -158,7 +157,7 @@ class Ingredient:
         self,
         options: t.Union[ValueArray, list],
         aliases_to_tablenames: t.Dict[str, str],
-    ) -> t.Union[t.Set[str], None]:
+    ) -> t.Union[t.List[str], None]:
         unpacked_options = options
         if not isinstance(options, list):
             unpacked_options = self.unpack_value_array(options, aliases_to_tablenames)
@@ -168,13 +167,14 @@ class Ingredient:
                 + f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
                 + Fore.RESET
             )
-        return set(unpacked_options) if len(unpacked_options) > 0 else None
+        return list(unpacked_options) if len(unpacked_options) > 0 else None
 
     def unpack_question(
         self,
         question: str,
-        aliases_to_tablenames: t.Dict[str, str],
-    ) -> str:
+        aliases_to_tablenames: t.Optional[t.Dict[str, str]],
+        warn_on_many_values: bool = False,
+    ) -> t.List[str]:
         """Unpack any f-string ValueArray references in question.
 
         Example:
@@ -183,34 +183,54 @@ class Ingredient:
         F_STRING_PATTERN = re.compile(r"{([^{}]*)}")
 
         def replace_fstring_templates(s, replacement_func):
-            def replacer(match):
-                template = match.group(1)
-                return replacement_func(template)
+            """
+            Replaces each template in the string with values returned by replacement_func.
+            For each template found, creates a new version of the string for each replacement value.
 
-            return F_STRING_PATTERN.sub(replacer, s)
+            Args:
+                s (str): The template string (e.g., "Say {name}")
+                replacement_func (callable): A function that takes a template name and returns a list of values
 
-        def get_first_value(template):
+            Returns:
+                list: A list of strings with all possible replacements
+            """
+            matches = list(F_STRING_PATTERN.finditer(s))
+
+            if not matches:
+                return [s]
+
+            # Get the first template match
+            match = matches[0]
+            template = match.group(1)
+            replacement_values = replacement_func(template)
+
+            # Create a base result for each replacement value
+            results = []
+            for value in replacement_values:
+                # Replace just this first occurrence
+                new_s = s[: match.start()] + str(value) + s[match.end() :]
+                # Recursively process any remaining templates in the new string
+                for result in replace_fstring_templates(new_s, replacement_func):
+                    results.append(result)
+
+            return results
+
+        def get_db_values(template):
             values = self.unpack_value_array(
                 template, aliases_to_tablenames, allow_semicolon_list=False
             )
             if len(values) == 0:
                 raise IngredientException(f"No values found in {template}")
-            if len(values) > 1:
+            if len(values) > 1 and warn_on_many_values:
                 logger.debug(
                     Fore.RED
                     + f"More than 1 value found in {template}: {values[:10]}\nThis could be a sign of a malformed query."
                     + Fore.RESET
                 )
-            return values[0]
+            return values
 
-        unpacked_question = replace_fstring_templates(question, get_first_value)
-        if unpacked_question != question:
-            logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Unpacked question to '{unpacked_question}'"
-                + Fore.RESET
-            )
-        return unpacked_question
+        unpacked_questions = replace_fstring_templates(question, get_db_values)
+        return unpacked_questions
 
 
 @attrs
@@ -335,7 +355,9 @@ class MapIngredient(Ingredient):
 
         # Optionally materialize a CTE
         if tablename in self.db.lazy_tables:
-            original_table = self.db.lazy_tables.pop(tablename).collect()
+            materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+            self.num_values_passed += materialized_smoothie.meta.num_values_passed
+            original_table = materialized_smoothie.df
         else:
             original_table = self.db.execute_to_df(
                 select_all_from_table_query(tablename)
@@ -385,9 +407,18 @@ class MapIngredient(Ingredient):
             )
 
         if question is not None:
-            question = self.unpack_question(
-                question=question, aliases_to_tablenames=aliases_to_tablenames
+            unpacked_questions = self.unpack_question(
+                question=question,
+                aliases_to_tablenames=aliases_to_tablenames,
+                warn_on_many_values=True,
             )
+            if unpacked_questions[0] != question:
+                logger.debug(
+                    Fore.LIGHTBLACK_EX
+                    + f"Unpacked question to '{unpacked_questions[0]}'"
+                    + Fore.RESET
+                )
+            question = unpacked_questions[0]
 
         mapped_values: Collection[t.Any] = self._run(
             question=question,
@@ -702,8 +733,12 @@ class QAIngredient(Ingredient):
                 tablename = aliases_to_tablenames.get(tablename, tablename)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
+                    materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+                    self.num_values_passed += (
+                        materialized_smoothie.meta.num_values_passed
+                    )
                     subtable: pd.DataFrame = pd.DataFrame(
-                        self.db.lazy_tables.pop(tablename).collect()[colname]
+                        materialized_smoothie.df[colname]
                     )
                 else:
                     subtable: pd.DataFrame = self.db.execute_to_df(
@@ -727,9 +762,18 @@ class QAIngredient(Ingredient):
             )
 
         if question is not None:
-            question = self.unpack_question(
-                question=question, aliases_to_tablenames=aliases_to_tablenames
+            unpacked_questions = self.unpack_question(
+                question=question,
+                aliases_to_tablenames=aliases_to_tablenames,
+                warn_on_many_values=True,
             )
+            if unpacked_questions[0] != question:
+                logger.debug(
+                    Fore.LIGHTBLACK_EX
+                    + f"Unpacked question to '{unpacked_questions[0]}'"
+                    + Fore.RESET
+                )
+            question = unpacked_questions[0]
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,

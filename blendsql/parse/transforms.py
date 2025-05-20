@@ -289,3 +289,14 @@ def replace_tablename(node, original_tablename, new_tablename):
         if node.args["table"].name.lower() == original_tablename.lower():
             node.set("table", exp.Identifier(this=new_tablename, quoted=True))
     return node
+
+
+def remove_ctes(node, with_ingredients_only=False):
+    if isinstance(node, exp.With):
+        if with_ingredients_only:
+            print()
+            if check.is_ingredient_node(node):
+                pass
+        else:
+            return None
+    return node
