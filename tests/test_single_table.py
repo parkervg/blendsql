@@ -666,5 +666,27 @@ def test_cte_with_ingredient(bsql):
     # assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
+@pytest.mark.parametrize("bsql", bsql_connections)
+def test_offset(bsql):
+    """SELECT "fruits"."name" FROM fruits OFFSET 2 will break SQLite
+    for some reason, DuckDB is ok with it, though.
+    """
+    smoothie = bsql.execute(
+        """
+    SELECT merchant FROM transactions t
+    WHERE {{starts_with('Z', 'transactions::merchant')}} = TRUE
+    ORDER BY {{get_length("length", "t::merchant")}} LIMIT 1 OFFSET 2
+    """
+    )
+    sql_df = bsql.db.execute_to_df(
+        """
+        SELECT merchant FROM transactions t
+        WHERE merchant LIKE 'Z%'
+        ORDER BY LENGTH(merchant) LIMIT 1 OFFSET 2
+        """
+    )
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+
+
 if __name__ == "__main__":
     pytest.main()
