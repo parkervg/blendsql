@@ -1,7 +1,5 @@
 import typing as t
 from dataclasses import dataclass, field
-import bm25s
-import numpy as np
 from colorama import Fore
 
 from blendsql.common.logger import logger
@@ -16,10 +14,12 @@ class HybridSearch(FaissVectorStore):
     bm25_method: str = field(
         default="lucene"
     )  # By default, bm25s uses method="lucene", which is Lucene's BM25 implementation (exact version).
-    bm25_retriever: bm25s.BM25 = field(init=False)
+    bm25_retriever: "bm25s.BM25" = field(init=False)
 
     def __post_init__(self):
         super().__post_init__()
+        import bm25s
+
         if self.bm25_weight > 0.0:
             curr_index_dir = (
                 self.index_dir / self.bm25_method / self.hashed_documents_str
@@ -42,6 +42,9 @@ class HybridSearch(FaissVectorStore):
 
     def __call__(self, query: str, k: t.Optional[int] = None) -> t.List[t.List[str]]:
         """Adapted from https://github.com/castorini/pyserini/blob/7ed83698298139efdfd62b6893d673aa367b4ac8/pyserini/search/hybrid/_searcher.py"""
+        import bm25s
+        import numpy as np
+
         if self.bm25_weight == 0.0:
             return super().__call__(query=query, k=k)
 

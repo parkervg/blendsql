@@ -70,6 +70,7 @@ class FaissVectorStore(Searcher):
 
         self.id_to_return_obj = {}
         if self.return_objs is not None:
+            # Sort documents, and make sure return_objs are sorted in the same way
             self.return_objs, self.documents = zip(
                 *sorted(
                     [(r, d) for r, d in zip(self.return_objs, self.documents)],
