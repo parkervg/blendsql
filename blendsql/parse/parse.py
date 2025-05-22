@@ -264,7 +264,10 @@ class SubqueryContextManager:
         abstracted_query = (
             self.node.transform(transform.set_ingredient_nodes_to_true)
             # TODO: is the below complete?
-            .transform(transform.remove_nodetype, (exp.Order, exp.Limit, exp.Group))
+            .transform(
+                transform.remove_nodetype,
+                (exp.Order, exp.Limit, exp.Group, exp.Offset, exp.Having),
+            )
         )
         # If our previous subquery has an ingredient, we can't optimize with subquery condition
         # So, remove this subquery constraint and run
