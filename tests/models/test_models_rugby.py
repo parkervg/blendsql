@@ -40,11 +40,6 @@ def test_llmmap(bsql, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    # if isinstance(model, LiteLLM):
-    #     assert set(res.df["venue"].values.tolist()) == {
-    #         "cricket ground",
-    #         "parramatta ground",
-    #     }
 
 
 @pytest.mark.long
@@ -63,8 +58,6 @@ def test_llmjoin(bsql, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    # if isinstance(model, LiteLLM):
-    #     assert res.df["rival"].unique().tolist() == ["nsw waratahs"]
 
 
 @pytest.mark.long
@@ -84,8 +77,6 @@ def test_llmqa(bsql, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    # if isinstance(model, LiteLLM):
-    #     assert res.df["city"].unique().tolist() == ["bathurst"]
 
 
 @pytest.mark.long
@@ -105,8 +96,6 @@ def test_llmmap_with_string(bsql, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    # if isinstance(model, LiteLLM):
-    #     assert res.df["June Count"].values[0] == 6
 
 
 @pytest.mark.long
@@ -125,5 +114,3 @@ def test_unconstrained_llmqa(bsql, model, ingredients):
         ingredients=ingredients,
     )
     assert isinstance(res, Smoothie)
-    # if isinstance(model, LiteLLM):
-    #     assert "sports" in res.df.values[0][0].lower()

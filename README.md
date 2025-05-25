@@ -256,7 +256,7 @@ SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
     WHERE "Name" = {{
       LLMQA(
         'Which park protects an ash flow?',
-        values=(SELECT "Name", "Description" FROM parks),
+        context=(SELECT "Name", "Description" FROM parks),
         options="parks::Name"
       )
   }}
@@ -281,7 +281,9 @@ SELECT COUNT(*) FROM parks
 _Give me some info about the park in the state that Sarah Palin was governor of._
 ```sql
 SELECT "Name", "Location", "Description" FROM parks
-  WHERE Location = {{RAGQA('Which state was Sarah Palin governor of?')}}
+/* Will gather relevant context via WebSearch, and automatically constrain output 
+   to one of the values in 'parks.Location'*/
+WHERE Location = {{WebSearchQA('Which state was Sarah Palin governor of?')}}
 ```
 | Name       | Location   | Description                                                                                                                         |
 |:-----------|:-----------|:------------------------------------------------------------------------------------------------------------------------------------|
