@@ -688,5 +688,32 @@ def test_offset(bsql):
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
+@pytest.mark.parametrize("bsql", bsql_connections)
+def test_map_in_function(bsql):
+    """6cec1a4"""
+    smoothie = bsql.execute(
+        """
+    SELECT merchant FROM transactions t
+    WHERE LENGTH(CAST({{get_length('length', 't::merchant')}} AS TEXT)) = 1
+    AND merchant LIKE 'Z%' 
+    """
+    )
+    sql_df = bsql.db.execute_to_df(
+        """
+        SELECT merchant FROM transactions t
+        WHERE LENGTH(CAST(LENGTH(t.merchant) AS TEXT)) = 1
+        AND merchant LIKE 'Z%' 
+        """
+    )
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = bsql.db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT merchant) FROM transactions WHERE merchant LIKE 'Z%' 
+    """
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
+
+
 if __name__ == "__main__":
     pytest.main()
