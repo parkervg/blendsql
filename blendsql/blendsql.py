@@ -192,14 +192,6 @@ def preprocess_blendsql(
     reversed_scan_res = [scan_res for scan_res in grammar.scanString(query)][::-1]
     for idx, (parse_results, start, end) in enumerate(reversed_scan_res):
         original_ingredient_string = query[start:end]
-        # If we're in between parentheses, add a `SELECT`
-        # This way it gets picked up as a subquery to parse later
-        # TODO: is this safe to do?
-        if query[start - 2] == "(" and query[end + 1] == ")":
-            inserted_select = " SELECT "
-            query = query[:start] + inserted_select + query[start:end] + query[end:]
-            start += len(inserted_select)
-            end += len(inserted_select)
         if (
             original_ingredient_string in ingredient_str_to_alias
         ):  # If we've already processed this function, no need to do it again
