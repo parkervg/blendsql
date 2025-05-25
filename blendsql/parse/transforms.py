@@ -167,7 +167,7 @@ def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
     """Prunes all nodes with an ingredient parent.
 
     CASE 1
-    Turns the ingredient node itself to a TRUE.
+    Turns the ingredient node itself to a TRUE (`SELECT * WHERE {{A()}}`).
 
     CASE 2
     In the case below ('x = {{A()}}'):
@@ -183,13 +183,12 @@ def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
         return exp.true()
     # Case 2: we have an Ingredient within a predicate (=, <, >, IN, etc.)
     if isinstance(node, exp.Predicate):
+        # Traverse over all nodes in predicate args,
+        #   to handle case when we have nested function calls
+        #   Example: `LENGTH(UPPER({{LLMMap()}})) > 3`
         if any(
-            check.is_ingredient_node(x)
-            for x in {
-                node.args.get("this", None),
-                node.args.get("expression", None),
-                node.args.get("field", None),
-            }
+            any(check.is_ingredient_node(node) for _, node, _ in arg_node.walk())
+            for arg_node in node.args.values()
         ):
             return exp.true()
     return node
