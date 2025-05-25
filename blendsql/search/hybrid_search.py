@@ -40,7 +40,9 @@ class HybridSearch(FaissVectorStore):
                 self.bm25_retriever.index(corpus_tokens)
                 self.bm25_retriever.save(str(curr_index_dir))
 
-    def __call__(self, query: str, k: t.Optional[int] = None) -> t.List[t.List[str]]:
+    def __call__(
+        self, query: t.Union[t.List[str], str], k: t.Optional[int] = None
+    ) -> t.List[t.List[str]]:
         """Adapted from https://github.com/castorini/pyserini/blob/7ed83698298139efdfd62b6893d673aa367b4ac8/pyserini/search/hybrid/_searcher.py"""
         import bm25s
         import numpy as np

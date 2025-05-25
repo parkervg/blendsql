@@ -43,7 +43,7 @@ def dependable_faiss_import(no_avx2: t.Optional[bool] = None) -> t.Any:
     return faiss
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FaissVectorStore(Searcher):
     documents: t.List[str] = field()
     # https://github.com/facebookresearch/faiss/wiki/The-index-factory
@@ -54,7 +54,6 @@ class FaissVectorStore(Searcher):
     )
     return_objs: t.List[ReturnObj] = field(default=None)
     st_encode_kwargs: t.Optional[dict[str, t.Any]] = field(default=None)
-    k: t.Optional[int] = field(default=3)
     batch_size: t.Optional[int] = field(default=32)
 
     index: "faiss.Index" = field(init=False)
@@ -130,7 +129,10 @@ class FaissVectorStore(Searcher):
             faiss.write_index(self.index, str(curr_index_path))
 
     def __call__(
-        self, query: str, k: t.Optional[int] = None, scores_only: bool = False
+        self,
+        query: t.Union[t.List[str], str],
+        k: t.Optional[int] = None,
+        scores_only: bool = False,
     ) -> t.List[t.List[str]]:
         is_single_query = isinstance(query, str)
         queries = [query] if is_single_query else query

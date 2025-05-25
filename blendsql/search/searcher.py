@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Searcher:
-    documents: t.List[str] = field()
+    k: t.Optional[int] = field(default=1)
 
     @abstractmethod
     def __call__(
