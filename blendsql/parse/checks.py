@@ -6,7 +6,7 @@ import re
 from .constants import SUBQUERY_EXP
 from .utils import get_first_child
 
-INGREDIENT_PATTERN = re.compile("{{[A-Z]\(\)}}")
+INGREDIENT_PATTERN = re.compile(r"{{[A-Z]\(\)}}")
 
 
 def get_ingredient_count(node) -> int:

@@ -271,7 +271,7 @@ class LLMQA(QAIngredient):
                         quantifier_wrapper = guidance.zero_or_more
                     elif quantifier == "+":
                         quantifier_wrapper = guidance.one_or_more
-                    elif re.match("{\d+}", quantifier):
+                    elif re.match(r"{\d+}", quantifier):
                         repeats = [
                             int(i)
                             for i in quantifier.replace("}", "")
