@@ -186,11 +186,11 @@ def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
         # Traverse over all nodes in predicate args,
         #   to handle case when we have nested function calls
         #   Example: `LENGTH(UPPER({{LLMMap()}})) > 3`
-        if any(
-            any(check.is_ingredient_node(node) for _, node, _ in arg_node.walk())
-            for arg_node in node.args.values()
-        ):
-            return exp.true()
+        for arg_node in node.args.values():
+            if check.is_ingredient_node(arg_node):
+                return exp.true()
+            if any(check.is_ingredient_node(node) for _, node, _ in arg_node.walk()):
+                return exp.true()
     return node
 
 
