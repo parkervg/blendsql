@@ -111,12 +111,12 @@ def test_llmmap_question_f_strings(bsql, model):
     )
 
 
-# def test_unused_cte_with_ingredient(bsql, model):
-#     """cff65b6"""
-#     _ = bsql.execute(
-#         """
-#         WITH t AS (SELECT * FROM w WHERE {{LLMMap('Here is a question'), 'w::Name'}} = TRUE)
-#         SELECT * FROM w
-#         """,
-#         model=model,
-#     )
+def test_llmqa_in_tuple(bsql, model):
+    """cff65b6"""
+    _ = bsql.execute(
+        """
+        SELECT * FROM classes 
+        WHERE classes.Title IN ('Discrete Math', {{LLMQA('What did Aristotle study?')}})
+        """,
+        model=model,
+    )
