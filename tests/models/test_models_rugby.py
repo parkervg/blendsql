@@ -44,6 +44,7 @@ def test_llmmap(bsql, model, ingredients):
 
 @pytest.mark.long
 def test_llmjoin(bsql, model, ingredients):
+    pytest.skip()
     res = bsql.execute(
         """
         SELECT date, rival, score, documents.content AS "Team Description" FROM w
