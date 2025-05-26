@@ -18,10 +18,6 @@ from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
 
 load_dotenv()
 
-# Disable MPS for test cases
-# This causes an 'MPS backend out of memory' error on github actions
-os.environ["HAYSTACK_MPS_ENABLED"] = "false"
-
 
 def pytest_make_parametrize_id(config, val, argname):
     if isinstance(val, Database):
