@@ -7,7 +7,7 @@ name = "blendsql"
 description = "Query language for blending SQL and LLMs across structured + unstructured data, with type constraints. "
 authors = [{ "name" = "Parker Glenn", "email" = "parkervg5@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 keywords = ["language models", "query language", "symbolic ai", "sql"]
 classifiers = [
