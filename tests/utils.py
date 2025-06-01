@@ -11,7 +11,7 @@ from blendsql.ingredients import (
 from blendsql.db.utils import single_quote_escape
 
 
-class starts_with(MapIngredient):
+class TestStartsWith(MapIngredient):
     def run(self, question: str, values: List[str], **kwargs) -> List[bool]:
         """Simple test function, equivalent to the following in SQL:
             `LIKE '{arg}%`
@@ -21,7 +21,7 @@ class starts_with(MapIngredient):
         return mapped_values
 
 
-class get_length(MapIngredient):
+class GetLength(MapIngredient):
     def run(self, question: str, values: List[str], **kwargs) -> Iterable[int]:
         """Simple test function, equivalent to the following in SQL:
             `LENGTH '{arg}%`

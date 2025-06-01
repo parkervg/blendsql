@@ -9,7 +9,7 @@ from blendsql.search.faiss_vector_store import FaissVectorStore
 @dataclass(kw_only=True)
 class HybridSearch(FaissVectorStore):
     normalization: bool = field(default=True)
-    bm25_weight: float = field(default=0.1)
+    bm25_weight: float = field(default=0.5)
 
     bm25_method: str = field(
         default="lucene"

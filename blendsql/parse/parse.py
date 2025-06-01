@@ -1,5 +1,5 @@
 import sqlglot
-from sqlglot import exp, Schema
+from sqlglot import exp
 from sqlglot.optimizer.scope import build_scope
 import typing as t
 from ast import literal_eval
@@ -105,7 +105,7 @@ class QueryContextManager:
     _query: str = attrib(default=None)
     _last_to_string_node: exp.Expression = None
 
-    def parse(self, query, schema: t.Optional[t.Union[dict, Schema]] = None):
+    def parse(self, query, schema=None):
         self._query = query
         self.node = _parse_one(query, dialect=self.dialect, schema=schema)
 
