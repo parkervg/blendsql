@@ -253,6 +253,10 @@ def preprocess_blendsql(
         aliased_function_node = exp.Column(
             this=exp.Identifier(this=substituted_ingredient_alias)
         )
+        if n == node:
+            # For some reason, .replace doesn't work here
+            node = aliased_function_node
+            continue
         n.replace(aliased_function_node)
 
     return (

@@ -1,5 +1,5 @@
 import sqlglot
-from sqlglot import exp
+from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
 import typing as t
 from ast import literal_eval
@@ -105,7 +105,7 @@ class QueryContextManager:
     _query: str = attrib(default=None)
     _last_to_string_node: exp.Expression = None
 
-    def parse(self, query, schema=None):
+    def parse(self, query, schema: t.Optional[t.Union[dict, Schema]] = None):
         self._query = query
         self.node = _parse_one(query, dialect=self.dialect, schema=schema)
 
@@ -391,14 +391,14 @@ class SubqueryContextManager:
         Returns:
             dict, with keys:
 
-                - output_type
+                - return_type
                     - 'boolean' | 'integer' | 'float' | 'string'
 
                 - regex: regular expression pattern lambda to use in constrained decoding with Model
                     - See `create_regex` for more info on these regex lambdas
 
                 - options: Optional str default to pass to `options` argument in a QAIngredient
-                    - Will have the form '{table}::{column}'
+                    - Will have the form '{table}.{column}'
         """
         added_kwargs: t.Dict[str, t.Any] = {}
         ingredient_node = _parse_one(self.sql()[start:end], dialect=self.dialect)
@@ -435,7 +435,7 @@ class SubqueryContextManager:
                     # This is valid for a default `options` set
                     added_kwargs[
                         "options"
-                    ] = f"{start_node.args['this'].args['table'].name}::{start_node.args['this'].args['this'].name}"
+                    ] = f"{start_node.args['this'].args['table'].name}.{start_node.args['this'].args['this'].name}"
         if isinstance(start_node, (exp.In, exp.Tuple, exp.Values)):
             if isinstance(start_node, (exp.Tuple, exp.Values)):
                 added_kwargs["wrap_tuple_in_parentheses"] = False

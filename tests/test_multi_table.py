@@ -4,7 +4,7 @@ from blendsql.db import SQLite, DuckDB
 from blendsql.common.utils import fetch_from_hub
 from tests.utils import (
     assert_equality,
-    starts_with,
+    test_starts_with,
     get_length,
     select_first_sorted,
     do_join,
@@ -16,7 +16,7 @@ from tests.utils import (
 )
 
 dummy_ingredients = {
-    starts_with,
+    test_starts_with,
     get_length,
     select_first_sorted,
     do_join,
@@ -46,8 +46,8 @@ def test_simple_multi_exec(bsql):
         SELECT Symbol, "North America", "Japan" FROM geographic
             WHERE geographic.Symbol IN (
                 SELECT Symbol FROM portfolio
-                WHERE {{starts_with('A', 'portfolio::Description')}} = 1
-                AND portfolio.Symbol in (
+                WHERE {{test_starts_with('A', Description)}} = 1
+                AND Symbol in (
                     SELECT Symbol FROM constituents
                     WHERE constituents.Sector = 'Information Technology'
                 )
@@ -87,9 +87,9 @@ def test_join_multi_exec(bsql):
         """
         SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
             FROM account_history
-            JOIN constituents ON account_history.Symbol = constituents.Symbol
-            WHERE constituents.Sector = 'Information Technology'
-            AND {{starts_with('A', 'constituents::Name')}} = 1
+            JOIN constituents c ON account_history.Symbol = c.Symbol
+            WHERE c.Sector = 'Information Technology'
+            AND {{test_starts_with('A', c.Name)}} = 1
             AND lower(LOWER(account_history.Action)) like '%dividend%'
             ORDER BY "Total Dividend Payout ($$)"
         """
@@ -130,7 +130,7 @@ def test_join_not_qualified_multi_exec(bsql):
             FROM account_history
             JOIN constituents ON account_history.Symbol = constituents.Symbol
             WHERE Sector = 'Information Technology'
-            AND {{starts_with('A', 'constituents::Name')}} = 1
+            AND {{test_starts_with('A', constituents.Name)}} = 1
             AND lower(Action) like '%dividend%'
             ORDER BY "Run Date"
         """
@@ -165,8 +165,8 @@ def test_select_multi_exec(bsql):
         """
         SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
             FROM account_history
-            JOIN constituents ON account_history.Symbol = constituents.Symbol
-            WHERE constituents.Sector = {{select_first_sorted(options='constituents::Sector')}}
+            JOIN constituents c ON account_history.Symbol = c.Symbol
+            WHERE c.Sector = {{select_first_sorted(options=c.Sector)}}
             AND lower(LOWER(account_history.Action)) like '%dividend%'
             ORDER BY account_history."Run Date"
         """
@@ -199,7 +199,7 @@ def test_complex_multi_exec(bsql):
         JOIN account_history ON constituents.Symbol = account_history.Symbol
         JOIN portfolio on constituents.Symbol = portfolio.Symbol
         WHERE account_history."Run Date" > '2021-02-23'
-        AND ({{get_length('n_length', 'constituents::Name')}} > 3 OR {{starts_with('A', 'portfolio::Symbol')}})
+        AND ({{get_length(constituents.Name)}} > 3 OR {{test_starts_with('A', portfolio.Symbol)}})
         AND portfolio.Symbol IS NOT NULL
         ORDER BY LENGTH(constituents.Name), constituents.Name LIMIT 4
         """
@@ -229,7 +229,7 @@ def test_complex_not_qualified_multi_exec(bsql):
         LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
         LEFT JOIN portfolio on constituents.Symbol = portfolio.Symbol
         WHERE "Run Date" > '2021-02-23'
-        AND ({{get_length('n_length', 'constituents::Name')}} > 3 OR {{starts_with('A', 'portfolio::Symbol')}})
+        AND ({{get_length(constituents.Name)}} > 3 OR {{test_starts_with('A', portfolio.Symbol)}})
         AND portfolio.Symbol IS NOT NULL
         ORDER BY constituents.Symbol, LENGTH(Action) LIMIT 4
         """,
@@ -277,8 +277,8 @@ def test_join_ingredient_multi_exec(bsql):
         SELECT Account, Quantity FROM returns
         JOIN {{
             do_join(
-                'returns::Annualized Returns',
-                'account_history::Account'
+                returns."Annualized Returns",
+                account_history.Account
             )
         }}
         """
@@ -341,11 +341,11 @@ def test_alias_tuple_ingredient_multi_exec(bsql):
     smoothie = bsql.execute(
         """
         SELECT Symbol FROM portfolio AS w
-            WHERE {{starts_with('A', 'w::Symbol')}} = TRUE
+            WHERE {{test_starts_with('A', w.Symbol)}} = TRUE
             AND Symbol IN {{return_stocks_tuple_alias()}}
             AND LENGTH(w.Symbol) > 3
         """,
-        ingredients={starts_with, return_stocks_tuple_alias},
+        ingredients={test_starts_with, return_stocks_tuple_alias},
     )
     sql_df = bsql.db.execute_to_df(
         """
@@ -370,7 +370,7 @@ def test_table_alias_multi_exec(bsql):
     smoothie = bsql.execute(
         """
         SELECT Symbol FROM portfolio AS w
-            WHERE {{starts_with('A', 'w::Symbol')}} = TRUE
+            WHERE {{test_starts_with('A', w.Symbol)}} = TRUE
             AND LENGTH(w.Symbol) > 3
         """
     )
@@ -399,7 +399,7 @@ def test_subquery_alias_multi_exec(bsql):
             SELECT DISTINCT Symbol FROM portfolio WHERE Symbol IN (
                 SELECT Symbol FROM portfolio WHERE Quantity > 200
             )
-        ) AS w WHERE {{starts_with('F', 'w::Symbol')}} = TRUE AND LENGTH(w.Symbol) > 3
+        ) AS w WHERE {{test_starts_with('F', w.Symbol)}} = TRUE AND LENGTH(w.Symbol) > 3
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -430,7 +430,7 @@ def test_cte_qa_multi_exec(bsql):
                 context=(
                     WITH a AS (
                         SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
-                            WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
+                            WHERE {{test_starts_with('F', w.Symbol)}} = TRUE
                     ) SELECT * FROM a WHERE LENGTH(a.Symbol) > 2
                 )
             )
@@ -476,7 +476,7 @@ def test_cte_qa_named_multi_exec(bsql):
                 context=(
                     WITH a AS (
                         SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
-                            WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
+                            WHERE {{test_starts_with('F', w.Symbol)}} = TRUE
                     ) SELECT * FROM a WHERE LENGTH(a.Symbol) > 2
                 )
             )
@@ -520,10 +520,10 @@ def test_ingredient_in_select_with_join_multi_exec(bsql):
     """
     smoothie = bsql.execute(
         """
-        SELECT {{get_length('n_length', 'constituents::Name')}}
-            FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
-            WHERE LOWER(account_history.Action) like '%dividend%'
-            ORDER BY constituents.Name
+        SELECT {{get_length(c.Name)}}
+            FROM constituents c JOIN account_history a ON a.Symbol = c.Symbol
+            WHERE LOWER(a.Action) like '%dividend%'
+            ORDER BY c.Name
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -554,7 +554,7 @@ def test_ingredient_in_select_with_join_multi_select_multi_exec(bsql):
     """
     smoothie = bsql.execute(
         """
-        SELECT {{get_length('n_length', 'constituents::Name')}}, Action
+        SELECT {{get_length(constituents.Name)}}, Action
             FROM constituents JOIN account_history ON account_history.Symbol = constituents.Symbol
             WHERE LOWER(Action) like '%dividend%'
         """
@@ -585,10 +585,10 @@ def test_subquery_alias_with_join_multi_exec(bsql):
         SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
         JOIN {{
             do_join(
-                'w::Symbol',
-                'geographic::Symbol'
+                w.Symbol,
+                geographic.Symbol
             )
-        }} WHERE {{starts_with('F', 'w::Symbol')}}
+        }} WHERE {{test_starts_with('F', w.Symbol)}}
         AND w."Percent of Account" < 0.2
         """
     )
@@ -620,10 +620,10 @@ def test_subquery_alias_with_join_multi_exec_and(bsql):
         SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
         JOIN {{
             do_join(
-                'w::Symbol',
-                'geographic::Symbol'
+                w.Symbol,
+                geographic.Symbol
             )
-        }} AND {{starts_with('F', 'w::Symbol')}}
+        }} AND {{test_starts_with('F', w.Symbol)}}
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -654,7 +654,7 @@ def test_materialize_ctes_multi_exec(bsql):
         SELECT * FROM portfolio WHERE Quantity > 200
     ), b AS (SELECT Symbol FROM portfolio AS w WHERE w.Symbol LIKE 'A%'),
     c AS (SELECT * FROM geographic)
-    SELECT * FROM a WHERE {{starts_with('F', 'a::Symbol')}} = TRUE
+    SELECT * FROM a WHERE {{test_starts_with('F', a.Symbol)}} = TRUE
     """
     # Need to get the lower level function so we can see what tables got created
     from blendsql.blendsql import _blend
@@ -682,7 +682,7 @@ def test_options_referencing_cte_multi_exec(bsql):
             SELECT *
             FROM account_history
             WHERE Symbol IS NOT NULL
-        ) SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1
+        ) SELECT {{select_first_sorted(options=w.Symbol)}} FROM w LIMIT 1
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -729,13 +729,13 @@ def test_join_with_multiple_ingredients(bsql):
         SELECT "Run Date", Action, portfolio.Symbol FROM account_history
         JOIN {{
             do_join(
-                'account_history::Symbol',
-                'portfolio::Symbol'
+                account_history.Symbol,
+                portfolio.Symbol
             )
         }} AND {{
-            starts_with('H', 'portfolio::Description')
+            test_starts_with('H', portfolio.Description)
         }} AND {{
-            get_length('length', 'account_history::Security Description')
+            get_length('length', account_history.Security Description)
         }} > 3
         """
     )
@@ -757,7 +757,7 @@ def test_null_negation(bsql):
         SELECT DISTINCT Name FROM constituents
         LEFT JOIN account_history ON constituents.Symbol = account_history.Symbol
         WHERE account_history."Settlement Date" IS NOT NULL
-        AND {{starts_with('F', 'account_history::Account')}}
+        AND {{test_starts_with('F', account_history.Account)}}
         ORDER BY constituents.Name
         """
     )
@@ -780,11 +780,11 @@ def test_not_double_executing_cte(bsql, model):
         """
         WITH t AS (
             SELECT Symbol FROM account_history a
-            WHERE {{starts_with('F', 'a::Account')}} = TRUE
+            WHERE {{test_starts_with('F', a.Account)}} = TRUE
             AND a.Account IS NOT NULL
         ) SELECT COUNT(*) FROM t 
         WHERE t.Symbol IS NOT NULL
-        AND {{get_length('length', 't::Symbol')}} > 3
+        AND {{get_length(t.Symbol)}} > 3
         """,
         model=model,
     )
