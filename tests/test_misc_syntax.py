@@ -3,7 +3,7 @@ import pandas as pd
 
 from blendsql import BlendSQL, config
 from blendsql.models import LlamaCpp
-from .utils import starts_with
+from .utils import test_starts_with
 
 config.set_async_limit(1)
 
@@ -39,7 +39,7 @@ def bsql() -> BlendSQL:
                 ]
             ),
         },
-        ingredients={starts_with},
+        ingredients={test_starts_with},
     )
 
 
@@ -48,7 +48,7 @@ def test_many_aliases(bsql, model):
         """
         SELECT l.name FROM League l
         JOIN Country c ON l.id = c.id
-        WHERE {{LLMMap('Is this country landlocked?', 'c::name')}} = TRUE
+        WHERE {{LLMMap('Is this country landlocked?', c.name)}} = TRUE
         """,
         model=model,
     )
@@ -59,7 +59,7 @@ def test_join_with_duplicate_columns(bsql):
         """
         SELECT l.name FROM League l
         JOIN Country c ON l.id = c.id
-        WHERE {{starts_with('I', 'c::name')}}
+        WHERE {{test_starts_with('I', c.name)}}
         """,
     )
     assert not smoothie.df.empty
@@ -82,11 +82,11 @@ def test_llmjoin_with_alias(bsql, model):
     """1c3e4bf"""
     _ = bsql.execute(
         """
-        SELECT l.name, Country.name FROM League l
-        JOIN {{
+        SELECT l.name, c.name FROM League l
+        JOIN Country c ON {{
             LLMJoin(
-                'l::name', 
-                'Country::name', 
+                l.name, 
+                c.name, 
                 join_criteria='Align the league to its country'
             )
         }}

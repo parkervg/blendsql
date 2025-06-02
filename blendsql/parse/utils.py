@@ -13,7 +13,7 @@ def get_first_child(node):
     """
     gen = node.walk()
     _ = next(gen)
-    return next(gen)[0]
+    return next(gen)
 
 
 def get_alias_identifiers(node) -> Set[str]:

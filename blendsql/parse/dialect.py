@@ -1,205 +1,174 @@
 import typing as t
-import itertools
 import sqlglot.dialects
 from sqlglot.dialects import SQLite, Postgres, DuckDB
 from sqlglot.tokens import TokenType
 from sqlglot.schema import Schema, MappingSchema
-from sqlglot import exp, parse_one, alias
-from sqlglot.optimizer import qualify_columns as qc
-from sqlglot.errors import OptimizeError
-from sqlglot.optimizer.scope import traverse_scope, Scope
+from sqlglot import exp, parse_one
 from typing import Union, Optional
-import string
+from sqlglot import exp
+from sqlglot.dialects.dialect import Dialect, DialectType
+from sqlglot.optimizer.isolate_table_selects import isolate_table_selects
+from sqlglot.optimizer.qualify_columns import (
+    pushdown_cte_alias_columns as pushdown_cte_alias_columns_func,
+    qualify_columns as qualify_columns_func,
+    quote_identifiers as quote_identifiers_func,
+    validate_qualify_columns as validate_qualify_columns_func,
+)
+from sqlglot.optimizer.qualify_tables import qualify_tables
+from sqlglot.schema import Schema, ensure_schema
 
-from blendsql.parse.checks import INGREDIENT_PATTERN, is_ingredient_node
+import sqlglot
+from sqlglot import TokenType
+from sqlglot.dialects.duckdb import DuckDB
+from sqlglot import expressions as exp
 
-INGREDIENT_TOKEN_TYPE_MAPPING: t.Dict[str, TokenType] = {
-    "{{" + f"{letter}()" + "}}": TokenType.FUNCTION for letter in string.ascii_uppercase
-}
+# Use existing TokenType values that are rarely used in SQL
+# We'll repurpose BLOCK_START and BLOCK_END for our function brackets
+L_FUNC_BRACKET = TokenType.BLOCK_START  # {{
+R_FUNC_BRACKET = TokenType.BLOCK_END  # }}
 
 
-def _qualify_outputs(scope: Scope) -> None:
-    """Ensure all output columns are aliased"""
-    new_selections = []
+class BlendSQLFunction(exp.Expression):
+    """Custom AST node for function calls within {{ }} brackets"""
 
-    for i, (selection, aliased_column) in enumerate(
-        itertools.zip_longest(scope.expression.selects, scope.outer_column_list)
-    ):
-        identifier_node = selection.find(exp.Identifier)
-        if isinstance(selection, exp.Subquery) or (
-            identifier_node is not None and is_ingredient_node(identifier_node)
-        ):
-            if not selection.output_name:
-                selection.set(
-                    "alias", exp.TableAlias(this=exp.to_identifier(f"_col_{i}"))
+    arg_types = {"fn_args": False, "fn_kwargs": False}
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @property
+    def fn_args(self):
+        """Get the function expression"""
+        return self.args.get("fn_args")
+
+    @property
+    def fn_kwargs(self):
+        """Get the keyword arguments"""
+        return self.args.get("fn_kwargs", [])
+
+
+class KeywordArgument(exp.Expression):
+    """Represents a keyword argument like quantifier='{3}'"""
+
+    arg_types = {"name": True, "value": True}
+
+    @property
+    def name(self):
+        return self.args.get("name")
+
+    @property
+    def value(self):
+        return self.args.get("value")
+
+
+class BlendSQLDialect(sqlglot.Dialect):
+    class Tokenizer(sqlglot.Tokenizer):
+        # Add our custom token mappings using existing TokenType values
+        KEYWORDS = {
+            **sqlglot.Tokenizer.KEYWORDS,
+            "{{": L_FUNC_BRACKET,
+            "}}": R_FUNC_BRACKET,
+        }
+
+    class Parser(sqlglot.Parser):
+        def _parse_primary(self):
+            """Override primary parsing to handle our function brackets"""
+            # Check if we have a function bracket
+            if self._match(L_FUNC_BRACKET):
+                return self._parse_function_bracket()
+
+            # Otherwise, use the default primary parsing
+            return super()._parse_primary()
+
+        def _parse_function_bracket(self):
+            """Parse content within {{ }} specifically as a function call with keyword args"""
+            # We've already consumed the {{ token
+
+            # Parse the function name
+            func_name = self._parse_id_var()
+            if not func_name:
+                self.raise_error("Expected function name within {{ }} brackets")
+
+            # Expect opening parenthesis
+            if not self._match(TokenType.L_PAREN):
+                self.raise_error("Expected '(' after function name")
+
+            # Parse positional arguments and keyword arguments
+            args = []
+            kwargs = []
+
+            # Parse arguments until we hit the closing parenthesis
+            while self._curr and self._curr.token_type != TokenType.R_PAREN:
+                # Check if this looks like a keyword argument (identifier followed by =)
+                if (
+                    self._curr.token_type == TokenType.VAR
+                    and self._index + 1 < len(self._tokens)
+                    and self._tokens[self._index + 1].token_type == TokenType.EQ
+                ):
+                    keyword_name = self._curr.text
+                    value = self._parse_conjunction()
+                    kwargs.append(
+                        KeywordArgument(
+                            name=exp.Identifier(this=keyword_name),
+                            value=value.expression,
+                        )
+                    )
+                else:
+                    # Parse as positional argument
+                    arg = self._parse_conjunction()
+                    args.append(arg)
+
+                # Handle comma separation
+                if self._match(TokenType.COMMA):
+                    continue
+                elif self._curr and self._curr.token_type == TokenType.R_PAREN:
+                    break
+                else:
+                    self.raise_error("Expected ',' or ')' in function arguments")
+
+            # Consume the closing parenthesis
+            if not self._match(TokenType.R_PAREN):
+                self.raise_error("Expected ')' to close function arguments")
+
+            # Expect the closing }} bracket
+            if not self._match(R_FUNC_BRACKET):
+                self.raise_error("Expected '}}' to close function bracket")
+
+            # Create a custom AST node to represent our function bracket
+            return BlendSQLFunction(this=func_name.name, fn_args=args, fn_kwargs=kwargs)
+
+    class Generator(sqlglot.Generator):
+        def blendsqlfunction_sql(self, expression: BlendSQLFunction) -> str:
+            """Generate SQL for BlendSQLFunction nodes"""
+            func_sql = f"{expression.name}("
+            arg_sql, kwarg_sql = None, None
+            if expression.fn_args is not None:
+                arg_sql = ", ".join([self.sql(arg) for arg in expression.fn_args])
+            if expression.fn_kwargs is not None:
+                kwarg_sql = ", ".join(
+                    [self.sql(kwarg) for kwarg in expression.fn_kwargs]
                 )
-        elif not isinstance(selection, exp.Alias) and not selection.is_star:
-            selection = alias(
-                selection,
-                alias=selection.output_name or f"_col_{i}",
-            )
-        if aliased_column:
-            selection.set("alias", exp.to_identifier(aliased_column))
+            combined = [i for i in [arg_sql, kwarg_sql] if i]
+            func_sql += f"{', '.join(combined)})"
+            return f"{{{{{func_sql}}}}}"
 
-        new_selections.append(selection)
-
-    scope.expression.set("expressions", new_selections)
+        def keywordargument_sql(self, expression: KeywordArgument) -> str:
+            """Generate SQL for KeywordArgument nodes"""
+            name_sql = self.sql(expression.name)
+            value_sql = self.sql(expression.value)
+            return f"{name_sql}={value_sql}"
 
 
-def _qualify_columns(scope: Scope, resolver: qc.Resolver) -> None:
-    """Disambiguate columns, ensuring each column specifies a source"""
-    for column in scope.columns:
-        column_table = column.table
-        column_name = column.name
-        if INGREDIENT_PATTERN.match(column_name) is not None:
-            continue
-
-        if column_table and column_table in scope.sources:
-            source_columns = resolver.get_source_columns(column_table)
-            if (
-                source_columns
-                and column_name not in source_columns
-                and "*" not in source_columns
-            ):
-                raise OptimizeError(f"Unknown column: {column_name}")
-
-        if not column_table:
-            if scope.pivots and not column.find_ancestor(exp.Pivot):
-                # If the column is under the Pivot expression, we need to qualify it
-                # using the name of the pivoted source instead of the pivot's alias
-                column.set("table", exp.to_identifier(scope.pivots[0].alias))
-                continue
-
-            column_table = resolver.get_table(column_name)
-
-            # column_table can be a '' because bigquery unnest has no table alias
-            if column_table:
-                column.set("table", column_table)
-        elif column_table not in scope.sources and (
-            not scope.parent or column_table not in scope.parent.sources
-        ):
-            # structs are used like tables (e.g. "struct"."field"), so they need to be qualified
-            # separately and represented as dot(dot(...(<table>.<column>, field1), field2, ...))
-
-            root, *parts = column.parts
-
-            if root.name in scope.sources:
-                # struct is already qualified, but we still need to change the AST representation
-                column_table = root
-                root, *parts = parts
-            else:
-                column_table = resolver.get_table(root.name)
-
-            if column_table:
-                column.replace(
-                    exp.Dot.build([exp.column(root, table=column_table), *parts])
-                )
-
-    for pivot in scope.pivots:
-        for column in pivot.find_all(exp.Column):
-            if INGREDIENT_PATTERN.match(column.name) is not None:
-                continue
-            if not column.table and column.name in resolver.all_columns:
-                column_table = resolver.get_table(column.name)
-                if column_table:
-                    column.set("table", column_table)
+class BlendSQLDuckDB(BlendSQLDialect, DuckDB):
+    pass
 
 
-def qualify_columns(
-    expression: exp.Expression,
-    schema: Union[dict, Schema],
-    expand_alias_refs: bool = True,
-    infer_schema: Optional[bool] = None,
-) -> exp.Expression:
-    """
-    *******************************************************
-    Below is copied from sqlglot.optimizer.qualify_columns.
-    We remove the '_expand_stars()' call.
-    *******************************************************
-
-    Rewrite sqlglot AST to have fully qualified columns.
-
-    Example:
-        >>> import sqlglot
-        >>> schema = {"tbl": {"col": "INT"}}
-        >>> expression = sqlglot.parse_one("SELECT col FROM tbl")
-        >>> qualify_columns(expression, schema).sql()
-        'SELECT tbl.col AS col FROM tbl'
-
-    Args:
-        expression: Expression to qualify.
-        schema: Database schema.
-        expand_alias_refs: Whether or not to expand references to aliases.
-        infer_schema: Whether or not to infer the schema if missing.
-
-    Returns:
-        The qualified expression.
-    """
-
-    schema = qc.ensure_schema(schema)
-    infer_schema = schema.empty if infer_schema is None else infer_schema
-
-    for scope in traverse_scope(expression):
-        resolver = qc.Resolver(scope, schema, infer_schema=infer_schema)
-        qc._pop_table_column_aliases(scope.ctes)
-        qc._pop_table_column_aliases(scope.derived_tables)
-
-        if schema.empty and expand_alias_refs:
-            qc._expand_alias_refs(scope, resolver)
-
-        _qualify_columns(scope, resolver)
-
-        if not schema.empty and expand_alias_refs:
-            qc._expand_alias_refs(scope, resolver)
-
-        if not isinstance(scope.expression, exp.UDTF):
-            _qualify_outputs(scope)
-
-        qc._expand_group_by(scope)
-        qc._expand_order_by(scope, resolver)
-
-    return expression
+class BlendSQLPostgres(BlendSQLDialect, Postgres):
+    pass
 
 
-def glob_to_match(self: SQLite.Generator, expression: exp.Where) -> str:
-    return f"{expression.this.sql(dialect=BlendSQLSQLite)} MATCH {expression.expression.sql(dialect=BlendSQLSQLite)}"
-
-
-class BlendSQLDuckDB(DuckDB):
-    class Tokenizer(DuckDB.Tokenizer):
-        KEYWORDS = {
-            **{
-                **DuckDB.Tokenizer.KEYWORDS,
-            },
-            **INGREDIENT_TOKEN_TYPE_MAPPING,
-        }
-
-
-class BlendSQLPostgres(Postgres):
-    class Tokenizer(Postgres.Tokenizer):
-        KEYWORDS = {
-            **{
-                **Postgres.Tokenizer.KEYWORDS,
-            },
-            **INGREDIENT_TOKEN_TYPE_MAPPING,
-        }
-
-
-class BlendSQLSQLite(SQLite):
-    class Tokenizer(SQLite.Tokenizer):
-        KEYWORDS = {
-            **{
-                **SQLite.Tokenizer.KEYWORDS,
-                "MATCH": TokenType.GLOB,
-            },
-            **INGREDIENT_TOKEN_TYPE_MAPPING,
-        }
-
-    class Generator(SQLite.Generator):
-        TRANSFORMS = {
-            **SQLite.Generator.TRANSFORMS,
-            exp.Glob: glob_to_match,
-        }
+class BlendSQLSQLite(BlendSQLDialect, SQLite):
+    pass
 
 
 def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
@@ -213,6 +182,97 @@ def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
         raise ValueError(f"Unknown db_type {db_type}")
 
 
+def qualify(
+    expression: exp.Expression,
+    dialect: DialectType = None,
+    db: t.Optional[str] = None,
+    catalog: t.Optional[str] = None,
+    schema: t.Optional[dict | Schema] = None,
+    expand_alias_refs: bool = True,
+    expand_stars: bool = True,
+    infer_schema: t.Optional[bool] = None,
+    isolate_tables: bool = False,
+    qualify_columns: bool = True,
+    allow_partial_qualification: bool = False,
+    validate_qualify_columns: bool = True,
+    quote_identifiers: bool = True,
+    identify: bool = True,
+    infer_csv_schemas: bool = False,
+) -> exp.Expression:
+    """
+    Rewrite sqlglot AST to have normalized and qualified tables and columns.
+
+    This step is necessary for all further SQLGlot optimizations.
+
+    Example:
+        >>> import sqlglot
+        >>> schema = {"tbl": {"col": "INT"}}
+        >>> expression = sqlglot.parse_one("SELECT col FROM tbl")
+        >>> qualify(expression, schema=schema).sql()
+        'SELECT "tbl"."col" AS "col" FROM "tbl" AS "tbl"'
+
+    Args:
+        expression: Expression to qualify.
+        db: Default database name for tables.
+        catalog: Default catalog name for tables.
+        schema: Schema to infer column names and types.
+        expand_alias_refs: Whether to expand references to aliases.
+        expand_stars: Whether to expand star queries. This is a necessary step
+            for most of the optimizer's rules to work; do not set to False unless you
+            know what you're doing!
+        infer_schema: Whether to infer the schema if missing.
+        isolate_tables: Whether to isolate table selects.
+        qualify_columns: Whether to qualify columns.
+        allow_partial_qualification: Whether to allow partial qualification.
+        validate_qualify_columns: Whether to validate columns.
+        quote_identifiers: Whether to run the quote_identifiers step.
+            This step is necessary to ensure correctness for case sensitive queries.
+            But this flag is provided in case this step is performed at a later time.
+        identify: If True, quote all identifiers, else only necessary ones.
+        infer_csv_schemas: Whether to scan READ_CSV calls in order to infer the CSVs' schemas.
+
+    Returns:
+        The qualified expression.
+    """
+    schema = ensure_schema(schema, dialect=dialect)
+    expression = qualify_tables(
+        expression,
+        db=db,
+        catalog=catalog,
+        schema=schema,
+        dialect=dialect,
+        infer_csv_schemas=infer_csv_schemas,
+    )
+    # COMMENTED OUT THE LINE BELOW
+    # expression = normalize_identifiers(expression, dialect=dialect)
+
+    if isolate_tables:
+        expression = isolate_table_selects(expression, schema=schema)
+
+    if Dialect.get_or_raise(dialect).PREFER_CTE_ALIAS_COLUMN:
+        expression = pushdown_cte_alias_columns_func(expression)
+
+    if qualify_columns:
+        expression = qualify_columns_func(
+            expression,
+            schema,
+            expand_alias_refs=expand_alias_refs,
+            expand_stars=expand_stars,
+            infer_schema=infer_schema,
+            allow_partial_qualification=allow_partial_qualification,
+        )
+
+    if quote_identifiers:
+        expression = quote_identifiers_func(
+            expression, dialect=dialect, identify=identify
+        )
+
+    if validate_qualify_columns:
+        validate_qualify_columns_func(expression)
+
+    return expression
+
+
 def _parse_one(
     sql: Union[str, exp.Expression],
     dialect: sqlglot.Dialect,
@@ -224,10 +284,12 @@ def _parse_one(
     if isinstance(sql, str):
         node = parse_one(sql, dialect=dialect)
     if schema is not None:
-        node = qualify_columns(
+        node = qualify(
             expression=node,
             schema=MappingSchema(schema, dialect=dialect, normalize=False),
             expand_alias_refs=False,
+            expand_stars=False,
+            quote_identifiers=False,
         )
     return node
 

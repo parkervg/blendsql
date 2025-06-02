@@ -6,13 +6,11 @@ https://github.com/tobymao/sqlglot
 
 from typing import Union, Type, Tuple
 
-import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.scope import find_in_scope
 
 from . import checks as check
 from .constants import SUBQUERY_EXP
-from .dialect import _parse_one
 
 
 def extract_multi_table_predicates(
@@ -179,79 +177,23 @@ def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
     Used with node.transform()
     """
     # Case 1: we have an Ingredient in isolation
-    if check.is_ingredient_node(node):
+    if isinstance(node, exp.BlendSQLFunction):
         return exp.true()
     # Case 2: we have an Ingredient within a predicate (=, <, >, IN, etc.)
     if isinstance(node, exp.Predicate):
         # Traverse over all nodes in predicate args,
         #   to handle case when we have nested function calls
         #   Example: `LENGTH(UPPER({{LLMMap()}})) > 3`
-        for arg_node in node.args.values():
-            if not isinstance(arg_node, exp.Expression):
-                # Could be  'expressions': [(LITERAL), (LITERAL)]}
-                continue
-            if check.is_ingredient_node(arg_node):
-                return exp.true()
-            if any(check.is_ingredient_node(node) for _, node, _ in arg_node.walk()):
-                return exp.true()
-    return node
-
-
-def replace_join_with_ingredient_multiple_ingredient(
-    node: exp.Where, ingredient_alias: str, dialect: sqlglot.Dialect, temp_uuid: str
-) -> Union[exp.Expression, None]:
-    """
-
-    Used with node.transform()
-
-    sqlglot re-orders `WHERE` conditions to appear in `JOIN`:
-
-    SELECT * FROM documents JOIN "w" ON {{B()}} WHERE w.film = {{A()}}
-    SELECT * FROM documents JOIN "w" ON w.film = {{A()}}  AND  {{B()}}  WHERE TRUE
-    """
-    if isinstance(node, exp.Join):
-        child_ingredient_nodes = [
-            n for n in node.find_all(exp.Identifier) if check.is_ingredient_node(n)
-        ]
-        to_return = []
-        join_alias: str = ""
-        for child_ingredient_node in child_ingredient_nodes:
-            if child_ingredient_node.this == ingredient_alias:
-                join_alias = ingredient_alias
-                continue
-            to_return.append(child_ingredient_node.sql(dialect=dialect))
-        if len(to_return) == 0:
-            return node
-        if join_alias == "":
-            raise ValueError
-        # temp_uuid is used to ensure a partial query that is parse-able by sqlglot
-        # This gets removed after
-        return _parse_one(
-            f' SELECT "{temp_uuid}", '
-            + join_alias
-            + " WHERE "
-            + " AND ".join(to_return),
-            dialect=dialect,
-        )
-    return node
-
-
-def replace_join_with_ingredient_single_ingredient(
-    node: exp.Where, dialect: sqlglot.Dialect, ingredient_alias: str
-) -> Union[exp.Expression, None]:
-    """
-
-    Used with node.transform()
-    """
-    if isinstance(node, exp.Join):
-        child_ingredient_nodes = [
-            n for n in node.find_all(exp.Identifier) if check.is_ingredient_node(n)
-        ]
-        if len(child_ingredient_nodes) > 0:
-            assert len(child_ingredient_nodes) == 1
-            child_ingredient_node = child_ingredient_nodes[0]
-            if child_ingredient_node.this == ingredient_alias:
-                return _parse_one(f" {ingredient_alias} ", dialect=dialect)
+        if node.find(exp.BlendSQLFunction):
+            return exp.true()
+        # for arg_node in node.args.values():
+        #     if not isinstance(arg_node, exp.Expression):
+        #         # Could be  'expressions': [(LITERAL), (LITERAL)]}
+        #         continue
+        #     if isinstance(node, exp.BlendSQLFunction):
+        #         return exp.true()
+        #     if arg_node.find(exp.BlendSQLFunction):
+        #         return exp.true()
     return node
 
 
@@ -297,7 +239,7 @@ def remove_ctes(node, with_ingredients_only=False):
     if isinstance(node, exp.With):
         if with_ingredients_only:
             print()
-            if check.is_ingredient_node(node):
+            if isinstance(node, exp.BlendSQLFunction):
                 pass
         else:
             return None

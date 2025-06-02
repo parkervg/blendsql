@@ -715,6 +715,11 @@ class QAIngredient(Ingredient):
 
         if question is not None:
             if "{}" in question:
+                if subtable is None:
+                    raise IngredientException(
+                        f"Passed question with string template '{question}', but no context was passed to fill!"
+                    )
+                unpacked_values = list(subtable.values.flat)
                 if len(unpacked_values) > 1:
                     logger.debug(
                         Fore.RED

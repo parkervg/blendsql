@@ -5,6 +5,7 @@ import typing as t
 from ast import literal_eval
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
+from colorama import Fore
 
 from blendsql.common.utils import get_tablename_colname
 from ..types import QuantifierType, DataTypes
@@ -14,37 +15,6 @@ from . import transforms as transform
 from .constants import SUBQUERY_EXP
 from .utils import set_select_to
 from blendsql.common.logger import logger
-
-
-def get_predicate_literals(node) -> t.List[str]:
-    """From a given SQL clause, gets all literals appearing as object of predicate.
-    (We treat booleans as literals here, which might be a misuse of terminology.)
-
-    Examples:
-        >>> get_predicate_literals(_parse_one("{{Model('year', 'w::year')}} IN ('2010', '2011', '2012')"))
-        ['2010', '2011', '2012']
-    """
-    literals = set()
-    gen = node.walk()
-    _ = next(gen)
-    if isinstance(node.parent, exp.Select):
-        return []
-    for child, _, _ in gen:
-        if check.ingredient_node_in_ancestors(child) or check.is_ingredient_node(child):
-            continue
-        if isinstance(child, exp.Literal):
-            literals.add(
-                literal_eval(child.name) if not child.is_string else child.name
-            )
-            continue
-        elif isinstance(child, exp.Boolean):
-            literals.add(child.args["this"])
-            continue
-        for i in child.find_all(exp.Literal):
-            if check.ingredient_node_in_ancestors(i):
-                continue
-            literals.add(literal_eval(i.name) if not i.is_string else i.name)
-    return list(literals)
 
 
 def get_reversed_subqueries(node):
@@ -217,14 +187,11 @@ class SubqueryContextManager:
         elif (
             len(
                 list(
-                    filter(
-                        lambda node: check.is_ingredient_node(node),
-                        get_scope_nodes(
-                            root=self.root,
-                            nodetype=exp.Identifier,
-                            restrict_scope=True,
-                        ),
-                    )
+                    get_scope_nodes(
+                        root=self.root,
+                        nodetype=exp.BlendSQLFunction,
+                        restrict_scope=True,
+                    ),
                 )
             )
             == 0
@@ -232,6 +199,7 @@ class SubqueryContextManager:
             return
 
         self._gather_alias_mappings()
+        abstracted_query = self.node.transform(transform.set_ingredient_nodes_to_true)
         # Special condition: If we *only* have an ingredient in the top-level `SELECT` clause
         # ... then we should execute entire rest of SQL first and assign to temporary session table.
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
@@ -244,9 +212,6 @@ class SubqueryContextManager:
             and check.ingredients_only_in_top_select(self.node)
             and not check.ingredient_alias_in_query_body(self.node)
         ):
-            abstracted_query = self.node.transform(
-                transform.set_ingredient_nodes_to_true
-            )
             for (
                 tablename,
                 columnnames,
@@ -261,13 +226,9 @@ class SubqueryContextManager:
             return
 
         # Base case is below
-        abstracted_query = (
-            self.node.transform(transform.set_ingredient_nodes_to_true)
-            # TODO: is the below complete?
-            .transform(
-                transform.remove_nodetype,
-                (exp.Order, exp.Limit, exp.Group, exp.Offset, exp.Having),
-            )
+        abstracted_query = abstracted_query.transform(
+            transform.remove_nodetype,
+            (exp.Order, exp.Limit, exp.Group, exp.Offset, exp.Having),
         )
         # If our previous subquery has an ingredient, we can't optimize with subquery condition
         # So, remove this subquery constraint and run
@@ -371,7 +332,7 @@ class SubqueryContextManager:
             }
             self.alias_to_subquery |= curr_alias_to_subquery
 
-    def infer_gen_constraints(self, start: int, end: int) -> dict:
+    def infer_gen_constraints(self, function_node: exp.Expression) -> dict:
         """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
             downstream Model generations.
 
@@ -401,32 +362,19 @@ class SubqueryContextManager:
                     - Will have the form '{table}.{column}'
         """
         added_kwargs: t.Dict[str, t.Any] = {}
-        ingredient_node = _parse_one(self.sql()[start:end], dialect=self.dialect)
-        if isinstance(ingredient_node, exp.Column):
-            ingredient_node = ingredient_node.find(exp.Identifier)
-        child = None
-        for child in self.node.find_all(exp.Identifier):
-            if child == ingredient_node:
-                break
-        if child is None:
-            raise ValueError
-        if isinstance(child, exp.Identifier):
-            _parent = child.parent
-            if isinstance(_parent, exp.Column):
-                child = _parent
-        if isinstance(child.parent, exp.Select):
+        if isinstance(function_node.parent, exp.Select):
             # We don't want to traverse up in cases of `SELECT {{A()}} FROM table WHERE x < y`
-            start_node = child
+            parent_node = function_node
         else:
-            start_node = child.parent
+            parent_node = function_node.parent
         predicate_literals: t.List[str] = []
         quantifier: QuantifierType = None
         # Check for instances like `{column} = {QAIngredient}`
         # where we can infer the space of possible options for QAIngredient
-        if isinstance(start_node, (exp.EQ, exp.In)):
-            if isinstance(start_node.args["this"], exp.Column):
-                if "table" not in start_node.args["this"].args:
-                    if not check.contains_ingredient(start_node):
+        if isinstance(parent_node, (exp.EQ, exp.In)):
+            if isinstance(parent_node.args["this"], exp.Column):
+                if "table" not in parent_node.args["this"].args:
+                    if not isinstance(parent_node, exp.BlendSQLFunction):
                         logger.debug(
                             f"When inferring `options` in infer_gen_kwargs, encountered column node `{start_node}` with "
                             "no table specified!\nShould probably mark `schema_qualify` arg as True"
@@ -435,27 +383,35 @@ class SubqueryContextManager:
                     # This is valid for a default `options` set
                     added_kwargs[
                         "options"
-                    ] = f"{start_node.args['this'].args['table'].name}.{start_node.args['this'].args['this'].name}"
-        if isinstance(start_node, (exp.In, exp.Tuple, exp.Values)):
-            if isinstance(start_node, (exp.Tuple, exp.Values)):
+                    ] = f"{parent_node.args['this'].args['table'].name}.{parent_node.args['this'].args['this'].name}"
+        if isinstance(parent_node, (exp.Tuple, exp.Values)):
+            if isinstance(parent_node, (exp.Tuple, exp.Values)):
                 added_kwargs["wrap_tuple_in_parentheses"] = False
             # If the ingredient is in the 2nd arg place
             # E.g. not `{{LLMMap()}} IN ('a', 'b')`
             # Only `column IN {{LLMQA()}}`
-            field_val = start_node.args.get("field", None)
+            field_val = parent_node.args.get("field", None)
             if field_val is not None:
-                if child == field_val:
+                if parent_node == field_val:
                     quantifier = "+"
-            expressions_val = start_node.args.get("expressions")
+            expressions_val = parent_node.args.get("expressions")
             if expressions_val is not None:
                 if len(expressions_val) > 0:
-                    if child == expressions_val[0]:
+                    if function_node == expressions_val[0]:
                         quantifier = "+"
-        if start_node is not None:
-            predicate_literals = get_predicate_literals(start_node)
+        if parent_node is not None and parent_node.expression is not None:
+            predicate_literals = [
+                literal_eval(i.this) if not i.is_string else i.this
+                for i in parent_node.expression.find_all(exp.Literal)
+            ]
         # Try to infer output type given the literals we've been given
         # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
         if len(predicate_literals) > 0:
+            logger.debug(
+                Fore.LIGHTBLACK_EX
+                + f"Extracted predicate literals `{predicate_literals}`"
+                + Fore.RESET
+            )
             if all(isinstance(x, bool) for x in predicate_literals):
                 output_type = DataTypes.BOOL(quantifier)
             elif all(isinstance(x, float) for x in predicate_literals):
@@ -470,7 +426,7 @@ class SubqueryContextManager:
                 added_kwargs["example_outputs"] = predicate_literals
                 return added_kwargs
         elif len(predicate_literals) == 0 and isinstance(
-            start_node,
+            parent_node,
             (
                 exp.Order,
                 exp.Ordered,
@@ -482,9 +438,9 @@ class SubqueryContextManager:
                 exp.Sum,
             ),
         ):
-            output_type = DataTypes.FLOAT(
+            output_type = DataTypes.NUMERIC(
                 quantifier
-            )  # Use 'float' as default numeric regex, since it's more expressive than 'integer'
+            )  # `Numeric` = `t.Union[int, float]`
         elif quantifier:
             # Fallback to a generic list datatype
             output_type = DataTypes.STR(quantifier)
