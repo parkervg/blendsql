@@ -575,12 +575,14 @@ class JoinIngredient(Ingredient):
             }
         )
         self.db.to_temp_table(df=joined_values_df, tablename=temp_join_tablename)
+        if right_tablename in aliases_to_tablenames:
+            join_right_clause = f"""JOIN "{aliases_to_tablenames[right_tablename]}" AS "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right"""
+        else:
+            join_right_clause = f"""JOIN "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right"""
         return (
             left_tablename,
             right_tablename,
-            f"""JOIN "{temp_join_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left
-              JOIN "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right
-              """,
+            f"""JOIN "{temp_join_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left\n{join_right_clause}""",
             temp_join_tablename,
         )
 

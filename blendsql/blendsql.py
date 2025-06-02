@@ -18,7 +18,6 @@ from blendsql.common.logger import logger
 from blendsql.common.utils import (
     get_temp_session_table,
     get_temp_subquery_table,
-    get_tablename_colname,
 )
 from blendsql.common.exceptions import InvalidBlendSQL
 from blendsql.db.database import Database
@@ -130,12 +129,6 @@ def autowrap_query(
                     alias,
                     f"""SELECT {alias}""",
                 )
-        elif current_function.ingredient_type == IngredientType.JOIN:
-            right_table, _ = get_tablename_colname(d["kwargs_dict"]["right_on"])
-            query = query.replace(
-                alias,
-                f'"{right_table}" ON {alias}',
-            )
         else:
             continue
     return query
@@ -395,7 +388,6 @@ def _blend(
     query_context = QueryContextManager(dialect)
     query_context.parse(query, schema=db.sqlglot_schema)
 
-    naive_execution = False
     session_uuid = str(uuid.uuid4())[:4]
     if ingredients is None:
         ingredients = []
@@ -579,45 +571,37 @@ def _blend(
                     + f"and setting to `{tablename_to_write}`..."
                     + Fore.RESET
                 )
-                try:
-                    abstracted_df = db.execute_to_df(abstracted_query_str)
-                    if aliased_subquery is None:
-                        if postprocess_columns:
-                            if isinstance(db, DuckDB):
-                                # TODO: fix this
-                                # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
-                                # Gives:
-                                #   id  country_id                    name   id_1   name_1
-                                #   0      1           1  Belgium Jupiler League      1  Belgium
-                                #   1   1729        1729  England Premier League   1729  England
-                                #   2   4769        4769          France Ligue 1   4769   France
-                                #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
-                                #   4  10257       10257           Italy Serie A  10257    Italy
-                                # But, below we remove the columns with underscores. we need those.
-                                set_of_column_names = set(schema[tablename])
-                                # In case of a join, duckdb formats columns with 'column_1'
-                                # But some columns (e.g. 'parent_category') just have underscores in them already
-                                abstracted_df = abstracted_df.rename(
-                                    columns=lambda x: re.sub(r"_\d$", "", x)
-                                    if x not in set_of_column_names  # noqa: B023
-                                    else x
-                                )
-                            # In case of a join, we could have duplicate column names in our pandas dataframe
-                            # This will throw an error when we try to write to the database
-                            abstracted_df = abstracted_df.loc[
-                                :, ~abstracted_df.columns.duplicated()
-                            ]
-                    db.to_temp_table(
-                        df=abstracted_df,
-                        tablename=tablename_to_write,
-                    )
-                except Exception as e:
-                    # Fallback to naive execution
-                    logger.debug(Fore.RED + str(e) + Fore.RESET)
-                    logger.debug(
-                        Fore.RED + "Falling back to naive execution..." + Fore.RESET
-                    )
-                    naive_execution = True
+                abstracted_df = db.execute_to_df(abstracted_query_str)
+                if aliased_subquery is None:
+                    if postprocess_columns:
+                        if isinstance(db, DuckDB):
+                            # TODO: fix this
+                            # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
+                            # Gives:
+                            #   id  country_id                    name   id_1   name_1
+                            #   0      1           1  Belgium Jupiler League      1  Belgium
+                            #   1   1729        1729  England Premier League   1729  England
+                            #   2   4769        4769          France Ligue 1   4769   France
+                            #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
+                            #   4  10257       10257           Italy Serie A  10257    Italy
+                            # But, below we remove the columns with underscores. we need those.
+                            set_of_column_names = set(db.sqlglot_schema[tablename])
+                            # In case of a join, duckdb formats columns with 'column_1'
+                            # But some columns (e.g. 'parent_category') just have underscores in them already
+                            abstracted_df = abstracted_df.rename(
+                                columns=lambda x: re.sub(r"_\d$", "", x)
+                                if x not in set_of_column_names  # noqa: B023
+                                else x
+                            )
+                        # In case of a join, we could have duplicate column names in our pandas dataframe
+                        # This will throw an error when we try to write to the database
+                        abstracted_df = abstracted_df.loc[
+                            :, ~abstracted_df.columns.duplicated()
+                        ]
+                db.to_temp_table(
+                    df=abstracted_df,
+                    tablename=tablename_to_write,
+                )
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
             db.lazy_tables.add(
@@ -772,45 +756,14 @@ def _blend(
                 # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
                 join_node = query_context.node.find(exp.Join)
                 assert join_node is not None
-                num_ingredients_in_join = check.get_ingredient_count(join_node)
-                if num_ingredients_in_join > 1:
-                    # Case where we have
-                    # `SELECT * FROM w0 JOIN w0 ON {{B()}} > 1 AND {{A()}} WHERE TRUE`
-                    # Since we haven't executed and saved `{{B()}}` to temp table yet,
-                    #   we need to keep. So we get:
-                    temp_uuid = str(uuid.uuid4())
-                    _node = query_context.node.transform(
-                        transform.replace_join_with_ingredient_multiple_ingredient,
-                        ingredient_alias=alias_function_str,
-                        dialect=dialect,
-                        temp_uuid=temp_uuid,
-                    ).transform(transform.prune_true_where)
-                    query_context.parse(
-                        str(_node).replace(f'SELECT "{temp_uuid}", ', ""),
-                        schema=db.sqlglot_schema,
-                    )
-                else:
-                    # Case where we have
-                    # `SELECT * FROM w0 JOIN w0 ON w0.x > 1 AND {{A()}} WHERE TRUE`
-                    # Since we've already applied SQL operation `w0.x > 1` and set to temp table
-                    # we can remove this. So below we transform to:
-                    # `SELECT * FROM w0 {{A()}}  WHERE TRUE`
-                    # This way, `{{A()}}` can get replaced with our new join
-                    # TODO: since we're not removing predicates in other areas, probably not best to do it here.
-                    #   Should probably modify in the future.
-                    query_context.node = query_context.node.transform(
-                        transform.replace_join_with_ingredient_single_ingredient,
-                        dialect=dialect,
-                        # ingredient_name=parsed_results_dict["ingredient_aliasname"],
-                        ingredient_alias=alias_function_str,
-                    )
+                join_node.replace(
+                    exp.Column(this=exp.Identifier(this=alias_function_str))
+                )
                 function_call_to_res[alias_function_str] = join_clause
             else:
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                 )
-            if naive_execution:
-                break
         # Combine all the retrieved ingredient outputs
         for tablename, ingredient_outputs in tablename_to_map_out.items():
             if len(ingredient_outputs) > 0:

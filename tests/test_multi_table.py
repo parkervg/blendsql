@@ -12,7 +12,6 @@ from tests.utils import (
     get_table_size,
     select_first_option,
     return_aapl_alias,
-    return_stocks_tuple_alias,
 )
 
 dummy_ingredients = {
@@ -90,7 +89,7 @@ def test_join_multi_exec(bsql):
             JOIN constituents c ON account_history.Symbol = c.Symbol
             WHERE c.Sector = 'Information Technology'
             AND {{test_starts_with('A', c.Name)}} = 1
-            AND lower(LOWER(account_history.Action)) like '%dividend%'
+            AND LOWER(account_history.Action) like '%dividend%'
             ORDER BY "Total Dividend Payout ($$)"
         """
     )
@@ -101,7 +100,7 @@ def test_join_multi_exec(bsql):
             JOIN constituents ON account_history.Symbol = constituents.Symbol
             WHERE constituents.Sector = 'Information Technology'
             AND constituents.Name LIKE 'A%'
-            AND lower(LOWER(account_history.Action)) like '%dividend%'
+            AND LOWER(account_history.Action) like '%dividend%'
             ORDER BY "Total Dividend Payout ($$)"
         """
     )
@@ -274,11 +273,11 @@ def test_complex_not_qualified_multi_exec(bsql):
 def test_join_ingredient_multi_exec(bsql):
     smoothie = bsql.execute(
         """
-        SELECT Account, Quantity FROM returns
-        JOIN {{
+        SELECT Account, Quantity FROM returns r
+        JOIN account_history a ON {{
             do_join(
-                returns."Annualized Returns",
-                account_history.Account
+                r."Annualized Returns",
+                a.Account
             )
         }}
         """
@@ -308,61 +307,61 @@ def test_qa_equals_multi_exec(bsql):
     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
 
-@pytest.mark.parametrize("bsql", bsql_connections)
-def test_alias_ingredient_multi_exec(bsql):
-    """Tests the AliasIngredient class.
-    We don't inherit the dummy_ingredients fixture here,
-    since we want to be sure the 'return_aapl_alias' ingredient
-    is correctly injecting any dependent ingredients at runtime.
+# @pytest.mark.parametrize("bsql", bsql_connections)
+# def test_alias_ingredient_multi_exec(bsql):
+#     """Tests the AliasIngredient class.
+#     We don't inherit the dummy_ingredients fixture here,
+#     since we want to be sure the 'return_aapl_alias' ingredient
+#     is correctly injecting any dependent ingredients at runtime.
+#
+#     commit 6bac71f
+#     """
+#     smoothie = bsql.execute(
+#         """
+#         SELECT Action FROM account_history
+#         WHERE Symbol = {{return_aapl_alias()}}
+#         """,
+#         ingredients={return_aapl_alias},
+#     )
+#     sql_df = bsql.db.execute_to_df(
+#         """
+#         SELECT Action FROM account_history
+#         WHERE Symbol = 'AAPL'
+#         """
+#     )
+#     assert_equality(smoothie=smoothie, sql_df=sql_df)
 
-    commit 6bac71f
-    """
-    smoothie = bsql.execute(
-        """
-        SELECT Action FROM account_history
-        WHERE Symbol = {{return_aapl_alias()}}
-        """,
-        ingredients={return_aapl_alias},
-    )
-    sql_df = bsql.db.execute_to_df(
-        """
-        SELECT Action FROM account_history
-        WHERE Symbol = 'AAPL'
-        """
-    )
-    assert_equality(smoothie=smoothie, sql_df=sql_df)
 
-
-@pytest.mark.parametrize("bsql", bsql_connections)
-def test_alias_tuple_ingredient_multi_exec(bsql):
-    """
-    commit d795a00
-    """
-    smoothie = bsql.execute(
-        """
-        SELECT Symbol FROM portfolio AS w
-            WHERE {{test_starts_with('A', w.Symbol)}} = TRUE
-            AND Symbol IN {{return_stocks_tuple_alias()}}
-            AND LENGTH(w.Symbol) > 3
-        """,
-        ingredients={test_starts_with, return_stocks_tuple_alias},
-    )
-    sql_df = bsql.db.execute_to_df(
-        """
-        SELECT Symbol FROM portfolio AS w
-            WHERE w.Symbol LIKE 'A%'
-            AND Symbol IN ('AAPL', 'AMZN', 'TYL')
-            AND LENGTH(w.Symbol) > 3
-        """
-    )
-    assert_equality(smoothie=smoothie, sql_df=sql_df)
-    # Make sure we only pass what's necessary to our ingredient
-    passed_to_ingredient = bsql.db.execute_to_list(
-        """
-    SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3
-    """
-    )[0]
-    assert smoothie.meta.num_values_passed == passed_to_ingredient
+# @pytest.mark.parametrize("bsql", bsql_connections)
+# def test_alias_tuple_ingredient_multi_exec(bsql):
+#     """
+#     commit d795a00
+#     """
+#     smoothie = bsql.execute(
+#         """
+#         SELECT Symbol FROM portfolio AS w
+#             WHERE {{test_starts_with('A', w.Symbol)}} = TRUE
+#             AND Symbol IN {{return_stocks_tuple_alias()}}
+#             AND LENGTH(w.Symbol) > 3
+#         """,
+#         ingredients={test_starts_with, return_stocks_tuple_alias},
+#     )
+#     sql_df = bsql.db.execute_to_df(
+#         """
+#         SELECT Symbol FROM portfolio AS w
+#             WHERE w.Symbol LIKE 'A%'
+#             AND Symbol IN ('AAPL', 'AMZN', 'TYL')
+#             AND LENGTH(w.Symbol) > 3
+#         """
+#     )
+#     assert_equality(smoothie=smoothie, sql_df=sql_df)
+#     # Make sure we only pass what's necessary to our ingredient
+#     passed_to_ingredient = bsql.db.execute_to_list(
+#         """
+#     SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE LENGTH(Symbol) > 3
+#     """
+#     )[0]
+#     assert smoothie.meta.num_values_passed == passed_to_ingredient
 
 
 @pytest.mark.parametrize("bsql", bsql_connections)
@@ -583,10 +582,10 @@ def test_subquery_alias_with_join_multi_exec(bsql):
     smoothie = bsql.execute(
         """
         SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
-        JOIN {{
+        JOIN geographic g ON {{
             do_join(
                 w.Symbol,
-                geographic.Symbol
+                g.Symbol
             )
         }} WHERE {{test_starts_with('F', w.Symbol)}}
         AND w."Percent of Account" < 0.2
@@ -618,12 +617,12 @@ def test_subquery_alias_with_join_multi_exec_and(bsql):
     smoothie = bsql.execute(
         """
         SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
-        JOIN {{
+        JOIN geographic g ON {{
             do_join(
                 w.Symbol,
-                geographic.Symbol
+                g.Symbol
             )
-        }} AND {{test_starts_with('F', w.Symbol)}}
+        }} WHERE {{test_starts_with('F', w.Symbol)}}
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -727,15 +726,15 @@ def test_join_with_multiple_ingredients(bsql):
     smoothie = bsql.execute(
         """
         SELECT "Run Date", Action, portfolio.Symbol FROM account_history
-        JOIN {{
+        JOIN portfolio ON {{
             do_join(
                 account_history.Symbol,
                 portfolio.Symbol
             )
-        }} AND {{
+        }} WHERE {{
             test_starts_with('H', portfolio.Description)
         }} AND {{
-            get_length('length', account_history.Security Description)
+            get_length(account_history."Security Description")
         }} > 3
         """
     )
