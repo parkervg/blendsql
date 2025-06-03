@@ -181,6 +181,10 @@ def preprocess_blendsql(
     def process_arg_value(n: exp.Expression):
         if isinstance(n, exp.Tuple):
             return [i.name for i in n.find_all(exp.Literal)]
+        elif isinstance(n, exp.Paren):
+            # This happens when we try to define a tuple with a single item
+            # e.g. `options=('something')`
+            return [n.this.name]
         elif isinstance(n, exp.Literal):
             return n.name
         elif isinstance(n, exp.Column):
