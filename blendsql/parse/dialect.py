@@ -290,6 +290,8 @@ def _parse_one(
             expand_alias_refs=False,
             expand_stars=False,
             quote_identifiers=False,
+            allow_partial_qualification=True,
+            validate_qualify_columns=False,
         )
     return node
 
