@@ -163,10 +163,9 @@ def preprocess_blendsql(
         ```text
         (
             {
-                '{{A()}}': {
+                'A': {
                     'function': 'LLMJoin',
                     'args': [],
-                    'ingredient_aliasname': 'A',
                     'raw': "{{ LLMJoin ( left_on= 'w::player' , right_on= 'documents::title' ) }}",
                     'kwargs_dict': {
                         'left_on': 'w::player',
@@ -224,7 +223,7 @@ def preprocess_blendsql(
         current_ingredient = kitchen.get_from_name(function_name)
         sig = signature(current_ingredient)
         bound = sig.bind(*function_args, **function_kwargs)
-        kwargs_dict = {**kwargs_dict, **bound.arguments}
+        kwargs_dict = {**kwargs_dict, **bound.arguments, **bound.kwargs}
 
         # Below we track the 'raw' representation, in case we need to pass into
         #   a recursive BlendSQL call later
