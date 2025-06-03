@@ -43,6 +43,8 @@ from blendsql.smoothie import Smoothie, SmoothieMeta
 from blendsql.common.constants import IngredientType
 from blendsql.models.model import Model
 
+format_blendsql_function = lambda name: "{{" + name + "()}}"
+
 
 @attrs
 class Kitchen(list):
@@ -123,7 +125,7 @@ def autowrap_query(
         if current_function.ingredient_type == IngredientType.QA:
             # If the query only contains the function alias
             # E.g: '{{A()}}'
-            if query == "{{" + alias + "()}}":
+            if query == format_blendsql_function(alias):
                 query = f"""SELECT {query}"""
         else:
             continue
@@ -211,7 +213,9 @@ def preprocess_blendsql(
         else:
             ingredient_aliasname = string.ascii_uppercase[idx]
             parsed_results_dict["ingredient_aliasname"] = ingredient_aliasname
-            substituted_ingredient_alias = "{{" + f"{ingredient_aliasname}()" + "}}"
+            substituted_ingredient_alias = format_blendsql_function(
+                ingredient_aliasname
+            )
             function_hash_to_alias[function_hash] = substituted_ingredient_alias
 
         kwargs_dict["model"] = default_model
@@ -347,7 +351,9 @@ def disambiguate_and_submit_blend(
     for alias, d in ingredient_alias_to_parsed_dict.items():
         # https://stackoverflow.com/a/12127534
         query = re.sub(
-            re.escape("{{" + alias + "()}}"), lambda _: d["raw"], query  # noqa
+            re.escape(format_blendsql_function(alias)),
+            lambda _: d["raw"],  # noqa
+            query,
         )
     logger.debug(
         Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`" + Fore.RESET
@@ -452,8 +458,7 @@ def _blend(
         )
 
     _get_temp_session_table: t.Callable = partial(get_temp_session_table, session_uuid)
-    # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
-    function_call_to_res: t.Dict[str, str] = {}
+    alias_function_name_to_result: t.Dict[str, str] = {}
     session_modified_tables = set()
     scm = None
     # TODO: Currently, as we traverse upwards from deepest subquery,
@@ -717,7 +722,7 @@ def _blend(
                 else:
                     tablename_to_map_out[tablename] = [new_table]
                 session_modified_tables.add(tablename)
-                function_call_to_res[
+                alias_function_name_to_result[
                     function_node.name
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
             elif curr_ingredient.ingredient_type in (
@@ -725,7 +730,7 @@ def _blend(
                 IngredientType.QA,
             ):
                 # Here, we can simply insert the function's output
-                function_call_to_res[function_node.name] = function_out
+                alias_function_name_to_result[function_node.name] = function_out
             elif curr_ingredient.ingredient_type == IngredientType.JOIN:
                 # 1) Get the `JOIN` clause containing function
                 # 2) Replace with just the function alias
@@ -740,7 +745,7 @@ def _blend(
                 join_node = query_context.node.find(exp.Join)
                 assert join_node is not None
                 join_node.replace(exp.BlendSQLFunction(this=function_node.name))
-                function_call_to_res[function_node.name] = join_clause
+                alias_function_name_to_result[function_node.name] = join_clause
             else:
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
@@ -809,12 +814,9 @@ def _blend(
     # We need to re-sync if we did some operation on the underlying query,
     #   like with a JoinIngredient
     query = query_context.to_string()
-    # query = str(query_context.node.transform(transform.remove_ctes))
-    for function_str, res in function_call_to_res.items():
-        # The post-processing on the JoinIngredient will sometimes leave 'AS {{A()}}' sort of artifacts
-        # We remove them below
+    for alias, res in alias_function_name_to_result.items():
         query = re.sub(
-            r"(AS )?{}".format(re.escape("{{" + function_str + "()}}")),
+            re.escape(format_blendsql_function(alias)),
             f" {str(res)} ",
             query,
         )
