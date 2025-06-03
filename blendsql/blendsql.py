@@ -209,14 +209,12 @@ def preprocess_blendsql(
         function_hash = hash(f"{function_name} {function_args} {function_kwargs}")
         if function_hash in function_hash_to_alias:
             # If we've already processed this function, no need to do it again
-            substituted_ingredient_alias = function_hash_to_alias[function_hash]
+            ingredient_aliasname = function_hash_to_alias[function_hash]
         else:
             ingredient_aliasname = string.ascii_uppercase[idx]
-            parsed_results_dict["ingredient_aliasname"] = ingredient_aliasname
-            substituted_ingredient_alias = format_blendsql_function(
-                ingredient_aliasname
-            )
-            function_hash_to_alias[function_hash] = substituted_ingredient_alias
+            function_hash_to_alias[function_hash] = ingredient_aliasname
+
+        substituted_ingredient_alias = format_blendsql_function(ingredient_aliasname)
 
         kwargs_dict["model"] = default_model
 
@@ -282,7 +280,7 @@ def materialize_cte(
         transform.replace_subquery_with_direct_alias_call,
         subquery=subquery.parent,
         aliasname=aliasname,
-    ).transform(transform.prune_with)
+    ).transform(transform.remove_nodetype, exp.With)
     return materialized_smoothie
 
 

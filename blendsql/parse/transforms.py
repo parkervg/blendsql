@@ -7,84 +7,9 @@ https://github.com/tobymao/sqlglot
 from typing import Union, Type, Tuple
 
 from sqlglot import exp
-from sqlglot.optimizer.scope import find_in_scope
 
 from . import checks as check
 from .constants import SUBQUERY_EXP
-
-
-def extract_multi_table_predicates(
-    node: exp.Where, tablename: str
-) -> Union[exp.Expression, None]:
-    """Extracts all non-Column predicates acting on a given tablename.
-    non-Column since we want to exclude JOIN's (e.g. JOIN on A.col = B.col)
-
-    Requirements to keep:
-        - Must be a predicate node with an expression arg containing column associated with tablename, and some other non-column arg
-        - Or, we're in a subquery
-    If we have a predicate not meeting these conditions, set to exp.true()
-        - This is much simpler than doing surgery on `WHERE AND ...` sort of relics
-        - TODO: is the above true? Maybe simpler to actually fully remove vs. set to true?
-
-    Used with node.transform()
-
-    Args:
-        node: The exp.Where clause we're extracting predicates from
-        tablename: The name of the table whose predicates we keep
-    """
-    if isinstance(node, exp.Where):
-        return node
-    # Don't abstract to `TRUE` if we're in a subquery
-    # This is important!!! Without this, test_multi_table_blendsql.test_simple_multi_exec will fail
-    # Causes difference between `SELECT * FROM portfolio WHERE TRUE AND portfolio.Symbol IN (SELECT Symbol FROM constituents WHERE constituents.Sector = 'Information Technology')`
-    #   and `SELECT * FROM portfolio WHERE TRUE AND portfolio.Symbol IN (SELECT Symbol FROM constituents WHERE TRUE)`
-    if check.in_subquery(node):
-        return node
-    if isinstance(node, exp.Table):
-        if node.name != tablename:
-            return None
-    if isinstance(node, (exp.Predicate, exp.Unary)):
-        # Search for child table, in current view
-        # This below ensures we don't go into subqueries
-        child_table = find_in_scope(node, exp.Table)
-        if child_table is not None and child_table.name != tablename:
-            return None
-        if "this" in node.args:
-            # Need to apply `find` here in case of `LOWER` arg getting in our way
-            this_column = (
-                node.args["this"].find(exp.Column) if "this" in node.args else None
-            )
-            expression_column = (
-                node.args["expression"].find(exp.Column)
-                if "expression" in node.args
-                else None
-            )
-            if this_column is None:
-                return node
-            if this_column.table == tablename:
-                # This is true if we have a subquery as a 2nd arg
-                # Just leave this as-is
-                if "query" in node.args:
-                    return node
-                if expression_column is None:
-                    return node
-                # This is False if we have a `JOIN` (a.colname = b.colname)
-                elif expression_column.table == "":
-                    return node
-            else:
-                # If the expression is a self-contained subquery
-                # 'self-contained' means it starts with its own `SELECT`
-                expression_args = (
-                    node.args["expression"] if "expression" in node.args else None
-                )
-                if expression_args is None:
-                    return node
-                if isinstance(expression_args, exp.Subquery) and expression_args.find(
-                    exp.Select
-                ):
-                    return node
-        return exp.true()
-    return node
 
 
 def set_subqueries_to_true(node) -> Union[exp.Expression, None]:
@@ -134,33 +59,6 @@ def prune_empty_where(node) -> Union[exp.Expression, None]:
     return node
 
 
-def prune_with(node):
-    """
-    Removes any exp.With nodes.
-
-    Used with node.transform()
-    """
-    if isinstance(node, exp.With):
-        return None
-    return node
-
-
-def prune_true_where(node):
-    """
-    Removes artifacts like `WHERE TRUE AND TRUE`
-
-    Used with node.transform()
-    """
-    if isinstance(node, exp.Where):
-        if isinstance(node.args["this"], exp.Connector):
-            values_to_check = set(node.args["this"].args.values())
-        else:
-            values_to_check = set([node.args["this"]])
-        if values_to_check == {exp.true()}:
-            return None
-    return node
-
-
 def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
     """Prunes all nodes with an ingredient parent.
 
@@ -186,14 +84,6 @@ def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
         #   Example: `LENGTH(UPPER({{LLMMap()}})) > 3`
         if node.find(exp.BlendSQLFunction):
             return exp.true()
-        # for arg_node in node.args.values():
-        #     if not isinstance(arg_node, exp.Expression):
-        #         # Could be  'expressions': [(LITERAL), (LITERAL)]}
-        #         continue
-        #     if isinstance(node, exp.BlendSQLFunction):
-        #         return exp.true()
-        #     if arg_node.find(exp.BlendSQLFunction):
-        #         return exp.true()
     return node
 
 
@@ -232,15 +122,4 @@ def replace_tablename(node, original_tablename, new_tablename):
     elif isinstance(node, exp.Column) and "table" in node.args:
         if node.args["table"].name.lower() == original_tablename.lower():
             node.set("table", exp.Identifier(this=new_tablename, quoted=True))
-    return node
-
-
-def remove_ctes(node, with_ingredients_only=False):
-    if isinstance(node, exp.With):
-        if with_ingredients_only:
-            print()
-            if isinstance(node, exp.BlendSQLFunction):
-                pass
-        else:
-            return None
     return node

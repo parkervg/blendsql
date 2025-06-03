@@ -294,11 +294,3 @@ def _parse_one(
             validate_qualify_columns=False,
         )
     return node
-
-
-if __name__ == "__main__":
-    e = _parse_one(
-        "SELECT * FROM table WHERE {{A()}} > 2", dialect=get_dialect("SQLite")
-    )
-    # e = _parse_one("SELECT * FROM table WHERE a IN {{A()}}", dialect=get_dialect("DuckDB"))
-    print()

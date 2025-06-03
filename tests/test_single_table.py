@@ -723,6 +723,7 @@ def test_having(bsql):
      WHERE merchant LIKE 'Z%'
      GROUP BY merchant, l
      HAVING l > 3
+     ORDER BY l
     """
     )
     sql_df = bsql.db.execute_to_df(
@@ -731,6 +732,7 @@ def test_having(bsql):
          WHERE merchant LIKE 'Z%'
          GROUP BY merchant 
          HAVING l > 3 
+         ORDER BY l
         """
     )
     assert_equality(smoothie=smoothie, sql_df=sql_df)

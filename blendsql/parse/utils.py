@@ -1,4 +1,3 @@
-from typing import Set
 import copy
 from sqlglot import exp
 
@@ -14,15 +13,6 @@ def get_first_child(node):
     gen = node.walk()
     _ = next(gen)
     return next(gen)
-
-
-def get_alias_identifiers(node) -> Set[str]:
-    """Given a SQL statement, returns defined aliases.
-    Examples:
-        >>> get_alias_identifiers(_parse_one("SELECT {{LLMMap('year from date', 'w::date')}} AS year FROM w")
-        ['year']
-    """
-    return set([i.find(exp.Identifier).name for i in node.find_all(exp.Alias)])
 
 
 def set_select_to(node, tablename, columnnames) -> exp.Expression:
