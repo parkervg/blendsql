@@ -61,23 +61,23 @@ def test_llmjoin(bsql, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
-# @pytest.mark.long
-# def test_llmqa(bsql, model, ingredients):
-#     res = bsql.execute(
-#         """
-#         SELECT * FROM w
-#           WHERE city = {{
-#               LLMQA(
-#                   'Which city is located 120 miles west of Sydney?',
-#                   (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120' LIMIT 2),
-#                   options=city
-#               )
-#           }}
-#         """,
-#         model=model,
-#         ingredients=ingredients,
-#     )
-#     assert isinstance(res, Smoothie)
+@pytest.mark.long
+def test_llmqa(bsql, model, ingredients):
+    res = bsql.execute(
+        """
+        SELECT * FROM w
+          WHERE city = {{
+              LLMQA(
+                  'Which city is located 120 miles west of Sydney?',
+                  (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120' LIMIT 2),
+                  options=city
+              )
+          }}
+        """,
+        model=model,
+        ingredients=ingredients,
+    )
+    assert isinstance(res, Smoothie)
 
 
 @pytest.mark.long
