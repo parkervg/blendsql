@@ -3,16 +3,20 @@ from colorama import Fore
 import importlib.util
 from typing import Callable
 import pandas as pd
-
+import torch
 
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp
+from blendsql.models import LlamaCpp, TransformersLLM
 
-MODEL = LlamaCpp(
-    "Phi-3.5-mini-instruct.Q6_K.gguf",
-    "QuantFactory/Phi-3.5-mini-instruct-GGUF",
-    config={"n_gpu_layers": -1, "n_ctx": 9600},
-    caching=False,
+MODEL = (
+    LlamaCpp(
+        "Phi-3.5-mini-instruct.Q6_K.gguf",
+        "QuantFactory/Phi-3.5-mini-instruct-GGUF",
+        config={"n_gpu_layers": -1, "n_ctx": 9600},
+        caching=False,
+    )
+    if torch.cuda.is_available()
+    else TransformersLLM("HuggingFaceTB/SmolLM2-135M-Instruct", caching=False)
 )
 NUM_ITER_PER_QUERY = 5
 

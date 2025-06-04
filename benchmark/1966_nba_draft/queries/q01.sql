@@ -6,6 +6,6 @@ WITH knicks_players AS (
 AND {{
         LLMMap(
             'Did they play more than one position?',
-            'knicks_players::pos'
+            knicks_players.pos
         )
     }} = TRUE

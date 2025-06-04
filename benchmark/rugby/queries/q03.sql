@@ -1,7 +1,7 @@
-SELECT date, rival, score, documents.content AS "Team Description" FROM w
-    JOIN {{
+SELECT date, rival, score, d.content AS "Team Description" FROM w
+    JOIN documents d ON {{
         LLMJoin(
-            'w::rival',
-            'documents::title'
+            w.rival,
+            d.title
         )
     }} WHERE rival = 'nsw waratahs'
