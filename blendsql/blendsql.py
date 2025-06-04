@@ -190,7 +190,7 @@ def preprocess_blendsql(
         elif isinstance(n, exp.Column):
             return n.sql(dialect=dialect).strip('"')
         elif isinstance(n, exp.Subquery):
-            return n.sql(dialect=dialect).strip(")").strip("(")
+            return n.sql(dialect=dialect).removesuffix(")").removeprefix("(")
         raise ValueError(f"Not sure what to do with {type(n.expression)} here")
 
     ingredient_alias_to_parsed_dict: t.Dict[str, dict] = {}
