@@ -169,8 +169,24 @@ class BlendSQLPostgres(BlendSQLDialect, Postgres):
     pass
 
 
+def glob_to_match(self: SQLite.Generator, expression: exp.Where) -> str:
+    return f"{expression.this.sql(dialect=BlendSQLSQLite)} MATCH {expression.expression.sql(dialect=BlendSQLSQLite)}"
+
+
 class BlendSQLSQLite(BlendSQLDialect, SQLite):
-    pass
+    class Tokenizer(BlendSQLDialect.Tokenizer, SQLite.Tokenizer):
+        KEYWORDS = {
+            **{
+                **BlendSQLDialect.Tokenizer.KEYWORDS,
+                "MATCH": TokenType.GLOB,
+            },
+        }
+
+    class Generator(BlendSQLDialect.Generator, SQLite.Generator):
+        TRANSFORMS = {
+            **BlendSQLDialect.Generator.TRANSFORMS,
+            exp.Glob: glob_to_match,
+        }
 
 
 def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
