@@ -14,7 +14,6 @@ from sqlglot.optimizer.qualify_columns import (
     quote_identifiers as quote_identifiers_func,
     validate_qualify_columns as validate_qualify_columns_func,
 )
-from sqlglot.optimizer.qualify_tables import qualify_tables
 from sqlglot.schema import Schema, ensure_schema
 
 import sqlglot
@@ -235,15 +234,15 @@ def qualify(
         The qualified expression.
     """
     schema = ensure_schema(schema, dialect=dialect)
-    expression = qualify_tables(
-        expression,
-        db=db,
-        catalog=catalog,
-        schema=schema,
-        dialect=dialect,
-        infer_csv_schemas=infer_csv_schemas,
-    )
-    # COMMENTED OUT THE LINE BELOW
+    # COMMENTED OUT THE TWO LINES BELOW
+    # expression = qualify_tables(
+    #     expression,
+    #     db=db,
+    #     catalog=catalog,
+    #     schema=schema,
+    #     dialect=dialect,
+    #     infer_csv_schemas=infer_csv_schemas,
+    # )
     # expression = normalize_identifiers(expression, dialect=dialect)
 
     if isolate_tables:
@@ -286,6 +285,7 @@ def _parse_one(
     if schema is not None:
         node = qualify(
             expression=node,
+            dialect=dialect,
             schema=MappingSchema(schema, dialect=dialect, normalize=False),
             expand_alias_refs=False,
             expand_stars=False,
