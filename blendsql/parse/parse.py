@@ -400,10 +400,19 @@ class SubqueryContextManager:
                     if function_node == expressions_val[0]:
                         quantifier = "+"
         if parent_node is not None and parent_node.expression is not None:
-            predicate_literals = [
-                literal_eval(i.this) if not i.is_string else i.this
-                for i in parent_node.expression.find_all(exp.Literal)
-            ]
+            # Get predicate args
+            predicate_literals = []
+            # Literals
+            predicate_literals.extend(
+                [
+                    literal_eval(i.this) if not i.is_string else i.this
+                    for i in parent_node.expression.find_all(exp.Literal)
+                ]
+            )
+            # Booleans
+            predicate_literals.extend(
+                [i.args["this"] for i in parent_node.expression.find_all(exp.Boolean)]
+            )
         # Try to infer output type given the literals we've been given
         # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
         if len(predicate_literals) > 0:
