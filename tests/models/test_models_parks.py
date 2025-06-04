@@ -30,9 +30,9 @@ def test_image_caption(bsql, vision_model):
     res = bsql.execute(
         """
         SELECT "Name",
-        {{ImageCaption('parks::Image')}} as "Image Description"
+        {{ImageCaption(Image)}} as "Image Description"
         FROM parks
-        WHERE "Location" = 'Alaska'
+        WHERE Location = 'Alaska'
         """,
         ingredients=ingredients,
         model=vision_model,
@@ -46,11 +46,11 @@ def test_mixed_models(bsql, vision_model, model):
     res = bsql.execute(
         """
         SELECT "Name",
-        {{ImageCaption('parks::Image')}} as "Image Description",
+        {{ImageCaption(Image)}} as "Image Description",
         {{
             LLMMap(
                 question='Size in km2?',
-                values='parks::Area'
+                values=Area
             )
         }} as "Size in km" FROM parks
         WHERE "Location" = 'Alaska'
@@ -72,11 +72,11 @@ def test_mixed_models_no_default_error(bsql, vision_model):
         _ = bsql.execute(
             """
             SELECT "Name",
-            {{ImageCaption('parks::Image')}} as "Image Description",
+            {{ImageCaption(Image)}} as "Image Description",
             {{
                 LLMMap(
                     question='Size in km2?',
-                    values='parks::Area'
+                    values=Area
                 )
             }} as "Size in km" FROM parks
             WHERE "Location" = 'Alaska'
@@ -94,7 +94,7 @@ def test_readme_example_1(bsql, model):
             WHERE {{
                 LLMMap(
                     'Does this location have park facilities?',
-                    values='parks::Description'
+                    values=Description
                 )
             }} = FALSE
             """,
@@ -107,12 +107,12 @@ def test_readme_example_1(bsql, model):
 def test_readme_example_2(bsql, model):
     res = bsql.execute(
         """
-            SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
-            WHERE "Name" = {{
+            SELECT Location, Name AS "Park Protecting Ash Flow" FROM parks
+            WHERE Name = {{
               LLMQA(
                 'Which park protects an ash flow?',
-                context=(SELECT "Name", "Description" FROM parks),
-                options="parks::Name"
+                context=(SELECT Name, Description FROM parks),
+                options=Name
               )
           }}
             """,
@@ -126,7 +126,7 @@ def test_readme_example_3(bsql, model):
     res = bsql.execute(
         """
         SELECT COUNT(*) FROM parks
-            WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
+            WHERE {{LLMMap('How many states?', Location)}} > 1
             """,
         model=model,
     )

@@ -100,7 +100,10 @@ class BlendSQLDialect(sqlglot.Dialect):
             while self._curr and self._curr.token_type != TokenType.R_PAREN:
                 # Check if this looks like a keyword argument (identifier followed by =)
                 if (
-                    self._curr.token_type == TokenType.VAR
+                    # We only need to specify `TokenType.VALUES` here
+                    #   because we have a 'values' kwarg. But, I don't think we'll
+                    #   be explicitly passing this in future syntax, so we can remove it below.
+                    self._curr.token_type in (TokenType.VAR, TokenType.VALUES)
                     and self._index + 1 < len(self._tokens)
                     and self._tokens[self._index + 1].token_type == TokenType.EQ
                 ):

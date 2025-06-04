@@ -29,23 +29,16 @@ if __name__ == "__main__":
     )
     smoothie = bsql.execute(
         """
-        SELECT * FROM w 
-        WHERE LENGTH(CAST({{LLMMap('How many words?', 'w::description')}} AS TEXT)) = 1
-        AND description NOT LIKE 'G%'
-        """
+        SELECT * FROM w
+        WHERE LENGTH(
+            {{
+                LLMMap(
+                    'What stock ticker is mentioned in the text?',
+                    description,
+                    return_type='substring'
+                )
+            }}
+        ) > 2 AND description NOT LIKE 'G%'
+        """,
     )
-    # smoothie = bsql.execute(
-    #     """
-    #     SELECT * FROM w
-    #     WHERE LENGTH(
-    #         {{
-    #             LLMMap(
-    #                 'What stock ticker is mentioned in the text?',
-    #                 'w::description',
-    #                 return_type='substring'
-    #             )
-    #         }}
-    #     ) > 2 AND description NOT LIKE 'G%'
-    #     """,
-    # )
-    # print(smoothie.df)
+    print(smoothie.df)

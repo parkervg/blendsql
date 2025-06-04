@@ -108,13 +108,11 @@ if __name__ == "__main__":
     smoothie = bsql.execute(
         """
         WITH t AS (
-            SELECT Name FROM "world_aquatic_championships" wc
-            WHERE {{LLMMap('Is this a team event?', 'wc::Event')}} = FALSE
-            /* Use DuckDB functions to parse minutes */
-            AND TRY_CAST(REGEXP_EXTRACT("time/score", '^([0-9]+):', 1) AS INT) >= 2
-        )
-        SELECT Name FROM t
-        ORDER BY {{LLMMap('What year were they born?', values ='t::Name')}} ASC LIMIT 1
+            SELECT Name FROM "world_aquatic_championships"
+            WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE
+            AND {{LLMMap('Is this time over 2 minutes?', "Time/Score")}} = TRUE
+        ) SELECT Name FROM t
+        ORDER BY {{WikipediaSearchMap('What year was {} born?', t.Name)}} ASC LIMIT 1
         """
     )
 

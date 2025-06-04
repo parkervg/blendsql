@@ -25,11 +25,11 @@ if __name__ == "__main__":
     )
     smoothie = bsql.execute(
         """
-        SELECT * FROM fruit
-        JOIN {{
+        SELECT * FROM fruit f
+        JOIN colors c ON {{
             LLMJoin(
-                'fruit::name',
-                'colors::name'
+                f.name,
+                c.name
             )
         }}
         """,

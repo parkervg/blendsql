@@ -101,10 +101,10 @@ def test_faiss_search(bsql, model):
         """
          WITH t AS (
             SELECT Name FROM "world_aquatic_championships"
-            WHERE {{LLMMap('Is this a team event?', 'world_aquatic_championships::Event')}} = FALSE
-            AND {{LLMMap('Is this time over 2 minutes?', 'world_aquatic_championships::Time/Score')}} = TRUE
+            WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE
+            AND {{LLMMap('Is this time over 2 minutes?', "Time/Score")}} = TRUE
         ) SELECT Name FROM t
-        ORDER BY {{LLMMap('What year was {t::Name} born?', values='t::Name')}} ASC LIMIT 1
+        ORDER BY {{LLMMap('What year was {} born?', t.Name)}} ASC LIMIT 1
         """,
         model=model,
     )
