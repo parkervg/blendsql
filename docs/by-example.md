@@ -55,7 +55,7 @@ WITH a AS (
 (
     SELECT Symbol FROM portfolio AS w WHERE w.Symbol LIKE "A%"
 ),
-SELECT * FROM a WHERE {{starts_with('F', 'a::Symbol')}} = TRUE
+SELECT * FROM a WHERE {{test_starts_with('F', 'a::Symbol')}} = TRUE
 JOIN b ON a.Symbol = b.Symbol
 ```
 We only eagerly materialize a table from a CTE if it's used within an ingredient. Above, BlendSQL will materialize the `a` table, but not `b`.

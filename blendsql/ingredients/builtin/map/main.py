@@ -172,6 +172,7 @@ class LLMMap(MapIngredient):
         values: t.List[str],
         context_formatter: t.Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
+        unpacked_questions: t.List[str] = None,
         searcher: t.Optional[Searcher] = None,
         options: t.Optional[t.List[str]] = None,
         value_limit: t.Optional[int] = None,
@@ -205,9 +206,10 @@ class LLMMap(MapIngredient):
         use_context = context is not None or searcher is not None
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
-            # Concatenate each value to the front of the questions
-            # E.g. 'What year were they born?' -> 'Ryan Lochte What year were they born?'
-            docs = searcher([f"{v} {question}" for v in values])
+            if unpacked_questions:
+                docs = searcher(unpacked_questions)
+            else:
+                docs = searcher(question) * len(values)
             context = ["\n\n".join(d) for d in docs]
             logger.debug(
                 Fore.LIGHTBLACK_EX
@@ -342,6 +344,7 @@ class LLMMap(MapIngredient):
                         example_str,
                         current_example_str,
                         question,
+                        options,
                         c,
                         v,
                         funcs=[make_prediction, gen_f],

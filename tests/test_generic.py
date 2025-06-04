@@ -62,7 +62,7 @@ def test_error_on_bad_options_subquery(bsql):
             WHERE {{
                 select_first_option(
                     'I am at a nice cafe right now',
-                    'w::Name',
+                    w.Name,
                     options=(SELECT * FROM w)
                 )
             }}
@@ -91,7 +91,7 @@ def test_llmqa_question_f_strings(bsql, model):
         WITH t AS (SELECT * FROM w WHERE Age = 23 LIMIT 1)
         SELECT {{
             LLMQA(
-                'Please say "{t::Name}"'
+                'Please say "{}"', t.Name
             )    
         }}
         """,
@@ -105,7 +105,7 @@ def test_llmmap_question_f_strings(bsql, model):
     _ = bsql.execute(
         """
         WITH t AS (SELECT * FROM w WHERE Age = 23 LIMIT 1)
-        SELECT c.Title, {{LLMMap('Would someone named {t::Name} be good at this subject?', 'c::Title')}} AS "answer" FROM classes c
+        SELECT c.Title, {{LLMMap('Would someone named {} be good at this subject?', c.Title)}} AS "answer" FROM classes c
         """,
         model=model,
     )

@@ -110,7 +110,7 @@ class Ingredient:
         aliases_to_tablenames: t.Dict[str, str],
         allow_semicolon_list: t.Optional[bool] = True,
     ) -> t.List[str]:
-        if "::" in v:
+        if "." in v:
             tablename, colname = get_tablename_colname(v)
             tablename = aliases_to_tablenames.get(tablename, tablename)
             # IMPORTANT: Below was commented out, since it would cause:
@@ -172,65 +172,16 @@ class Ingredient:
     def unpack_question(
         self,
         question: str,
-        aliases_to_tablenames: t.Optional[t.Dict[str, str]],
-        warn_on_many_values: bool = False,
+        values: t.List[str],
     ) -> t.List[str]:
         """Unpack any f-string ValueArray references in question.
 
         Example:
-            'Where is {city::name} located?'
+            question='Where is {} located?', values=["Sydney", "San Jose"]
         """
-        F_STRING_PATTERN = re.compile(r"{([^{}]*)}")
-
-        def replace_fstring_templates(s, replacement_func):
-            """
-            Replaces each template in the string with values returned by replacement_func.
-            For each template found, creates a new version of the string for each replacement value.
-
-            Args:
-                s (str): The template string (e.g., "Say {name}")
-                replacement_func (callable): A function that takes a template name and returns a list of values
-
-            Returns:
-                list: A list of strings with all possible replacements
-            """
-            matches = list(F_STRING_PATTERN.finditer(s))
-
-            if not matches:
-                return [s]
-
-            # Get the first template match
-            match = matches[0]
-            template = match.group(1)
-            replacement_values = replacement_func(template)
-
-            # Create a base result for each replacement value
-            results = []
-            for value in replacement_values:
-                # Replace just this first occurrence
-                new_s = s[: match.start()] + str(value) + s[match.end() :]
-                # Recursively process any remaining templates in the new string
-                for result in replace_fstring_templates(new_s, replacement_func):
-                    results.append(result)
-
-            return results
-
-        def get_db_values(template):
-            values = self.unpack_value_array(
-                template, aliases_to_tablenames, allow_semicolon_list=False
-            )
-            if len(values) == 0:
-                raise IngredientException(f"No values found in {template}")
-            if len(values) > 1 and warn_on_many_values:
-                logger.debug(
-                    Fore.RED
-                    + f"More than 1 value found in {template}: {values[:10]}\nThis could be a sign of a malformed query."
-                    + Fore.RESET
-                )
-            return values
-
-        unpacked_questions = replace_fstring_templates(question, get_db_values)
-        return unpacked_questions
+        if "{}" in question:
+            return [question.format(value) for value in values]
+        return [question for _ in range(len(values))]
 
 
 @attrs
@@ -406,22 +357,21 @@ class MapIngredient(Ingredient):
                 aliases_to_tablenames=aliases_to_tablenames,
             )
 
+        unpacked_questions = None
         if question is not None:
-            unpacked_questions = self.unpack_question(
-                question=question,
-                aliases_to_tablenames=aliases_to_tablenames,
-                warn_on_many_values=True,
-            )
-            if unpacked_questions[0] != question:
+            if "{}" in question:
+                unpacked_questions = [
+                    question.format(value) for value in unpacked_values
+                ]
                 logger.debug(
                     Fore.LIGHTBLACK_EX
-                    + f"Unpacked question to '{unpacked_questions[0]}'"
+                    + f"Unpacked question to '{unpacked_questions[:10]}'"
                     + Fore.RESET
                 )
-            question = unpacked_questions[0]
 
         mapped_values: Collection[t.Any] = self._run(
             question=question,
+            unpacked_questions=unpacked_questions,
             values=unpacked_values,
             options=options,
             tablename=tablename,
@@ -625,12 +575,14 @@ class JoinIngredient(Ingredient):
             }
         )
         self.db.to_temp_table(df=joined_values_df, tablename=temp_join_tablename)
+        if right_tablename in aliases_to_tablenames:
+            join_right_clause = f"""JOIN "{aliases_to_tablenames[right_tablename]}" AS "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right"""
+        else:
+            join_right_clause = f"""JOIN "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right"""
         return (
             left_tablename,
             right_tablename,
-            f"""JOIN "{temp_join_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left
-              JOIN "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right
-              """,
+            f"""JOIN "{temp_join_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left\n{join_right_clause}""",
             temp_join_tablename,
         )
 
@@ -762,18 +714,24 @@ class QAIngredient(Ingredient):
             )
 
         if question is not None:
-            unpacked_questions = self.unpack_question(
-                question=question,
-                aliases_to_tablenames=aliases_to_tablenames,
-                warn_on_many_values=True,
-            )
-            if unpacked_questions[0] != question:
+            if "{}" in question:
+                if subtable is None:
+                    raise IngredientException(
+                        f"Passed question with string template '{question}', but no context was passed to fill!"
+                    )
+                unpacked_values = list(subtable.values.flat)
+                if len(unpacked_values) > 1:
+                    logger.debug(
+                        Fore.RED
+                        + f"More than 1 value found in {question}: {unpacked_values[:10]}\nThis could be a sign of a malformed query."
+                        + Fore.RESET
+                    )
+                question = question.format(unpacked_values[0])
                 logger.debug(
                     Fore.LIGHTBLACK_EX
-                    + f"Unpacked question to '{unpacked_questions[0]}'"
+                    + f"Unpacked question to '{question}'"
                     + Fore.RESET
                 )
-            question = unpacked_questions[0]
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,

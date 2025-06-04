@@ -1,12 +1,9 @@
 # This file contains sqlglot-based functions that return a boolean
 from sqlglot import exp
 from functools import lru_cache
-import re
 
 from .constants import SUBQUERY_EXP
 from .utils import get_first_child
-
-INGREDIENT_PATTERN = re.compile(r"{{[A-Z]\(\)}}")
 
 
 def get_ingredient_count(node) -> int:
@@ -14,7 +11,7 @@ def get_ingredient_count(node) -> int:
 
 
 def get_ingredient_nodes(node) -> list:
-    return list(filter(lambda x: is_ingredient_node(x), node.find_all(exp.Identifier)))
+    return list(node.find_all(exp.BlendSQLFunction))
 
 
 def is_blendsql_query(s: str) -> bool:
@@ -22,35 +19,6 @@ def is_blendsql_query(s: str) -> bool:
     to be executed.
     """
     return s.upper().startswith(("SELECT", "WITH", "{{"))
-
-
-def is_ingredient_node(node: exp.Expression) -> bool:
-    """Checks to see if a given node is pointing to an ingredient.
-
-    We need to handle both exp.Identifier and exp.Column types below,
-    since sqlglot will interpret the exp.Function type different depending
-    on context.
-
-    For example:
-    > SELECT {{B()}} FROM table WHERE a IN {{A()}}
-
-    {{B()}} will get parsed as (COLUMN this:
-    (IDENTIFIER this: {{B()}}, quoted: False))
-
-    But {{A()}} will get parsed as (IDENTIFIER this: {{A()}}, quoted: False)
-    """
-    if not isinstance(node, (exp.Identifier, exp.Column)):
-        return False
-    if isinstance(node, exp.Column):
-        node = node.find(exp.Identifier)
-    return INGREDIENT_PATTERN.match(node.this) is not None
-
-
-def ingredient_node_in_ancestors(node: exp.Expression) -> bool:
-    ancestor = node.find_ancestor(exp.Identifier)
-    if ancestor and INGREDIENT_PATTERN.match(ancestor.this):
-        return True
-    return False
 
 
 def all_terminals_are_true(node: exp.Expression) -> bool:
@@ -63,7 +31,7 @@ def all_terminals_are_true(node: exp.Expression) -> bool:
     Returns:
         bool: True if all terminal nodes are TRUE booleans, False otherwise.
     """
-    for n, _, _ in node.walk():
+    for n in node.walk():
         try:
             get_first_child(n)
         except StopIteration:
@@ -113,13 +81,6 @@ def in_cte(node: exp.Expression, return_name: bool = False):
     return (False, None) if return_name else False
 
 
-def contains_ingredient(node: exp.Expression) -> bool:
-    for n in node.find_all(exp.Identifier):
-        if is_ingredient_node(n):
-            return True
-    return False
-
-
 def ingredient_alias_in_query_body(node: exp.Expression) -> bool:
     """Check if an alias created from an ingredient is used in the main query body.
 
@@ -150,7 +111,7 @@ def ingredient_alias_in_query_body(node: exp.Expression) -> bool:
 
     for n in node.find_all(exp.Alias):
         ref_columns = get_referenced_columns(node)
-        if contains_ingredient(n):
+        if n.find(exp.BlendSQLFunction):
             if n.alias in ref_columns:
                 return True
 

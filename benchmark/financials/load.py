@@ -1,7 +1,7 @@
 from typing import Tuple, Type, Set
 
 from tests.utils import (
-    starts_with,
+    test_starts_with,
     get_length,
     select_first_sorted,
     do_join,
@@ -17,7 +17,7 @@ def load_benchmark() -> Tuple[Database, Set[Type[Ingredient]]]:
     return (
         SQLite(fetch_from_hub("multi_table.db")),
         {
-            starts_with,
+            test_starts_with,
             get_length,
             select_first_sorted,
             do_join,

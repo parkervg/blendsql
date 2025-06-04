@@ -4,9 +4,13 @@ SUBQUERY_EXP = (exp.Select,)
 MODIFIERS = (
     exp.Delete,
     exp.AlterColumn,
-    exp.AlterTable,
+    exp.AlterIndex,
+    exp.AlterDistStyle,
+    exp.AlterSortKey,
+    exp.Alter,
     exp.Drop,
-    exp.RenameTable,
+    exp.RenameColumn,
+    exp.AlterRename,
     exp.Drop,
     exp.DropPartition,
 )

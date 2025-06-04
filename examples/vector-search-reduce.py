@@ -152,9 +152,9 @@ smoothie = bsql.execute(
     """
 WITH bay_area_county AS (
     SELECT County FROM schools s
-    WHERE {{LLMMap('Is this county in the California Bay Area?', 's::County')}}
+    WHERE {{LLMMap('Is this county in the California Bay Area?', s.County)}}
     AND s.StatusType = 'Active' LIMIT 1
-) SELECT {{DocumentSearch('Who played basketball at a school in {bay_area_county::County}?')}} AS answer
+) SELECT {{DocumentSearch('Who played basketball at a school in {}?', bay_area_count.County)}} AS answer
 """
 )
 print(smoothie.df)

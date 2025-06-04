@@ -32,7 +32,7 @@ def test_llmmap(bsql, model, ingredients):
           WHERE city = 'sydney' AND {{
               LLMMap(
                   'More than 30 total points?',
-                  'w::score'
+                  score
               )
           }} = TRUE
         """,
@@ -46,14 +46,14 @@ def test_llmmap(bsql, model, ingredients):
 def test_llmjoin(bsql, model, ingredients):
     res = bsql.execute(
         """
-        SELECT date, rival, score, documents.content AS "Team Description" FROM w
-          JOIN {{
+        SELECT date, rival, score, d.content AS "Team Description" FROM w
+          JOIN documents d ON {{
               LLMJoin(
-                  'w::rival',
-                  'documents::title'
+                  w.rival,
+                  d.title
               )
           }} WHERE rival = 'nsw waratahs'
-          AND documents.title IN ('new south wales waratahs', 'bathurst, new south wales')
+          AND d.title IN ('new south wales waratahs', 'bathurst, new south wales')
         """,
         model=model,
         ingredients=ingredients,
@@ -70,7 +70,7 @@ def test_llmqa(bsql, model, ingredients):
               LLMQA(
                   'Which city is located 120 miles west of Sydney?',
                   (SELECT * FROM documents WHERE documents MATCH 'sydney OR 120' LIMIT 2),
-                  options='w::city'
+                  options=city
               )
           }}
         """,
@@ -88,8 +88,8 @@ def test_llmmap_with_string(bsql, model, ingredients):
         WHERE {{
               LLMMap(
                   "What's the full month name?",
-                  'w::date',
-                  options='May;June;July'
+                  date,
+                  options=('May', 'June', 'July')
               )
           }} = 'June'
         """,
@@ -107,7 +107,7 @@ def test_unconstrained_llmqa(bsql, model, ingredients):
           LLMQA(
             "What's this table about?",
             (SELECT * FROM w LIMIT 1),
-            options='sports;food;politics'
+            options=('sports', 'food', 'politics')
           )
         }}
         """,

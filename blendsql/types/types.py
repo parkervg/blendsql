@@ -67,6 +67,9 @@ class DataTypes:
     FLOAT = lambda quantifier=None: DataType(
         "float", r"(\d+(\.\d+)?)", quantifier, str_to_numeric
     )
+    NUMERIC = lambda quantifier=None: DataType(
+        "t.Union[int, float]", r"(\d+(\.\d+)?)", quantifier, str_to_numeric
+    )
     ISO_8601_DATE = lambda quantifier=None: DataType(
         "date", r"\d{4}-\d{2}-\d{2}", quantifier, lambda s: s
     )

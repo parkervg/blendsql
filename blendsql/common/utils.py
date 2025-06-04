@@ -26,7 +26,7 @@ def get_tablename_colname(s: str) -> Tuple[str, str]:
     """Takes as input a string in the format `{tablename}::{colname}`
     Returns individual parts, but raises error if `s` is in the wrong format.
     """
-    out = s.split("::")
+    out = s.split(".")
     if len(out) != 2:
         raise ValueError(
             f"Invalid format: {s}\n" + "Expected format `{tablename}::{columnname}`"

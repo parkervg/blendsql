@@ -4,7 +4,7 @@ from blendsql.db import SQLite, DuckDB
 from blendsql.common.utils import fetch_from_hub
 from tests.utils import (
     assert_equality,
-    starts_with,
+    test_starts_with,
     get_length,
     select_first_sorted,
     get_table_size,
@@ -12,7 +12,7 @@ from tests.utils import (
 )
 
 dummy_ingredients = {
-    starts_with,
+    test_starts_with,
     get_length,
     select_first_sorted,
     get_table_size,
@@ -66,7 +66,7 @@ def test_nested_exec(bsql):
 def test_simple_ingredient_exec(bsql):
     smoothie = bsql.execute(
         """
-        SELECT * FROM transactions WHERE {{starts_with('Z', 'transactions::merchant')}} = 1;
+        SELECT * FROM transactions WHERE {{test_starts_with('Z', merchant)}} = 1;
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -81,7 +81,7 @@ def test_simple_ingredient_exec(bsql):
 def test_simple_ingredient_exec_at_end(bsql):
     smoothie = bsql.execute(
         """
-        SELECT * FROM transactions WHERE {{starts_with('Z', 'transactions::merchant')}}
+        SELECT * FROM transactions WHERE {{test_starts_with('Z', merchant)}}
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -96,7 +96,7 @@ def test_simple_ingredient_exec_at_end(bsql):
 def test_simple_ingredient_exec_in_select(bsql):
     smoothie = bsql.execute(
         """
-        SELECT {{get_length('Z', 'transactions::merchant')}} AS "LENGTH(merchant)" FROM transactions WHERE parent_category = 'Auto & Transport'
+        SELECT {{get_length(merchant)}} AS "LENGTH(merchant)" FROM transactions WHERE parent_category = 'Auto & Transport'
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -122,7 +122,7 @@ def test_nested_ingredient_exec(bsql):
             merchant in (
                 SELECT merchant FROM transactions
                     WHERE amount > 100
-                    AND {{starts_with('Z', 'transactions::merchant')}} = 1
+                    AND {{test_starts_with('Z', merchant)}} = 1
             );
         """
     )
@@ -159,7 +159,7 @@ def test_nonexistent_column_exec(bsql):
         """
         SELECT DISTINCT merchant, child_category FROM transactions WHERE
            (
-               {{starts_with('Z', 'transactions::merchant')}} = 1
+               {{test_starts_with('Z', merchant)}} = 1
                AND child_category = 'this does not exist'
            )
            OR child_category = 'Gifts'
@@ -193,7 +193,7 @@ def test_nested_and_exec(bsql):
         """
         SELECT DISTINCT merchant, child_category FROM transactions WHERE
            (
-               {{starts_with('O', 'transactions::merchant')}} = 1
+               {{test_starts_with('O', merchant)}} = 1
                AND child_category = 'Restaurants & Dining'
            )
            OR child_category = 'Gifts'
@@ -227,8 +227,8 @@ def test_multiple_nested_ingredients(bsql):
         """
         SELECT DISTINCT child_category, merchant FROM transactions WHERE
             (
-                {{starts_with('A', 'transactions::merchant')}} = 1
-                AND {{starts_with('T', 'transactions::child_category')}} = 1
+                {{test_starts_with('A', merchant)}} = 1
+                AND {{test_starts_with('T', child_category)}} = 1
                 AND parent_category = 'Food'
             )
            OR child_category = 'Gifts'
@@ -261,9 +261,9 @@ def test_multiple_nested_ingredients(bsql):
 def test_length_ingredient(bsql):
     smoothie = bsql.execute(
         """
-        SELECT {{get_length('length', 'transactions::merchant')}}, merchant
+        SELECT {{get_length(merchant)}}, merchant
             FROM transactions
-            WHERE {{get_length('length', 'transactions::merchant')}} > 1;
+            WHERE {{get_length(merchant)}} > 1;
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -292,9 +292,9 @@ def test_max_length(bsql):
         pytest.skip("Skipping nested aggregate for DuckDB...")
     smoothie = bsql.execute(
         """
-        SELECT MAX({{get_length('length', 'transactions::merchant')}}) as max_length, merchant
+        SELECT MAX({{get_length(merchant)}}) as max_length, merchant
             FROM transactions
-            WHERE {{get_length('length', 'transactions::merchant')}} > 1;
+            WHERE {{get_length(merchant)}} > 1;
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -319,7 +319,7 @@ def test_limit(bsql):
     smoothie = bsql.execute(
         """
         SELECT DISTINCT merchant, child_category FROM transactions WHERE
-           {{starts_with('P', 'transactions::merchant')}} = 1
+           {{test_starts_with('P', merchant)}} = 1
            AND child_category = 'Restaurants & Dining'
            ORDER BY merchant
            LIMIT 1
@@ -349,7 +349,7 @@ def test_select(bsql):
     smoothie = bsql.execute(
         """
         SELECT DISTINCT merchant, child_category FROM transactions WHERE
-           merchant = {{select_first_sorted(options='transactions::merchant')}}
+           merchant = {{select_first_sorted(options=merchant)}}
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -365,7 +365,7 @@ def test_select(bsql):
 def test_ingredient_in_select_stmt(bsql):
     smoothie = bsql.execute(
         """
-        SELECT MAX({{get_length('length', 'transactions::merchant')}}) as l FROM transactions
+        SELECT MAX({{get_length(merchant)}}) as l FROM transactions
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -388,7 +388,7 @@ def test_ingredient_in_select_stmt_with_filter(bsql):
     # commit de4a7bc
     smoothie = bsql.execute(
         """
-        SELECT MAX({{get_length('length', 'transactions::merchant')}}) as l FROM transactions WHERE child_category = 'Restaurants & Dining'
+        SELECT MAX({{get_length(merchant)}}) as l FROM transactions WHERE child_category = 'Restaurants & Dining'
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -410,7 +410,7 @@ def test_ingredient_in_select_stmt_with_filter(bsql):
 def test_nested_duplicate_map_calls(bsql):
     smoothie = bsql.execute(
         """
-        SELECT merchant FROM transactions WHERE {{get_length('length', 'transactions::merchant')}} > (SELECT {{get_length('length', 'transactions::merchant')}} FROM transactions WHERE merchant = 'Paypal')
+        SELECT merchant FROM transactions WHERE {{get_length(merchant)}} > (SELECT {{get_length(merchant)}} FROM transactions WHERE merchant = 'Paypal')
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -433,10 +433,10 @@ def test_many_duplicate_map_calls(bsql):
     smoothie = bsql.execute(
         """
         SELECT
-            {{get_length('length', 'transactions::merchant')}} AS l1,
-            {{get_length('length', 'transactions::cash_flow')}} AS l2,
-            {{get_length('length', 'transactions::child_category')}} AS l3,
-            {{get_length('length', 'transactions::date')}} AS l4
+            {{get_length(merchant)}} AS l1,
+            {{get_length(cash_flow)}} AS l2,
+            {{get_length(child_category)}} AS l3,
+            {{get_length(date)}} AS l4
         FROM transactions WHERE amount > 1300
         """
     )
@@ -470,7 +470,7 @@ def test_exists_isolated_qa_call(bsql):
     smoothie = bsql.execute(
         """
         SELECT NOT EXISTS (
-            SELECT * FROM transactions WHERE {{get_length('length', 'transactions::merchant')}} > 4 AND amount > 500
+            SELECT * FROM transactions WHERE {{get_length( merchant)}} > 4 AND amount > 500
         ) OR (
             {{
                 get_table_size((select * from transactions where amount < 500))
@@ -520,7 +520,7 @@ def test_apply_limit(bsql):
     # commit 335c67a
     smoothie = bsql.execute(
         """
-        SELECT {{get_length('length', 'transactions::merchant')}} FROM transactions ORDER BY merchant LIMIT 1
+        SELECT {{get_length(merchant)}} FROM transactions ORDER BY merchant LIMIT 1
         """
     )
     assert smoothie.meta.num_values_passed == 1
@@ -531,7 +531,7 @@ def test_apply_limit_with_predicate(bsql):
     # commit 335c67a
     smoothie = bsql.execute(
         """
-        SELECT {{get_length('length', 'transactions::merchant')}}
+        SELECT {{get_length(merchant)}}
         FROM transactions
         WHERE amount > 1300
         ORDER BY merchant LIMIT 3
@@ -565,7 +565,7 @@ def test_where_with_true(bsql):
         WITH a AS (
             SELECT LENGTH(merchant) = 5 AS b, merchant FROM transactions
         )
-        SELECT merchant FROM a WHERE a.b = TRUE AND {{starts_with('Z', 'a::merchant')}}
+        SELECT merchant FROM a WHERE a.b = TRUE AND {{test_starts_with('Z', merchant)}}
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -591,7 +591,7 @@ def test_where_in_clause(bsql):
     """Makes sure we don't ignore `{column} = TRUE` SQL clauses."""
     smoothie = bsql.execute(
         """
-        SELECT merchant FROM transactions WHERE merchant IN (SELECT merchant FROM transactions WHERE {{starts_with('Z', 'transactions::merchant')}})
+        SELECT merchant FROM transactions WHERE merchant IN (SELECT merchant FROM transactions WHERE {{test_starts_with('Z', merchant)}})
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -608,7 +608,7 @@ def test_group_by_with_ingredient_alias(bsql):
     smoothie = bsql.execute(
         """
         SELECT SUM(amount) AS "total amount",
-        {{get_length(values='transactions::merchant')}} AS "Merchant Length"
+        {{get_length(merchant)}} AS "Merchant Length"
         FROM transactions
         GROUP BY "Merchant Length"
         ORDER BY "total amount"
@@ -633,7 +633,7 @@ def test_null_negation(bsql):
         """
         SELECT merchant FROM transactions
         WHERE merchant IS NOT NULL
-        AND {{starts_with('Z', 'transactions::merchant')}}
+        AND {{test_starts_with('Z', merchant)}}
         """
     )
     sql_df = bsql.db.execute_to_df(
@@ -674,8 +674,8 @@ def test_offset(bsql):
     smoothie = bsql.execute(
         """
     SELECT merchant FROM transactions t
-    WHERE {{starts_with('Z', 'transactions::merchant')}} = TRUE
-    ORDER BY {{get_length("length", "t::merchant")}} LIMIT 1 OFFSET 2
+    WHERE {{test_starts_with('Z', merchant)}} = TRUE
+    ORDER BY {{get_length(t.merchant)}} LIMIT 1 OFFSET 2
     """
     )
     sql_df = bsql.db.execute_to_df(
@@ -694,7 +694,7 @@ def test_map_in_function(bsql):
     smoothie = bsql.execute(
         """
     SELECT merchant FROM transactions t
-    WHERE LENGTH(CAST({{get_length('length', 't::merchant')}} AS TEXT)) = 1
+    WHERE LENGTH(CAST({{get_length(merchant)}} AS TEXT)) = 1
     AND merchant LIKE 'Z%' 
     """
     )
@@ -703,6 +703,36 @@ def test_map_in_function(bsql):
         SELECT merchant FROM transactions t
         WHERE LENGTH(CAST(LENGTH(t.merchant) AS TEXT)) = 1
         AND merchant LIKE 'Z%' 
+        """
+    )
+    assert_equality(smoothie=smoothie, sql_df=sql_df)
+    # Make sure we only pass what's necessary to our ingredient
+    passed_to_ingredient = bsql.db.execute_to_list(
+        """
+    SELECT COUNT(DISTINCT merchant) FROM transactions WHERE merchant LIKE 'Z%' 
+    """
+    )[0]
+    assert smoothie.meta.num_values_passed == passed_to_ingredient
+
+
+@pytest.mark.parametrize("bsql", bsql_connections)
+def test_having(bsql):
+    smoothie = bsql.execute(
+        """
+     SELECT {{get_length(merchant)}} AS l FROM transactions t
+     WHERE merchant LIKE 'Z%'
+     GROUP BY merchant, l
+     HAVING l > 3
+     ORDER BY l
+    """
+    )
+    sql_df = bsql.db.execute_to_df(
+        """
+        SELECT LENGTH(merchant) AS l FROM transactions t
+         WHERE merchant LIKE 'Z%'
+         GROUP BY merchant 
+         HAVING l > 3 
+         ORDER BY l
         """
     )
     assert_equality(smoothie=smoothie, sql_df=sql_df)

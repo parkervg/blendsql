@@ -111,11 +111,11 @@ smoothie = bsql.execute(
     {{
         LLMMap(
             'In which time period was this person born?',
-            'People::Name',
-            options='Eras::Years'
+            p.Name,
+            options=Eras.Years
         )
     }} AS Born
-    FROM People
+    FROM People p
     GROUP BY Born
     """,
 )
@@ -138,8 +138,8 @@ print(smoothie.summary())
 smoothie = bsql.execute("""
     SELECT {{
         LLMQA(
-            'Describe BlendSQL in 50 words',
-            (
+            'Describe BlendSQL in 50 words.',
+            context=(
                 SELECT content[0:5000] AS "README"
                 FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md');
             )
@@ -232,13 +232,13 @@ _What does the largest park in Alaska look like?_
 
 ```sql
 SELECT "Name",
-{{ImageCaption('parks::Image')}} as "Image Description",
+{{ImageCaption(Image)}} as "Image Description",
 {{
     LLMMap(
         question='Size in km2?',
-        values='parks::Area'
+        values=Area
     )
-}} as "Size in km" FROM parks
+}} as "Size in km" FROM parks p
 WHERE "Location" = 'Alaska'
 ORDER BY "Size in km" DESC LIMIT 1
 ```
@@ -252,12 +252,12 @@ ORDER BY "Size in km" DESC LIMIT 1
 _Which state is the park in that protects an ash flow?_
 
 ```sql
-SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
-    WHERE "Name" = {{
+SELECT Location, Name AS "Park Protecting Ash Flow" FROM parks
+    WHERE Name = {{
       LLMQA(
         'Which park protects an ash flow?',
-        context=(SELECT "Name", "Description" FROM parks),
-        options="parks::Name"
+        context=(SELECT Name, Description FROM parks),
+        options=Name
       )
   }}
 ```
@@ -271,7 +271,7 @@ _How many parks are located in more than 1 state?_
 
 ```sql
 SELECT COUNT(*) FROM parks
-    WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
+    WHERE {{LLMMap('How many states?', Location)}} > 1
 ```
 |   Count |
 |--------:|
@@ -294,7 +294,7 @@ WHERE Location = {{WebSearchQA('Which state was Sarah Palin governor of?')}}
 _What's the difference in visitors for those parks with a superlative in their description vs. those without?_
 ```sql
 SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors",
-{{LLMMap('Contains a superlative?', 'parks::Description', options='t;f')}} AS "Description Contains Superlative",
+{{LLMMap('Contains a superlative?', Description, options=('t', 'f'))}} AS "Description Contains Superlative",
 GROUP_CONCAT(Name, ', ') AS "Park Names"
 FROM parks
 GROUP BY "Description Contains Superlative"

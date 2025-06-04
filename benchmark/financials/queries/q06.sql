@@ -3,7 +3,7 @@
         (
             WITH a AS (
                 SELECT * FROM (SELECT DISTINCT * FROM portfolio) as w
-                    WHERE {{starts_with('F', 'w::Symbol')}} = TRUE
+                    WHERE {{test_starts_with('F', w.Symbol)}} = TRUE
             ) SELECT * FROM a WHERE LENGTH(a.Symbol) > 2
         )
     )

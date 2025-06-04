@@ -3,6 +3,6 @@ WHERE "Name" = {{
   LLMQA(
     'Which park protects an ash flow?',
     context=(SELECT "Name", "Description" FROM parks),
-    options="parks::Name"
+    options=Name
   )
 }}

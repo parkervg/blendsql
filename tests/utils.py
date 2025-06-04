@@ -11,7 +11,7 @@ from blendsql.ingredients import (
 from blendsql.db.utils import single_quote_escape
 
 
-class starts_with(MapIngredient):
+class test_starts_with(MapIngredient):
     def run(self, question: str, values: List[str], **kwargs) -> List[bool]:
         """Simple test function, equivalent to the following in SQL:
             `LIKE '{arg}%`
@@ -22,7 +22,15 @@ class starts_with(MapIngredient):
 
 
 class get_length(MapIngredient):
-    def run(self, question: str, values: List[str], **kwargs) -> Iterable[int]:
+    def __call__(
+        self,
+        values: List[str] = None,
+        *args,
+        **kwargs,
+    ) -> tuple:
+        return super().__call__(question="length", values=values, *args, **kwargs)
+
+    def run(self, values: List[str], **kwargs) -> Iterable[int]:
         """Simple test function, equivalent to the following in SQL:
             `LENGTH '{arg}%`
         This allows us to compare the output of a BlendSQL script with a SQL script easily.
@@ -54,7 +62,7 @@ class get_table_size(QAIngredient):
         **kwargs,
     ) -> tuple:
         return super().__call__(
-            question=None, context=context, options=None, *args, **kwargs
+            question="size", context=context, options=None, *args, **kwargs
         )
 
     def run(self, context: pd.DataFrame, **kwargs) -> Union[str, int, float, tuple]:

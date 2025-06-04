@@ -6,7 +6,6 @@ from attr import attrs, attrib
 from pathlib import Path
 from functools import cached_property
 
-from blendsql.db.utils import double_quote_escape
 from blendsql.db.database import Database
 from blendsql.common.logger import logger
 
@@ -134,12 +133,7 @@ class DuckDB(Database):
             for column_name, column_type in self.con.sql(
                 f"SELECT column_name, column_type FROM (DESCRIBE {tablename})"
             ).fetchall():
-                column_name_to_add = (
-                    f'"{double_quote_escape(column_name)}"'
-                    if " " in column_name
-                    else column_name
-                )
-                schema[tablename][column_name_to_add] = column_type
+                schema[tablename][column_name] = column_type
         return schema
 
     def tables(self) -> t.List[str]:

@@ -18,7 +18,6 @@ from blendsql.common.logger import logger
 from blendsql.common.utils import (
     get_temp_session_table,
     get_temp_subquery_table,
-    get_tablename_colname,
 )
 from blendsql.common.exceptions import InvalidBlendSQL
 from blendsql.db.database import Database
@@ -39,11 +38,12 @@ from blendsql.parse import (
     get_first_child,
 )
 from blendsql.parse.constants import MODIFIERS
-from blendsql.grammars.peg_grammar import grammar
 from blendsql.ingredients.ingredient import Ingredient, IngredientException
 from blendsql.smoothie import Smoothie, SmoothieMeta
 from blendsql.common.constants import IngredientType
 from blendsql.models.model import Model
+
+format_blendsql_function = lambda name: "{{" + name + "()}}"
 
 
 @attrs
@@ -121,28 +121,20 @@ def autowrap_query(
         original_query: A copy of the original (string) _query
     """
     for alias, d in ingredient_alias_to_parsed_dict.items():
-        _function: Ingredient = kitchen.get_from_name(d["function"])
-        if _function.ingredient_type == IngredientType.QA:
+        current_function: Ingredient = kitchen.get_from_name(d["function"])
+        if current_function.ingredient_type == IngredientType.QA:
             # If the query only contains the function alias
             # E.g: '{{A()}}'
-            if query == alias:
-                query = query.replace(
-                    alias,
-                    f"""SELECT {alias}""",
-                )
-        elif _function.ingredient_type == IngredientType.JOIN:
-            right_table, _ = get_tablename_colname(d["kwargs_dict"]["right_on"])
-            query = query.replace(
-                alias,
-                f'"{right_table}" ON {alias}',
-            )
+            if query == format_blendsql_function(alias):
+                query = f"""SELECT {query}"""
         else:
             continue
     return query
 
 
 def preprocess_blendsql(
-    query: str,
+    node: exp.Exp,
+    dialect: sqlglot.Dialect,
     kitchen: Kitchen,
     ingredients: Collection[Ingredient],
     default_model: Model,
@@ -171,10 +163,9 @@ def preprocess_blendsql(
         ```text
         (
             {
-                '{{A()}}': {
+                'A': {
                     'function': 'LLMJoin',
                     'args': [],
-                    'ingredient_aliasname': 'A',
                     'raw': "{{ LLMJoin ( left_on= 'w::player' , right_on= 'documents::title' ) }}",
                     'kwargs_dict': {
                         'left_on': 'w::player',
@@ -186,100 +177,75 @@ def preprocess_blendsql(
         )
         ```
     """
+
+    def process_arg_value(n: exp.Expression):
+        if isinstance(n, exp.Tuple):
+            return [i.name for i in n.find_all(exp.Literal)]
+        elif isinstance(n, exp.Paren):
+            # This happens when we try to define a tuple with a single item
+            # e.g. `options=('something')`
+            return [n.this.name]
+        elif isinstance(n, exp.Literal):
+            return n.name
+        elif isinstance(n, exp.Column):
+            return n.sql(dialect=dialect).strip('"')
+        elif isinstance(n, exp.Subquery):
+            return n.sql(dialect=dialect).removesuffix(")").removeprefix("(")
+        raise ValueError(f"Not sure what to do with {type(n.expression)} here")
+
     ingredient_alias_to_parsed_dict: t.Dict[str, dict] = {}
-    ingredient_str_to_alias: t.Dict[str, str] = {}
-    query = re.sub(r"(\s+)", " ", query)
-    reversed_scan_res = [scan_res for scan_res in grammar.scanString(query)][::-1]
-    for idx, (parse_results, start, end) in enumerate(reversed_scan_res):
-        original_ingredient_string = query[start:end]
-        if (
-            original_ingredient_string in ingredient_str_to_alias
-        ):  # If we've already processed this function, no need to do it again
-            substituted_ingredient_alias = ingredient_str_to_alias[
-                original_ingredient_string
-            ]
-        else:
-            parsed_results_dict = parse_results.as_dict()
-            _ingredient = kitchen.get_from_name(parsed_results_dict["function"])
-            if _ingredient.ingredient_type == IngredientType.ALIAS:
-                _original_ingredient_string, ingredient_dependencies = _ingredient(
-                    *parsed_results_dict["args"],
-                    **{x[0]: x[-1] for x in parsed_results_dict["kwargs"]},
-                )
-                kitchen.extend(ingredient_dependencies, flag_duplicates=False)
-                ingredients = set(ingredients)
-                existing_ingredients = set([i.__name__ for i in ingredients])
-                for ingredient in ingredient_dependencies:
-                    if ingredient.__name__ not in existing_ingredients:
-                        ingredients.add(ingredient)
-                parse_results = grammar.parseString(_original_ingredient_string)
-                parsed_results_dict = parse_results.as_dict()
-                logger.debug(
-                    Fore.CYAN
-                    + "Unpacked alias `"
-                    + Fore.LIGHTCYAN_EX
-                    + original_ingredient_string
-                    + Fore.CYAN
-                    + "` to `"
-                    + Fore.LIGHTCYAN_EX
-                    + _original_ingredient_string
-                    + "`"
-                    + Fore.RESET
-                )
-                original_ingredient_string = _original_ingredient_string
-            ingredient_aliasname = string.ascii_uppercase[idx]
-            parsed_results_dict["ingredient_aliasname"] = ingredient_aliasname
-            substituted_ingredient_alias = "{{" + f"{ingredient_aliasname}()" + "}}"
-            ingredient_str_to_alias[
-                original_ingredient_string
-            ] = substituted_ingredient_alias
-            # Remove parentheses at beginning and end of arg/kwarg
-            # TODO: this should be handled by pyparsing
-            for arg_type in {"args", "kwargs"}:
-                for idx in range(len(parsed_results_dict[arg_type])):
-                    curr_arg = parsed_results_dict[arg_type][idx]
-                    curr_arg = curr_arg[-1] if arg_type == "kwargs" else curr_arg
-                    if not isinstance(curr_arg, str):
-                        continue
-                    formatted_curr_arg = re.sub(
-                        r"(^\()(.*)(\)$)", r"\2", curr_arg
-                    ).strip()
-                    if arg_type == "args":
-                        parsed_results_dict[arg_type][idx] = formatted_curr_arg
-                    else:
-                        parsed_results_dict[arg_type][idx][
-                            -1
-                        ] = formatted_curr_arg  # kwargs gets returned as ['limit', '=', 10] sort of list
-            # So we need to parse by indices in dict expression
-            # maybe if I was better at pp.Suppress we wouldn't need this
-            kwargs_dict = {x[0]: x[-1] for x in parsed_results_dict["kwargs"]}
-            kwargs_dict["model"] = default_model
-
-            # Bind arguments to function
-            from inspect import signature
-
-            sig = signature(_ingredient)
-            bound = sig.bind(*parsed_results_dict["args"], **kwargs_dict)
-            kwargs_dict = {
-                k: v for k, v in bound.arguments.items() if k != "kwargs"
-            } | bound.arguments["kwargs"]
-
-            # We don't need raw kwargs anymore
-            # in the future, we just refer to kwargs_dict
-            parsed_results_dict.pop("kwargs")
-            parsed_results_dict["args"] = []
-
-            # Below we track the 'raw' representation, in case we need to pass into
-            #   a recursive BlendSQL call later
-            ingredient_alias_to_parsed_dict[
-                substituted_ingredient_alias
-            ] = parsed_results_dict | {
-                "raw": query[start:end],
-                "kwargs_dict": kwargs_dict,
+    function_hash_to_alias: t.Dict[str, str] = {}
+    for idx, function_node in enumerate(node.find_all(exp.BlendSQLFunction)):
+        parsed_results_dict = {}
+        kwargs_dict = {}
+        function_name = function_node.name
+        parsed_results_dict["function"] = function_name
+        function_args, function_kwargs = [], {}
+        function_args.extend(
+            [process_arg_value(arg_node) for arg_node in function_node.fn_args]
+        )
+        for kwarg_node in function_node.fn_kwargs:
+            function_kwargs = {
+                **function_kwargs,
+                **{kwarg_node.name.this: process_arg_value(kwarg_node.value)},
             }
-        query = query[:start] + substituted_ingredient_alias + query[end:]
+        function_hash = hash(f"{function_name} {function_args} {function_kwargs}")
+        if function_hash in function_hash_to_alias:
+            # If we've already processed this function, no need to do it again
+            ingredient_aliasname = function_hash_to_alias[function_hash]
+        else:
+            ingredient_aliasname = string.ascii_uppercase[idx]
+            function_hash_to_alias[function_hash] = ingredient_aliasname
+
+        substituted_ingredient_alias = format_blendsql_function(ingredient_aliasname)
+
+        kwargs_dict["model"] = default_model
+
+        # Bind arguments to function
+        from inspect import signature
+
+        current_ingredient = kitchen.get_from_name(function_name)
+        sig = signature(current_ingredient)
+        bound = sig.bind(*function_args, **function_kwargs)
+        kwargs_dict = {**kwargs_dict, **bound.arguments, **bound.kwargs}
+
+        # Below we track the 'raw' representation, in case we need to pass into
+        #   a recursive BlendSQL call later
+        ingredient_alias_to_parsed_dict[ingredient_aliasname] = parsed_results_dict | {
+            "raw": function_node.sql(dialect=dialect),
+            "kwargs_dict": kwargs_dict,
+        }
+        aliased_function_node = exp.Column(
+            this=exp.Identifier(this=substituted_ingredient_alias)
+        )
+        if function_node == node:
+            # For some reason, .replace doesn't work here
+            node = aliased_function_node
+            continue
+        function_node.replace(aliased_function_node)
+
     return (
-        query.strip(),
+        node.sql(dialect=dialect),
         ingredient_alias_to_parsed_dict,
         kitchen,
         ingredients,
@@ -317,15 +283,15 @@ def materialize_cte(
         transform.replace_subquery_with_direct_alias_call,
         subquery=subquery.parent,
         aliasname=aliasname,
-    ).transform(transform.prune_with)
+    ).transform(transform.remove_nodetype, exp.With)
     return materialized_smoothie
 
 
-def get_sorted_grammar_matches(
-    q: str,
+def get_sorted_blendsql_nodes(
+    node: exp.Expression,
     ingredient_alias_to_parsed_dict: dict,
     kitchen: Kitchen,
-) -> t.Generator[t.Tuple[int, int, str, dict, Ingredient], None, None]:
+) -> t.Generator[exp.Expression, None, None]:
     """
     Yields parsed matches from grammar, according to a specified order of operations.
 
@@ -353,25 +319,24 @@ def get_sorted_grammar_matches(
         IngredientType.QA,
         IngredientType.JOIN,
     ]
-    parse_results = [i for i in grammar.scanString(q)]
+    parse_results = list(node.find_all(exp.BlendSQLFunction))
     while len(parse_results) > 0:
         curr_ingredient_target = ooo.pop(0)
         remaining_parse_results = []
-        for _, start, end in parse_results:
-            alias_function_str = q[start:end]
+        for function_node in parse_results:
             # Fetch parsed ingredient dict from our cache
-            parse_results_dict = ingredient_alias_to_parsed_dict[alias_function_str]
+            parse_results_dict = ingredient_alias_to_parsed_dict[function_node.name]
             _function: Ingredient = kitchen.get_from_name(
                 parse_results_dict["function"]
             )
             if _function.ingredient_type == curr_ingredient_target:
-                yield (start, end, alias_function_str, parse_results_dict, _function)
+                yield function_node
                 continue
             elif _function.ingredient_type not in IngredientType:
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{_function.ingredient_type}' yet"
                 )
-            remaining_parse_results.append((_, start, end))
+            remaining_parse_results.append(function_node)
         parse_results = remaining_parse_results
 
 
@@ -386,7 +351,11 @@ def disambiguate_and_submit_blend(
     """
     for alias, d in ingredient_alias_to_parsed_dict.items():
         # https://stackoverflow.com/a/12127534
-        query = re.sub(re.escape(alias), lambda _: d["raw"], query)  # noqa
+        query = re.sub(
+            re.escape(format_blendsql_function(alias)),
+            lambda _: d["raw"],  # noqa
+            query,
+        )
     logger.debug(
         Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`" + Fore.RESET
     )
@@ -401,7 +370,6 @@ def _blend(
     verbose: bool = False,
     infer_gen_constraints: bool = True,
     table_to_title: t.Optional[t.Dict[str, str]] = None,
-    schema_qualify: bool = True,
     _prev_passed_values: int = 0,
 ) -> Smoothie:
     """Invoked from blend(), this contains the recursive logic to execute
@@ -411,8 +379,10 @@ def _blend(
     # the original query, prior to the final execution on the underlying DBMS.
     original_query = copy.deepcopy(query)
     dialect: sqlglot.Dialect = get_dialect(db.__class__.__name__)
+
     query_context = QueryContextManager(dialect)
-    naive_execution = False
+    query_context.parse(query, schema=db.sqlglot_schema)
+
     session_uuid = str(uuid.uuid4())[:4]
     if ingredients is None:
         ingredients = []
@@ -428,7 +398,8 @@ def _blend(
         kitchen,
         ingredients,
     ) = preprocess_blendsql(
-        query=query,
+        node=query_context.node,
+        dialect=dialect,
         kitchen=kitchen,
         ingredients=ingredients,
         default_model=default_model,
@@ -487,15 +458,8 @@ def _blend(
             ),
         )
 
-    if schema_qualify:
-        # Only construct sqlglot schema if we need to
-        schema = db.sqlglot_schema
-        # Re-parse with schema, but utilize the previous sqlglot parse
-        query_context.parse(query_context.node, schema=schema)
-
     _get_temp_session_table: t.Callable = partial(get_temp_session_table, session_uuid)
-    # Mapping from {"QA('does this company...', 'constituents::Name')": 'does this company'...})
-    function_call_to_res: t.Dict[str, str] = {}
+    alias_function_name_to_result: t.Dict[str, str] = {}
     session_modified_tables = set()
     scm = None
     # TODO: Currently, as we traverse upwards from deepest subquery,
@@ -601,45 +565,37 @@ def _blend(
                     + f"and setting to `{tablename_to_write}`..."
                     + Fore.RESET
                 )
-                try:
-                    abstracted_df = db.execute_to_df(abstracted_query_str)
-                    if aliased_subquery is None:
-                        if postprocess_columns:
-                            if isinstance(db, DuckDB):
-                                # TODO: fix this
-                                # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
-                                # Gives:
-                                #   id  country_id                    name   id_1   name_1
-                                #   0      1           1  Belgium Jupiler League      1  Belgium
-                                #   1   1729        1729  England Premier League   1729  England
-                                #   2   4769        4769          France Ligue 1   4769   France
-                                #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
-                                #   4  10257       10257           Italy Serie A  10257    Italy
-                                # But, below we remove the columns with underscores. we need those.
-                                set_of_column_names = set(schema[tablename])
-                                # In case of a join, duckdb formats columns with 'column_1'
-                                # But some columns (e.g. 'parent_category') just have underscores in them already
-                                abstracted_df = abstracted_df.rename(
-                                    columns=lambda x: re.sub(r"_\d$", "", x)
-                                    if x not in set_of_column_names  # noqa: B023
-                                    else x
-                                )
-                            # In case of a join, we could have duplicate column names in our pandas dataframe
-                            # This will throw an error when we try to write to the database
-                            abstracted_df = abstracted_df.loc[
-                                :, ~abstracted_df.columns.duplicated()
-                            ]
-                    db.to_temp_table(
-                        df=abstracted_df,
-                        tablename=tablename_to_write,
-                    )
-                except Exception as e:
-                    # Fallback to naive execution
-                    logger.debug(Fore.RED + str(e) + Fore.RESET)
-                    logger.debug(
-                        Fore.RED + "Falling back to naive execution..." + Fore.RESET
-                    )
-                    naive_execution = True
+                abstracted_df = db.execute_to_df(abstracted_query_str)
+                if aliased_subquery is None:
+                    if postprocess_columns:
+                        if isinstance(db, DuckDB):
+                            # TODO: fix this
+                            # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
+                            # Gives:
+                            #   id  country_id                    name   id_1   name_1
+                            #   0      1           1  Belgium Jupiler League      1  Belgium
+                            #   1   1729        1729  England Premier League   1729  England
+                            #   2   4769        4769          France Ligue 1   4769   France
+                            #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
+                            #   4  10257       10257           Italy Serie A  10257    Italy
+                            # But, below we remove the columns with underscores. we need those.
+                            set_of_column_names = set(db.sqlglot_schema[tablename])
+                            # In case of a join, duckdb formats columns with 'column_1'
+                            # But some columns (e.g. 'parent_category') just have underscores in them already
+                            abstracted_df = abstracted_df.rename(
+                                columns=lambda x: re.sub(r"_\d$", "", x)
+                                if x not in set_of_column_names  # noqa: B023
+                                else x
+                            )
+                        # In case of a join, we could have duplicate column names in our pandas dataframe
+                        # This will throw an error when we try to write to the database
+                        abstracted_df = abstracted_df.loc[
+                            :, ~abstracted_df.columns.duplicated()
+                        ]
+                db.to_temp_table(
+                    df=abstracted_df,
+                    tablename=tablename_to_write,
+                )
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
             db.lazy_tables.add(
@@ -666,36 +622,35 @@ def _blend(
             scm.set_node(scm.node.transform(transform.maybe_set_subqueries_to_true))
 
         # lazy_limit: Union[int, None] = scm.get_lazy_limit()
-        # After above processing of AST, sync back to string repr
-        subquery_str = scm.sql()
+
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
         # 2) Track when we've created a new table from a MapIngredient call
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
         tablename_to_map_out: t.Dict[str, t.List[pd.DataFrame]] = {}
-        for (
-            start,
-            end,
-            alias_function_str,
-            parsed_results_dict,
-            ingredient,
-        ) in get_sorted_grammar_matches(
-            q=subquery_str,
+        for function_node in get_sorted_blendsql_nodes(
+            node=scm.node,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
             kitchen=kitchen,
         ):
             if in_cte:  # Don't execute CTEs until we need them
                 continue
+            curr_function_parsed_results = ingredient_alias_to_parsed_dict[
+                function_node.name
+            ]
+            curr_ingredient = kitchen.get_from_name(
+                curr_function_parsed_results["function"]
+            )
             prev_subquery_has_ingredient = True
-            if alias_function_str in executed_subquery_ingredients:
+            if function_node.name in executed_subquery_ingredients:
                 # Don't execute same ingredient twice
                 continue
-            executed_subquery_ingredients.add(alias_function_str)
-            kwargs_dict = parsed_results_dict["kwargs_dict"]
+            executed_subquery_ingredients.add(function_node.name)
+            kwargs_dict = curr_function_parsed_results["kwargs_dict"]
             logger.debug(
                 Fore.CYAN
                 + "Executing "
                 + Fore.LIGHTCYAN_EX
-                + f" `{parsed_results_dict['raw']}`..."
+                + f" `{curr_function_parsed_results['raw']}`..."
                 + Fore.RESET
             )
             if infer_gen_constraints:
@@ -703,11 +658,7 @@ def _blend(
                 # So if we already define something in kwargs_dict,
                 #   It's not overriden here
                 kwargs_dict = (
-                    scm.infer_gen_constraints(
-                        start=start,
-                        end=end,
-                    )
-                    | kwargs_dict
+                    scm.infer_gen_constraints(function_node=function_node) | kwargs_dict
                 )
 
             if table_to_title is not None:
@@ -715,19 +666,10 @@ def _blend(
 
             # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
-            for i, unpack_kwarg in enumerate(["context", "options"]):
-                unpack_value = kwargs_dict.get(
-                    unpack_kwarg,
-                    (
-                        parsed_results_dict["args"][i + 1]
-                        if len(parsed_results_dict["args"]) > i + 1
-                        else (
-                            parsed_results_dict["args"][i]
-                            if len(parsed_results_dict["args"]) > i
-                            else ""
-                        )
-                    ),
-                )
+            for _i, unpack_kwarg in enumerate(["context", "options"]):
+                unpack_value = kwargs_dict.get(unpack_kwarg, None)
+                if unpack_value is None:
+                    continue
                 if isinstance(unpack_value, str) and check.is_blendsql_query(
                     unpack_value
                 ):
@@ -753,13 +695,13 @@ def _blend(
                             )
                     else:
                         kwargs_dict[unpack_kwarg] = subtable
-                        # Below, we can remove the optional `context` arg we passed in args
-                        parsed_results_dict["args"] = parsed_results_dict["args"][:1]
-            if getattr(ingredient, "model", None) is not None:
-                kwargs_dict["model"] = ingredient.model
+                        # # Below, we can remove the optional `context` arg we passed in args
+                        # parsed_results_dict["args"] = parsed_results_dict["args"][:1]
+            if getattr(curr_ingredient, "model", None) is not None:
+                kwargs_dict["model"] = curr_ingredient.model
             # Execute our ingredient function
-            function_out = ingredient(
-                *parsed_results_dict["args"],
+            function_out = curr_ingredient(
+                # *parsed_results_dict["args"],
                 **kwargs_dict
                 | {
                     "get_temp_subquery_table": _get_temp_subquery_table,
@@ -769,7 +711,7 @@ def _blend(
                 },
             )
             # Check how to handle output, depending on ingredient type
-            if ingredient.ingredient_type == IngredientType.MAP:
+            if curr_ingredient.ingredient_type == IngredientType.MAP:
                 # Parse so we replace this function in blendsql with 1st arg
                 #   (new_col, which is the question we asked)
                 #  But also update our underlying table, so we can execute correctly at the end
@@ -781,16 +723,16 @@ def _blend(
                 else:
                     tablename_to_map_out[tablename] = [new_table]
                 session_modified_tables.add(tablename)
-                function_call_to_res[
-                    alias_function_str
+                alias_function_name_to_result[
+                    function_node.name
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
-            elif ingredient.ingredient_type in (
+            elif curr_ingredient.ingredient_type in (
                 IngredientType.STRING,
                 IngredientType.QA,
             ):
                 # Here, we can simply insert the function's output
-                function_call_to_res[alias_function_str] = function_out
-            elif ingredient.ingredient_type == IngredientType.JOIN:
+                alias_function_name_to_result[function_node.name] = function_out
+            elif curr_ingredient.ingredient_type == IngredientType.JOIN:
                 # 1) Get the `JOIN` clause containing function
                 # 2) Replace with just the function alias
                 # 3) Assign `function_out` to `alias_function_str`
@@ -803,45 +745,12 @@ def _blend(
                 # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
                 join_node = query_context.node.find(exp.Join)
                 assert join_node is not None
-                num_ingredients_in_join = check.get_ingredient_count(join_node)
-                if num_ingredients_in_join > 1:
-                    # Case where we have
-                    # `SELECT * FROM w0 JOIN w0 ON {{B()}} > 1 AND {{A()}} WHERE TRUE`
-                    # Since we haven't executed and saved `{{B()}}` to temp table yet,
-                    #   we need to keep. So we get:
-                    temp_uuid = str(uuid.uuid4())
-                    _node = query_context.node.transform(
-                        transform.replace_join_with_ingredient_multiple_ingredient,
-                        ingredient_alias=alias_function_str,
-                        dialect=dialect,
-                        temp_uuid=temp_uuid,
-                    ).transform(transform.prune_true_where)
-                    query_context.parse(
-                        str(_node).replace(f'SELECT "{temp_uuid}", ', ""),
-                        schema=schema,
-                    )
-                else:
-                    # Case where we have
-                    # `SELECT * FROM w0 JOIN w0 ON w0.x > 1 AND {{A()}} WHERE TRUE`
-                    # Since we've already applied SQL operation `w0.x > 1` and set to temp table
-                    # we can remove this. So below we transform to:
-                    # `SELECT * FROM w0 {{A()}}  WHERE TRUE`
-                    # This way, `{{A()}}` can get replaced with our new join
-                    # TODO: since we're not removing predicates in other areas, probably not best to do it here.
-                    #   Should probably modify in the future.
-                    query_context.node = query_context.node.transform(
-                        transform.replace_join_with_ingredient_single_ingredient,
-                        dialect=dialect,
-                        # ingredient_name=parsed_results_dict["ingredient_aliasname"],
-                        ingredient_alias=alias_function_str,
-                    )
-                function_call_to_res[alias_function_str] = join_clause
+                join_node.replace(exp.BlendSQLFunction(this=function_node.name))
+                alias_function_name_to_result[function_node.name] = join_clause
             else:
                 raise ValueError(
-                    f"Not sure what to do with ingredient_type '{ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
+                    f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                 )
-            if naive_execution:
-                break
         # Combine all the retrieved ingredient outputs
         for tablename, ingredient_outputs in tablename_to_map_out.items():
             if len(ingredient_outputs) > 0:
@@ -906,12 +815,11 @@ def _blend(
     # We need to re-sync if we did some operation on the underlying query,
     #   like with a JoinIngredient
     query = query_context.to_string()
-    # query = str(query_context.node.transform(transform.remove_ctes))
-    for function_str, res in function_call_to_res.items():
-        # The post-processing on the JoinIngredient will sometimes leave 'AS {{A()}}' sort of artifacts
-        # We remove them below
+    for alias, res in alias_function_name_to_result.items():
         query = re.sub(
-            r"(AS )?{}".format(re.escape(function_str)), f" {str(res)} ", query
+            re.escape(format_blendsql_function(alias)),
+            f" {str(res)} ",
+            query,
         )
     query_context.parse(query)
     for t in session_modified_tables:
@@ -990,9 +898,6 @@ class BlendSQL:
             LLM generation based on query context. Defaults to True.
         table_to_title (Optional[Dict[str, str]]): Optional mapping from table names to
             descriptive titles, useful for datasets where table titles contain metadata.
-        schema_qualify (bool): Whether to qualify column names with table names. Required
-            for multi-table queries but adds overhead. Can be disabled for single-table
-            queries. Defaults to True.
     """
 
     db: t.Union[pd.DataFrame, dict, str, Database] = field(default=None)
@@ -1004,7 +909,6 @@ class BlendSQL:
     verbose: bool = field(default=False)
     infer_gen_constraints: bool = field(default=True)
     table_to_title: t.Optional[t.Dict[str, str]] = field(default=None)
-    schema_qualify: bool = field(default=True)
 
     def __post_init__(self):
         if not isinstance(self.db, Database):
@@ -1078,7 +982,6 @@ class BlendSQL:
         ingredients: t.Optional[Collection[t.Type[Ingredient]]] = None,
         model: t.Optional[str] = None,
         infer_gen_constraints: t.Optional[bool] = None,
-        schema_qualify: t.Optional[bool] = None,
         verbose: t.Optional[bool] = None,
     ) -> Smoothie:
         '''The `execute()` function is used to execute a BlendSQL query against a database and
@@ -1097,10 +1000,6 @@ class BlendSQL:
                     2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to guidance
             table_to_title: Optional mapping from table name to title of table.
                 Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
-            schema_qualify: Optional bool, determines if we run qualify_columns() from sqlglot
-                This enables us to write BlendSQL scripts over multi-table databases without manually qualifying columns ourselves
-                However, we need to call `db.sqlglot_schema` if schema_qualify=True, which may add some latency.
-                With single-table queries, we can set this to False.
 
         Returns:
             smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata
@@ -1206,9 +1105,6 @@ class BlendSQL:
                 if infer_gen_constraints is not None
                 else self.infer_gen_constraints,
                 table_to_title=self.table_to_title,
-                schema_qualify=schema_qualify
-                if schema_qualify is not None
-                else self.schema_qualify,
             )
         except Exception as error:
             raise error

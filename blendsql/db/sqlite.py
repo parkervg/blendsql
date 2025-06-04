@@ -3,7 +3,6 @@ from sqlalchemy.engine import make_url, URL
 from functools import cached_property
 from typing import Dict
 
-from blendsql.db.utils import double_quote_escape
 from blendsql.db.sqlalchemy import SQLAlchemyDatabase
 
 
@@ -45,10 +44,5 @@ class SQLite(SQLAlchemyDatabase):
             """,
                 {"t": tablename},
             ).iterrows():
-                column_name_to_add = (
-                    f'"{double_quote_escape(row["name"])}"'
-                    if " " in row["name"]
-                    else row["name"]
-                )
-                schema[tablename][column_name_to_add] = row["type"]
+                schema[tablename][row["name"]] = row["type"]
         return schema
