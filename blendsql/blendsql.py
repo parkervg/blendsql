@@ -997,7 +997,7 @@ class BlendSQL:
                 For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
                 We can infer the output format should look like '1960-12-31' and both:
                     1) Put this string in the `example_outputs` kwarg
-                    2) If we have a LocalModel, pass the '\d{4}-\d{2}-\d{2}' pattern to guidance
+                    2) If we have a LocalModel, pass the r'\d{4}-\d{2}-\d{2}' pattern to guidance
             table_to_title: Optional mapping from table name to title of table.
                 Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
 
@@ -1088,7 +1088,6 @@ class BlendSQL:
             # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
             ```
         '''
-
         self._toggle_verbosity(verbose if verbose is not None else self.verbose)
 
         start = time.time()

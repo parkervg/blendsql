@@ -141,7 +141,7 @@ smoothie = bsql.execute("""
             'Describe BlendSQL in 50 words.',
             context=(
                 SELECT content[0:5000] AS "README"
-                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md');
+                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
             )
         )
     }} AS answer
