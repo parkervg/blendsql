@@ -215,11 +215,11 @@ BlendSQL allows us to ask the following questions by injecting "ingredients", wh
 
 _Which parks don't have park facilities?_
 ```sql
-SELECT "Name", "Description" FROM parks
+SELECT "Name", "Description" FROM parks p
   WHERE {{
       LLMMap(
           'Does this location have park facilities?',
-          values='parks::Description'
+          p.Description
       )
   }} = FALSE
 ```
