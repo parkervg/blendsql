@@ -45,15 +45,15 @@ def str_to_bool(s: t.Union[str, None]) -> t.Union[bool, str, None]:
     }.get(s.lower(), None)
 
 
-def str_to_numeric(s: t.Union[str, None]) -> t.Union[float, int, str, None]:
+def str_to_numeric(s: t.Union[str, None]) -> t.Union[float, int, None]:
     if not isinstance(s, str):
         return s
     s = s.replace(",", "")
     try:
         casted_s = literal_eval(s)
-        assert isinstance(casted_s, (float, int, str))
+        assert isinstance(casted_s, (float, int))
     except (ValueError, SyntaxError, AssertionError):
-        return s
+        return None
     return casted_s
 
 
