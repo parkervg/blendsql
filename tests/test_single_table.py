@@ -410,12 +410,12 @@ def test_ingredient_in_select_stmt_with_filter(bsql):
 def test_nested_duplicate_map_calls(bsql):
     smoothie = bsql.execute(
         """
-        SELECT merchant FROM transactions WHERE {{get_length(merchant)}} > (SELECT {{get_length(merchant)}} FROM transactions WHERE merchant = 'Paypal')
+        SELECT merchant FROM transactions WHERE {{get_length(merchant)}} > (SELECT {{get_length(merchant)}} FROM transactions WHERE merchant = 'Paypal' LIMIT 1)
         """
     )
     sql_df = bsql.db.execute_to_df(
         """
-        SELECT merchant FROM transactions WHERE LENGTH(merchant) > (SELECT LENGTH(merchant) FROM transactions WHERE merchant = 'Paypal')
+        SELECT merchant FROM transactions WHERE LENGTH(merchant) > (SELECT LENGTH(merchant) FROM transactions WHERE merchant = 'Paypal' LIMIT 1)
         """
     )
     assert_equality(smoothie=smoothie, sql_df=sql_df)
