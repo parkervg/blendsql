@@ -30,19 +30,19 @@ class DataType:
 
 
 def str_to_bool(s: t.Union[str, None]) -> t.Union[bool, str, None]:
-    if isinstance(s, str):
-        return {
-            "t": True,
-            "f": False,
-            "true": True,
-            "false": False,
-            "y": True,
-            "n": False,
-            "yes": True,
-            "no": False,
-            DEFAULT_NAN_ANS: None,
-        }.get(s.lower(), s)
-    return s
+    return {
+        "t": True,
+        "f": False,
+        "true": True,
+        "false": False,
+        "y": True,
+        "n": False,
+        "yes": True,
+        "no": False,
+        "1": True,
+        "0": False,
+        DEFAULT_NAN_ANS: None,
+    }.get(s.lower(), None)
 
 
 def str_to_numeric(s: t.Union[str, None]) -> t.Union[float, int, str, None]:
