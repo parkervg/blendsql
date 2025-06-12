@@ -12,7 +12,6 @@ from attr import attrs, attrib
 from blendsql.common.logger import logger
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import maybe_load_lm, LMString
-from blendsql.models.utils import user, assistant
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 from blendsql.common.exceptions import IngredientException
@@ -393,29 +392,62 @@ class LLMQA(QAIngredient):
                 if model.caching:
                     model.cache[key] = response  # type: ignore
         else:
-            messages = []
-            intro_prompt = MAIN_INSTRUCTION
-            if long_answer:
-                intro_prompt += LONG_ANSWER_INSTRUCTION
+            import dspy
+
+            if options is not None and list_options_in_prompt:
+                return_type_annotation = (
+                    f"Literal[" + ", ".join([f'"{option}"' for option in options]) + "]"
+                )
+                if is_list_output:
+                    return_type_annotation = f"List[{return_type_annotation}]"
             else:
-                intro_prompt += SHORT_ANSWER_INSTRUCTION
-            messages.append(user(intro_prompt))
-            # Add few-shot examples
-            for example in few_shot_examples:
-                messages.append(user(example.to_string(context_formatter)))
-                messages.append(assistant(example.answer))
-            # Add current question + context for inference
-            messages.append(
-                user(
-                    current_example.to_string(
-                        context_formatter, list_options=list_options_in_prompt
+                return_type_annotation = resolved_return_type.name
+
+            instructions = MAIN_INSTRUCTION + (
+                LONG_ANSWER_INSTRUCTION if long_answer else SHORT_ANSWER_INSTRUCTION
+            )
+
+            if quantifier is not None:
+                if quantifier == "*":
+                    instructions += (
+                        "You may generate zero or more responses in your list.\n"
+                    )
+                elif quantifier == "+":
+                    instructions += (
+                        "You may generate one or more responses in your list.\n"
+                    )
+                else:
+                    repeats = [
+                        int(i)
+                        for i in quantifier.replace("}", "").replace("{", "").split(",")
+                    ]
+                    if len(repeats) == 1:
+                        repeats = repeats * 2
+                    min_length, max_length = repeats
+                    if min_length == max_length:
+                        instructions += (
+                            f"You may generate {min_length} responses in your list.\n"
+                        )
+                    else:
+                        instructions += f"You may generate between {min_length} and {max_length} responses in your list.\n"
+
+            if context is not None:
+                qa_fn = dspy.Predict(
+                    dspy.Signature(
+                        f"question: str, context: str -> answer: {return_type_annotation}",
+                        instructions=instructions,
                     )
                 )
-            )
+            else:
+                qa_fn = dspy.Predict(
+                    dspy.Signature(
+                        f"question: str -> answer: {return_type_annotation}",
+                        instructions=instructions,
+                    )
+                )
             response = model.generate(
-                messages_list=[messages],
-                max_tokens=kwargs.get("max_tokens", None),
-            )[0].strip()
+                qa_fn, kwargs_list=[{"question": question, "context": context}]
+            )[0]
         if isinstance(response, str):  # type: ignore
             # If we have specified a quantifier, we try to parse it to a tuple
             if is_list_output:

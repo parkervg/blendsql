@@ -1,4 +1,3 @@
-import copy
 import os
 import typing as t
 from pathlib import Path
@@ -10,8 +9,6 @@ from attr import attrs, attrib
 from blendsql.common.logger import logger
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
-from blendsql.models.utils import user
-from blendsql.common import constants as CONST
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
 from blendsql.ingredients.utils import (
@@ -24,8 +21,6 @@ from .examples import (
     AnnotatedMapExample,
     ConstrainedMapExample,
     ConstrainedAnnotatedMapExample,
-    UnconstrainedAnnotatedMapExample,
-    UnconstrainedMapExample,
 )
 from blendsql.search.searcher import Searcher
 
@@ -42,16 +37,7 @@ CONSTRAINED_MAIN_INSTRUCTION = (
 )
 DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 100
 
-UNCONSTRAINED_MAIN_INSTRUCTION = (
-    "Given a set of values from a database, answer the question for each value. "
-)
-UNCONSTRAINED_MAIN_INSTRUCTION = (
-    UNCONSTRAINED_MAIN_INSTRUCTION
-    + " Your output should be separated by ';', answering for each of the values left-to-right.\n"
-)
-DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE = 5
-
-OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
+# OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
 
 
 @attrs
@@ -238,17 +224,6 @@ class LLMMap(MapIngredient):
                 options=options,
                 use_context=use_context,
             )
-        else:
-            current_example = UnconstrainedMapExample(
-                question=question,
-                column_name=column_name,
-                table_name=table_name,
-                return_type=resolved_return_type,
-                example_outputs=example_outputs,
-                options=options,
-                use_context=use_context,
-                values=values,
-            )
 
         regex = regex or resolved_return_type.regex
 
@@ -256,12 +231,6 @@ class LLMMap(MapIngredient):
             batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
             few_shot_examples: t.List[ConstrainedAnnotatedMapExample] = [
                 ConstrainedAnnotatedMapExample(**example.__dict__)
-                for example in few_shot_retriever()
-            ]
-        else:
-            batch_size = batch_size or DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE
-            few_shot_examples: t.List[UnconstrainedAnnotatedMapExample] = [
-                UnconstrainedAnnotatedMapExample(**example.__dict__)
                 for example in few_shot_retriever()
             ]
 
@@ -328,7 +297,6 @@ class LLMMap(MapIngredient):
             model.prompt_tokens += len(
                 model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
             )
-            # for i in range(0, len(sorted_values), batch_size):
             for c, v in zip(context, values):
                 current_example.context = c
                 current_example_str = current_example.to_string(
@@ -392,51 +360,44 @@ class LLMMap(MapIngredient):
             # For each value, call the DataType's `coerce_fn()`
             mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
         else:
-            sorted_values = sorted(values)
-            messages_list: t.List[t.List[dict]] = []
-            batch_sizes: t.List[int] = []
-            for i in range(0, len(sorted_values), batch_size):
-                curr_batch_values = sorted_values[i : i + batch_size]
-                batch_sizes.append(len(curr_batch_values))
-                current_batch_example = copy.deepcopy(current_example)
-                current_batch_example.values = curr_batch_values
-                user_msg_str = ""
-                user_msg_str += UNCONSTRAINED_MAIN_INSTRUCTION
-                # Add few-shot examples
-                for example in few_shot_examples:
-                    user_msg_str += example.to_string(include_values=False)
-                # Add the current question + context for inference
-                user_msg_str += current_batch_example.to_string(
-                    list_options=list_options_in_prompt, include_values=True
-                )
-                messages_list.append([user(user_msg_str)])
+            import dspy
 
-            responses: t.List[str] = model.generate(
-                messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
+            if options is not None and list_options_in_prompt:
+                type_annotation = (
+                    f"t.Literal["
+                    + ", ".join([f'"{option}"' for option in self.options])
+                    + "]"
+                )
+            else:
+                type_annotation = resolved_return_type.name
+
+            if use_context:
+                map_fn = dspy.Predict(
+                    dspy.Signature(
+                        f"question: str, value: str, source_column: str, context: str -> answer: {type_annotation}",
+                        instructions="Answer the provided question for the value from the database given the context.",
+                    )
+                )
+            else:
+                map_fn = dspy.Predict(
+                    dspy.Signature(
+                        f"question: str, value: str, source_column: str -> answer: {type_annotation}",
+                        instructions="Answer the provided question for the value from the database.",
+                    )
+                )
+            mapped_values = model.generate(
+                map_fn,
+                kwargs_list=[
+                    {
+                        "question": question,
+                        "value": v,
+                        "source_column": f'"{column_name}"."{table_name}"',
+                        "context": c,
+                    }
+                    for v, c in zip(values, context)
+                ],
+                max_tokens=kwargs.get("max_tokens", None),
             )
-
-            # Post-process language model response
-            mapped_values = []
-            total_missing_values = 0
-            for idx, r in enumerate(responses):
-                expected_len = batch_sizes[idx]
-                predictions: t.List[Union[str, None]] = r.split(CONST.DEFAULT_ANS_SEP)  # type: ignore
-                while len(predictions) < expected_len:
-                    total_missing_values += 1
-                    predictions.append(None)
-                # Try to map to booleans, `None`, and numeric datatypes
-                mapped_values.extend(
-                    [current_example.return_type.coerce_fn(s) for s in predictions]
-                )
-
-            mapping = {k: v for k, v in zip(sorted_values, mapped_values)}
-            mapped_values = [mapping[value] for value in values]
-
-            if total_missing_values > 0:
-                logger.debug(
-                    Fore.RED
-                    + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
-                )
 
         logger.debug(
             Fore.YELLOW
