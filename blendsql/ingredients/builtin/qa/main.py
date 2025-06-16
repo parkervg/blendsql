@@ -88,7 +88,7 @@ class LLMQA(QAIngredient):
             index=False
         ),
         list_options_in_prompt: bool = True,
-        num_few_shot_examples: t.Optional[int] = None,
+        num_few_shot_examples: t.Optional[int] = 1,
         searcher: t.Optional[Searcher] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -152,7 +152,6 @@ class LLMQA(QAIngredient):
         few_shot_retriever = initialize_retriever(
             examples=few_shot_examples,
             num_few_shot_examples=num_few_shot_examples,
-            context_formatter=context_formatter,
         )
         return cls._maybe_set_name_to_var_name(
             partialclass(
@@ -210,7 +209,7 @@ class LLMQA(QAIngredient):
             )
         if few_shot_retriever is None:
             # Default to no few-shot examples in LLMQA
-            few_shot_retriever = lambda *_: []
+            few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT[:1]
 
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
