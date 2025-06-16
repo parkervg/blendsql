@@ -54,8 +54,7 @@ class LiteLLM(UnconstrainedModel):
     async def _generate(
         self,
         dspy_predict: dspy.Predict,
-        kwargs_list: t.List[t.List[dict]],
-        examples: t.Optional[t.List[dspy.Example]] = None,
+        kwargs_list: t.List[dict],
         max_tokens: t.Optional[int] = None,
         stop: t.Optional[t.List[str]] = None,
     ):
@@ -63,25 +62,19 @@ class LiteLLM(UnconstrainedModel):
         dspy.configure(
             lm=dspy.LM(
                 self.model_name_or_path,
-                {**{"max_tokens": max_tokens, "stop": stop}, **self.config},
                 cache=False,
+                **{**{"max_tokens": max_tokens, "stop": stop}, **self.config},
             )
         )
 
         async with sem:
-            responses = [
-                dspy_predict.acall(
-                    model=self.model_name_or_path, examples=examples, **kwargs
-                )
-                for kwargs in kwargs_list
-            ]
+            responses = [dspy_predict.acall(**kwargs) for kwargs in kwargs_list]
             return [m for m in await asyncio.gather(*responses)]
 
     def generate(
         self,
         dspy_predict: dspy.Predict,
-        kwargs_list: t.List[t.List[dict]],
-        examples: t.Optional[t.List[dspy.Example]] = None,
+        kwargs_list: t.List[dict],
         *args,
         **kwargs,
     ) -> t.List[t.Any]:
@@ -91,7 +84,7 @@ class LiteLLM(UnconstrainedModel):
         and generating new responses for cache misses.
         """
         return asyncio.get_event_loop().run_until_complete(
-            self._generate(dspy_predict, kwargs_list, examples, *args, **kwargs)
+            self._generate(dspy_predict, kwargs_list, *args, **kwargs)
         )
 
     def get_usage(self, n: int) -> dict:
