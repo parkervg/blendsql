@@ -56,12 +56,11 @@ CONSTRAINED_MODEL_CONFIGS = [
 ]
 
 UNCONSTRAINED_MODEL_CONFIGS = [
-    {
-        "name": "ollama",
-        "class": LiteLLM,
-        "path": "ollama/qwen:0.5b",
-        "requires_api": False,
-    },
+    # {
+    #     "name": "ollama",
+    #     "class": LiteLLM,
+    #     "path": "ollama/qwen:0.5b",
+    # },
     {
         "name": "openai",
         "class": LiteLLM,
@@ -101,7 +100,10 @@ def get_available_constrained_models():
 def get_available_unconstrained_models():
     available_models = []
     for config in UNCONSTRAINED_MODEL_CONFIGS:
-        if config.get("requires_env") and os.getenv(config["requires_env"]) is None:
+        if (
+            config.get("requires_env")
+            and os.getenv(config["requires_env"], None) is None
+        ):
             continue
 
         model = config["class"](config["path"], caching=False)
