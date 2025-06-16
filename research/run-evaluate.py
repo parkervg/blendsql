@@ -53,7 +53,7 @@ if __name__ == "__main__":
     # )
     ingredients = {
         LLMQA.from_args(
-            k=0,
+            num_few_shot_examples=0,
             context_formatter=lambda df: json.dumps(
                 df.to_dict(orient="records"), indent=4
             ),

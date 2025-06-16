@@ -9,7 +9,6 @@ from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
 class MapExample(Example):
     question: str = attrib(default=None)
     context: t.Optional[str] = attrib(default=None)
-    values: t.Optional[t.List[str]] = attrib(default=None)
     table_name: str = attrib(default=None)
     column_name: str = attrib(default=None)
     options: t.Optional[t.Collection[str]] = attrib(default=None)

@@ -68,7 +68,7 @@ class LLMMap(MapIngredient):
         ] = None,
         list_options_in_prompt: bool = True,
         batch_size: t.Optional[int] = None,
-        k: t.Optional[int] = None,
+        num_few_shot_examples: t.Optional[int] = None,
         searcher: t.Optional[Searcher] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -79,7 +79,7 @@ class LLMMap(MapIngredient):
                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/map/default_examples.json) as default.
             list_options_in_prompt: Whether to list options in the prompt. Defaults to True.
             batch_size: The batch size for processing. Defaults to 5.
-            k: Determines number of few-shot examples to use for each ingredient call.
+            num_few_shot_examples: Determines number of few-shot examples to use for each ingredient call.
                Default is None, which will use all few-shot examples on all calls.
                If specified, will initialize a haystack-based embedding retriever to filter examples.
 
@@ -108,8 +108,7 @@ class LLMMap(MapIngredient):
                             "options": ["Dog", "Gorilla", "Hamster"]
                         }
                     ],
-                    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
-                    k=2,
+                    num_few_shot_examples=2,
                     # Lambda to turn the pd.DataFrame to a serialized string
                     context_formatter=lambda df: df.to_markdown(
                         index=False
@@ -125,21 +124,17 @@ class LLMMap(MapIngredient):
         else:
             # Sort of guessing here - the user could change the `model` type later,
             #   or pass the model at the `BlendSQL(...)` level instead of the ingredient level.
-            if model is not None and isinstance(model, ConstrainedModel):
+            if model is not None:
                 few_shot_examples = [
                     ConstrainedAnnotatedMapExample(**d)
                     if isinstance(d, dict)
                     else ConstrainedAnnotatedMapExample(**d.__dict__)
                     for d in few_shot_examples
                 ]
-            else:
-                few_shot_examples = [
-                    UnconstrainedAnnotatedMapExample(**d)
-                    if isinstance(d, dict)
-                    else UnconstrainedAnnotatedMapExample(**d.__dict__)
-                    for d in few_shot_examples
-                ]
-        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
+
+        few_shot_retriever = initialize_retriever(
+            examples=few_shot_examples, num_few_shot_examples=num_few_shot_examples
+        )
         return cls._maybe_set_name_to_var_name(
             partialclass(
                 cls,
@@ -161,6 +156,9 @@ class LLMMap(MapIngredient):
         unpacked_questions: t.List[str] = None,
         searcher: t.Optional[Searcher] = None,
         options: t.Optional[t.List[str]] = None,
+        few_shot_retriever: t.Callable[
+            [str], t.List[ConstrainedAnnotatedMapExample]
+        ] = None,
         value_limit: t.Optional[int] = None,
         example_outputs: t.Optional[str] = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
@@ -187,8 +185,8 @@ class LLMMap(MapIngredient):
             raise IngredientException(
                 "LLMMap requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
-        # if few_shot_retriever is None:
-        few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
+        if few_shot_retriever is None:
+            few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
         use_context = context is not None or searcher is not None
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
@@ -231,6 +229,11 @@ class LLMMap(MapIngredient):
             batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
             few_shot_examples: t.List[ConstrainedAnnotatedMapExample] = [
                 ConstrainedAnnotatedMapExample(**example.__dict__)
+                for example in few_shot_retriever()
+            ]
+        else:
+            few_shot_examples: t.List[AnnotatedMapExample] = [
+                AnnotatedMapExample(**example.__dict__)
                 for example in few_shot_retriever()
             ]
 
@@ -364,39 +367,118 @@ class LLMMap(MapIngredient):
 
             if options is not None and list_options_in_prompt:
                 type_annotation = (
-                    f"t.Literal["
-                    + ", ".join([f'"{option}"' for option in self.options])
-                    + "]"
+                    f"Literal[" + ", ".join([f'"{option}"' for option in options]) + "]"
                 )
             else:
                 type_annotation = resolved_return_type.name
 
-            if use_context:
-                map_fn = dspy.Predict(
-                    dspy.Signature(
-                        f"question: str, value: str, source_column: str, context: str -> answer: {type_annotation}",
-                        instructions="Answer the provided question for the value from the database given the context.",
-                    )
+            map_fn = dspy.Predict(
+                dspy.Signature(
+                    f"question: str, value: str, source_column: str, context: Optional[str] -> answer: {type_annotation}",
+                    instructions="Answer the provided question for the value from the database given the context.",
                 )
-            else:
-                map_fn = dspy.Predict(
-                    dspy.Signature(
-                        f"question: str, value: str, source_column: str -> answer: {type_annotation}",
-                        instructions="Answer the provided question for the value from the database.",
+            )
+            demos = []
+            for example in few_shot_examples:
+                for value, answer in example.mapping.items():
+                    demos.append(
+                        dspy.Example(
+                            {
+                                "question": example.question,
+                                "value": value,
+                                "source_column": f'"{example.table_name}"."{example.column_name}"',
+                                "answer": answer,
+                            }
+                        )
                     )
+                map_fn.demos = demos
+
+            signature = map_fn.dump_state()["signature"]
+
+            value_to_kwargs_list: t.Dict[str, t.List[dict]] = {}
+            value_to_cache_key: t.Dict[str, str] = {}
+            value_to_mapped_value: t.Dict[str, str] = {}
+            value_to_token_stats = {}
+            # Determine which values we actually need to pass
+            # Note that dspy has an in-memory cache by default as well
+            # But, we 1) Want this to be library-agnostic
+            #   and 2) Still want to track hypothetical token throughput
+            #   for research purposes.
+            for c, v in zip(context, values):
+                in_cache = False
+                kwargs_list = {
+                    "question": question,
+                    "value": v,
+                    "source_column": f'"{column_name}"."{table_name}"',
+                    "context": c,
+                }
+                if model.caching:
+                    cached_response_data, cache_key = model.check_cache(
+                        signature, kwargs_list
+                    )
+                    if cached_response_data is not None:
+                        cached_response, cached_token_stats = (
+                            cached_response_data["response"],
+                            cached_response_data["token_stats"],
+                        )
+                        value_to_token_stats[v] = {
+                            "prompt_tokens": cached_token_stats["prompt_tokens"],
+                            "completion_tokens": cached_token_stats[
+                                "completion_tokens"
+                            ],
+                        }
+                        value_to_mapped_value[v] = cached_response
+                        in_cache = True
+                    else:
+                        value_to_cache_key[v] = cache_key
+                if not in_cache:
+                    value_to_kwargs_list[v] = kwargs_list
+
+            responses = [
+                i.answer
+                for i in model.generate(
+                    map_fn,
+                    kwargs_list=list(value_to_kwargs_list.values()),
                 )
-            mapped_values = model.generate(
-                map_fn,
-                kwargs_list=[
-                    {
-                        "question": question,
-                        "value": v,
-                        "source_column": f'"{column_name}"."{table_name}"',
-                        "context": c,
+            ]
+            model.num_generation_calls += len(responses)
+            passed_values_list = list(value_to_kwargs_list.keys())
+            for value, usage in zip(
+                passed_values_list, model.get_usage(-len(responses))
+            ):
+                if usage != {}:
+                    value_to_token_stats[value] = {
+                        "prompt_tokens": usage["prompt_tokens"],
+                        "completion_tokens": usage["completion_tokens"],
                     }
-                    for v, c in zip(values, context)
-                ],
-                max_tokens=kwargs.get("max_tokens", None),
+                else:
+                    logger.debug(
+                        Fore.RED
+                        + "DSPy program has empty usage. Is caching on by accident?"
+                        + Fore.RESET
+                    )
+                    value_to_token_stats[value] = {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                    }
+
+            new_mapped_values = dict(zip(passed_values_list, responses))
+
+            if model.caching:
+                for value, cache_key in value_to_cache_key.items():
+                    model.cache[cache_key] = {
+                        "response": new_mapped_values[value],
+                        "token_stats": value_to_token_stats[value],
+                    }
+
+            value_to_mapped_value = {**value_to_mapped_value, **new_mapped_values}
+            mapped_values = [value_to_mapped_value[v] for v in values]
+
+            model.prompt_tokens += sum(
+                [i["prompt_tokens"] for i in value_to_token_stats.values()]
+            )
+            model.completion_tokens += sum(
+                [i["completion_tokens"] for i in value_to_token_stats.values()]
             )
 
         logger.debug(

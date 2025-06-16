@@ -4,20 +4,21 @@ from functools import partialmethod
 from .few_shot import Example
 
 # Can be:
-# - '{value1};{value2}...' syntax
-# - '{table}::{column}' syntax
+# - '{table}.{column}' syntax
 # - A BlendSQL query which returns a 1d array of values ((SELECT value FROM table WHERE ...))
 ValueArray = t.NewType("ValueArray", str)
 
 
 def initialize_retriever(
-    examples: t.List[Example], k: t.Optional[int] = None, **to_string_args
+    examples: t.List[Example],
+    num_few_shot_examples: t.Optional[int] = None,
+    **to_string_args,
 ) -> t.Callable[[str], t.List[Example]]:
     """Initializes a DPR retriever over the few-shot examples provided."""
-    if k == 0:
+    if num_few_shot_examples == 0:
         return lambda *_: []
     else:
-        return lambda *_: examples
+        return lambda *_: examples[:num_few_shot_examples]
     #
     # if k is None or k == len(examples):
     #     # Just return all the examples everytime this is called

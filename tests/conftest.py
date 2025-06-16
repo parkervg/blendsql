@@ -1,4 +1,5 @@
 import os
+import dspy
 import pytest
 from guidance.chat import ChatMLTemplate
 from dotenv import load_dotenv
@@ -11,7 +12,7 @@ from blendsql.models import (
     TransformersVisionModel,
     Model,
 )
-from litellm.exceptions import APIConnectionError
+from litellm.exceptions import NotFoundError
 
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
@@ -108,8 +109,16 @@ def get_available_unconstrained_models():
         # Test Ollama connectivity
         if config["name"] == "ollama":
             try:
-                model.generate(messages_list=[[{"role": "user", "content": "hello"}]])
-            except APIConnectionError:
+                model.generate(
+                    dspy.Predict(
+                        dspy.Signature(
+                            f"t: str -> answer: str",
+                            instructions="say hello",
+                        )
+                    ),
+                    kwargs_list=[{"t": "hi"}],
+                )
+            except NotFoundError:
                 print(f"Skipping {config['name']}, as server is not running...")
                 continue
         available_models.append(pytest.param(model, id=config["name"]))
@@ -160,7 +169,7 @@ def pytest_generate_tests(metafunc):
             {LLMQA, LLMMap, LLMJoin},
             {
                 LLMQA.from_args(
-                    k=1,
+                    num_few_shot_examples=1,
                 ),
                 LLMMap.from_args(
                     few_shot_examples=[
@@ -173,11 +182,11 @@ def pytest_generate_tests(metafunc):
                             },
                         },
                     ],
-                    k=2,
+                    num_few_shot_examples=2,
                     batch_size=3,
                 ),
                 LLMJoin.from_args(
-                    k=2,
+                    num_few_shot_examples=2,
                     model=TransformersLLM(
                         "HuggingFaceTB/SmolLM-135M-Instruct",
                         config={

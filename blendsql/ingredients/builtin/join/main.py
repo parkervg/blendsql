@@ -5,10 +5,9 @@ from pathlib import Path
 from attr import attrs, attrib
 
 from blendsql.models import Model, ConstrainedModel
-from blendsql.models.utils import user, assistant
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.common.logger import logger
-from blendsql.ingredients.ingredient import JoinIngredient
+from blendsql.ingredients.ingredient import JoinIngredient, IngredientException
 from blendsql.ingredients.utils import initialize_retriever, partialclass
 
 from .examples import AnnotatedJoinExample, JoinExample
@@ -41,7 +40,7 @@ class LLMJoin(JoinIngredient):
         few_shot_examples: t.Optional[
             t.Union[t.List[dict], t.List[AnnotatedJoinExample]]
         ] = None,
-        k: t.Optional[int] = None,
+        num_few_shot_examples: t.Optional[int] = None,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -49,7 +48,7 @@ class LLMJoin(JoinIngredient):
             few_shot_examples: A list of AnnotatedJoinExamples dictionaries for few-shot learning.
                 If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/join/default_examples.json) as default.
             use_skrub_joiner: Whether to use the skrub joiner. Defaults to True.
-            k: Determines number of few-shot examples to use for each ingredient call.
+            num_few_shot_examples: Determines number of few-shot examples to use for each ingredient call.
                 Default is None, which will use all few-shot examples on all calls.
                 If specified, will initialize a haystack-based DPR retriever to filter examples.
 
@@ -76,8 +75,7 @@ class LLMJoin(JoinIngredient):
                             }
                         }
                     ],
-                    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
-                    k=2
+                    num_few_shot_examples=2
                 )
             }
 
@@ -91,7 +89,9 @@ class LLMJoin(JoinIngredient):
                 AnnotatedJoinExample(**d) if isinstance(d, dict) else d
                 for d in few_shot_examples
             ]
-        few_shot_retriever = initialize_retriever(examples=few_shot_examples, k=k)
+        few_shot_retriever = initialize_retriever(
+            examples=few_shot_examples, num_few_shot_examples=num_few_shot_examples
+        )
         return cls._maybe_set_name_to_var_name(
             partialclass(
                 cls,
@@ -110,6 +110,22 @@ class LLMJoin(JoinIngredient):
         few_shot_retriever: t.Callable[[str], t.List[AnnotatedJoinExample]] = None,
         **kwargs,
     ) -> dict:
+        """
+        Args:
+            model: The Model (blender) we will make calls to.
+            left_values: List of values from the left table.
+            right_values: List of values from the right table.
+            join_criteria: Criteria for joining values.
+            few_shot_retriever: Callable which takes a string, and returns n most similar few-shot examples.
+
+        Returns:
+            Dict mapping left values to right values.
+        """
+        if model is None:
+            raise IngredientException(
+                "LLMJoin requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
+            )
+
         if join_criteria is None:
             join_criteria = "Join to same topics."
         if few_shot_retriever is None:
@@ -139,9 +155,9 @@ class LLMJoin(JoinIngredient):
                     lm += (
                         f'\n\t"{value}": '
                         + guidance.capture(gen_f, name=value)
-                        + ("," if idx + 1 != len(right_values) else "")
+                        + ("," if idx + 1 != len(left_values) else "")
                     )
-                lm += "```"
+                lm += "\n}\n```"
                 return lm
 
             curr_example_str = current_example.to_string()
@@ -208,33 +224,65 @@ class LLMJoin(JoinIngredient):
             )
 
         else:
-            # Use 'old' style prompt for remote models
-            messages = []
-            messages.append(user(MAIN_INSTRUCTION))
-            # Add few-shot examples
-            for example in few_shot_examples:
-                messages.append(user(example.to_string()))
-                messages.append(
-                    assistant(
-                        "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
-                    )
+            # Use DSPy to get LLM output
+            import dspy
+
+            join_fn = dspy.Predict(
+                dspy.Signature(
+                    f"left_values: List[str], right_values: List[str], join_criteria: str -> mapping: Dict[str, str]",
+                    instructions=MAIN_INSTRUCTION,
                 )
-            messages.append(user(current_example.to_string()))
-            "".join([i["content"] for i in messages])
-            response = (
-                model.generate(messages_list=[messages])[0]
-                .removeprefix("```json")
-                .removesuffix("```")
             )
-            # Post-process language model response
-            try:
-                mapping: dict = json.loads(response)
-            except json.decoder.JSONDecodeError:
-                mapping = {}
-                logger.debug(
-                    Fore.RED
-                    + f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
+            join_fn.demos = [
+                dspy.Example(**example.__dict__) for example in few_shot_examples
+            ]
+
+            signature = join_fn.dump_state()["signature"]
+            fn_kwargs = {
+                "join_criteria": join_criteria,
+                "left_values": current_example.left_values,
+                "right_values": current_example.right_values,
+            }
+
+            # First check - do we need to load the model?
+            in_cache = False
+            if model.caching:
+                cached_response_data, cache_key = model.check_cache(
+                    signature, fn_kwargs
                 )
+                if cached_response_data is not None:
+                    mapping, token_stats = (
+                        cached_response_data["response"],
+                        cached_response_data["token_stats"],
+                    )
+                    prompt_tokens = token_stats["prompt_tokens"]
+                    completion_tokens = token_stats["completion_tokens"]
+                    in_cache = True
+
+            if not in_cache:
+                # Generate the response
+                mapping = model.generate(
+                    join_fn,
+                    kwargs_list=[fn_kwargs],
+                )[0].mapping
+                model.num_generation_calls += 1
+
+                # Get token usage if available
+                prompt_tokens, completion_tokens = model.get_token_usage(1)
+
+                # Store in cache if caching is enabled
+                if model.caching:
+                    model.cache[cache_key] = {
+                        "response": mapping,
+                        "token_stats": {
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": completion_tokens,
+                        },
+                    }
+
+                model.completion_tokens += completion_tokens
+                model.prompt_tokens += prompt_tokens
+
         final_mapping = {k: v for k, v in mapping.items() if v != "-"}  # type: ignore
         logger.debug(
             Fore.YELLOW

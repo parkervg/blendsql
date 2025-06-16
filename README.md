@@ -334,28 +334,27 @@ from blendsql import BlendSQL
 from blendsql.ingredients.builtin import LLMMap, DEFAULT_MAP_FEW_SHOT
 
 ingredients = {
-    LLMMap.from_args(
-        few_shot_examples=[
-            *DEFAULT_MAP_FEW_SHOT,
-            {
-                "question": "Is this a sport?",
-                "mapping": {
-                    "Soccer": True,
-                    "Chair": False,
-                    "Banana": False,
-                    "Golf": True
-                },
-                # Below are optional
-                "column_name": "Items",
-                "table_name": "Table",
-                "return_type": "boolean"
-            }
-        ],
-        # Will fetch `k` most relevant few-shot examples using embedding-based retriever
-        k=2,
-        # How many inference values to pass to model at once
-        batch_size=5,
-    )
+  LLMMap.from_args(
+    few_shot_examples=[
+      *DEFAULT_MAP_FEW_SHOT,
+      {
+        "question": "Is this a sport?",
+        "mapping": {
+          "Soccer": True,
+          "Chair": False,
+          "Banana": False,
+          "Golf": True
+        },
+        # Below are optional
+        "column_name": "Items",
+        "table_name": "Table",
+        "return_type": "boolean"
+      }
+    ],
+    num_few_shot_examples=2,
+    # How many inference values to pass to model at once
+    batch_size=5,
+  )
 }
 
 bsql = BlendSQL(db, ingredients=ingredients)
@@ -387,7 +386,7 @@ ingredients = {
             }
         ],
         # Will fetch `k` most relevant few-shot examples using embedding-based retriever
-        k=2,
+        num_few_shot_examples=2,
         # Lambda to turn the pd.DataFrame to a serialized string
         context_formatter=lambda df: df.to_markdown(
             index=False
@@ -407,23 +406,22 @@ from blendsql import BlendSQL
 from blendsql.ingredients.builtin import LLMJoin, DEFAULT_JOIN_FEW_SHOT
 
 ingredients = {
-    LLMJoin.from_args(
-        few_shot_examples=[
-            *DEFAULT_JOIN_FEW_SHOT,
-            {
-                "join_criteria": "Join the state to its capital.",
-                "left_values": ["California", "Massachusetts", "North Carolina"],
-                "right_values": ["Sacramento", "Boston", "Chicago"],
-                "mapping": {
-                    "California": "Sacramento",
-                    "Massachusetts": "Boston",
-                    "North Carolina": "-"
-                }
-            }
-        ],
-        # Will fetch `k` most relevant few-shot examples using embedding-based retriever
-        k=2
-    )
+  LLMJoin.from_args(
+    few_shot_examples=[
+      *DEFAULT_JOIN_FEW_SHOT,
+      {
+        "join_criteria": "Join the state to its capital.",
+        "left_values": ["California", "Massachusetts", "North Carolina"],
+        "right_values": ["Sacramento", "Boston", "Chicago"],
+        "mapping": {
+          "California": "Sacramento",
+          "Massachusetts": "Boston",
+          "North Carolina": "-"
+        }
+      }
+    ],
+    num_few_shot_examples=2
+  )
 }
 
 bsql = BlendSQL(db, ingredients=ingredients)

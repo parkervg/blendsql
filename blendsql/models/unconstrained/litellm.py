@@ -3,7 +3,9 @@ import typing as t
 from asyncio import Semaphore
 import asyncio
 import dspy
+from colorama import Fore
 
+from blendsql.common.logger import logger
 from blendsql.configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
 from blendsql.models.model import UnconstrainedModel
 
@@ -53,6 +55,7 @@ class LiteLLM(UnconstrainedModel):
         self,
         dspy_predict: dspy.Predict,
         kwargs_list: t.List[t.List[dict]],
+        examples: t.Optional[t.List[dspy.Example]] = None,
         max_tokens: t.Optional[int] = None,
         stop: t.Optional[t.List[str]] = None,
     ):
@@ -61,12 +64,15 @@ class LiteLLM(UnconstrainedModel):
             lm=dspy.LM(
                 self.model_name_or_path,
                 {**{"max_tokens": max_tokens, "stop": stop}, **self.config},
+                cache=False,
             )
         )
 
         async with sem:
             responses = [
-                dspy_predict.acall(model=self.model_name_or_path, **kwargs)
+                dspy_predict.acall(
+                    model=self.model_name_or_path, examples=examples, **kwargs
+                )
                 for kwargs in kwargs_list
             ]
             return [m for m in await asyncio.gather(*responses)]
@@ -75,16 +81,33 @@ class LiteLLM(UnconstrainedModel):
         self,
         dspy_predict: dspy.Predict,
         kwargs_list: t.List[t.List[dict]],
+        examples: t.Optional[t.List[dspy.Example]] = None,
         *args,
         **kwargs,
-    ) -> t.List[str]:
-        """Handles cache lookup and generation using LiteLLM."""
-        responses = asyncio.get_event_loop().run_until_complete(
-            self._generate(dspy_predict, kwargs_list, *args, **kwargs)
-        )  # type: ignore
-        for call in dspy.settings.lm.history[-len(kwargs_list) :]:
-            self.num_generation_calls += bool(call["usage"] != {})
-            if call["usage"] != dict():
-                self.prompt_tokens += call["usage"]["prompt_tokens"]
-                self.completion_tokens += call["usage"]["completion_tokens"]
-        return [r.answer for r in responses]
+    ) -> t.List[t.Any]:
+        """Handles cache lookup and generation using LiteLLM.
+
+        Returns responses in the same order as the input kwargs_list, using cache where available
+        and generating new responses for cache misses.
+        """
+        return asyncio.get_event_loop().run_until_complete(
+            self._generate(dspy_predict, kwargs_list, examples, *args, **kwargs)
+        )
+
+    def get_usage(self, n: int) -> dict:
+        return [i["usage"] for i in dspy.settings.lm.history[-n:]]
+
+    def get_token_usage(self, n: int) -> t.Tuple[int, int]:
+        prompt_tokens, completion_tokens = 0, 0
+        usages = self.get_usage(n)
+        for usage in usages:
+            if usage != {}:
+                prompt_tokens += usage["prompt_tokens"]
+                completion_tokens += usage["completion_tokens"]
+            else:
+                logger.debug(
+                    Fore.RED
+                    + "DSPy program has empty usage. Is caching on by accident?"
+                    + Fore.RESET
+                )
+        return (prompt_tokens, completion_tokens)
