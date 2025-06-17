@@ -12,7 +12,6 @@ from attr import attrs, attrib
 from blendsql.common.logger import logger
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import maybe_load_lm, LMString
-from blendsql.models.utils import user, assistant
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 from blendsql.common.exceptions import IngredientException
@@ -89,7 +88,7 @@ class LLMQA(QAIngredient):
             index=False
         ),
         list_options_in_prompt: bool = True,
-        k: t.Optional[int] = None,
+        num_few_shot_examples: t.Optional[int] = 1,
         searcher: t.Optional[Searcher] = None,
     ):
         """Creates a partial class with predefined arguments.
@@ -99,7 +98,7 @@ class LLMQA(QAIngredient):
                 If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/qa/default_examples.json) as default.
             context_formatter: A callable that formats a pandas DataFrame into a string.
                 Defaults to a lambda function that converts the DataFrame to markdown without index.
-             k: Determines number of few-shot examples to use for each ingredient call.
+             num_few_shot_examples: Determines number of few-shot examples to use for each ingredient call.
                 Default is None, which will use all few-shot examples on all calls.
                 If specified, will initialize a haystack-based DPR retriever to filter examples.
 
@@ -128,8 +127,7 @@ class LLMQA(QAIngredient):
                             "options": ["Dog", "Gorilla", "Hamster"]
                         }
                     ],
-                    # Will fetch `k` most relevant few-shot examples using embedding-based retriever
-                    k=2,
+                    num_few_shot_examples=2,
                     # Lambda to turn the pd.DataFrame to a serialized string
                     context_formatter=lambda df: df.to_markdown(
                         index=False
@@ -152,7 +150,8 @@ class LLMQA(QAIngredient):
                 for d in few_shot_examples
             ]
         few_shot_retriever = initialize_retriever(
-            examples=few_shot_examples, k=k, context_formatter=context_formatter
+            examples=few_shot_examples,
+            num_few_shot_examples=num_few_shot_examples,
         )
         return cls._maybe_set_name_to_var_name(
             partialclass(
@@ -209,7 +208,9 @@ class LLMQA(QAIngredient):
                 "LLMQA requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
         if few_shot_retriever is None:
-            few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT
+            # Default to no few-shot examples in LLMQA
+            few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT[:1]
+
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
             docs = searcher(question)[0]
@@ -393,29 +394,96 @@ class LLMQA(QAIngredient):
                 if model.caching:
                     model.cache[key] = response  # type: ignore
         else:
-            messages = []
-            intro_prompt = MAIN_INSTRUCTION
-            if long_answer:
-                intro_prompt += LONG_ANSWER_INSTRUCTION
+            # Use DSPy to get LLM output
+            import dspy
+
+            if options is not None and list_options_in_prompt:
+                return_type_annotation = (
+                    f"Literal[" + ", ".join([f'"{option}"' for option in options]) + "]"
+                )
+                if is_list_output:
+                    return_type_annotation = f"List[{return_type_annotation}]"
             else:
-                intro_prompt += SHORT_ANSWER_INSTRUCTION
-            messages.append(user(intro_prompt))
-            # Add few-shot examples
-            for example in few_shot_examples:
-                messages.append(user(example.to_string(context_formatter)))
-                messages.append(assistant(example.answer))
-            # Add current question + context for inference
-            messages.append(
-                user(
-                    current_example.to_string(
-                        context_formatter, list_options=list_options_in_prompt
+                return_type_annotation = resolved_return_type.name
+
+            instructions = MAIN_INSTRUCTION + (
+                LONG_ANSWER_INSTRUCTION if long_answer else SHORT_ANSWER_INSTRUCTION
+            )
+
+            if quantifier is not None:
+                if quantifier == "*":
+                    instructions += (
+                        "You may generate zero or more responses in your list.\n"
                     )
+                elif quantifier == "+":
+                    instructions += (
+                        "You may generate one or more responses in your list.\n"
+                    )
+                else:
+                    repeats = [
+                        int(i)
+                        for i in quantifier.replace("}", "").replace("{", "").split(",")
+                    ]
+                    if len(repeats) == 1:
+                        repeats = repeats * 2
+                    min_length, max_length = repeats
+                    if min_length == max_length:
+                        instructions += (
+                            f"You may generate {min_length} responses in your list.\n"
+                        )
+                    else:
+                        instructions += f"You may generate between {min_length} and {max_length} responses in your list.\n"
+
+            qa_fn = dspy.Predict(
+                dspy.Signature(
+                    f"question: str, context: Optional[str] -> answer: {return_type_annotation}",
+                    instructions=instructions,
                 )
             )
-            response = model.generate(
-                messages_list=[messages],
-                max_tokens=kwargs.get("max_tokens", None),
-            )[0].strip()
+            qa_fn.demos = [
+                dspy.Example(
+                    {
+                        "question": example.question,
+                        "context": context_formatter(example.context),
+                        "answer": example.answer,
+                    }
+                )
+                for example in few_shot_examples
+            ]
+
+            signature = qa_fn.dump_state()["signature"]
+            fn_kwargs = {"question": question, "context": context}
+            # First check - do we need to load the model?
+            in_cache = False
+            if model.caching:
+                cached_response_data, cache_key = model.check_cache(
+                    signature, fn_kwargs
+                )
+                if cached_response_data is not None:
+                    response, token_stats = (
+                        cached_response_data["response"],
+                        cached_response_data["token_stats"],
+                    )
+                    prompt_tokens = token_stats["prompt_tokens"]
+                    completion_tokens = token_stats["completion_tokens"]
+                    in_cache = True
+            if not in_cache:
+                response = model.generate(
+                    qa_fn, kwargs_list=[{"question": question, "context": context}]
+                )[0].answer
+                model.num_generation_calls += 1
+                prompt_tokens, completion_tokens = model.get_token_usage(1)
+                if model.caching:
+                    model.cache[cache_key] = {
+                        "response": response,
+                        "token_stats": {
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": completion_tokens,
+                        },
+                    }
+            model.completion_tokens += completion_tokens
+            model.prompt_tokens += prompt_tokens
+
         if isinstance(response, str):  # type: ignore
             # If we have specified a quantifier, we try to parse it to a tuple
             if is_list_output:

@@ -73,7 +73,7 @@ def test_error_on_bad_options_subquery(bsql):
 
 def test_replacement_scan(bsql, constrained_model):
     """ad94437"""
-    NewIngredient = LLMQA.from_args(k=2)
+    NewIngredient = LLMQA.from_args(num_few_shot_examples=2)
     _ = bsql.execute(
         """
         SELECT * FROM w 
