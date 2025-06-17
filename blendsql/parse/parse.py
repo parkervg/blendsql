@@ -376,7 +376,7 @@ class SubqueryContextManager:
                 if "table" not in parent_node.args["this"].args:
                     if not isinstance(parent_node, exp.BlendSQLFunction):
                         logger.debug(
-                            f"When inferring `options` in infer_gen_kwargs, encountered column node `{start_node}` with "
+                            f"When inferring `options` in infer_gen_kwargs, encountered column node `{parent_node}` with "
                             "no table specified!\nShould probably mark `schema_qualify` arg as True"
                         )
                 else:
@@ -384,21 +384,25 @@ class SubqueryContextManager:
                     added_kwargs[
                         "options"
                     ] = f"{parent_node.args['this'].args['table'].name}.{parent_node.args['this'].args['this'].name}"
-        if isinstance(parent_node, (exp.Tuple, exp.Values)):
+        if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
             if isinstance(parent_node, (exp.Tuple, exp.Values)):
                 added_kwargs["wrap_tuple_in_parentheses"] = False
             # If the ingredient is in the 2nd arg place
             # E.g. not `{{LLMMap()}} IN ('a', 'b')`
             # Only `column IN {{LLMQA()}}`
+            # AST will look like:
+            # In(
+            #     this=Column(
+            #         this=Identifier(this=name, quoted=False),
+            #         table=Identifier(this=c, quoted=False)),
+            #     field=BlendSQLFunction(
+            #         this=A))
             field_val = parent_node.args.get("field", None)
             if field_val is not None:
                 if parent_node == field_val:
                     quantifier = "+"
-            expressions_val = parent_node.args.get("expressions")
-            if expressions_val is not None:
-                if len(expressions_val) > 0:
-                    if function_node == expressions_val[0]:
-                        quantifier = "+"
+            if isinstance(field_val, exp.BlendSQLFunction):
+                quantifier = "+"
         if parent_node is not None and parent_node.expression is not None:
             # Get predicate args
             predicate_literals = []
