@@ -11,7 +11,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
                 FROM schools s 
                 JOIN satscores sa ON s.CDSCode = sa.cds 
                 WHERE sa.AvgScrMath > 560 
-                AND {{LLMMap('Is this a county in the California Bay Area?', 's::County')}} = TRUE""",
+                AND {{LLMMap('Is this a county in the California Bay Area?', s.County)}} = TRUE""",
         "Notes": None,
     },
     {
@@ -25,7 +25,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT s.Phone 
             FROM satscores ss 
             JOIN schools s ON ss.cds = s.CDSCode 
-            WHERE {{LLMMap('Is this county in Southern California?', 's::County')}} = TRUE
+            WHERE {{LLMMap('Is this county in Southern California?', s.County)}} = TRUE
             AND ss.AvgScrRead IS NOT NULL
             ORDER BY ss.AvgScrRead ASC 
             LIMIT 1""",
@@ -45,7 +45,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         WHERE {{
             LLMMap(
                 'What is the population of this California county? Give your best guess.',
-                's::County'
+                s.County
             )
         }} > 2000000""",
         "Notes": None,
@@ -60,7 +60,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Answer": "K-5",
         "BlendSQL": """SELECT GSoffered
             FROM schools s
-            WHERE {{LLMMap('Is this county in Silicon Valley?', 's::County')}} = TRUE
+            WHERE {{LLMMap('Is this county in Silicon Valley?', s.County)}} = TRUE
             ORDER BY "Longitude" DESC 
             LIMIT 1""",
         "Notes": "This is changed to 'counties' in hand_written.py",
@@ -81,7 +81,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
             ORDER BY count DESC 
             LIMIT 20
         ) SELECT name FROM top_names 
-        WHERE {{LLMMap('Is this a female name?', 'top_names::name')}} = TRUE
+        WHERE {{LLMMap('Is this a female name?', name)}} = TRUE
         ORDER BY count DESC LIMIT 2""",
         "Notes": "Works, assuming that two of the top 20 names are female names. Otherwise would need to apply LLM function over entire table - but, that's the 'correct' interpretation of the query. TAG bench uses only the top 20 names, like we do here.",
     },
@@ -98,7 +98,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         JOIN users u ON u.Id = p.OwnerUserId
         WHERE u.DisplayName = 'csgillespie'
         AND ParentId IS NULL 
-        AND {{LLMMap('Does this post mention academic papers?', 'p::Body')}} = TRUE""",
+        AND {{LLMMap('Does this post mention academic papers?', p.Body)}} = TRUE""",
         "Notes": None,
     },
     {
@@ -110,9 +110,9 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Reasoning",
         "Answer": "4",
         "BlendSQL": """SELECT COUNT(*) 
-        FROM comments 
+        FROM comments c
         WHERE Score = 17 
-        AND {{LLMMap('Is this text about statistics?', 'comments::Text')}} = TRUE""",
+        AND {{LLMMap('Is this text about statistics?', c.Text)}} = TRUE""",
         "Notes": None,
     },
     {
@@ -126,7 +126,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT COUNT(*) 
         FROM posts 
         WHERE ViewCount > 80000 
-        AND {{LLMMap('Does this text discuss the R programming language?', 'posts::Body')}} = TRUE""",
+        AND {{LLMMap('Does this text discuss the R programming language?', Body)}} = TRUE""",
         "Notes": None,
     },
     {
@@ -147,7 +147,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT DISTINCT r.name 
         FROM races r 
         JOIN circuits c ON r.circuitId = c.circuitId 
-        WHERE {{LLMMap('Is this a country in the Middle East?', 'c::country')}} = TRUE""",
+        WHERE {{LLMMap('Is this a country in the Middle East?', c.country)}} = TRUE""",
         "Notes": "Is Europe in the Middle East?",
     },
     {
@@ -162,7 +162,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         FROM drivers d
         JOIN results r ON d.driverId = r.driverId
         JOIN races ra ON r.raceId = ra.raceId
-        WHERE ra.year = 2008 AND ra.name = 'Australian Grand Prix' AND {{LLMMap('Is this nationality Asian?', 'd::nationality')}} = TRUE""",
+        WHERE ra.year = 2008 AND ra.name = 'Australian Grand Prix' AND {{LLMMap('Is this nationality Asian?', d.nationality)}} = TRUE""",
         "Notes": None,
     },
     {
@@ -190,7 +190,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "Hans Vonk",
         "BlendSQL": """WITH DateRange AS (
-SELECT * FROM VALUES {{LLMQA('What are the start and end date ranges for an Aquarius? Respond in MM-DD.', regex='\\d{2}-\\d{2}', modifier='{2}')}}
+SELECT * FROM VALUES {{LLMQA('What are the start and end date ranges for an Aquarius? Respond in MM-DD.', regex='\\d{2}-\\d{2}', quantifier='{2}')}}
 )
 SELECT player_name FROM Player
 WHERE birthday LIKE '1970%'
@@ -208,7 +208,7 @@ AND strftime('%m-%d', birthday) <= (SELECT max(column1, column2) FROM DateRange)
         "Answer": "Switzerland Super League",
         "BlendSQL": """SELECT l.name FROM League l 
         JOIN Country c ON l.country_id = c.id
-        WHERE {{LLMMap('Is this country landlocked?', 'c::name')}} = TRUE""",
+        WHERE {{LLMMap('Is this country landlocked?', c.name)}} = TRUE""",
         "Notes": "Broken as of d2af6ed, due to JOIN on duplicate column names",
     },
     {
@@ -222,7 +222,7 @@ AND strftime('%m-%d', birthday) <= (SELECT max(column1, column2) FROM DateRange)
         "BlendSQL": """SELECT COUNT(*) FROM "Match" m
         JOIN Country c ON m.country_id = c.id
         WHERE m.season = '2008/2009' 
-        AND c.name IN {{LLMQA('In which of these countries is French an official language?', options='c::name')}}
+        AND c.name IN {{LLMQA('In which of these countries is French an official language?')}}
         """,
         "Notes": None,
     },
@@ -238,7 +238,7 @@ AND strftime('%m-%d', birthday) <= (SELECT max(column1, column2) FROM DateRange)
 SELECT DISTINCT team_long_name AS name, away_team_Goal FROM Team t 
 JOIN "Match" m ON t.team_api_id = m.away_team_api_id
 ORDER BY away_team_goal DESC LIMIT 3
-) SELECT {{LLMQA('Which team has the most fans?', options='top_teams::name')}}""",
+) SELECT {{LLMQA('Which team has the most fans?', options=top_teams.name)}}""",
         "Notes": None,
     },
     {
@@ -266,8 +266,8 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Knowledge/Reasoning Type": "Reasoning",
         "Answer": ["YES", "YES", "YES"],
         "order_insensitive_answer": True,
-        "BlendSQL": """SELECT {{LLMMap('Is the post relevant to Machine Learning?', 'posts::Body', options='YES;NO')}} 
-        FROM posts JOIN votes v ON posts.Id = v.PostId WHERE v.UserId = 1465
+        "BlendSQL": """SELECT {{LLMMap('Is the post relevant to Machine Learning?', p.Body, options=('YES', 'NO'))}} 
+        FROM posts p JOIN votes v ON p.Id = v.PostId WHERE v.UserId = 1465
         """,
         "Notes": None,
     },
@@ -285,7 +285,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             "Kolmogorov-Smirnov statistic",
         ],
         "order_insensitive_answer": True,
-        "BlendSQL": """SELECT {{LLMMap('Extract the most statistical term from the title', 'p::Title', return_type='substring')}}
+        "BlendSQL": """SELECT {{LLMMap('Extract the most statistical term from the title', p.Title, return_type='substring')}}
         FROM posts p JOIN users u ON p.OwnerUserId = u.Id WHERE u.DisplayName = 'Vebjorn Ljosa'""",
         "Notes": None,
     },
@@ -298,14 +298,14 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Knowledge/Reasoning Type": "Reasoning",
         "Answer": ["11449"],
         "order_insensitive_answer": True,
-        "BlendSQL": """WITH new_user_comments AS
+        "BlendSQL": """WITH new_c AS
         (
             SELECT c.Id, c.Text FROM comments c
             JOIN posts p ON p.Id = c.PostId
             JOIN users u ON p.OwnerUserId = u.Id
             WHERE p.Title = 'Analysing wind data with R'
             ORDER BY u.CreationDate LIMIT 5
-        ) SELECT Id FROM new_user_comments new_c WHERE {{LLMMap('Does the comment have a positive sentiment?', 'new_c::Text')}} = TRUE""",
+        ) SELECT Id FROM new_c WHERE {{LLMMap('Does the comment have a positive sentiment?', Text)}} = TRUE""",
         "Notes": None,
     },
     {
@@ -324,7 +324,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                     JOIN tags t ON t.ExcerptPostId = p.Id 
                     WHERE t.TagName = 'bayesian'
                 ), 
-                options='True;False'
+                options=('True', 'False')
             )
         }}
         """,
@@ -469,14 +469,14 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Query type": "Comparison",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "3",
-        "BlendSQL": """WITH "2008_gp_drivers" AS (
+        "BlendSQL": """WITH gp_drivers AS (
         SELECT CONCAT(d.forename, ' ', d.surname) AS name FROM drivers d
         JOIN results r ON r.driverId = d.driverId 
         JOIN races ra ON r.raceId = ra.raceId
         WHERE ra.name = 'Australian Grand Prix'
         AND ra.year = 2008 
-        ) SELECT COUNT(*) FROM "2008_gp_drivers"
-        WHERE {{LLMMap('What year did this driver debut?', '2008_gp_drivers::name', return_type='int')}} > {{LLMQA('What year did Lewis Hamilton debut in F1?', return_type='int')}}
+        ) SELECT COUNT(*) FROM gp_drivers
+        WHERE {{LLMMap('What year did this driver debut?', gp_drivers.name, return_type='int')}} > {{LLMQA('What year did Lewis Hamilton debut in F1?', return_type='int')}}
         """,
         "Notes": "TAG seems wrong? No mention of Lewis Hamilton.",
     },
@@ -621,7 +621,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "BlendSQL": """{{
             LLMQA(
                 'Which is located closer to a capital city?', 
-                options='Silverstone Circuit;Hockenheimring;Hungaroring'
+                options=('Silverstone Circuit', 'Hockenheimring', 'Hungaroring')
             )
             
         }}
@@ -683,7 +683,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             SELECT Title FROM posts p 
             ORDER BY p.ViewCount DESC 
             LIMIT 5
-        ) SELECT * FROM VALUES {{LLMQA('Order the article titles, from most technical to least technical', options='top_posts::Title')}} 
+        ) SELECT * FROM VALUES {{LLMQA('Order the article titles, from most technical to least technical', options=top_posts.Title)}} 
         """,
         "Notes": "Again, 'Most technical' is very subjective.",
     },
@@ -699,7 +699,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "BlendSQL": """SELECT p.Id FROM posts p 
         JOIN comments c ON p.Id = c.PostId 
         WHERE c.CreationDate LIKE '2014-09-14%'
-        AND {{LLMMap("Is this a grateful comment, saying things like 'Thank you'?", 'c::Text')}} = TRUE
+        AND {{LLMMap("Is this a grateful comment, saying things like 'Thank you'?", c.Text)}} = TRUE
         GROUP BY p.Id
         ORDER BY COUNT(c.Id) DESC
         LIMIT 2
@@ -745,7 +745,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT {{
             LLMQA(
                 'Which of these tags is LEAST related to statistics?',
-                options='popular_tags::TagName'
+                options=popular_tags.TagName
             )
         }}""",
         "Notes": None,
@@ -793,7 +793,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                 context=(
                     SELECT * FROM filtered_posts
                 ),
-                options='filtered_posts::Id',
+                options=filtered_posts.Id,
                 quantifier='{2}'
             )
         }}
@@ -815,7 +815,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT {{
             LLMQA(
                 'Which is most similar to an English grammar guide?', 
-                options='filtered_badges::Name'
+                options=filtered_badges.Name
             )
         }}
         """,
@@ -840,7 +840,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                 context=(
                     SELECT * FROM yevgeny_posts
                 ),
-                options='yevgeny_posts::Id',
+                options=yevgeny_posts.Id,
                 quantifier='{3}'
             )
         }}""",
@@ -865,7 +865,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT * FROM VALUES {{
         LLMQA(
             "Which 3 of these names could be said to be the 'most unique'?", 
-            options="top_players::player_name", 
+            options=top_players.player_name, 
             quantifier="{3}"
             )
         }}
@@ -907,7 +907,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             SELECT AboutMe, DisplayName FROM users 
             ORDER BY Views DESC LIMIT 5
         ) SELECT DisplayName FROM top_users
-        WHERE {{LLMMap('Is a social media link present in this text?', 'top_users::AboutMe')}} = TRUE
+        WHERE {{LLMMap('Is a social media link present in this text?', AboutMe)}} = TRUE
         """,
         "Notes": None,
     },
@@ -931,7 +931,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                 (
                     SELECT * FROM harvey_comments
                 ),
-                options='harvey_comments::PostId'
+                options=harvey_comments.PostId,
                 quantifier='{3}'
             )
         }}""",
@@ -980,7 +980,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT * FROM VALUES {{
             LLMQA(
                 'Rank the cities, in order of most diverse to least diverse.', 
-                options='top_schools::City',
+                options=top_schools.City,
                 quantifier='{5}'
             )
         }}
@@ -1060,7 +1060,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT * FROM VALUES {{
             LLMQA(
                 'Which 2 California cities are the most popular to visit?',
-                options='lowest_enrollment::City',
+                options=lowest_enrollment.City,
                 quantifier='{2}'
             )
         }}""",
@@ -1085,8 +1085,8 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT {{
             LLMQA(
                 "Which company's logo looks the most like Secretariat?",
-                options='top_constructors::name'
-            )
+                options=top_constructors.name
+            ) 
         }}""",
         "Notes": "'Most prestige' is subjective. Also - in `hand_written.py`, this question is different: 'Of the constructors that have been ranked 1 in 2014, whose logo looks most like Secretariat?'",
     },
@@ -1106,7 +1106,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT * FROM VALUES {{
             LLMQA(
                 'Order the locations by distance to the equator (closest -> farthest)',
-                options='recent_races::location'
+                options=recent_races.location
             )
         }}""",
         "Notes": "Question doesn't specify ascending or descending.",
