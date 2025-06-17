@@ -29,7 +29,7 @@ def get_tablename_colname(s: str) -> Tuple[str, str]:
     out = s.split(".")
     if len(out) != 2:
         raise ValueError(
-            f"Invalid format: {s}\n" + "Expected format `{tablename}::{columnname}`"
+            f"Invalid format: {s}\n" + "Expected format `{tablename}.{columnname}`"
         )
     tablename, colname = out
     return (tablename.strip('"'), colname.strip('"'))
