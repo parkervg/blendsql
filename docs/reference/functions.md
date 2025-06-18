@@ -8,7 +8,7 @@ hide:
 A `ValueArray` is a reference to a list of values. This can be written using:
 
 - Standard column `{tablename}.{columnname}` syntax (`tablename` can be ommitted, and standard SQL binding logic will apply)
-- 
+
 - SQL tuple (`(value1, value2)`) syntax
 
 - A BlendSQL query which returns a 1d array of values (`(SELECT value FROM table WHERE ...)`)
