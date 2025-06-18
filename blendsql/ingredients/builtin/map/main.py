@@ -434,40 +434,39 @@ class LLMMap(MapIngredient):
                 if not in_cache:
                     value_to_kwargs_list[v] = kwargs_list
 
-            responses = [
-                i.answer
-                for i in model.generate(
+                model_gen = model.generate(
                     map_fn,
                     kwargs_list=list(value_to_kwargs_list.values()),
                 )
-            ]
-            model.num_generation_calls += len(responses)
-            passed_values_list = list(value_to_kwargs_list.keys())
-            for value, usage in zip(
-                passed_values_list, model.get_usage(-len(responses))
-            ):
-                if usage != {}:
-                    value_to_token_stats[value] = {
-                        "prompt_tokens": usage["prompt_tokens"],
-                        "completion_tokens": usage["completion_tokens"],
-                    }
-                else:
-                    logger.debug(
-                        Fore.RED
-                        + "DSPy program has empty usage. Is caching on by accident?"
-                        + Fore.RESET
-                    )
-                    value_to_token_stats[value] = {
-                        "prompt_tokens": 0,
-                        "completion_tokens": 0,
-                    }
+                responses = [i.answer for i in model_gen]
+                model.num_generation_calls += len(responses)
+                passed_values_list = list(value_to_kwargs_list.keys())
+                for value, usage in zip(
+                    passed_values_list, model.get_usage(-len(responses))
+                ):
+                    if usage != {}:
+                        value_to_token_stats[value] = {
+                            "prompt_tokens": usage["prompt_tokens"],
+                            "completion_tokens": usage["completion_tokens"],
+                        }
+                    else:
+                        logger.debug(
+                            Fore.RED
+                            + "DSPy program has empty usage. Is caching on by accident?"
+                            + Fore.RESET
+                        )
+                        value_to_token_stats[value] = {
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                        }
 
             new_mapped_values = dict(zip(passed_values_list, responses))
 
             if model.caching:
-                for value, cache_key in value_to_cache_key.items():
+                for value, response in new_mapped_values.items():
+                    cache_key = value_to_cache_key[value]
                     model.cache[cache_key] = {
-                        "response": new_mapped_values[value],
+                        "response": response,
                         "token_stats": value_to_token_stats[value],
                     }
 
