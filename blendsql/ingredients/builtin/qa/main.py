@@ -452,7 +452,7 @@ class LLMQA(QAIngredient):
             ]
 
             signature = qa_fn.dump_state()["signature"]
-            fn_kwargs = {"question": question, "context": context}
+            fn_kwargs = {"question": question, "context": context_formatter(context)}
             # First check - do we need to load the model?
             in_cache = False
             if model.caching:
@@ -468,9 +468,7 @@ class LLMQA(QAIngredient):
                     completion_tokens = token_stats["completion_tokens"]
                     in_cache = True
             if not in_cache:
-                response = model.generate(
-                    qa_fn, kwargs_list=[{"question": question, "context": context}]
-                )[0].answer
+                response = model.generate(qa_fn, kwargs_list=[fn_kwargs])[0].answer
                 model.num_generation_calls += 1
                 prompt_tokens, completion_tokens = model.get_token_usage(1)
                 if model.caching:
