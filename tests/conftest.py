@@ -182,7 +182,7 @@ def pytest_generate_tests(metafunc):
                         "HuggingFaceTB/SmolLM-135M-Instruct",
                         config={
                             "chat_template": ChatMLTemplate,
-                            "device_map": "auto",
+                            "device_map": "cpu",
                         },
                         caching=False,
                     ),
