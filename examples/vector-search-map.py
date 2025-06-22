@@ -1,10 +1,9 @@
 from blendsql.ingredients import LLMMap
 import pandas as pd
 from blendsql import BlendSQL
-from blendsql.search import FaissVectorStore
+from blendsql.search import HybridSearch
 from blendsql.models import LlamaCpp, LiteLLM
 import torch
-
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -85,6 +84,7 @@ if __name__ == "__main__":
             "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
             "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
             config={"n_gpu_layers": -1, "n_ctx": 9600},
+            caching=False,
         )
         if torch.cuda.is_available()
         else LiteLLM("openai/gpt-4o"),
@@ -93,9 +93,9 @@ if __name__ == "__main__":
     _ = bsql.model.model_obj
 
     WikipediaSearchMap = LLMMap.from_args(
-        searcher=FaissVectorStore(
+        searcher=HybridSearch(
             documents=bsql.db.execute_to_list("SELECT content FROM documents;"),
-            k=1,  # Retrieve 1 document for each scalar value on the map call
+            k=3,  # Retrieve 1 document for each scalar value on the map call
         ),
     )
     bsql.ingredients = {
@@ -109,10 +109,9 @@ if __name__ == "__main__":
         """
         WITH t AS (
             SELECT Name FROM "world_aquatic_championships"
-            WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE
-            AND {{LLMMap('Is this time over 2 minutes?', "Time/Score")}} = TRUE
+            /* WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE */
         ) SELECT Name FROM t
-        ORDER BY {{WikipediaSearchMap('What year was {} born?', t.Name)}} ASC LIMIT 1
+        ORDER BY {{WikipediaSearchMap('What year was this person born?', t.Name)}} ASC LIMIT 1
         """
     )
 
