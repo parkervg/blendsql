@@ -336,7 +336,8 @@ class LLMMap(MapIngredient):
                 model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
             )
             for c, v in zip(context_in_use, values):
-                current_example.context = c
+                if context_in_use_type == ContextType.LOCAL:
+                    current_example.context = c
                 current_example_str = current_example.to_string(
                     list_options=list_options_in_prompt,
                     add_leading_newlines=True,
