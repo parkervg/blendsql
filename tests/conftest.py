@@ -160,7 +160,7 @@ def pytest_generate_tests(metafunc):
             {LLMQA, LLMMap, LLMJoin},
             {
                 LLMQA.from_args(
-                    k=1,
+                    num_few_shot_examples=1,
                 ),
                 LLMMap.from_args(
                     few_shot_examples=[
@@ -173,11 +173,11 @@ def pytest_generate_tests(metafunc):
                             },
                         },
                     ],
-                    k=2,
+                    num_few_shot_examples=2,
                     batch_size=3,
                 ),
                 LLMJoin.from_args(
-                    k=2,
+                    num_few_shot_examples=2,
                     model=TransformersLLM(
                         "HuggingFaceTB/SmolLM-135M-Instruct",
                         config={
