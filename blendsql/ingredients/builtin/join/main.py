@@ -5,6 +5,7 @@ from pathlib import Path
 from attr import attrs, attrib
 
 from blendsql.models import Model, ConstrainedModel
+from blendsql.models.utils import user, assistant
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.common.logger import logger
 from blendsql.ingredients.ingredient import JoinIngredient, IngredientException
@@ -224,64 +225,33 @@ class LLMJoin(JoinIngredient):
             )
 
         else:
-            # Use DSPy to get LLM output
-            import dspy
-
-            join_fn = dspy.Predict(
-                dspy.Signature(
-                    f"left_values: List[str], right_values: List[str], join_criteria: str -> mapping: Dict[str, str]",
-                    instructions=MAIN_INSTRUCTION,
-                )
-            )
-            join_fn.demos = [
-                dspy.Example(**example.__dict__) for example in few_shot_examples
-            ]
-
-            signature = join_fn.dump_state()["signature"]
-            fn_kwargs = {
-                "join_criteria": join_criteria,
-                "left_values": current_example.left_values,
-                "right_values": current_example.right_values,
-            }
-
-            # First check - do we need to load the model?
-            in_cache = False
-            if model.caching:
-                cached_response_data, cache_key = model.check_cache(
-                    signature, fn_kwargs
-                )
-                if cached_response_data is not None:
-                    mapping, token_stats = (
-                        cached_response_data["response"],
-                        cached_response_data["token_stats"],
+            # Use 'old' style prompt for remote models
+            messages = []
+            messages.append(user(MAIN_INSTRUCTION))
+            # Add few-shot examples
+            for example in few_shot_examples:
+                messages.append(user(example.to_string()))
+                messages.append(
+                    assistant(
+                        "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
                     )
-                    prompt_tokens = token_stats["prompt_tokens"]
-                    completion_tokens = token_stats["completion_tokens"]
-                    in_cache = True
-
-            if not in_cache:
-                # Generate the response
-                mapping = model.generate(
-                    join_fn,
-                    kwargs_list=[fn_kwargs],
-                )[0].mapping
-                model.num_generation_calls += 1
-
-                # Get token usage if available
-                prompt_tokens, completion_tokens = model.get_token_usage(1)
-
-                # Store in cache if caching is enabled
-                if model.caching:
-                    model.cache[cache_key] = {
-                        "response": mapping,
-                        "token_stats": {
-                            "prompt_tokens": prompt_tokens,
-                            "completion_tokens": completion_tokens,
-                        },
-                    }
-
-                model.completion_tokens += completion_tokens
-                model.prompt_tokens += prompt_tokens
+                )
+            messages.append(user(current_example.to_string()))
+            "".join([i["content"] for i in messages])
+            response = (
+                model.generate(messages_list=[messages])[0]
+                .removeprefix("```json")
+                .removesuffix("```")
+            )
+            # Post-process language model response
+            try:
+                mapping: dict = json.loads(response)
+            except json.decoder.JSONDecodeError:
+                mapping = {}
+                logger.debug(
+                    Fore.RED
+                    + f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
+                )
 
         final_mapping = {k: v for k, v in mapping.items() if v != "-"}  # type: ignore
         logger.debug(

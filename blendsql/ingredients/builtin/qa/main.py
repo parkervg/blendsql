@@ -10,6 +10,7 @@ from colorama import Fore
 from attr import attrs, attrib
 
 from blendsql.common.logger import logger
+from blendsql.models.utils import user, assistant
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import maybe_load_lm, LMString
 from blendsql.ingredients.ingredient import QAIngredient
@@ -61,12 +62,6 @@ def get_option_aliases(options: t.Optional[t.List[str]]):
 
 @attrs
 class LLMQA(QAIngredient):
-    DESCRIPTION = """
-    If mapping to a new column still cannot answer the question with valid SQL, turn to an end-to-end solution using the aggregate function:
-        `{{LLMQA('question', (blendsql))}}`
-        Optionally, this function can take an `options` argument to restrict its output to an existing SQL column.
-        For example: `... WHERE column = {{LLMQA('question', (blendsql), options='table::column)}}`
-    """
     model: Model = attrib(default=None)
     context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
         default=lambda df: json.dumps(df.to_dict(orient="records"), indent=4),
@@ -394,120 +389,60 @@ class LLMQA(QAIngredient):
                 if model.caching:
                     model.cache[key] = response  # type: ignore
         else:
-            # Use DSPy to get LLM output
-            import dspy
-
-            if options is not None and list_options_in_prompt:
-                return_type_annotation = (
-                    f"Literal[" + ", ".join([f'"{option}"' for option in options]) + "]"
+            messages = []
+            intro_prompt = MAIN_INSTRUCTION
+            if long_answer:
+                intro_prompt += LONG_ANSWER_INSTRUCTION
+            else:
+                intro_prompt += SHORT_ANSWER_INSTRUCTION
+            messages.append(user(intro_prompt))
+            # Add few-shot examples
+            for example in few_shot_examples:
+                messages.append(user(example.to_string(context_formatter)))
+                messages.append(assistant(example.answer))
+            # Add current question + context for inference
+            messages.append(
+                user(
+                    current_example.to_string(
+                        context_formatter, list_options=list_options_in_prompt
+                    )
                 )
+            )
+            response = model.generate(
+                messages_list=[messages],
+                max_tokens=kwargs.get("max_tokens", None),
+            )[0].strip()
+
+            if isinstance(response, str):  # type: ignore
+                # If we have specified a quantifier, we try to parse it to a tuple
                 if is_list_output:
-                    return_type_annotation = f"List[{return_type_annotation}]"
-            else:
-                return_type_annotation = resolved_return_type.name
-
-            instructions = MAIN_INSTRUCTION + (
-                LONG_ANSWER_INSTRUCTION if long_answer else SHORT_ANSWER_INSTRUCTION
-            )
-
-            if quantifier is not None:
-                if quantifier == "*":
-                    instructions += (
-                        "You may generate zero or more responses in your list.\n"
-                    )
-                elif quantifier == "+":
-                    instructions += (
-                        "You may generate one or more responses in your list.\n"
-                    )
-                else:
-                    repeats = [
-                        int(i)
-                        for i in quantifier.replace("}", "").replace("{", "").split(",")
-                    ]
-                    if len(repeats) == 1:
-                        repeats = repeats * 2
-                    min_length, max_length = repeats
-                    if min_length == max_length:
-                        instructions += (
-                            f"You may generate {min_length} responses in your list.\n"
-                        )
-                    else:
-                        instructions += f"You may generate between {min_length} and {max_length} responses in your list.\n"
-
-            qa_fn = dspy.Predict(
-                dspy.Signature(
-                    f"question: str, context: Optional[str] -> answer: {return_type_annotation}",
-                    instructions=instructions,
-                )
-            )
-            qa_fn.demos = [
-                dspy.Example(
-                    {
-                        "question": example.question,
-                        "context": context_formatter(example.context),
-                        "answer": example.answer,
-                    }
-                )
-                for example in few_shot_examples
-            ]
-
-            signature = qa_fn.dump_state()["signature"]
-            fn_kwargs = {"question": question, "context": context_formatter(context)}
-            # First check - do we need to load the model?
-            in_cache = False
-            if model.caching:
-                cached_response_data, cache_key = model.check_cache(
-                    signature, fn_kwargs
-                )
-                if cached_response_data is not None:
-                    response, token_stats = (
-                        cached_response_data["response"],
-                        cached_response_data["token_stats"],
-                    )
-                    prompt_tokens = token_stats["prompt_tokens"]
-                    completion_tokens = token_stats["completion_tokens"]
-                    in_cache = True
-            if not in_cache:
-                response = model.generate(qa_fn, kwargs_list=[fn_kwargs])[0].answer
-                model.num_generation_calls += 1
-                prompt_tokens, completion_tokens = model.get_token_usage(1)
-                if model.caching:
-                    model.cache[cache_key] = {
-                        "response": response,
-                        "token_stats": {
-                            "prompt_tokens": prompt_tokens,
-                            "completion_tokens": completion_tokens,
-                        },
-                    }
-            model.completion_tokens += completion_tokens
-            model.prompt_tokens += prompt_tokens
-
-        if isinstance(response, str):  # type: ignore
-            # If we have specified a quantifier, we try to parse it to a tuple
-            if is_list_output:
-                try:
-                    response = response.strip("'")
-                    response = literal_eval(response)
-                    assert isinstance(response, (list, tuple))
-                    response = tuple(response)
-                except (ValueError, SyntaxError, AssertionError):
-                    response = [i.strip() for i in response.strip("[]()").split(",")]
-                    response = [
-                        current_example.return_type.coerce_fn(r) for r in response
-                    ]
-                    response = tuple(
-                        [
-                            single_quote_escape(val) if isinstance(val, str) else val
-                            for val in response
+                    try:
+                        response = response.strip("'")
+                        response = literal_eval(response)
+                        assert isinstance(response, (list, tuple))
+                        response = tuple(response)
+                    except (ValueError, SyntaxError, AssertionError):
+                        response = [
+                            i.strip() for i in response.strip("[]()").split(",")
                         ]
-                    )
-            else:
-                if isinstance(response, str):
-                    response = current_example.return_type.coerce_fn(response)
-                elif isinstance(response, list):
-                    response = [
-                        current_example.return_type.coerce_fn(r) for r in response
-                    ]
+                        response = [
+                            current_example.return_type.coerce_fn(r) for r in response
+                        ]
+                        response = tuple(
+                            [
+                                single_quote_escape(val)
+                                if isinstance(val, str)
+                                else val
+                                for val in response
+                            ]
+                        )
+                else:
+                    if isinstance(response, str):
+                        response = current_example.return_type.coerce_fn(response)
+                    elif isinstance(response, list):
+                        response = [
+                            current_example.return_type.coerce_fn(r) for r in response
+                        ]
         # Map from modified options to original, as they appear in DB
         if not isinstance(response, (list, tuple, set)):
             response = [response]

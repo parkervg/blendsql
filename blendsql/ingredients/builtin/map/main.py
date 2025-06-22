@@ -5,9 +5,12 @@ import json
 import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
+import copy
 
 from blendsql.common.logger import logger
+from blendsql.common.constants import DEFAULT_ANS_SEP
 from blendsql.models import Model, ConstrainedModel
+from blendsql.models.utils import user
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
@@ -18,9 +21,12 @@ from blendsql.ingredients.utils import (
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
 from blendsql.types import DataType, prepare_datatype
 from .examples import (
+    MapExample,
     AnnotatedMapExample,
     ConstrainedMapExample,
     ConstrainedAnnotatedMapExample,
+    UnconstrainedMapExample,
+    UnconstrainedAnnotatedMapExample,
     ContextType,
 )
 from blendsql.search.searcher import Searcher
@@ -37,6 +43,15 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
 DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 100
+
+UNCONSTRAINED_MAIN_INSTRUCTION = (
+    "Given a set of values from a database, answer the question for each value. "
+)
+UNCONSTRAINED_MAIN_INSTRUCTION = (
+    UNCONSTRAINED_MAIN_INSTRUCTION
+    + f" Your output should be separated by '{DEFAULT_ANS_SEP}', answering for each of the values left-to-right.\n"
+)
+DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE = 5
 
 
 @attrs
@@ -200,7 +215,7 @@ class LLMMap(MapIngredient):
                 )
                 context_in_use_type = ContextType.LOCAL
             else:
-                context_in_use = searcher(question)[0]
+                context_in_use = " | ".join(searcher(question)[0])
                 logger.debug(
                     Fore.LIGHTBLACK_EX
                     + f"Retrieved context '{context_in_use[:50]}...'"
@@ -209,7 +224,7 @@ class LLMMap(MapIngredient):
                 context_in_use_type = ContextType.GLOBAL
         elif context is not None:  # If we've passed a table context
             if isinstance(context, pd.DataFrame):
-                context = context_formatter(context)
+                context_in_use = context_formatter(context)
             context_in_use_type = ContextType.GLOBAL
 
         # Unpack default kwargs
@@ -220,31 +235,34 @@ class LLMMap(MapIngredient):
         resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=None
         )
-
-        if isinstance(model, ConstrainedModel):
-            current_example = ConstrainedMapExample(
-                question=question,
-                column_name=column_name,
-                table_name=table_name,
-                return_type=resolved_return_type,
-                example_outputs=example_outputs,
-                options=options,
-                context_type=context_in_use_type,
-            )
-
-        regex = regex or resolved_return_type.regex
-
+        current_example = MapExample(
+            question=question,
+            column_name=column_name,
+            table_name=table_name,
+            return_type=resolved_return_type,
+            example_outputs=example_outputs,
+            options=options,
+            context_type=context_in_use_type,
+            context=context_in_use,
+        )
         if isinstance(model, ConstrainedModel):
             batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
+            current_example = ConstrainedMapExample(**current_example.__dict__)
             few_shot_examples: t.List[ConstrainedAnnotatedMapExample] = [
                 ConstrainedAnnotatedMapExample(**example.__dict__)
-                for example in few_shot_retriever()
+                for example in few_shot_retriever(current_example.to_string())
             ]
         else:
-            few_shot_examples: t.List[AnnotatedMapExample] = [
-                AnnotatedMapExample(**example.__dict__)
-                for example in few_shot_retriever()
+            batch_size = batch_size or DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE
+            current_example = UnconstrainedMapExample(**current_example.__dict__)
+            few_shot_examples: t.List[UnconstrainedAnnotatedMapExample] = [
+                UnconstrainedAnnotatedMapExample(**example.__dict__)
+                for example in few_shot_retriever(
+                    current_example.to_string(values=values)
+                )
             ]
+
+        regex = regex or resolved_return_type.regex
 
         if options is not None and list_options_in_prompt:
             if len(options) > int(
@@ -380,122 +398,51 @@ class LLMMap(MapIngredient):
             # For each value, call the DataType's `coerce_fn()`
             mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
         else:
-            import dspy
-
-            if options is not None and list_options_in_prompt:
-                type_annotation = (
-                    f"Literal[" + ", ".join([f'"{option}"' for option in options]) + "]"
+            sorted_values = sorted(values)
+            messages_list: t.List[t.List[dict]] = []
+            batch_sizes: t.List[int] = []
+            for i in range(0, len(sorted_values), batch_size):
+                curr_batch_values = sorted_values[i : i + batch_size]
+                batch_sizes.append(len(curr_batch_values))
+                current_batch_example = copy.deepcopy(current_example)
+                user_msg_str = ""
+                user_msg_str += UNCONSTRAINED_MAIN_INSTRUCTION
+                # Add few-shot examples
+                for example in few_shot_examples:
+                    user_msg_str += example.to_string()
+                # Add the current question + context for inference
+                user_msg_str += current_batch_example.to_string(
+                    values=curr_batch_values,
+                    list_options=list_options_in_prompt,
                 )
-            else:
-                type_annotation = resolved_return_type.name
+                messages_list.append([user(user_msg_str)])
 
-            map_fn = dspy.Predict(
-                dspy.Signature(
-                    f"question: str, value: str, source_column: str, context: Optional[str] -> answer: {type_annotation}",
-                    instructions="Answer the provided question for the value from the database given the context.",
+            responses: t.List[str] = model.generate(
+                messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
+            )
+
+            # Post-process language model response
+            mapped_values = []
+            total_missing_values = 0
+            for idx, r in enumerate(responses):
+                expected_len = batch_sizes[idx]
+                predictions: t.List[Union[str, None]] = r.split(DEFAULT_ANS_SEP)  # type: ignore
+                while len(predictions) < expected_len:
+                    total_missing_values += 1
+                    predictions.append(None)
+                # Try to map to booleans, `None`, and numeric datatypes
+                mapped_values.extend(
+                    [current_example.return_type.coerce_fn(s) for s in predictions]
                 )
-            )
-            demos = []
-            for example in few_shot_examples:
-                for value, answer in example.mapping.items():
-                    demos.append(
-                        dspy.Example(
-                            {
-                                "question": example.question,
-                                "value": value,
-                                "source_column": f'"{example.table_name}"."{example.column_name}"',
-                                "answer": answer,
-                            }
-                        )
-                    )
-                map_fn.demos = demos
 
-            signature = map_fn.dump_state()["signature"]
+            mapping = {k: v for k, v in zip(sorted_values, mapped_values)}
+            mapped_values = [mapping[value] for value in values]
 
-            value_to_kwargs_list: t.Dict[str, t.List[dict]] = {}
-            value_to_cache_key: t.Dict[str, str] = {}
-            value_to_mapped_value: t.Dict[str, str] = {}
-            value_to_token_stats = {}
-            # Determine which values we actually need to pass
-            # Note that dspy has an in-memory cache by default as well
-            # But, we 1) Want this to be library-agnostic
-            #   and 2) Still want to track hypothetical token throughput
-            #   for research purposes.
-            for c, v in zip(context, values):
-                in_cache = False
-                kwargs_list = {
-                    "question": question,
-                    "value": v,
-                    "source_column": f'"{column_name}"."{table_name}"',
-                    "context": c,
-                }
-                if model.caching:
-                    cached_response_data, cache_key = model.check_cache(
-                        signature, kwargs_list
-                    )
-                    if cached_response_data is not None:
-                        cached_response, cached_token_stats = (
-                            cached_response_data["response"],
-                            cached_response_data["token_stats"],
-                        )
-                        value_to_token_stats[v] = {
-                            "prompt_tokens": cached_token_stats["prompt_tokens"],
-                            "completion_tokens": cached_token_stats[
-                                "completion_tokens"
-                            ],
-                        }
-                        value_to_mapped_value[v] = cached_response
-                        in_cache = True
-                    else:
-                        value_to_cache_key[v] = cache_key
-                if not in_cache:
-                    value_to_kwargs_list[v] = kwargs_list
-
-                model_gen = model.generate(
-                    map_fn,
-                    kwargs_list=list(value_to_kwargs_list.values()),
+            if total_missing_values > 0:
+                logger.debug(
+                    Fore.RED
+                    + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
                 )
-                responses = [i.answer for i in model_gen]
-                model.num_generation_calls += len(responses)
-                passed_values_list = list(value_to_kwargs_list.keys())
-                for value, usage in zip(
-                    passed_values_list, model.get_usage(-len(responses))
-                ):
-                    if usage != {}:
-                        value_to_token_stats[value] = {
-                            "prompt_tokens": usage["prompt_tokens"],
-                            "completion_tokens": usage["completion_tokens"],
-                        }
-                    else:
-                        logger.debug(
-                            Fore.RED
-                            + "DSPy program has empty usage. Is caching on by accident?"
-                            + Fore.RESET
-                        )
-                        value_to_token_stats[value] = {
-                            "prompt_tokens": 0,
-                            "completion_tokens": 0,
-                        }
-
-            new_mapped_values = dict(zip(passed_values_list, responses))
-
-            if model.caching:
-                for value, response in new_mapped_values.items():
-                    cache_key = value_to_cache_key[value]
-                    model.cache[cache_key] = {
-                        "response": response,
-                        "token_stats": value_to_token_stats[value],
-                    }
-
-            value_to_mapped_value = {**value_to_mapped_value, **new_mapped_values}
-            mapped_values = [value_to_mapped_value[v] for v in values]
-
-            model.prompt_tokens += sum(
-                [i["prompt_tokens"] for i in value_to_token_stats.values()]
-            )
-            model.completion_tokens += sum(
-                [i["completion_tokens"] for i in value_to_token_stats.values()]
-            )
 
         logger.debug(
             Fore.YELLOW
