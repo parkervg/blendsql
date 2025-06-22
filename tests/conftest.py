@@ -1,5 +1,4 @@
 import os
-import dspy
 import pytest
 from guidance.chat import ChatMLTemplate
 from dotenv import load_dotenv
@@ -12,7 +11,7 @@ from blendsql.models import (
     TransformersVisionModel,
     Model,
 )
-from litellm.exceptions import NotFoundError
+from litellm.exceptions import APIConnectionError
 
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
@@ -56,11 +55,12 @@ CONSTRAINED_MODEL_CONFIGS = [
 ]
 
 UNCONSTRAINED_MODEL_CONFIGS = [
-    # {
-    #     "name": "ollama",
-    #     "class": LiteLLM,
-    #     "path": "ollama/qwen:0.5b",
-    # },
+    {
+        "name": "ollama",
+        "class": LiteLLM,
+        "path": "ollama/qwen:0.5b",
+        "requires_api": False,
+    },
     {
         "name": "openai",
         "class": LiteLLM,
@@ -100,10 +100,7 @@ def get_available_constrained_models():
 def get_available_unconstrained_models():
     available_models = []
     for config in UNCONSTRAINED_MODEL_CONFIGS:
-        if (
-            config.get("requires_env")
-            and os.getenv(config["requires_env"], None) is None
-        ):
+        if config.get("requires_env") and os.getenv(config["requires_env"]) is None:
             continue
 
         model = config["class"](config["path"], caching=False)
@@ -111,16 +108,8 @@ def get_available_unconstrained_models():
         # Test Ollama connectivity
         if config["name"] == "ollama":
             try:
-                model.generate(
-                    dspy.Predict(
-                        dspy.Signature(
-                            f"t: str -> answer: str",
-                            instructions="say hello",
-                        )
-                    ),
-                    kwargs_list=[{"t": "hi"}],
-                )
-            except NotFoundError:
+                model.generate(messages_list=[[{"role": "user", "content": "hello"}]])
+            except APIConnectionError:
                 print(f"Skipping {config['name']}, as server is not running...")
                 continue
         available_models.append(pytest.param(model, id=config["name"]))
@@ -193,7 +182,7 @@ def pytest_generate_tests(metafunc):
                         "HuggingFaceTB/SmolLM-135M-Instruct",
                         config={
                             "chat_template": ChatMLTemplate,
-                            "device_map": "cpu",
+                            "device_map": "auto",
                         },
                         caching=False,
                     ),
