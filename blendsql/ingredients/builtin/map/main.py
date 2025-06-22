@@ -21,6 +21,7 @@ from .examples import (
     AnnotatedMapExample,
     ConstrainedMapExample,
     ConstrainedAnnotatedMapExample,
+    ContextType,
 )
 from blendsql.search.searcher import Searcher
 
@@ -36,8 +37,6 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
 DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 100
-
-# OPTIONS_INSTRUCTION = "Your responses MUST select from one of the following values:\n"
 
 
 @attrs
@@ -187,21 +186,31 @@ class LLMMap(MapIngredient):
             )
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
-        use_context = context is not None or searcher is not None
+
+        context_in_use: t.List[str] = [None] * len(values)
+        context_in_use_type: ContextType = None
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
-            if unpacked_questions:
-                docs = searcher(unpacked_questions)
+            if unpacked_questions:  # Implies we have different context for each value
+                context_in_use = searcher(unpacked_questions)
+                logger.debug(
+                    Fore.LIGHTBLACK_EX
+                    + f"Retrieved contexts '{[str(d[:2]) + '...' for d in context_in_use]}'"
+                    + Fore.RESET
+                )
+                context_in_use_type = ContextType.LOCAL
             else:
-                docs = searcher(question) * len(values)
-            context = ["\n\n".join(d) for d in docs]
-            logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Retrieved contexts '{[d[:50] + '...' for d in context]}'"
-                + Fore.RESET
-            )
-        elif context is None:
-            context = [None] * len(values)
+                context_in_use = searcher(question)[0]
+                logger.debug(
+                    Fore.LIGHTBLACK_EX
+                    + f"Retrieved context '{context_in_use[:50]}...'"
+                    + Fore.RESET
+                )
+                context_in_use_type = ContextType.GLOBAL
+        elif context is not None:  # If we've passed a table context
+            if isinstance(context, pd.DataFrame):
+                context = context_formatter(context)
+            context_in_use_type = ContextType.GLOBAL
 
         # Unpack default kwargs
         table_name, column_name = self.unpack_default_kwargs(**kwargs)
@@ -220,7 +229,7 @@ class LLMMap(MapIngredient):
                 return_type=resolved_return_type,
                 example_outputs=example_outputs,
                 options=options,
-                use_context=use_context,
+                context_type=context_in_use_type,
             )
 
         regex = regex or resolved_return_type.regex
@@ -273,19 +282,27 @@ class LLMMap(MapIngredient):
 
             def make_prediction(
                 value: str,
-                context: t.Optional[str],
+                context: t.Optional[t.Union[str, t.List[str]]],
                 str_output: bool,
                 gen_f: t.Callable,
             ) -> str:
+                """If `context` is a string, it is a serialized table subset.
+                Else, it's a list of documents.
+                """
+
                 def get_quote(s: str):
                     return '"""' if any(c in s for c in ["\n", '"']) else '"'
 
                 value_quote = get_quote(value)
-                gen_str = f"""\t\tf({value_quote}{value}{value_quote}"""
-                if context is not None:
-                    context_quote = get_quote(context)
-                    gen_str += f""", {context_quote}{context}{context_quote}"""
-                gen_str += f""") == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
+                if isinstance(
+                    context, list
+                ):  # If it's a string, it's already been added in docstring as global context
+                    gen_str = f"""\t\tf(\n\t\t\t{value_quote}{value}{value_quote}"""
+                    json_str = json.dumps(context, ensure_ascii=False, indent=16)[:-1]
+                    gen_str += f", \n\t\t\t" + json_str + "\t\t\t]\n\t\t)"
+                else:
+                    gen_str = f"""\t\tf({value_quote}{value}{value_quote})"""
+                gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
                 return gen_str
 
             example_str = ""
@@ -300,7 +317,7 @@ class LLMMap(MapIngredient):
             model.prompt_tokens += len(
                 model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
             )
-            for c, v in zip(context, values):
+            for c, v in zip(context_in_use, values):
                 current_example.context = c
                 current_example_str = current_example.to_string(
                     list_options=list_options_in_prompt,

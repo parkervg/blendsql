@@ -1,8 +1,14 @@
 from attr import attrs, attrib
 import typing as t
+from enum import Enum
 
 from blendsql.ingredients.few_shot import Example
 from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
+
+
+class ContextType(Enum):
+    GLOBAL = "global"
+    LOCAL = "local"
 
 
 @attrs(kw_only=True)
@@ -18,7 +24,7 @@ class MapExample(Example):
         converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
         default=DataTypes.STR(),
     )
-    use_context: t.Optional[bool] = attrib(default=False)
+    context_type: ContextType = attrib(default=None)
 
 
 @attrs(kw_only=True)
@@ -35,6 +41,8 @@ class ConstrainedMapExample(MapExample):
         *args,
         **kwargs,
     ) -> str:
+        use_context = self.context_type is not None
+
         s = "\n\n" if add_leading_newlines else ""
         if list_options and self.options is not None:
             type_annotation = (
@@ -50,18 +58,25 @@ class ConstrainedMapExample(MapExample):
         else:
             args_str = "Value from a column in a SQL database."
 
-        s += (
-            f"""\ndef f(s: str"""
-            + (", context: str" if self.use_context else "")
-            + f') -> {type_annotation}:\n\t"""{self.question}'
-        )
+        # Create function signature
+        if self.context_type == ContextType.LOCAL:
+            s += f"""\ndef f(s: str, context: List[str]"""
+        else:
+            s += f"""\ndef f(s: str)"""
+        s += f') -> {type_annotation}:\n\t"""{self.question}'
+        if self.context_type == ContextType.GLOBAL:
+            s += (
+                f"""\n\tAll function outputs are based on the following context:\n\t"""
+                + f"\n\t{self.context}"
+            )
+
         s += f"""\n\n\tArgs:\n\t\ts (str): {args_str}"""
-        if self.use_context:
-            s += f"""\n\t\tcontext (str): Context to use in answering the question."""
+        if self.context_type == ContextType.LOCAL:
+            s += f"""\n\t\tcontext (List[str]): Context to use in answering the question."""
         s += f"""\n\n\tReturns:\n\t\t{self.return_type.name}: Answer to the above question for each value `s`."""
         s += """\n\n\tExamples:\n\t\t```python"""
         s += f"\n\t\t# f() returns the output to the question '{self.question}'" + (
-            "" if self.context is None else f" given the supplied context"
+            "" if not use_context else f" given the supplied context"
         )
         return s
 
