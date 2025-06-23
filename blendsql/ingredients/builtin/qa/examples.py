@@ -28,30 +28,19 @@ class QAExample(Example):
         **kwargs,
     ) -> str:
         s = f"Question: {self.question}\n"
-
-        type_annotation = "Any"
-        if list_options and self.options is not None:
-            type_annotation = (
-                f"Literal["
-                + ", ".join([f'"{option}"' for option in self.options])
-                + "]"
-            )
-        elif self.return_type is not None:
-            type_annotation = self.return_type.name
-
-        list_specifier = ""
+        if self.return_type is not None:
+            if self.return_type._name not in {"Any"}:
+                s += f"Output datatype: {self.return_type.name}\n"
+        if list_options:
+            if self.options is not None:
+                s += f"Options: {', '.join(sorted(self.options))}\n"
         if self.return_type is not None:
             quantifier = self.return_type.quantifier
             if quantifier is not None:
-                type_annotation = f"List[{type_annotation}]"
                 if quantifier == "*":
-                    list_specifier = (
-                        "You may generate zero or more responses in your list.\n"
-                    )
+                    s += "You may generate zero or more responses in your list.\n"
                 elif quantifier == "+":
-                    list_specifier = (
-                        "You may generate one or more responses in your list.\n"
-                    )
+                    s += "You may generate one or more responses in your list.\n"
                 else:
                     repeats = [
                         int(i)
@@ -61,13 +50,9 @@ class QAExample(Example):
                         repeats = repeats * 2
                     min_length, max_length = repeats
                     if min_length == max_length:
-                        list_specifier = (
-                            f"You may generate {min_length} responses in your list.\n"
-                        )
+                        s += f"You may generate {min_length} responses in your list.\n"
                     else:
-                        list_specifier = f"You may generate between {min_length} and {max_length} responses in your list.\n"
-        s += f"Answer datatype: {type_annotation}\n"
-        s += list_specifier
+                        s += f"You may generate between {min_length} and {max_length} responses in your list.\n"
         if self.context is not None:
             s += f"Context:\n{context_formatter(self.context)}"
         s += "\nAnswer: "
