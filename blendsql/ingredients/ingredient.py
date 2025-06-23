@@ -732,6 +732,8 @@ class QAIngredient(Ingredient):
                     + f"Unpacked question to '{question}'"
                     + Fore.RESET
                 )
+                # This will now override whatever context we passed
+                subtable = None
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,
