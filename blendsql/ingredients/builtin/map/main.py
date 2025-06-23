@@ -408,8 +408,18 @@ class LLMMap(MapIngredient):
             sorted_values = sorted(values)
             messages_list: t.List[t.List[dict]] = []
             batch_sizes: t.List[int] = []
+            if current_example.context_type == ContextType.LOCAL:
+                logger.debug(
+                    Fore.YELLOW
+                    + f"Overriding batch_size={batch_size} to 0, since UnconstrainedModels with LLMMap don't support local context for now"
+                    + Fore.RESET
+                )
+                batch_size = 1
+                current_example.context_type = ContextType.GLOBAL
+                current_example.context = None
             for i in range(0, len(sorted_values), batch_size):
                 curr_batch_values = sorted_values[i : i + batch_size]
+                curr_batch_contexts = context_in_use[i : i + batch_size]
                 batch_sizes.append(len(curr_batch_values))
                 current_batch_example = copy.deepcopy(current_example)
                 user_msg_str = ""
@@ -418,12 +428,14 @@ class LLMMap(MapIngredient):
                 for example in few_shot_examples:
                     user_msg_str += example.to_string()
                 # Add the current question + context for inference
+                if current_batch_example.context_type == ContextType.GLOBAL:
+                    current_batch_example.context = "\n".join(curr_batch_contexts[0])
                 user_msg_str += current_batch_example.to_string(
                     values=curr_batch_values,
                     list_options=list_options_in_prompt,
                 )
                 messages_list.append([user(user_msg_str)])
-
+            add_to_global_history(messages_list)
             responses: t.List[str] = model.generate(
                 messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
             )
