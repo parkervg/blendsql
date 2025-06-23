@@ -419,6 +419,7 @@ class LLMQA(QAIngredient):
                 messages_list=[messages],
                 max_tokens=kwargs.get("max_tokens", None),
             )[0].strip()
+            add_to_global_history(messages)
 
             if isinstance(response, str):  # type: ignore
                 # If we have specified a quantifier, we try to parse it to a tuple

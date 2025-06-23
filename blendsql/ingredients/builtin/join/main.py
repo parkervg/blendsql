@@ -244,6 +244,7 @@ class LLMJoin(JoinIngredient):
                 .removeprefix("```json")
                 .removesuffix("```")
             )
+            add_to_global_history(messages)
             # Post-process language model response
             try:
                 mapping: dict = json.loads(response)
