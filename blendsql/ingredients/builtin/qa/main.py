@@ -9,6 +9,7 @@ import json
 from colorama import Fore
 from attr import attrs, attrib
 
+from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger
 from blendsql.models.utils import user, assistant
 from blendsql.models import Model, ConstrainedModel
@@ -384,6 +385,8 @@ class LLMQA(QAIngredient):
                 model.prompt_tokens += len(model.tokenizer.encode(lm._current_prompt()))
                 with guidance.assistant():
                     lm += gen_f(**gen_kwargs)
+                add_to_global_history(lm._current_prompt())
+
                 if is_list_output:
                     response: list = lm.get("response", [])[::-1]  # type: ignore
                 else:

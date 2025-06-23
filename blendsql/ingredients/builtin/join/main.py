@@ -4,6 +4,7 @@ from colorama import Fore
 from pathlib import Path
 from attr import attrs, attrib
 
+from blendsql.configure import add_to_global_history
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.utils import user, assistant
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
@@ -217,7 +218,7 @@ class LLMJoin(JoinIngredient):
                         right_values=current_example.right_values,
                     )  # type: ignore
                 mapping: dict = lm._variables
-                # mapping: dict = {k: v['value'] for k, v in lm._state.captures.items()}
+                add_to_global_history(lm._current_prompt())
                 if model.caching:
                     model.cache[key] = mapping  # type: ignore
             model.completion_tokens += sum(

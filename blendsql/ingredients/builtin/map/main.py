@@ -7,6 +7,7 @@ from colorama import Fore
 from attr import attrs, attrib
 import copy
 
+from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger
 from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
 from blendsql.models import Model, ConstrainedModel
@@ -392,6 +393,7 @@ class LLMMap(MapIngredient):
                         batch_inference_strings[i : i + batch_size]
                     )
                     lm._variables.update(batch_lm._variables)
+                    add_to_global_history(batch_lm._current_prompt())
             if model.caching:
                 for value, cache_key in value_to_cache_key.items():
                     model.cache[cache_key] = lm.get(value)  # type: ignore
