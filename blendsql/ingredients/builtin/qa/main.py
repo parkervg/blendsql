@@ -79,8 +79,8 @@ class LLMQA(QAIngredient):
         few_shot_examples: t.Optional[
             t.Union[t.List[dict], t.List[AnnotatedQAExample]]
         ] = None,
-        context_formatter: t.Callable[[pd.DataFrame], str] = lambda df: df.to_markdown(
-            index=False
+        context_formatter: t.Callable[[pd.DataFrame], str] = lambda df: json.dumps(
+            df.to_dict(orient="records"), indent=4
         ),
         list_options_in_prompt: bool = True,
         num_few_shot_examples: t.Optional[int] = 1,
