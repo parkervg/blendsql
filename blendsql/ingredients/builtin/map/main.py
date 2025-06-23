@@ -213,7 +213,7 @@ class LLMMap(MapIngredient):
                 context_in_use = searcher(unpacked_questions)
                 logger.debug(
                     Fore.LIGHTBLACK_EX
-                    + f"Retrieved contexts '{[str(d[:2]) + '...' for d in context_in_use]}'"
+                    + f"Retrieved contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
                     + Fore.RESET
                 )
                 context_in_use_type = ContextType.LOCAL
