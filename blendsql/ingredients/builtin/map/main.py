@@ -43,7 +43,7 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     CONSTRAINED_MAIN_INSTRUCTION
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
-DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 100
+DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 1
 
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     "Given a set of values from a database, answer the question for each value. "
