@@ -18,13 +18,13 @@ A `ValueArray` is a reference to a list of values. This can be written using:
 The functions `LLMMap` and `LLMQA` support the passing of an `options` argument. This will constrain the output of the functions to only values appearing in the passed [`ValueArray`](#`valuearray`).
 
 ```sql
-SELECT Id FROM posts p
-WHERE {{
+SELECT {{
     LLMMap(
-        'What is the sentiment of this post?',
-        Body,
+        'What is the sentiment of this text?',
+        content,
         options=('positive', 'negative')
-}}
+    )      
+}} AS classification FROM posts LIMIT 10
 ```
 
 # **Functions**
