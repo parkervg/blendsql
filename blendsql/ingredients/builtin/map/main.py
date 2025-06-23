@@ -319,7 +319,7 @@ class LLMMap(MapIngredient):
                     context, list
                 ):  # If it's a string, it's already been added in docstring as global context
                     gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
-                    json_str = json.dumps(context, ensure_ascii=False, indent=16)[:-1]
+                    json_str = json.dumps(context, ensure_ascii=False, indent=20)[:-1]
                     gen_str += (
                         f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)})"
                     )
