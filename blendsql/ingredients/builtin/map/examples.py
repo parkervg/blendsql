@@ -4,7 +4,7 @@ from enum import Enum
 
 from blendsql.ingredients.few_shot import Example
 from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
-from blendsql.common.constants import DEFAULT_ANS_SEP
+from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
 
 
 class ContextType(Enum):
@@ -61,23 +61,24 @@ class ConstrainedMapExample(MapExample):
 
         # Create function signature
         if self.context_type == ContextType.LOCAL:
-            s += f"""\ndef f(s: str, context: List[str]"""
+            s += f"""\ndef f(s: str, context: List[str])"""
         else:
             s += f"""\ndef f(s: str)"""
-        s += f') -> {type_annotation}:\n\t"""{self.question}'
+        s += f' -> {type_annotation}:\n{INDENT()}"""{self.question}'
         if self.context_type == ContextType.GLOBAL:
             s += (
-                f"""\n\tAll function outputs are based on the following context:\n\t"""
-                + f"\n\t{self.context}"
+                f"""\n{INDENT()}All function outputs are based on the following context:\n{INDENT()}"""
+                + f"\n{INDENT()}{self.context}"
             )
 
-        s += f"""\n\n\tArgs:\n\t\ts (str): {args_str}"""
+        s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}s (str): {args_str}"""
         if self.context_type == ContextType.LOCAL:
-            s += f"""\n\t\tcontext (List[str]): Context to use in answering the question."""
-        s += f"""\n\n\tReturns:\n\t\t{self.return_type.name}: Answer to the above question for each value `s`."""
-        s += """\n\n\tExamples:\n\t\t```python"""
-        s += f"\n\t\t# f() returns the output to the question '{self.question}'" + (
-            "" if not use_context else f" given the supplied context"
+            s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
+        s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{self.return_type.name}: Answer to the above question for each value `s`."""
+        s += f"""\n\n{INDENT()}Examples:\n{INDENT(2)}```python"""
+        s += (
+            f"\n{INDENT(2)}# f() returns the output to the question '{self.question}'"
+            + ("" if not use_context else f" given the supplied context")
         )
         return s
 
@@ -97,8 +98,10 @@ class ConstrainedAnnotatedMapExample(ConstrainedMapExample):
             **kwargs,
         )
         for k, v in self.mapping.items():
-            s += f'\n\t\tf("{k}") == ' + (f'"{v}"' if isinstance(v, str) else f"{v}")
-        s += '''\n\t\t```\n\t"""\n\t...'''
+            s += f'\n{INDENT(2)}f("{k}") == ' + (
+                f'"{v}"' if isinstance(v, str) else f"{v}"
+            )
+        s += f'''\n{INDENT(2)}```\n{INDENT()}"""\n{INDENT()}...'''
         return s
 
 

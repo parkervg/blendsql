@@ -8,7 +8,7 @@ from attr import attrs, attrib
 import copy
 
 from blendsql.common.logger import logger
-from blendsql.common.constants import DEFAULT_ANS_SEP
+from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.utils import user
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
@@ -293,7 +293,7 @@ class LLMMap(MapIngredient):
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
                     # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    stop=[")", "\n\t"]
+                    stop=[")", f"\n{INDENT()}"]
                     + (['"'] if resolved_return_type.name == "str" else []),
                     regex=regex,
                 )  # type: ignore
@@ -315,11 +315,13 @@ class LLMMap(MapIngredient):
                 if isinstance(
                     context, list
                 ):  # If it's a string, it's already been added in docstring as global context
-                    gen_str = f"""\t\tf(\n\t\t\t{value_quote}{value}{value_quote}"""
+                    gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
                     json_str = json.dumps(context, ensure_ascii=False, indent=16)[:-1]
-                    gen_str += f", \n\t\t\t" + json_str + "\t\t\t]\n\t\t)"
+                    gen_str += (
+                        f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)})"
+                    )
                 else:
-                    gen_str = f"""\t\tf({value_quote}{value}{value_quote})"""
+                    gen_str = f"""{INDENT(2)}f({value_quote}{value}{value_quote})"""
                 gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
                 return gen_str
 

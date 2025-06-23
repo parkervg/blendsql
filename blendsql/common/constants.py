@@ -11,6 +11,8 @@ class StrInMeta(EnumMeta):
 
 DEFAULT_ANS_SEP = ";"
 DEFAULT_NAN_ANS = "-"
+# INDENT = lambda n=1: "    " * n
+INDENT = lambda n=1: "\t" * n
 
 
 class IngredientType(str, Enum, metaclass=StrInMeta):
