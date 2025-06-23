@@ -69,7 +69,9 @@ class LLMMap(MapIngredient):
         default=None
     )
     context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
-        default=lambda df: json.dumps(df.to_dict(orient="records"), indent=4),
+        default=lambda df: json.dumps(
+            df.to_dict(orient="records"), ensure_ascii=False, indent=4
+        ),
     )
     batch_size: int = attrib(default=None)
 

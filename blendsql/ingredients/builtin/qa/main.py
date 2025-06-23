@@ -64,7 +64,9 @@ def get_option_aliases(options: t.Optional[t.List[str]]):
 class LLMQA(QAIngredient):
     model: Model = attrib(default=None)
     context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
-        default=lambda df: json.dumps(df.to_dict(orient="records"), indent=4),
+        default=lambda df: json.dumps(
+            df.to_dict(orient="records"), ensure_ascii=False, indent=4
+        ),
     )
     list_options_in_prompt: bool = attrib(default=True)
     few_shot_retriever: t.Callable[[str], t.List[AnnotatedQAExample]] = attrib(
@@ -80,7 +82,9 @@ class LLMQA(QAIngredient):
             t.Union[t.List[dict], t.List[AnnotatedQAExample]]
         ] = None,
         context_formatter: t.Callable[[pd.DataFrame], str] = lambda df: json.dumps(
-            df.to_dict(orient="records"), indent=4
+            df.to_dict(orient="records"),
+            ensure_ascii=False,
+            indent=4,
         ),
         list_options_in_prompt: bool = True,
         num_few_shot_examples: t.Optional[int] = 1,

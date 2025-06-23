@@ -55,7 +55,7 @@ if __name__ == "__main__":
         LLMQA.from_args(
             num_few_shot_examples=0,
             context_formatter=lambda df: json.dumps(
-                df.to_dict(orient="records"), indent=4
+                df.to_dict(orient="records"), ensure_ascii=False, indent=4
             ),
         ),
         LLMMap,
