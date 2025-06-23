@@ -63,7 +63,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
             WHERE {{LLMMap('Is this county in Silicon Valley?', s.County)}} = TRUE
             ORDER BY "Longitude" DESC 
             LIMIT 1""",
-        "Notes": "This is changed to 'counties' in hand_written.py",
+        "Notes": "This is changed to 'counties' in hand_written.py. If Sonoma is in the Bay Area (many sources consider it to be), this answer would be K-12.",
     },
     {
         "Query ID": 5,
@@ -1014,7 +1014,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             LLMQA(
                 'Rank the schools, from least affordable city to most affordable city.',
                 context=(SELECT City, School FROM top_schools),
-                options='top_schools::School'
+                options=top_schools.School
             )
         }}""",
         "Notes": "Doesn't specify whether ranking should be increasing or decreasing",
@@ -1036,7 +1036,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT {{
             LLMQA(
                 'Which county has the strongest academic reputation?',
-                options='top_schools::County'
+                options=top_schools.County
             )
         }}""",
         "Notes": "'Strongest academic reputations' is subjective - wouldn't Los Angeles be above Santa Clara?. Also, question asks for a ranked list, but gold answer (and written TAG program) returns the top.",
