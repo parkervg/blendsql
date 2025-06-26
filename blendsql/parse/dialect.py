@@ -173,6 +173,10 @@ def glob_to_match(self: SQLite.Generator, expression: exp.Where) -> str:
     return f"{expression.this.sql(dialect=BlendSQLSQLite)} MATCH {expression.expression.sql(dialect=BlendSQLSQLite)}"
 
 
+def str_position_to_substr(self: SQLite.Generator, expression: exp.Where) -> str:
+    return f"INSTR({expression.this.sql(dialect=BlendSQLSQLite)}, {expression.args['substr'].sql(dialect=BlendSQLSQLite)})"
+
+
 class BlendSQLSQLite(BlendSQLDialect, SQLite):
     class Tokenizer(BlendSQLDialect.Tokenizer, SQLite.Tokenizer):
         KEYWORDS = {
@@ -186,6 +190,7 @@ class BlendSQLSQLite(BlendSQLDialect, SQLite):
         TRANSFORMS = {
             **BlendSQLDialect.Generator.TRANSFORMS,
             exp.Glob: glob_to_match,
+            exp.StrPosition: str_position_to_substr,
         }
 
 
