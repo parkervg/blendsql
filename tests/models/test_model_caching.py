@@ -1,96 +1,32 @@
-import uuid
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Callable
+import pytest
 
-from blendsql.models import Model
+from blendsql import BlendSQL, config
+from blendsql.common.utils import fetch_from_hub
 
-TEST_QUESTION = "The quick brown fox jumps over the lazy dog"
-TEST_FUNC = lambda x: x.lower().strip()
-
-MODEL_A = "a"
-MODEL_B = "b"
+config.set_async_limit(1)
 
 
-@dataclass
-class DummyModelOutput:
-    _variables: dict
+@pytest.fixture(scope="module")
+def bsql() -> BlendSQL:
+    return BlendSQL(fetch_from_hub("codebase_community.sqlite"))
 
 
-class DummyModel(Model):
-    def __init__(self, model_name_or_path: str, **kwargs):
-        super().__init__(
-            model_name_or_path=model_name_or_path,
-            requires_config=False,
-            tokenizer=None,
-            **kwargs,
-        )
+def test_llmmap_cache(bsql, model):
+    model.caching = True
+    model.cache.clear()
+    first = bsql.execute(
+        """
+        SELECT p.Body, {{LLMMap('What is the sentiment of this post?', p.Body, options=('positive', 'negative'))}}
+        FROM posts p LIMIT 10
+        """,
+        model=model,
+    )
+    second = bsql.execute(
+        """
+        SELECT p.Body, {{LLMMap('What is the sentiment of this post?', p.Body, options=('positive', 'negative'))}}
+        FROM posts p LIMIT 10
+        """,
+        model=model,
+    )
 
-    def _load_model(self):
-        return self.model_name_or_path
-
-    def generate(
-        self, *args, funcs: Optional[Sequence[Callable]] = None, **kwargs
-    ) -> List[str]:
-        responses, key = None, None
-        if self.caching:
-            responses, key = self.check_cache(*args, **kwargs, funcs=funcs)
-        if responses is None:
-            responses = [str(uuid.uuid4())]
-        if self.caching:
-            self.cache[key] = responses
-        return responses
-
-
-def test_simple_cache():
-    a = DummyModel(MODEL_A).generate(question=TEST_QUESTION)
-    model_b = DummyModel(MODEL_A)
-    b = model_b.generate(question=TEST_QUESTION)
-
-    assert a == b
-    assert model_b.num_generation_calls == 0
-
-
-def test_different_models():
-    a = DummyModel(MODEL_A).generate(question=TEST_QUESTION)
-    b = DummyModel(MODEL_B).generate(question=TEST_QUESTION)
-
-    assert a != b
-
-
-def test_different_kwargs():
-    a = DummyModel(MODEL_A).generate(question=TEST_QUESTION)
-    b = DummyModel(MODEL_A).generate(question="This is a different question")
-
-    assert a != b
-
-
-def test_different_args():
-    a = DummyModel(MODEL_A).generate("a", "b", "c", question=TEST_QUESTION)
-    b = DummyModel(MODEL_A).generate("c", "d", "e", question=TEST_QUESTION)
-
-    assert a != b
-
-
-def test_same_funcs():
-    a = DummyModel(MODEL_A).generate(question=TEST_QUESTION, funcs=[TEST_FUNC])
-    model_b = DummyModel(MODEL_A)
-    b = model_b.generate(question=TEST_QUESTION, funcs=[TEST_FUNC])
-
-    assert a == b
-    assert model_b.num_generation_calls == 0
-
-
-def test_different_funcs():
-    a = DummyModel(MODEL_A).generate(question=TEST_QUESTION, funcs=[TEST_FUNC])
-    model_b = DummyModel(MODEL_A)
-    b = model_b.generate(question=TEST_QUESTION, funcs=[lambda x: x + 1])
-
-    assert a != b
-
-
-def test_with_set_vars():
-    a = DummyModel(MODEL_A).generate(question=TEST_QUESTION, random_set={"a", "b", "c"})
-
-    b = DummyModel(MODEL_A).generate(question=TEST_QUESTION, random_set={"b", "c", "a"})
-
-    assert a == b
+    assert first.meta.process_time_seconds > second.meta.process_time_seconds
