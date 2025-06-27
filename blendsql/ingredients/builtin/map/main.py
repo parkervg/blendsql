@@ -1,3 +1,4 @@
+import logging
 import os
 import typing as t
 from pathlib import Path
@@ -6,6 +7,7 @@ import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
 import copy
+from tqdm.auto import tqdm
 
 from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger
@@ -335,6 +337,7 @@ class LLMMap(MapIngredient):
 
             loaded_lm = False
             batch_inference_strings = []
+            batch_inference_values = []
             value_to_cache_key = {}
             # Due to guidance's prefix caching, this is a one-time cost
             model.prompt_tokens += len(
@@ -343,6 +346,7 @@ class LLMMap(MapIngredient):
             for c, v in zip(context_in_use, values):
                 if context_in_use_type == ContextType.LOCAL:
                     current_example.context = c
+
                 current_example_str = current_example.to_string(
                     list_options=list_options_in_prompt,
                     add_leading_newlines=True,
@@ -362,10 +366,11 @@ class LLMMap(MapIngredient):
                         funcs=[make_prediction, gen_f],
                     )
                     if cached_response is not None:
-                        lm.set(v, cached_response)
+                        lm = lm.set(v, cached_response)
                         in_cache = True
                     else:
                         value_to_cache_key[v] = cache_key
+
                 if not in_cache and not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
                     loaded_lm = True
@@ -385,18 +390,28 @@ class LLMMap(MapIngredient):
                             gen_f=gen_f,
                         )
                     )
+                    batch_inference_values.append(v)
 
             with guidance.assistant():
-                for i in range(0, len(batch_inference_strings), batch_size):
+                iter = range(0, len(batch_inference_strings), batch_size)
+                if logger.level <= logging.DEBUG:
+                    # Wrap with tqdm if `verbose=True`
+                    iter = tqdm(
+                        iter,
+                        total=len(batch_inference_strings) // batch_size,
+                        desc=f"LLMMap with batch_size={batch_size}",
+                    )
+                for i in iter:
                     model.num_generation_calls += 1
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
                     lm._variables.update(batch_lm._variables)
                     add_to_global_history(batch_lm._current_prompt())
-            if model.caching:
-                for value, cache_key in value_to_cache_key.items():
-                    model.cache[cache_key] = lm.get(value)  # type: ignore
+                    if model.caching:
+                        for value in batch_inference_values[i : i + batch_size]:
+                            cache_key = value_to_cache_key[value]
+                            model.cache[cache_key] = lm.get(value)  # type: ignore
 
             lm_mapping: t.List[str] = [lm[value] for value in values]  # type: ignore
             model.completion_tokens += sum(

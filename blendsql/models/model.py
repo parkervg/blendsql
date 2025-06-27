@@ -69,13 +69,10 @@ class Model:
     num_generation_calls: int = 0
 
     def __attrs_post_init__(self):
-        if self.caching:
-            self.cache = Cache(
-                Path(platformdirs.user_cache_dir("blendsql"))
-                / f"{self.model_name_or_path}.diskcache"
-            )
-        else:
-            self.cache = None
+        self.cache = Cache(
+            Path(platformdirs.user_cache_dir("blendsql"))
+            / f"{self.model_name_or_path}.diskcache"
+        )
         if self.config is None:
             self.config = {}
         if self.requires_config:
