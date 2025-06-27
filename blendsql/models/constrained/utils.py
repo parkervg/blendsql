@@ -1,4 +1,5 @@
 from typing import Union
+import copy
 
 from ..model import ModelObj, Model
 
@@ -15,7 +16,9 @@ class LMString(str):
         return instance
 
     def set(self, key, value):
-        self._variables[key] = value
+        new_lm = copy.copy(self)
+        new_lm._variables[key] = value
+        return new_lm
 
     def _current_prompt(self):
         return str(self)
@@ -32,6 +35,6 @@ def maybe_load_lm(model: Model, lm: Union[LMString, ModelObj]) -> ModelObj:
     if isinstance(lm, LMString):
         new_lm = model.model_obj + lm
         for k, v in lm._variables.items():
-            new_lm.set(k, v)
+            new_lm = new_lm.set(k, v)
         return new_lm
     return lm
