@@ -86,7 +86,7 @@ smoothie = bsql.execute(
         LLMQA('First 3 presidents of the U.S?', quantifier='{3}')
     }}
     """,
-    infer_gen_constraints=True,
+    infer_gen_constraints=True, # Is `True` by default
 )
 
 print(smoothie.df)
