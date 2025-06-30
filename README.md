@@ -14,7 +14,7 @@
     <i> SQL 🤝 LLMs </i>
   </p>
 <b><h3>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</h3></b>
-<b><h4>Join our [Discord server](https://discord.gg/vCv7ak3WrU) for more discussion!</h4></b>
+<b><h4>Join our <a href="https://discord.gg/vCv7ak3WrU" target="_blank">Discord server</a> for more discussion!</h4></b>
 </div>
 <br/>
 
