@@ -14,7 +14,7 @@
     <i> SQL 🤝 LLMs </i>
   </p>
 <b><h3>Check out our <a href="https://parkervg.github.io/blendsql/" target="_blank">online documentation</a> for a more comprehensive overview.</h3></b>
-
+<b><h4>Join our [Discord server](https://discord.gg/vCv7ak3WrU) for more discussion!</h4></b>
 </div>
 <br/>
 
@@ -165,6 +165,7 @@ print(smoothie.summary())
 ```
 
 # 📰 News
+- (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
 - (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
 - (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
 - (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
