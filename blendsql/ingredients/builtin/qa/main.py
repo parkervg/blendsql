@@ -11,6 +11,7 @@ from attr import attrs, attrib
 
 from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger
+from blendsql.common.constants import DEFAULT_CONTEXT_FORMATTER
 from blendsql.models.utils import user, assistant
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import maybe_load_lm, LMString
@@ -65,9 +66,7 @@ def get_option_aliases(options: t.Optional[t.List[str]]):
 class LLMQA(QAIngredient):
     model: Model = attrib(default=None)
     context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
-        default=lambda df: json.dumps(
-            df.to_dict(orient="records"), ensure_ascii=False, indent=4
-        ),
+        default=DEFAULT_CONTEXT_FORMATTER,
     )
     list_options_in_prompt: bool = attrib(default=True)
     few_shot_retriever: t.Callable[[str], t.List[AnnotatedQAExample]] = attrib(
@@ -82,14 +81,11 @@ class LLMQA(QAIngredient):
         few_shot_examples: t.Optional[
             t.Union[t.List[dict], t.List[AnnotatedQAExample]]
         ] = None,
-        context_formatter: t.Callable[[pd.DataFrame], str] = lambda df: json.dumps(
-            df.to_dict(orient="records"),
-            ensure_ascii=False,
-            indent=4,
-        ),
+        context_formatter: t.Callable[[pd.DataFrame], str] = DEFAULT_CONTEXT_FORMATTER,
         list_options_in_prompt: bool = True,
         num_few_shot_examples: t.Optional[int] = 1,
         searcher: t.Optional[Searcher] = None,
+        enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -161,6 +157,7 @@ class LLMQA(QAIngredient):
                 context_formatter=context_formatter,
                 list_options_in_prompt=list_options_in_prompt,
                 searcher=searcher,
+                enable_constrained_decoding=enable_constrained_decoding,
             )
         )
 
@@ -326,7 +323,7 @@ class LLMQA(QAIngredient):
                 context_formatter, list_options=list_options_in_prompt
             )
 
-            if is_list_output:
+            if is_list_output and self.enable_constrained_decoding:
                 gen_kwargs = {
                     "force_quotes": bool("str" in resolved_return_type.name),
                     "regex": regex,
@@ -335,15 +332,21 @@ class LLMQA(QAIngredient):
                 }
                 gen_f = gen_list
             else:
-                if options:
+                if options and self.enable_constrained_decoding:
                     # Too many options here raises:
                     # ValueError: Parser Error: Current row has 10850 items; max is 2000; consider making your grammar left-recursive if it's right-recursive
                     gen_kwargs = {"options": options, "name": "response"}
                     gen_f = guidance.select
                 else:
+                    if not self.enable_constrained_decoding:
+                        logger.debug(
+                            Fore.YELLOW
+                            + "Not applying constraints, since `enable_constrained_decoding==False`"
+                            + Fore.RESET
+                        )
                     gen_kwargs = {
                         "max_tokens": kwargs.get("max_tokens", 200),
-                        "regex": regex,
+                        "regex": regex if self.enable_constrained_decoding else None,
                         "name": "response",
                         # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
                         # "stop": ["\n"] if regex is None else None,
@@ -363,6 +366,7 @@ class LLMQA(QAIngredient):
                         ]
                     ),
                     regex,
+                    gen_kwargs,
                     funcs=[gen_f],
                 )
                 if response is not None:

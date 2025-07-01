@@ -41,6 +41,7 @@ class Ingredient:
     few_shot_retriever: t.Callable[[str], t.List[Example]] = attrib(default=None)
     list_options_in_prompt: bool = attrib(default=True)
     searcher: t.Optional[Searcher] = attrib(default=None)
+    enable_constrained_decoding: bool = attrib(default=True)
 
     ingredient_type: str = attrib(init=False)
     allowed_output_types: t.Tuple[t.Type] = attrib(init=False)
