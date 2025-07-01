@@ -43,6 +43,7 @@ class LLMJoin(JoinIngredient):
             t.Union[t.List[dict], t.List[AnnotatedJoinExample]]
         ] = None,
         num_few_shot_examples: t.Optional[int] = None,
+        enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -100,6 +101,7 @@ class LLMJoin(JoinIngredient):
                 model=model,
                 few_shot_retriever=few_shot_retriever,
                 use_skrub_joiner=use_skrub_joiner,
+                enable_constrained_decoding=enable_constrained_decoding,
             )
         )
 
@@ -123,6 +125,11 @@ class LLMJoin(JoinIngredient):
         Returns:
             Dict mapping left values to right values.
         """
+        if not self.enable_constrained_decoding:
+            raise NotImplementedError(
+                "Haven't implemented enable_constrained_decoding==False for LLMJoin yet"
+            )
+
         if model is None:
             raise IngredientException(
                 "LLMJoin requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"

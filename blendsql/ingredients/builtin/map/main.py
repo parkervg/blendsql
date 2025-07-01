@@ -11,7 +11,7 @@ from tqdm.auto import tqdm
 
 from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger
-from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
+from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT, DEFAULT_CONTEXT_FORMATTER
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.utils import user
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
@@ -72,9 +72,7 @@ class LLMMap(MapIngredient):
         default=None
     )
     context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
-        default=lambda df: json.dumps(
-            df.to_dict(orient="records"), ensure_ascii=False, indent=4
-        ),
+        default=DEFAULT_CONTEXT_FORMATTER,
     )
     batch_size: int = attrib(default=None)
 
@@ -89,6 +87,7 @@ class LLMMap(MapIngredient):
         batch_size: t.Optional[int] = None,
         num_few_shot_examples: t.Optional[int] = None,
         searcher: t.Optional[Searcher] = None,
+        enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -162,6 +161,7 @@ class LLMMap(MapIngredient):
                 list_options_in_prompt=list_options_in_prompt,
                 batch_size=batch_size,
                 searcher=searcher,
+                enable_constrained_decoding=enable_constrained_decoding,
             )
         )
 
@@ -289,12 +289,21 @@ class LLMMap(MapIngredient):
 
             lm = LMString()  # type: ignore
 
-            if options is not None:
+            if options is not None and self.enable_constrained_decoding:
                 gen_f = lambda _: guidance.select(options=options)  # type: ignore
-            elif resolved_return_type.name == "substring":
+            elif (
+                resolved_return_type.name == "substring"
+                and self.enable_constrained_decoding
+            ):
                 # Special case for substring datatypes
                 gen_f = lambda s: guidance.substring(target_string=s)
             else:
+                if not self.enable_constrained_decoding:
+                    logger.debug(
+                        Fore.YELLOW
+                        + "Not applying constraints, since `enable_constrained_decoding==False`"
+                        + Fore.RESET
+                    )
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
                     # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
