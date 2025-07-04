@@ -1,80 +1,23 @@
-// start: (set_expr SEMICOLON? | ["SELECT"i] blendsql_aggregate_expr) -> final
-start: set_expr SEMICOLON? -> final
+start: set_expr ";"? -> final
 
-set_expr: query_expr
-        | column_name
-        | set_expr "UNION"i ["DISTINCT"i] set_expr -> union_distinct
-        | set_expr "UNION"i "ALL"i set_expr -> union_all
-        | set_expr "INTERSECT"i ["DISTINCT"i] set_expr -> intersect_distinct
-        | set_expr "EXCEPT"i ["DISTINCT"i] set_expr -> except_distinct
-        | set_expr "EXCEPT"i "ALL"i set_expr -> except_all
-        | set_expr "MATCH"i set_expr -> fts5_match
+select_query: select [ "ORDER"i "BY"i (order_by_expr ",")*  order_by_expr] [ "LIMIT"i (limit_count [ "OFFSET"i skip_rows ] | limit_count "," skip_rows) ]
 
-// TODO: what is the point of expression_product?
-// Seems like just swapping in expression_math for below works better
-// ?expression_product: expression_parens
-//                   | expression_product "*" expression_parens -> expression_mul
-//                   | expression_product "/" expression_parens -> expression_div
-//                   | expression_product "+" expression_parens -> expression_add
-//                   | expression_product "-" expression_parens -> expression_sub
-//                   | expression_product "||" expression_parens -> expression_concat
-
-?expression_product: expression
-                  | expression_math "*" expression_math -> expression_mul
-                  | expression_math "/" expression_math -> expression_div
-                  | expression_math "+" expression_math -> expression_add
-                  | expression_math "-" expression_math -> expression_sub
-                  | expression_math "||" expression_math -> expression_concat
-
-// ?expression_parens: expression
-//                  | "(" expression_math "*" expression_math ")" -> expression_mul
-//                  | "(" expression_math "/" expression_math ")" -> expression_div
-//                  | "(" expression_math "+" expression_math ")" -> expression_add
-//                  | "(" expression_math "-" expression_math ")" -> expression_sub
-//                  | "(" expression_math "||" expression_math ")" -> expression_concat
-
-?expression: [name "."] (name | STAR) -> column_name
-            | literal
-
-query_expr: select [ "ORDER"i "BY"i (order_by_expr ",")*  order_by_expr] [ "LIMIT"i (limit_count [ "OFFSET"i skip_rows ] | limit_count "," skip_rows) ]
-
-blendsql_special_select: ["SELECT"i] [SELECT_CONSTRAINT] blendsql_aggregate_expr
-normal_select_body: "SELECT"i [SELECT_CONSTRAINT] [(select_expr ",")*] select_expr ["FROM"i [(from_expr ",")*] from_expr] [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ]
-select: [cte_expr] (blendsql_special_select | normal_select_body)
-
+// `SELECT`
+select: [cte_expr] "SELECT"i [SELECT_CONSTRAINT] ([(select_expr ",")*] select_expr ["FROM"i [(from_expr ",")*] from_expr] [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ] | blendsql_aggregate_expr)
+SELECT_CONSTRAINT: "ALL"i | "DISTINCT"i
 cte_expr: "WITH"i ["RECURSIVE"i] name "AS"i "(" set_expr ")" ("," name "AS"i "(" set_expr ")")*
 
-where_expr: bool_expression
+set_expr: select_query
+        | column_ref
+        | select "UNION"i [SELECT_CONSTRAINT] select -> union
+        | select "INTERSECT"i [SELECT_CONSTRAINT] select -> intersect
+        | select "EXCEPT"i [SELECT_CONSTRAINT] select -> except
 
-select_expr: expression_math [ [ "AS"i ] alias ] -> select_expression
+OP: "*" | "/" | "||" | "+" | "-"
+expression: column_ref | literal
+expression_product: expression | expression_math OP expression_math
 
-?from_expr: from_item -> from_expression
-from_item: name [ [ "AS"i ] alias ] -> table
-            | join -> join
-            | cross_join -> cross_join_expression
-            | blendsql_join -> blendsql_join
-            | subquery
-            | "VALUES"i blendsql_aggregate_expr
-
-order_by_expr: order -> order_by_expression
-order: expression_math ["ASC"i] -> order_asc
-            | expression_math "DESC"i -> order_desc
-
-having_expr: bool_expression
-
-groupby_expr: expression -> group_by
-
-window_expr: [window_expr ","] _window_name "AS"i ( window_definition )
-
-// TODO: can a subquery be a whole new `start` node?
-subquery: ( "(" set_expr ")" ) [ [ "AS"i ] alias ]
-
-cross_join: from_item "CROSS"i "JOIN"i from_item
-blendsql_join: from_item "JOIN"i blendsql_join_expr
-join: from_item [ JOIN_TYPE ] "JOIN"i (from_item [ "ON"i bool_expression ]|blendsql_join_expr) -> join_expression
-JOIN_TYPE: "INNER"i | "FULL"i ["OUTER"i] | "LEFT"i["OUTER"i] | "RIGHT"i ["OUTER"i]
-
-?expression_math: expression_product
+expression_math: expression_product
                | expression_math "+" expression_math -> expression_add
                | expression_math "-" expression_math -> expression_sub
                | "CASE"i (when_then)+ "ELSE"i expression_math "END"i -> case_expression
@@ -89,18 +32,48 @@ JOIN_TYPE: "INNER"i | "FULL"i ["OUTER"i] | "LEFT"i["OUTER"i] | "RIGHT"i ["OUTER"
                | "|" "|" expression_math
                | subquery
 
+where_expr: bool_expression
 
+select_expr: expression_math [ [ "AS"i ] alias ] -> select_expression
+
+?from_expr: from_item -> from_expression
+from_item: column_ref [ [ "AS"i ] alias ] -> table
+            | join -> join
+            | subquery
+            | "VALUES"i blendsql_aggregate_expr
+
+order_by_expr: order -> order_by_expression
+order: expression_math ["ASC"i] -> order_asc
+            | expression_math "DESC"i -> order_desc
+
+having_expr: bool_expression
+
+groupby_expr: expression -> group_by
+
+window_expr: [window_expr ","] name "AS"i ( window_definition )
+
+// TODO: can a subquery be a whole new `start` node?
+subquery: ( "(" set_expr ")" ) [ [ "AS"i ] alias ]
+
+// [BEGIN Join]
+JOIN_TYPE: "INNER" | "LEFT" ["OUTER"] | "RIGHT" ["OUTER"] | "FULL" ["OUTER"] | "CROSS"
+join: from_item [JOIN_TYPE] "JOIN"i (from_item [ "ON"i bool_expression ]|blendsql_join_expr) -> join_expression
+// [END Join]
+
+// [BEGIN BlendSQL Functions]
 BLENDSQL_AGGREGATE_FUNCTIONS: $blendsql_aggregate_functions
 BLENDSQL_JOIN_FUNCTIONS: "LLMJoin("
 BLENDSQL_SCALAR_FUNCTIONS: $blendsql_scalar_functions
-
+BLENDSQL_FUNCTION_BEGIN: "{{"
+BLENDSQL_FUNCTION_END: "}}"
 QUANTIFIER_RE: ("*"|"+"|/\{\d(,\d)?\}/)
 QUANTIFIER: (SINGLE_QUOTE QUANTIFIER_RE SINGLE_QUOTE|DOUBLE_QUOTE QUANTIFIER_RE DOUBLE_QUOTE)
 RETURN_TYPE_SCALARS: ("str" | "int" | "float")
 RETURN_TYPES_BASE: ["List["] RETURN_TYPE_SCALARS ["]"]
 RETURN_TYPES: (SINGLE_QUOTE RETURN_TYPES_BASE SINGLE_QUOTE | DOUBLE_QUOTE RETURN_TYPES_BASE DOUBLE_QUOTE)
-value_array: (tuple | "(" start ")" | column_name)
 
+tuple: "(" [literal ","]* literal ")"
+value_array: (tuple | "(" start ")" | column_ref)
 
 options_arg: ["options" "="] value_array
 question_arg: ["question" "="] QUOTED_STRING
@@ -108,22 +81,23 @@ context_arg: ["context" "="] value_array
 return_type_arg: ["return_type" "="] RETURN_TYPES
 regex_arg: ["regex" "="] QUOTED_STRING
 quantifier_arg: ["quantifier" "="] QUANTIFIER
-values_arg: ["values" "="] column_name
-left_on_arg: ["left_on" "="] column_name
-right_on_arg: ["right_on" "="] column_name
+values_arg: ["values" "="] column_ref
+left_on_arg: ["left_on" "="] column_ref
+right_on_arg: ["right_on" "="] column_ref
 join_criteria_arg: ["join_criteria" "="] QUOTED_STRING
 
 blendsql_required_aggregate_args: question_arg
 blendsql_optional_aggregate_args: (context_arg|options_arg|return_type_arg|regex_arg|quantifier_arg)
-blendsql_aggregate_expr: blendsql_function_begin BLENDSQL_AGGREGATE_FUNCTIONS blendsql_required_aggregate_args ("," blendsql_optional_aggregate_args)* ")" blendsql_function_end
+blendsql_aggregate_expr: BLENDSQL_FUNCTION_BEGIN BLENDSQL_AGGREGATE_FUNCTIONS blendsql_required_aggregate_args ("," blendsql_optional_aggregate_args)* ")" BLENDSQL_FUNCTION_END
 
 blendsql_required_scalar_args: question_arg "," values_arg
 blendsql_optional_scalar_args: (options_arg|return_type_arg|regex_arg|quantifier_arg)
-blendsql_scalar_expr: blendsql_function_begin BLENDSQL_SCALAR_FUNCTIONS blendsql_required_scalar_args  ("," blendsql_optional_scalar_args)* ")" blendsql_function_end
+blendsql_scalar_expr: BLENDSQL_FUNCTION_BEGIN BLENDSQL_SCALAR_FUNCTIONS blendsql_required_scalar_args  ("," blendsql_optional_scalar_args)* ")" BLENDSQL_FUNCTION_END
 
 blendsql_required_join_args: left_on_arg "," right_on_arg
 blendsql_optional_join_args: (join_criteria_arg)
-blendsql_join_expr: blendsql_function_begin BLENDSQL_JOIN_FUNCTIONS blendsql_required_join_args ("," blendsql_optional_join_args)* ")" blendsql_function_end
+blendsql_join_expr: BLENDSQL_FUNCTION_BEGIN BLENDSQL_JOIN_FUNCTIONS blendsql_required_join_args ("," blendsql_optional_join_args)* ")" BLENDSQL_FUNCTION_END
+// [END BlendSQL Functions]
 
 window_form: "OVER"i "(" ["PARTITION"i "BY"i (expression_math ",")* expression_math] ["ORDER"i "BY"i (order ",")* order [ row_range_clause ] ] ")"
 
@@ -141,10 +115,12 @@ FOLLOWING: "FOLLOWING"i
 
 when_then: "WHEN"i bool_expression "THEN"i expression_math
 
-column_name: [name "."] name
+// db_column: ("column1" | "column2")
+// db_table: ("table1" | "table2")
+// column_ref: [db_table "."] db_column
+column_ref: [name "."] name
 
 
-SELECT_CONSTRAINT.9: "ALL"i | "DISTINCT"i
 TYPENAME:  "object"i
          | "varchar"i
          | "integer"i
@@ -171,8 +147,7 @@ TYPENAME:  "object"i
 AGGREGATE_FUNCTIONS: ("sum("i | "avg("i | "min("i | "max("i | "count("i ["distinct"i ["("]] )
 SCALAR_FUNCTIONS: ("trim("i | "coalesce("i | "abs("i | "replace("i) | "substr("i | "instr("i | "length("i
 
-alias: string -> alias_string
-_window_name: name
+alias: name -> alias_string
 limit_count: integer_ -> limit_count
 skip_rows: integer_
 bool_expression: bool_parentheses
@@ -198,7 +173,6 @@ empty_expr: expression_math
 
 string: QUOTED_STRING
        | ESCAPED_STRING
-       | name
 ?literal: boolean -> bool
        | number_expr -> number
        | string
@@ -224,27 +198,23 @@ time: HOURS ":" MINUTES ":" SECONDS
 HOURS: /[0-9]{2}/
 MINUTES: /[0-9]{2}/
 SECONDS: /[0-9]{2}/
-name: CNAME | ESCAPED_STRING | | /`([^`]|\s)+`|``/
-SEMICOLON: ";"
-CURLY_BRACKET_OPEN: "{"
-CURLY_BRACKET_CLOSE: "}"
+// Causes collision with subquery
+// name: ESCAPED_STRING | | /`([^`]|\s)+`|``/
+name: CNAME | ESCAPED_STRING | /`([^`]|\s)+`|``/ | "*"
 SINGLE_QUOTE: "'"
 DOUBLE_QUOTE: "\""
 DOUBLE_QUOTED_STRING: /"[^"]*"/
 SINGLE_QUOTED_STRING: /'([^']|'')*'/
 
 QUOTED_STRING: (SINGLE_QUOTED_STRING|DOUBLE_QUOTED_STRING)
-tuple: "(" [expression_math ","]* expression_math ")"
-blendsql_function_begin: CURLY_BRACKET_OPEN ~ 2
-blendsql_function_end: CURLY_BRACKET_CLOSE ~ 2
 
-SQL_COMMENT2: "/*" /.*/ "*/"
+COMMENT: /--[^\n]*/
+BLOCK_COMMENT: /\/\*(.|\n)*?\*\//
 
 %import common.ESCAPED_STRING
 %import common.CNAME
 %import common.NUMBER
 %import common.WS
-%import common.SQL_COMMENT
 %ignore WS
-%ignore SQL_COMMENT
-%ignore SQL_COMMENT2
+%ignore COMMENT
+%ignore BLOCK_COMMENT
