@@ -21,7 +21,7 @@ def format_ingredient_names_to_lark(names: t.List[str]) -> str:
     return "(" + " | ".join([f'"{n}("i' for n in names]) + ")"
 
 
-def load_cfg_parser(
+def load_grammar(
     ingredients: t.Optional[t.Collection[t.Type[Ingredient]]] = None,
 ) -> EarleyParser:
     """Loads BlendSQL CFG parser.

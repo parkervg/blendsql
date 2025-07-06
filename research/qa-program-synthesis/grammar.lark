@@ -3,7 +3,7 @@ start: set_expr ";"? -> final
 select_query: select [ "ORDER"i "BY"i (order_by_expr ",")*  order_by_expr] [ "LIMIT"i (limit_count [ "OFFSET"i skip_rows ] | limit_count "," skip_rows) ]
 
 // `SELECT`
-select: [cte_expr] "SELECT"i [SELECT_CONSTRAINT] ([(select_expr ",")*] select_expr ["FROM"i [(from_expr ",")*] from_expr] [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ] | blendsql_aggregate_expr)
+select: [cte_expr] "SELECT"i [SELECT_CONSTRAINT] [(select_expr ",")*] select_expr ["FROM"i [(from_expr ",")*] from_expr] [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ]
 SELECT_CONSTRAINT: "ALL"i | "DISTINCT"i
 cte_expr: "WITH"i ["RECURSIVE"i] name "AS"i "(" set_expr ")" ("," name "AS"i "(" set_expr ")")*
 
@@ -75,19 +75,20 @@ RETURN_TYPES: (SINGLE_QUOTE RETURN_TYPES_BASE SINGLE_QUOTE | DOUBLE_QUOTE RETURN
 tuple: "(" [literal ","]* literal ")"
 value_array: (tuple | "(" start ")" | column_ref)
 
-options_arg: ["options" "="] value_array
 question_arg: ["question" "="] QUOTED_STRING
 context_arg: ["context" "="] value_array
-return_type_arg: ["return_type" "="] RETURN_TYPES
-regex_arg: ["regex" "="] QUOTED_STRING
-quantifier_arg: ["quantifier" "="] QUANTIFIER
 values_arg: ["values" "="] column_ref
+
+options_arg: "options" "=" value_array
+return_type_arg: "return_type" "=" RETURN_TYPES
+regex_arg: "regex" "=" QUOTED_STRING
+quantifier_arg: "quantifier" "=" QUANTIFIER
 left_on_arg: ["left_on" "="] column_ref
 right_on_arg: ["right_on" "="] column_ref
 join_criteria_arg: ["join_criteria" "="] QUOTED_STRING
 
-blendsql_required_aggregate_args: question_arg
-blendsql_optional_aggregate_args: (context_arg|options_arg|return_type_arg|regex_arg|quantifier_arg)
+blendsql_required_aggregate_args: question_arg ["," context_arg]
+blendsql_optional_aggregate_args: (options_arg|return_type_arg|regex_arg|quantifier_arg)
 blendsql_aggregate_expr: BLENDSQL_FUNCTION_BEGIN BLENDSQL_AGGREGATE_FUNCTIONS blendsql_required_aggregate_args ("," blendsql_optional_aggregate_args)* ")" BLENDSQL_FUNCTION_END
 
 blendsql_required_scalar_args: question_arg "," values_arg
@@ -115,10 +116,8 @@ FOLLOWING: "FOLLOWING"i
 
 when_then: "WHEN"i bool_expression "THEN"i expression_math
 
-// db_column: ("column1" | "column2")
-// db_table: ("table1" | "table2")
-// column_ref: [db_table "."] db_column
-column_ref: [name "."] name
+$db_column_declarations
+column_ref: $all_column_refs
 
 
 TYPENAME:  "object"i
@@ -171,7 +170,7 @@ in_expr: expression_math ["NOT"i] "IN"i (tuple | subquery)
 like_expr: expression_math ["NOT"i]  ("LIKE"i | "GLOB"i | "REGEXP"i | "MATCH"i) expression_math
 empty_expr: expression_math
 
-string: QUOTED_STRING
+string: SINGLE_QUOTED_STRING
        | ESCAPED_STRING
 ?literal: boolean -> bool
        | number_expr -> number
@@ -184,7 +183,6 @@ boolean: "true"i -> true
 ?product: NUMBER
 
 integer_: /[1-9][0-9]*/
-STAR: "*"
 window_definition:
 timestamp_expression: "NOW"i "(" ")" -> datetime_now
                     | "TODAY"i "(" ")" -> date_today
@@ -199,11 +197,10 @@ HOURS: /[0-9]{2}/
 MINUTES: /[0-9]{2}/
 SECONDS: /[0-9]{2}/
 // Causes collision with subquery
-// name: ESCAPED_STRING | | /`([^`]|\s)+`|``/
-name: CNAME | ESCAPED_STRING | /`([^`]|\s)+`|``/ | "*"
+name: CNAME | /`([^`]|\s)+`|``/ | DOUBLE_QUOTED_STRING | "*"
 SINGLE_QUOTE: "'"
 DOUBLE_QUOTE: "\""
-DOUBLE_QUOTED_STRING: /"[^"]*"/
+DOUBLE_QUOTED_STRING: /"([^"]|"")*"/
 SINGLE_QUOTED_STRING: /'([^']|'')*'/
 
 QUOTED_STRING: (SINGLE_QUOTED_STRING|DOUBLE_QUOTED_STRING)
