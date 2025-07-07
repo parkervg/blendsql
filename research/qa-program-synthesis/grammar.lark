@@ -37,7 +37,7 @@ where_expr: bool_expression
 select_expr: expression_math [ [ "AS"i ] alias ] -> select_expression
 
 ?from_expr: from_item -> from_expression
-from_item: column_ref [ [ "AS"i ] alias ] -> table
+from_item: table [ [ "AS"i ] alias ] -> table
             | join -> join
             | subquery
             | "VALUES"i blendsql_aggregate_expr
@@ -116,9 +116,7 @@ FOLLOWING: "FOLLOWING"i
 
 when_then: "WHEN"i bool_expression "THEN"i expression_math
 
-$db_column_declarations
-column_ref: $all_column_refs
-
+$column_ref_grammar_str
 
 TYPENAME:  "object"i
          | "varchar"i
