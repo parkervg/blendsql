@@ -5,7 +5,7 @@ select_query: select [ "ORDER"i "BY"i (order_by_expr ",")*  order_by_expr] [ "LI
 // `SELECT`
 select: [cte_expr] "SELECT"i [SELECT_CONSTRAINT] [(select_expr ",")*] select_expr ["FROM"i [(from_expr ",")*] from_expr] [ "WHERE"i where_expr ] [ "GROUP"i "BY"i [(groupby_expr ",")*] groupby_expr ] [ "HAVING"i having_expr] [ "WINDOW"i window_expr ]
 SELECT_CONSTRAINT: "ALL"i | "DISTINCT"i
-cte_expr: "WITH"i ["RECURSIVE"i] name "AS"i "(" set_expr ")" ("," name "AS"i "(" set_expr ")")*
+cte_expr: "WITH"i ["RECURSIVE"i] name "AS"i LPAREN set_expr RPAREN ("," name "AS"i LPAREN set_expr RPAREN)*
 
 set_expr: select_query
         | column_ref
@@ -21,14 +21,14 @@ expression_math: expression_product
                | expression_math "+" expression_math -> expression_add
                | expression_math "-" expression_math -> expression_sub
                | "CASE"i (when_then)+ "ELSE"i expression_math "END"i -> case_expression
-               | "CAST"i "(" expression_math "AS"i TYPENAME ")" -> as_type
-               | "CAST"i "(" literal "AS"i TYPENAME ")" -> literal_cast
-               | AGGREGATE_FUNCTIONS expression_math ")" [window_form] -> sql_aggregation
-               | SCALAR_FUNCTIONS [(expression_math ",")*] expression_math ")" -> sql_scalar
+               | "CAST"i LPAREN expression_math "AS"i TYPENAME RPAREN -> as_type
+               | "CAST"i LPAREN literal "AS"i TYPENAME RPAREN -> literal_cast
+               | AGGREGATE_FUNCTIONS LPAREN expression_math RPAREN [window_form] -> sql_aggregation
+               | SCALAR_FUNCTIONS LPAREN [(expression_math ",")*] expression_math RPAREN -> sql_scalar
                | blendsql_aggregate_expr
                | blendsql_scalar_expr
-               | "RANK"i "(" ")" window_form -> rank_expression
-               | "DENSE_RANK"i "(" ")" window_form -> dense_rank_expression
+               | "RANK"i LPAREN RPAREN window_form -> rank_expression
+               | "DENSE_RANK"i LPAREN RPAREN window_form -> dense_rank_expression
                | "|" "|" expression_math
                | subquery
 
@@ -53,7 +53,7 @@ groupby_expr: expression -> group_by
 window_expr: [window_expr ","] name "AS"i ( window_definition )
 
 // TODO: can a subquery be a whole new `start` node?
-subquery: ( "(" set_expr ")" ) [ [ "AS"i ] alias ]
+subquery: ( LPAREN set_expr RPAREN ) [ [ "AS"i ] alias ]
 
 // [BEGIN Join]
 JOIN_TYPE: "INNER" | "LEFT" ["OUTER"] | "RIGHT" ["OUTER"] | "FULL" ["OUTER"] | "CROSS"
@@ -61,9 +61,9 @@ join: from_item [JOIN_TYPE] "JOIN"i (from_item [ "ON"i bool_expression ]|blendsq
 // [END Join]
 
 // [BEGIN BlendSQL Functions]
-BLENDSQL_AGGREGATE_FUNCTIONS: $blendsql_aggregate_functions
-BLENDSQL_JOIN_FUNCTIONS: "LLMJoin("
-BLENDSQL_SCALAR_FUNCTIONS: $blendsql_scalar_functions
+$blendsql_aggregate_functions
+$blendsql_join_functions
+$blendsql_scalar_functions
 BLENDSQL_FUNCTION_BEGIN: "{{"
 BLENDSQL_FUNCTION_END: "}}"
 QUANTIFIER_RE: ("*"|"+"|/\{\d(,\d)?\}/)
@@ -72,8 +72,8 @@ RETURN_TYPE_SCALARS: ("str" | "int" | "float")
 RETURN_TYPES_BASE: ["List["] RETURN_TYPE_SCALARS ["]"]
 RETURN_TYPES: (SINGLE_QUOTE RETURN_TYPES_BASE SINGLE_QUOTE | DOUBLE_QUOTE RETURN_TYPES_BASE DOUBLE_QUOTE)
 
-tuple: "(" [literal ","]* literal ")"
-value_array: (tuple | "(" start ")" | column_ref)
+tuple: LPAREN [literal ","]* literal RPAREN
+value_array: (tuple | LPAREN start RPAREN | column_ref)
 
 question_arg: ["question" "="] QUOTED_STRING
 context_arg: ["context" "="] value_array
@@ -89,18 +89,18 @@ join_criteria_arg: ["join_criteria" "="] QUOTED_STRING
 
 blendsql_required_aggregate_args: question_arg ["," context_arg]
 blendsql_optional_aggregate_args: (options_arg|return_type_arg|regex_arg|quantifier_arg)
-blendsql_aggregate_expr: BLENDSQL_FUNCTION_BEGIN BLENDSQL_AGGREGATE_FUNCTIONS blendsql_required_aggregate_args ("," blendsql_optional_aggregate_args)* ")" BLENDSQL_FUNCTION_END
+blendsql_aggregate_expr: BLENDSQL_FUNCTION_BEGIN blendsql_aggregate_functions LPAREN blendsql_required_aggregate_args ("," blendsql_optional_aggregate_args)* RPAREN BLENDSQL_FUNCTION_END
 
 blendsql_required_scalar_args: question_arg "," values_arg
 blendsql_optional_scalar_args: (options_arg|return_type_arg|regex_arg|quantifier_arg)
-blendsql_scalar_expr: BLENDSQL_FUNCTION_BEGIN BLENDSQL_SCALAR_FUNCTIONS blendsql_required_scalar_args  ("," blendsql_optional_scalar_args)* ")" BLENDSQL_FUNCTION_END
+blendsql_scalar_expr: BLENDSQL_FUNCTION_BEGIN blendsql_scalar_functions LPAREN blendsql_required_scalar_args  ("," blendsql_optional_scalar_args)* RPAREN BLENDSQL_FUNCTION_END
 
 blendsql_required_join_args: left_on_arg "," right_on_arg
 blendsql_optional_join_args: (join_criteria_arg)
-blendsql_join_expr: BLENDSQL_FUNCTION_BEGIN BLENDSQL_JOIN_FUNCTIONS blendsql_required_join_args ("," blendsql_optional_join_args)* ")" BLENDSQL_FUNCTION_END
+blendsql_join_expr: BLENDSQL_FUNCTION_BEGIN blendsql_join_functions LPAREN blendsql_required_join_args ("," blendsql_optional_join_args)* RPAREN BLENDSQL_FUNCTION_END
 // [END BlendSQL Functions]
 
-window_form: "OVER"i "(" ["PARTITION"i "BY"i (expression_math ",")* expression_math] ["ORDER"i "BY"i (order ",")* order [ row_range_clause ] ] ")"
+window_form: "OVER"i LPAREN ["PARTITION"i "BY"i (expression_math ",")* expression_math] ["ORDER"i "BY"i (order ",")* order [ row_range_clause ] ] RPAREN
 
 row_range_clause: ( ROWS | RANGE ) frame_extent
 frame_extent: frame_between | frame_preceding
@@ -141,8 +141,8 @@ TYPENAME:  "object"i
          | "real"i
 
 // https://www.sqlite.org/lang_expr.html#*funcinexpr
-AGGREGATE_FUNCTIONS: ("sum("i | "avg("i | "min("i | "max("i | "count("i ["distinct"i ["("]] )
-SCALAR_FUNCTIONS: ("trim("i | "coalesce("i | "abs("i | "replace("i) | "substr("i | "instr("i | "length("i
+AGGREGATE_FUNCTIONS: ("sum"i | "avg"i | "min"i | "max"i | "count"i ["distinct"i [LPAREN]] )
+SCALAR_FUNCTIONS: ("trim"i | "coalesce"i | "abs"i | "replace"i) | "substr"i | "instr"i | "length"i
 
 alias: name -> alias_string
 limit_count: integer_ -> limit_count
@@ -182,22 +182,25 @@ boolean: "true"i -> true
 
 integer_: /[1-9][0-9]*/
 window_definition:
-timestamp_expression: "NOW"i "(" ")" -> datetime_now
-                    | "TODAY"i "(" ")" -> date_today
-                    | "TIMESTAMP"i "(" "'" date "'" "," "'" time "'" ")" -> custom_timestamp
+timestamp_expression: "NOW"i LPAREN RPAREN -> datetime_now
+                    | "TODAY"i LPAREN RPAREN -> date_today
+                    | "TIMESTAMP"i LPAREN "'" date "'" "," "'" time "'" RPAREN -> custom_timestamp
 
+// Causes collision with subquery
+name: CNAME | /`([^`]|\s)+`|``/ | DOUBLE_QUOTED_STRING | "*"
+time: HOURS ":" MINUTES ":" SECONDS
 date: YEAR "-" MONTH "-" DAY
+
 YEAR: /[0-9]{4}/
 MONTH: /[0-9]{2}/
 DAY: /[0-9]{2}/
-time: HOURS ":" MINUTES ":" SECONDS
 HOURS: /[0-9]{2}/
 MINUTES: /[0-9]{2}/
 SECONDS: /[0-9]{2}/
-// Causes collision with subquery
-name: CNAME | /`([^`]|\s)+`|``/ | DOUBLE_QUOTED_STRING | "*"
 SINGLE_QUOTE: "'"
 DOUBLE_QUOTE: "\""
+LPAREN: "("
+RPAREN: ")"
 DOUBLE_QUOTED_STRING: /"([^"]|"")*"/
 SINGLE_QUOTED_STRING: /'([^']|'')*'/
 

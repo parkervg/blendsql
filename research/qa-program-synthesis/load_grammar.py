@@ -7,16 +7,22 @@ from blendsql.common.constants import IngredientType
 from blendsql.common.logger import logger
 
 
-def format_ingredient_names_to_lark(names: t.List[str]) -> str:
+def format_ingredient_names_to_lark(
+    node_name: str, ingredient_names: t.List[str]
+) -> str:
     """Formats list of ingredient names the way our Lark grammar expects.
 
     Examples:
         ```python
         format_ingredient_names_to_lark(["LLMQA", "LLMVerify"])
-        >>> '("LLMQA("i | "LLMVerify("i)'
+        >>> '("LLMQA"i | "LLMVerify"i)'
         ```
     """
-    return "(" + " | ".join([f'"{n}("i' for n in names]) + ")"
+    terminal_declarations = "\n".join(
+        [f'{name.upper()}: "{name}"i' for name in ingredient_names]
+    )
+    all_names = "(" + "|".join([n for n in [i.upper() for i in ingredient_names]]) + ")"
+    return f"{terminal_declarations}\n{node_name}: {all_names}"
 
 
 def load_grammar(
@@ -86,13 +92,13 @@ def load_grammar(
     lark_grammar: str = Template(templatized_lark_grammar).substitute(
         column_ref_grammar_str=column_ref_grammar_str,
         blendsql_join_functions=format_ingredient_names_to_lark(
-            blendsql_join_functions
+            "blendsql_join_functions", blendsql_join_functions
         ),
         blendsql_aggregate_functions=format_ingredient_names_to_lark(
-            blendsql_aggregate_functions
+            "blendsql_aggregate_functions", blendsql_aggregate_functions
         ),
         blendsql_scalar_functions=format_ingredient_names_to_lark(
-            blendsql_scalar_functions
+            "blendsql_scalar_functions", blendsql_scalar_functions
         ),
     )
     return lark_grammar
