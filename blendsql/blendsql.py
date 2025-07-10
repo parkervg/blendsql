@@ -186,7 +186,7 @@ def preprocess_blendsql(
             # e.g. `options=('something')`
             return [n.this.name]
         elif isinstance(n, exp.Literal):
-            return n.name
+            return n.to_py()  # Makes sure we encode as correct Python type
         elif isinstance(n, exp.Column):
             return n.sql(dialect=dialect).strip('"')
         elif isinstance(n, exp.Subquery):
