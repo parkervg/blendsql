@@ -671,18 +671,25 @@ class QAIngredient(Ingredient):
     def __call__(
         self,
         question: t.Optional[str] = None,
-        context: t.Optional[t.Union[str, pd.DataFrame]] = None,
+        *context: t.Union[str, pd.DataFrame],
         options: t.Optional[t.Union[list, str]] = None,
-        *args,
         **kwargs,
     ) -> t.Tuple[t.Union[str, int, float, tuple], t.Optional[exp.Expression]]:
         # Unpack kwargs
+        # Extract single `context` from kwargs if provided
+        if "context" in kwargs:
+            context_kwarg = kwargs.pop("context")
+            # Combine positional and keyword context
+            if isinstance(context_kwarg, (list, tuple)):
+                context = context + tuple(context_kwarg)
+            else:
+                context = context + (context_kwarg,)
         aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
 
-        subtable: t.Union[pd.DataFrame, None] = None
-        if context is not None:
-            if isinstance(context, str):
-                tablename, colname = utils.get_tablename_colname(context)
+        subtables: t.List[pd.DataFrame] = []
+        for _context in context:
+            if isinstance(_context, str):
+                tablename, colname = utils.get_tablename_colname(_context)
                 tablename = aliases_to_tablenames.get(tablename, tablename)
                 # Optionally materialize a CTE
                 if tablename in self.db.lazy_tables:
@@ -697,16 +704,16 @@ class QAIngredient(Ingredient):
                     subtable: pd.DataFrame = self.db.execute_to_df(
                         f'SELECT "{colname}" FROM "{tablename}"'
                     )
-            elif isinstance(context, pd.DataFrame):
-                subtable: pd.DataFrame = context
+            elif isinstance(_context, pd.DataFrame):
+                subtable: pd.DataFrame = _context
             else:
                 raise ValueError(
                     f"Unknown type for `identifier` arg in QAIngredient: {type(context)}"
                 )
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
-
-        self.num_values_passed += len(subtable) if subtable is not None else 0
+            self.num_values_passed += len(subtable)
+            subtables.append(subtable)
 
         if options is not None:
             options = self.unpack_options(
@@ -716,31 +723,33 @@ class QAIngredient(Ingredient):
 
         if question is not None:
             if "{}" in question:
-                if subtable is None:
+                if len(subtables) == 0:
                     raise IngredientException(
                         f"Passed question with string template '{question}', but no context was passed to fill!"
                     )
-                unpacked_values = list(subtable.values.flat)
-                if len(unpacked_values) > 1:
-                    logger.debug(
-                        Fore.RED
-                        + f"More than 1 value found in {question}: {unpacked_values[:10]}\nThis could be a sign of a malformed query."
-                        + Fore.RESET
-                    )
-                question = question.format(unpacked_values[0])
+                unpacked_values = []
+                for subtable in subtables:
+                    curr_values = list(subtable.values.flat)
+                    if len(curr_values) > 1:
+                        logger.debug(
+                            Fore.RED
+                            + f"More than 1 value found in {question}: {curr_values[:10]}\nThis could be a sign of a malformed query."
+                            + Fore.RESET
+                        )
+                    unpacked_values.append(curr_values[0])
+                question = question.format(*unpacked_values)
                 logger.debug(
                     Fore.LIGHTBLACK_EX
                     + f"Unpacked question to '{question}'"
                     + Fore.RESET
                 )
                 # This will now override whatever context we passed
-                subtable = None
+                subtables = None
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,
-            context=subtable,
+            context=subtables,
             options=options,
-            *args,
             **self.__dict__ | kwargs,
         )
         if isinstance(response, tuple):

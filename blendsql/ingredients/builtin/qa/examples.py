@@ -10,8 +10,8 @@ from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
 @attrs(kw_only=True)
 class QAExample(Example):
     question: str = attrib()
-    context: t.Optional[pd.DataFrame] = attrib(
-        converter=lambda d: pd.DataFrame.from_dict(d) if isinstance(d, dict) else d,
+    context: t.List[pd.DataFrame] = attrib(
+        converter=lambda d: [pd.DataFrame.from_dict(d)] if isinstance(d, dict) else d,
         default=None,
     )
     options: t.Optional[Collection[str]] = attrib(default=None)
@@ -54,7 +54,9 @@ class QAExample(Example):
                     else:
                         s += f"You may generate between {min_length} and {max_length} responses in your list.\n"
         if self.context is not None:
-            s += f"Context:\n{context_formatter(self.context)}"
+            s += f"Context:"
+            for c in self.context:
+                s += f"\n{context_formatter(c)}"
         s += "\nAnswer: "
         return s
 

@@ -175,7 +175,7 @@ class LLMQA(QAIngredient):
         quantifier: QuantifierType = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
-        context: t.Optional[pd.DataFrame] = None,
+        context: t.List[pd.DataFrame] = None,
         long_answer: bool = False,
         use_option_aliases: bool = False,
         **kwargs,
@@ -183,7 +183,7 @@ class LLMQA(QAIngredient):
         """
         Args:
             question: The question to map onto the values. Will also be the new column name
-            context: Table subset to use as context in answering question
+            context: Table subset(s) to use as context in answering question
             model: The Model (blender) we will make calls to.
             context_formatter: Callable defining how we want to serialize table context.
             few_shot_retriever: Callable which takes a string, and returns n most similar few-shot examples
@@ -211,7 +211,7 @@ class LLMQA(QAIngredient):
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
             docs = searcher(question)[0]
-            context = pd.DataFrame(docs, columns=["content"])
+            context = [pd.DataFrame(docs, columns=["content"])]
             logger.debug(
                 Fore.LIGHTBLACK_EX
                 + f"Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"

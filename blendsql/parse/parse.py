@@ -132,7 +132,7 @@ class SubqueryContextManager:
             kwargs_dict = ingredient_alias_to_parsed_dict[ingredient_alias][
                 "kwargs_dict"
             ]
-            for arg in {
+            for raw_arg in {
                 # Below lists all arguments where a table may be referenced
                 # We omit `options`, since this should not take into account the
                 #   state of the filtered database.
@@ -141,14 +141,18 @@ class SubqueryContextManager:
                 kwargs_dict.get("left_on", None),
                 kwargs_dict.get("right_on", None),
             }:
-                if arg is None:
-                    continue
-                # If `context` is a subquery, this gets executed on its own later.
-                if not check.is_blendsql_query(arg):
-                    tablename, columnname = get_tablename_colname(arg)
-                    if tablename not in columns_referenced_by_ingredients:
-                        columns_referenced_by_ingredients[tablename] = set()
-                    columns_referenced_by_ingredients[tablename].add(columnname)
+                args = raw_arg
+                if not isinstance(raw_arg, (tuple, list)):
+                    args = [raw_arg]
+                for arg in args:
+                    if arg is None:
+                        continue
+                    # If `context` is a subquery, this gets executed on its own later.
+                    if not check.is_blendsql_query(arg):
+                        tablename, columnname = get_tablename_colname(arg)
+                        if tablename not in columns_referenced_by_ingredients:
+                            columns_referenced_by_ingredients[tablename] = set()
+                        columns_referenced_by_ingredients[tablename].add(columnname)
         return columns_referenced_by_ingredients
 
     def abstracted_table_selects(
