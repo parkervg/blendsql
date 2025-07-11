@@ -1,3 +1,4 @@
+import concurrent.futures
 import copy
 import logging
 import time
@@ -373,10 +374,13 @@ def _blend(
     infer_gen_constraints: bool = True,
     table_to_title: t.Optional[t.Dict[str, str]] = None,
     _prev_passed_values: int = 0,
+    _new_thread: bool = False,
 ) -> Smoothie:
     """Invoked from blend(), this contains the recursive logic to execute
     a BlendSQL query and return a `Smoothie` object.
     """
+    if _new_thread:
+        db.make_thread_safe()
     # The QueryContextManager class is used to track all manipulations done to
     # the original query, prior to the final execution on the underlying DBMS.
     original_query = copy.deepcopy(query)
@@ -668,50 +672,59 @@ def _blend(
 
             # Optionally, recursively call blend() again to get subtable from args
             # This applies to `context` and `options`
-            for _i, unpack_kwarg in enumerate(["context", "options"]):
-                unpack_value = kwargs_dict.get(unpack_kwarg, None)
-                if unpack_value is None:
-                    continue
+            execute = lambda value: _blend(
+                query=value,
+                db=db,
+                default_model=default_model,
+                ingredients=ingredients,
+                infer_gen_constraints=infer_gen_constraints,
+                table_to_title=table_to_title,
+                verbose=verbose,
+                _new_thread=True,
+            )
 
-                if unpack_kwarg == "context":
-                    if not isinstance(unpack_value, (tuple, list)):
-                        kwargs_dict[unpack_kwarg] = (kwargs_dict[unpack_kwarg],)
-                    unpack_values = kwargs_dict[unpack_kwarg]
-                elif unpack_kwarg == "options":
-                    unpack_values = [unpack_value]
+            def needs_execution(value: str) -> bool:
+                if not isinstance(value, str):
+                    return False
+                return check.is_blendsql_query(value)
 
-                for value_idx, value in enumerate(unpack_values):
-                    if isinstance(value, str) and check.is_blendsql_query(value):
-                        _smoothie = _blend(
-                            query=value,
-                            db=db,
-                            default_model=default_model,
-                            ingredients=ingredients,
-                            infer_gen_constraints=infer_gen_constraints,
-                            table_to_title=table_to_title,
-                            verbose=verbose,
-                            _prev_passed_values=_prev_passed_values,
-                        )
-                        _prev_passed_values += _smoothie.meta.num_values_passed
-                        subtable = _smoothie.df
-                        if unpack_kwarg == "options":
-                            if len(subtable.columns) == 1 or len(subtable) == 1:
-                                # Here, we need to format as a flat set
-                                kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
-                            else:
-                                raise InvalidBlendSQL(
-                                    f"Invalid subquery passed to `options`!\nNeeds to return exactly one column or row, got {len(subtable.columns)} columns and {len(subtable)} rows instead"
-                                )
-                        elif unpack_kwarg == "context":
-                            tup = kwargs_dict[unpack_kwarg]
-                            new_tup = (
-                                tup[:value_idx] + (subtable,) + tup[value_idx + 1 :]
-                            )
-                            kwargs_dict[unpack_kwarg] = new_tup
-                        else:
-                            raise IngredientException(
-                                f"Invalid kwarg {unpack_kwarg}\nAlso, we should have never hit this error..."
-                            )
+            # First, assemble context asynchronously
+            context_values = kwargs_dict.get("context", None)
+            if context_values is not None:
+                if not isinstance(context_values, (tuple, list)):
+                    context_values = (context_values,)
+                    kwargs_dict["context"] = context_values
+                blendsql_query_idxs = [
+                    idx
+                    for idx, value in enumerate(context_values)
+                    if needs_execution(value)
+                ]
+                blendsql_query_context_values = [
+                    context_values[idx] for idx in blendsql_query_idxs
+                ]
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    results = list(executor.map(execute, blendsql_query_context_values))
+                for idx, _smoothie in zip(blendsql_query_idxs, results):
+                    # Put results back in the right order
+                    _prev_passed_values += _smoothie.meta.num_values_passed
+                    subtable = _smoothie.df
+                    tup = kwargs_dict["context"]
+                    new_tup = tup[:idx] + (subtable,) + tup[idx + 1 :]
+                    kwargs_dict["context"] = new_tup
+
+            # Next, do options
+            options_value = kwargs_dict.get("options", None)
+            if options_value is not None and needs_execution(options_value):
+                _smoothie = execute(options_value)
+                _prev_passed_values += _smoothie.meta.num_values_passed
+                subtable = _smoothie.df
+                if len(subtable.columns) == 1 or len(subtable) == 1:
+                    # Here, we need to format as a flat set
+                    kwargs_dict["options"] = list(subtable.values.flat)
+                else:
+                    raise InvalidBlendSQL(
+                        f"Invalid subquery passed to `options`!\nNeeds to return exactly one column or row, got {len(subtable.columns)} columns and {len(subtable)} rows instead"
+                    )
 
             if getattr(curr_ingredient, "model", None) is not None:
                 kwargs_dict["model"] = curr_ingredient.model

@@ -56,6 +56,8 @@ class DuckDB(Database):
     # We use below to track which tables we should drop on '_reset_connection'
     temp_tables: t.Set[str] = set()
 
+    thread_safe: bool = False
+
     @classmethod
     def from_pandas(
         cls,
@@ -90,7 +92,7 @@ class DuckDB(Database):
 
     @classmethod
     def from_sqlite(cls, db_url: str):
-        """TODO: any point in this if we already have dedicated SQLite databse class
+        """TODO: any point in this if we already have dedicated SQLite database class
         and it's faster?
         """
         if not _has_duckdb:
@@ -157,9 +159,7 @@ class DuckDB(Database):
         """
         # DuckDB has this cool 'CREATE OR REPLACE' syntax
         # https://duckdb.org/docs/sql/statements/create_table.html#create-or-replace
-        create_table_stmt = (
-            f'CREATE OR REPLACE TEMP TABLE "{tablename}" AS SELECT * FROM df'
-        )
+        create_table_stmt = f'CREATE OR REPLACE TABLE "{tablename}" AS SELECT * FROM df'
         logger.debug(Fore.LIGHTBLACK_EX + create_table_stmt + Fore.RESET)
         self.con.sql(create_table_stmt)
         self.temp_tables.add(tablename)
@@ -169,12 +169,17 @@ class DuckDB(Database):
         self, query: str, params: t.Optional[dict] = None
     ) -> pd.DataFrame:
         """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933"""
-        return self.con.sql(query).df()
+        c = self.con.cursor() if self.thread_safe else self.con
+        return c.sql(query).df()
 
     def execute_to_list(
         self, query: str, to_type: t.Optional[t.Callable] = lambda x: x
     ) -> list:
         res = []
-        for row in self.con.sql(query).fetchall():
+        c = self.con.cursor() if self.thread_safe else self.con
+        for row in c.sql(query).fetchall():
             res.append(to_type(row[0]))
         return res
+
+    def make_thread_safe(self):
+        self.thread_safe = True
