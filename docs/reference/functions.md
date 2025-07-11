@@ -81,6 +81,20 @@ WHERE state = {{
 SELECT * FROM VALUES {{LLMQA('What are the first 3 letters of the alphabet?', quantifier='{3}')}}
 ```
 
+```sql
+SELECT {{
+    LLMQA(
+        /* Use f-string templating to insert the result of subqueries*/
+        'What do {} and {} have in common?',
+        /* Below are examples - any BlendSQL queries are valid here, 
+        but they should return a single scalar value.   
+        */
+        (SELECT 'Saturn'),
+        (SELECT 'Jupiter')
+    )    
+}}
+```
+
 ## LLMMap
 
 The `LLMMap` is a unary scalar function, much like `LENGTH` or `ABS` in SQlite. The output of this function is set as a new column in a temporary table, for later use within the wider query.
