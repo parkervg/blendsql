@@ -1,9 +1,8 @@
 import pandas as pd
-import torch.cuda
 
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMQA
-from blendsql.models import LlamaCpp, LiteLLM
+from blendsql.models import LiteLLM
 from blendsql.search import FaissVectorStore
 
 bsql = BlendSQL(
@@ -107,13 +106,7 @@ bsql = BlendSQL(
             ]
         ),
     },
-    model=LlamaCpp(
-        "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
-        "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-        config={"n_gpu_layers": -1, "n_ctx": 9600},
-    )
-    if torch.cuda.is_available()
-    else LiteLLM("openai/gpt-4o"),
+    model=LiteLLM("openai/gpt-4o", caching=False),
     verbose=True,
 )
 
@@ -123,7 +116,7 @@ DocumentSearch = LLMQA.from_args(
         documents=bsql.db.execute_to_list(
             "SELECT CONCAT(title, ' | ', content) FROM documents;"
         ),
-        k=1,  # Retrieve 1 document on each search
+        k=2,  # Retrieve 1 document on each search
     ),
 )
 
@@ -132,9 +125,12 @@ bsql.ingredients = {DocumentSearch}
 
 smoothie = bsql.execute(
     """
-SELECT Capital FROM european_countries
-WHERE Country = {{
-    DocumentSearch('Which country is E.F. Codd from?')
+WITH c AS (
+    SELECT Capital FROM european_countries
+    WHERE Capital = 'London'
+)
+SELECT {{
+    DocumentSearch('Tell me about {}', c.Capital)
 }}
 """
 )
