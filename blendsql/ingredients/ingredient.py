@@ -109,7 +109,6 @@ class Ingredient:
         self,
         v: ValueArray,
         aliases_to_tablenames: t.Dict[str, str],
-        allow_semicolon_list: t.Optional[bool] = True,
     ) -> t.List[str]:
         if "." in v:
             tablename, colname = get_tablename_colname(v)
@@ -135,13 +134,6 @@ class Ingredient:
                         f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
                     )
                 ]
-        else:
-            if not allow_semicolon_list:
-                raise IngredientException(
-                    f"Error trying to unpack '{v}'!"
-                    + "\nExpected something in the format '{tablename}::{columnname}'."
-                )
-            unpacked_values = v.split(";")
         return list(set(unpacked_values))
 
     def maybe_get_temp_table(
@@ -424,11 +416,11 @@ class JoinIngredient(Ingredient):
                 return {left_value: left_value for left_value in left_values}
 
         blendsql_query = """
-        SELECT Account, Quantity FROM returns
-        JOIN {{
+        SELECT Account, Quantity FROM returns r
+        JOIN account_history ah ON {{
             do_join(
-                left_on='account_history::Symbol',
-                right_on='returns::Symbol'
+                left_on=ah.Symbol,
+                right_on=r.Symbol
             )
         }}
         """
@@ -594,76 +586,12 @@ class JoinIngredient(Ingredient):
 
 @attrs
 class QAIngredient(Ingredient):
-    '''
+    """
     Given a table subset in the form of a pd.DataFrame 'context',
     returns a scalar or array of scalars (in the form of a tuple).
 
     Useful for end-to-end question answering tasks.
-
-    Examples:
-        ```python
-        import pandas as pd
-        import guidance
-
-        from blendsql.models import Model, LocalModel, RemoteModel
-        from blendsql.ingredients import QAIngredient
-        from blendsql._program import Program
-
-
-        class SummaryProgram(Program):
-            """Program to call Model and return summary of the passed table.
-            """
-
-            def __call__(self, model: Model, serialized_db: str):
-                prompt = f"Summarize the table. {serialized_db}"
-                if isinstance(model, LocalModel):
-                    # Below we follow the guidance pattern for unconstrained text generation
-                    # https://github.com/guidance-ai/guidance
-                    response = (model.model_obj + guidance.gen(max_tokens=20, name="response"))._variables["response"]
-                else:
-                    response = model.generate(
-                        messages_list=[[{"role": "user", "content": prompt}]],
-                        max_tokens=20
-                    )[0]
-                # Finally, return (response, prompt) tuple
-                # Returning the prompt here allows the underlying BlendSQL classes to track token usage
-                return (response, prompt)
-
-
-            class TableSummary(QAIngredient):
-                def run(self, model: Model, context: pd.DataFrame, **kwargs) -> str:
-                    result = model.predict(program=SummaryProgram, serialized_db=context.to_string())
-                    return f"'{result}'"
-
-
-            if __name__ == "__main__":
-                from blendsql import blend
-                from blendsql.db import SQLite
-                from blendsql.utils import fetch_from_hub
-                from blendsql.models import LiteLLM
-
-                blendsql = """
-                SELECT {{
-                    TableSummary(
-                        context=(SELECT * FROM transactions LIMIT 10)
-                    )
-                }} AS "Summary"
-                """
-
-                smoothie = blend(
-                    query=blendsql,
-                    default_model=LiteLLM("openai/gpt-4o-mini"),
-                    db=SQLite(fetch_from_hub("single_table.db")),
-                    ingredients={TableSummary}
-                )
-                # Now, we can get results
-                print(smoothie.df)
-                # 'The table summarizes a series of cash flow transactions made through Zelle'
-                # ...and token usage
-                print(smoothie.meta.prompt_tokens)
-                print(smoothie.meta.completion_tokens)
-        ```
-    '''
+    """
 
     ingredient_type: str = IngredientType.QA.value
     allowed_output_types: t.Tuple[t.Type] = (t.Union[str, int, float, tuple],)
