@@ -57,22 +57,23 @@ class return_aapl(QAIngredient):
 class get_table_size(QAIngredient):
     def __call__(
         self,
-        context: str = None,
-        *args,
+        context: List[pd.DataFrame] = None,
         **kwargs,
     ) -> tuple:
         return super().__call__(
-            question="size", context=context, options=None, *args, **kwargs
+            question="size", context=context, options=None, **kwargs
         )
 
-    def run(self, context: pd.DataFrame, **kwargs) -> Union[str, int, float, tuple]:
+    def run(
+        self, context: List[pd.DataFrame], **kwargs
+    ) -> Union[str, int, float, tuple]:
         """Returns the length of the context subtable passed to it."""
-        return len(context)
+        return sum([len(c) for c in context])
 
 
 class select_first_option(QAIngredient):
     def run(
-        self, question: str, context: pd.DataFrame, options: set, **kwargs
+        self, question: str, context: List[pd.DataFrame], options: set, **kwargs
     ) -> Union[str, int, float, tuple]:
         """Returns the first item in the (ordered) options set"""
         return f"'{single_quote_escape(sorted(list(filter(lambda x: x, options)))[0])}'"
@@ -88,7 +89,7 @@ class return_aapl_alias(AliasIngredient):
 
 class return_stocks_tuple(QAIngredient):
     def run(
-        self, question: str, context: pd.DataFrame, options: set, **kwargs
+        self, question: str, context: List[pd.DataFrame], options: set, **kwargs
     ) -> Union[str, int, float, tuple]:
         return tuple(["AAPL", "AMZN", "TYL"])
 
