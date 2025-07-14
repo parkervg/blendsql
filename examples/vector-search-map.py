@@ -109,7 +109,7 @@ if __name__ == "__main__":
         """
         WITH t AS (
             SELECT Name FROM "world_aquatic_championships"
-            /* WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE */
+            WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE
         ) SELECT Name FROM t
         ORDER BY {{WikipediaSearchMap('What year was this person born?', t.Name)}} ASC LIMIT 1
         """
