@@ -95,7 +95,7 @@ if __name__ == "__main__":
     WikipediaSearchMap = LLMMap.from_args(
         searcher=HybridSearch(
             documents=bsql.db.execute_to_list("SELECT content FROM documents;"),
-            k=3,  # Retrieve 1 document for each scalar value on the map call
+            k=3,  # Retrieve 3 documents for each scalar value on the map call
         ),
     )
     bsql.ingredients = {
