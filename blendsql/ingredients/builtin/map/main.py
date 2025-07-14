@@ -335,7 +335,10 @@ class LLMMap(MapIngredient):
                         f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)})"
                     )
                 else:
-                    gen_str = f"""{INDENT(2)}f({value_quote}{value}{value_quote})"""
+                    indented_value = value.replace("\n", f"\n{INDENT(2)}")
+                    gen_str = (
+                        f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote})"""
+                    )
                 gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
                 return gen_str
 

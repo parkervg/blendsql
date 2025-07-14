@@ -67,7 +67,7 @@ smoothie = bsql.execute(
 WITH bay_area_county AS (
     SELECT County FROM schools s
     WHERE s.Status = 'open' LIMIT 1
-) SELECT {{DocumentSearch('Who played basketball at a school in {bay_area_county::County}?')}} AS answer
+) SELECT {{DocumentSearch('Who played basketball at a school in {}?', bay_area_county.County)}} AS answer
 """
 )
 print(smoothie.df)

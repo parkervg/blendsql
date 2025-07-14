@@ -24,7 +24,7 @@ SELECT {{
         content,
         options=('positive', 'negative')
     )      
-}} AS classification FROM posts LIMIT 10
+}}, content AS classification FROM posts LIMIT 10
 ```
 
 # **Functions**
@@ -81,6 +81,24 @@ WHERE state = {{
 SELECT * FROM VALUES {{LLMQA('What are the first 3 letters of the alphabet?', quantifier='{3}')}}
 ```
 
+```sql
+SELECT {{
+    LLMQA(
+        /* Use f-string templating to insert the result of subqueries*/
+        'What do {} and {} have in common?',
+        /* Below are examples - any BlendSQL queries are valid here, 
+        but they should return a single scalar value.   
+        */
+        (SELECT 'Saturn'),
+        (SELECT 'Jupiter')
+    )    
+}}
+```
+
+#### Also See:
+- [LLMQA with search](https://github.com/parkervg/blendsql/blob/main/examples/vector-search-reduce.py)
+- [LLMQA with search + f-string templating](https://github.com/parkervg/blendsql/blob/main/examples/llmqa-f-string.py#L9)
+
 ## LLMMap
 
 The `LLMMap` is a unary scalar function, much like `LENGTH` or `ABS` in SQlite. The output of this function is set as a new column in a temporary table, for later use within the wider query.
@@ -119,6 +137,10 @@ SELECT GROUP_CONCAT(Name, ', ') AS Names,
 FROM People
 GROUP BY Born
 ```
+
+#### Also See:
+- [LLMMap with search](https://github.com/parkervg/blendsql/blob/main/examples/vector-search-map.py)
+- [Mapping with `return_type='substring'`](https://github.com/parkervg/blendsql/blob/main/examples/map-substring.py)
 
 ## LLMJoin
 

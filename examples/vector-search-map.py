@@ -2,8 +2,7 @@ from blendsql.ingredients import LLMMap
 import pandas as pd
 from blendsql import BlendSQL
 from blendsql.search import HybridSearch
-from blendsql.models import LlamaCpp, LiteLLM
-import torch
+from blendsql.models import LiteLLM
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -80,14 +79,7 @@ if __name__ == "__main__":
                 ]
             ),
         },
-        model=LlamaCpp(
-            "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
-            "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-            config={"n_gpu_layers": -1, "n_ctx": 9600},
-            caching=False,
-        )
-        if torch.cuda.is_available()
-        else LiteLLM("openai/gpt-4o"),
+        model=LiteLLM("openai/gpt-4o", caching=False),
         verbose=True,
     )
     _ = bsql.model.model_obj
@@ -111,7 +103,7 @@ if __name__ == "__main__":
             SELECT Name FROM "world_aquatic_championships"
             WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE
         ) SELECT Name FROM t
-        ORDER BY {{WikipediaSearchMap('What year was this person born?', t.Name)}} ASC LIMIT 1
+        ORDER BY {{WikipediaSearchMap('What year was {} born?', t.Name)}} ASC LIMIT 1
         """
     )
 

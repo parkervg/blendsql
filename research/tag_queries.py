@@ -927,7 +927,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             AND u.DisplayName = 'Harvey Motulsky'
         ) SELECT * FROM VALUES {{
             LLMQA(
-                'Which PostIds are attached to the 3 most helpful texts?',
+                'Rank the post IDs in order of most helpful to least helpful.',
                 (
                     SELECT * FROM harvey_comments
                 ),
@@ -1014,7 +1014,8 @@ ORDER BY away_team_goal DESC LIMIT 3
             LLMQA(
                 'Rank the schools, from least affordable city to most affordable city.',
                 context=(SELECT City, School FROM top_schools),
-                options=top_schools.School
+                options=top_schools.School,
+                quantifier='{3}'
             )
         }}""",
         "Notes": "Doesn't specify whether ranking should be increasing or decreasing",
@@ -1106,7 +1107,8 @@ ORDER BY away_team_goal DESC LIMIT 3
         ) SELECT * FROM VALUES {{
             LLMQA(
                 'Order the locations by distance to the equator (closest -> farthest)',
-                options=recent_races.location
+                options=recent_races.location,
+                quantifier='{5}'
             )
         }}""",
         "Notes": "Question doesn't specify ascending or descending.",

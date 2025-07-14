@@ -65,7 +65,7 @@ smoothie = bsql.execute(
     """
     WITH musicians AS (
         SELECT * FROM People p WHERE
-        {{LLMMap('Is a singer?', 'p::Name')}} = True
+        {{LLMMap('Is a singer?', p.Name)}} = True
     ) SELECT * FROM musicians WHERE
     musicians.Name = {{LLMQA('Who wrote the song espresso?')}}
     """,
@@ -120,7 +120,7 @@ smoothie = bsql.execute(
         LLMMap(
             'In which time period was this person born?',
             'People::Name',
-            options='Eras::Years'
+            options=Eras.Years
         )
     }} AS Born
     FROM People
