@@ -100,6 +100,20 @@ def test_llmqa_question_f_strings(bsql, model):
     assert list(res.df.values.flat)[0].startswith("Danny")
 
 
+def test_llmqa_question_f_string_literals(bsql, model):
+    """0218f7f"""
+    _ = bsql.execute(
+        """
+        SELECT {{
+            LLMQA(
+                'Please say "{}" and "{}"', 4, 'hello'
+            )    
+        }}
+        """,
+        model=model,
+    )
+
+
 def test_llmmap_question_f_strings(bsql, model):
     """0218f7f"""
     _ = bsql.execute(

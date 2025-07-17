@@ -1,6 +1,5 @@
 from enum import Enum, EnumMeta
 import json
-from dataclasses import dataclass
 
 HF_REPO_ID = "parkervg/blendsql-test-dbs"
 
@@ -26,13 +25,14 @@ class IngredientType(str, Enum, metaclass=StrInMeta):
     ALIAS = "ALIAS"
 
 
-@dataclass
-class IngredientKwarg:
-    QUESTION: str = "question"
-    CONTEXT: str = "context"
-    VALUES: str = "values"
-    OPTIONS: str = "options"
-    REGEX: str = "regex"
-    MODEL: str = "model"
-    OUTPUT_TYPE: str = "output_type"
-    EXAMPLE_OUTPUTS: str = "example_outputs"
+class IngredientArgType(str):
+    pass
+
+
+class Subquery(IngredientArgType):
+    pass
+
+
+class ColumnRef(IngredientArgType):
+    # '{table}.{column}' syntax
+    pass

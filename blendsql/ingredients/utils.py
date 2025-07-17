@@ -3,11 +3,6 @@ from functools import partialmethod
 
 from .few_shot import Example
 
-# Can be:
-# - '{table}.{column}' syntax
-# - A BlendSQL query which returns a 1d array of values ((SELECT value FROM table WHERE ...))
-ValueArray = t.NewType("ValueArray", str)
-
 
 def initialize_retriever(
     examples: t.List[Example],

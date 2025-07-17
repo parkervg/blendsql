@@ -21,7 +21,7 @@ from blendsql.db.utils import select_all_from_table_query, format_tuple
 from blendsql.common.utils import get_tablename_colname
 from blendsql.search.searcher import Searcher
 from blendsql.ingredients.few_shot import Example
-from blendsql.ingredients.utils import ValueArray
+from blendsql.common.constants import ColumnRef
 
 
 def unpack_default_kwargs(**kwargs):
@@ -105,35 +105,34 @@ class Ingredient:
             del frame
         return partial_cls
 
-    def unpack_value_array(
+    def unpack_column_ref(
         self,
-        v: ValueArray,
+        v: ColumnRef,
         aliases_to_tablenames: t.Dict[str, str],
     ) -> t.List[str]:
-        if "." in v:
-            tablename, colname = get_tablename_colname(v)
-            tablename = aliases_to_tablenames.get(tablename, tablename)
-            # IMPORTANT: Below was commented out, since it would cause:
-            #   `SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1`
-            #   ...to always select the result of the `LIMIT 1`.
-            # Check for previously created temporary tables
-            # value_source_tablename, _ = self.maybe_get_temp_table(
-            #     temp_table_func=get_temp_subquery_table, tablename=tablename
-            # )
-            # Optionally materialize a CTE
-            if tablename in self.db.lazy_tables:
-                materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
-                self.num_values_passed += materialized_smoothie.meta.num_values_passed
-                unpacked_values = [
-                    str(i) for i in materialized_smoothie.df[colname].unique()
-                ]
-            else:
-                unpacked_values: list = [
-                    str(i)
-                    for i in self.db.execute_to_list(
-                        f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
-                    )
-                ]
+        tablename, colname = get_tablename_colname(v)
+        tablename = aliases_to_tablenames.get(tablename, tablename)
+        # IMPORTANT: Below was commented out, since it would cause:
+        #   `SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1`
+        #   ...to always select the result of the `LIMIT 1`.
+        # Check for previously created temporary tables
+        # value_source_tablename, _ = self.maybe_get_temp_table(
+        #     temp_table_func=get_temp_subquery_table, tablename=tablename
+        # )
+        # Optionally materialize a CTE
+        if tablename in self.db.lazy_tables:
+            materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+            self.num_values_passed += materialized_smoothie.meta.num_values_passed
+            unpacked_values = [
+                str(i) for i in materialized_smoothie.df[colname].unique()
+            ]
+        else:
+            unpacked_values: list = [
+                str(i)
+                for i in self.db.execute_to_list(
+                    f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                )
+            ]
         return list(set(unpacked_values))
 
     def maybe_get_temp_table(
@@ -148,12 +147,12 @@ class Ingredient:
 
     def unpack_options(
         self,
-        options: t.Union[ValueArray, list],
+        options: t.Union[ColumnRef, list],
         aliases_to_tablenames: t.Dict[str, str],
     ) -> t.Union[t.List[str], None]:
         unpacked_options = options
-        if not isinstance(options, list):
-            unpacked_options = self.unpack_value_array(options, aliases_to_tablenames)
+        if isinstance(options, ColumnRef):
+            unpacked_options = self.unpack_column_ref(options, aliases_to_tablenames)
         if len(unpacked_options) == 0:
             logger.debug(
                 Fore.LIGHTRED_EX
@@ -273,8 +272,8 @@ class MapIngredient(Ingredient):
     def __call__(
         self,
         question: t.Optional[str] = None,
-        values: t.Optional[ValueArray] = None,
-        options: t.Optional[ValueArray] = None,
+        values: t.Optional[t.Union[ColumnRef]] = None,
+        options: t.Optional[t.Union[ColumnRef, list]] = None,
         *args,
         **kwargs,
     ) -> tuple:
@@ -616,7 +615,7 @@ class QAIngredient(Ingredient):
 
         subtables: t.List[pd.DataFrame] = []
         for _context in context:
-            if isinstance(_context, str):
+            if isinstance(_context, ColumnRef):
                 tablename, colname = utils.get_tablename_colname(_context)
                 tablename = aliases_to_tablenames.get(tablename, tablename)
                 # Optionally materialize a CTE
@@ -635,9 +634,7 @@ class QAIngredient(Ingredient):
             elif isinstance(_context, pd.DataFrame):
                 subtable: pd.DataFrame = _context
             else:
-                raise ValueError(
-                    f"Unknown type for `identifier` arg in QAIngredient: {type(context)}"
-                )
+                subtable = pd.DataFrame([{"_col": _context}])
             if subtable.empty:
                 raise IngredientException("Empty subtable passed to QAIngredient!")
             self.num_values_passed += len(subtable)

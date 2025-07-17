@@ -2,7 +2,7 @@ from typing import Tuple
 from tabulate import tabulate
 from functools import partial
 
-from blendsql.common.constants import HF_REPO_ID
+from blendsql.common.constants import HF_REPO_ID, ColumnRef
 
 tabulate = partial(
     tabulate, headers="keys", showindex="never", tablefmt="simple_outline"
@@ -22,7 +22,7 @@ def fetch_from_hub(filename: str):
     )
 
 
-def get_tablename_colname(s: str) -> Tuple[str, str]:
+def get_tablename_colname(s: ColumnRef) -> Tuple[str, str]:
     """Takes as input a string in the format `{tablename}::{colname}`
     Returns individual parts, but raises error if `s` is in the wrong format.
     """

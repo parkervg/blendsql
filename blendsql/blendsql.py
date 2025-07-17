@@ -40,7 +40,7 @@ from blendsql.parse import (
 from blendsql.parse.constants import MODIFIERS
 from blendsql.ingredients.ingredient import Ingredient, IngredientException
 from blendsql.smoothie import Smoothie, SmoothieMeta
-from blendsql.common.constants import IngredientType
+from blendsql.common.constants import IngredientType, Subquery, ColumnRef
 from blendsql.models.model import Model
 
 format_blendsql_function = lambda name: "{{" + name + "()}}"
@@ -190,9 +190,9 @@ def preprocess_blendsql(
         elif isinstance(n, exp.Boolean):
             return n.to_py()
         elif isinstance(n, exp.Column):
-            return n.sql(dialect=dialect).strip('"')
+            return ColumnRef(n.sql(dialect=dialect).strip('"'))
         elif isinstance(n, exp.Subquery):
-            return n.sql(dialect=dialect).removesuffix(")").removeprefix("(")
+            return Subquery(n.sql(dialect=dialect).removesuffix(")").removeprefix("("))
         raise ValueError(f"Not sure what to do with {type(n.expression)} here")
 
     ingredient_alias_to_parsed_dict: t.Dict[str, dict] = {}
@@ -681,7 +681,7 @@ def _blend(
                     unpack_values = [unpack_value]
 
                 for value_idx, value in enumerate(unpack_values):
-                    if isinstance(value, str) and check.is_blendsql_query(value):
+                    if isinstance(value, Subquery):
                         _smoothie = _blend(
                             query=value,
                             db=db,

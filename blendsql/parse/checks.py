@@ -14,13 +14,6 @@ def get_ingredient_nodes(node) -> list:
     return list(node.find_all(exp.BlendSQLFunction))
 
 
-def is_blendsql_query(s: str) -> bool:
-    """A quick function to determine if the given string is a query that needs
-    to be executed.
-    """
-    return s.upper().startswith(("SELECT", "WITH", "{{"))
-
-
 def all_terminals_are_true(node: exp.Expression) -> bool:
     """
     Check if all terminal nodes of a given node are TRUE booleans.

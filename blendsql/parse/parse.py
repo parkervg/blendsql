@@ -8,6 +8,7 @@ from attr import attrs, attrib
 from colorama import Fore
 
 from blendsql.common.utils import get_tablename_colname
+from blendsql.common.constants import ColumnRef
 from ..types import QuantifierType, DataTypes
 from .dialect import _parse_one
 from . import checks as check
@@ -148,7 +149,7 @@ class SubqueryContextManager:
                     if arg is None:
                         continue
                     # If `context` is a subquery, this gets executed on its own later.
-                    if not check.is_blendsql_query(arg):
+                    if isinstance(arg, ColumnRef):
                         tablename, columnname = get_tablename_colname(arg)
                         if tablename not in columns_referenced_by_ingredients:
                             columns_referenced_by_ingredients[tablename] = set()
@@ -385,9 +386,9 @@ class SubqueryContextManager:
                         )
                 else:
                     # This is valid for a default `options` set
-                    added_kwargs[
-                        "options"
-                    ] = f"{parent_node.args['this'].args['table'].name}.{parent_node.args['this'].args['this'].name}"
+                    added_kwargs["options"] = ColumnRef(
+                        f"{parent_node.args['this'].args['table'].name}.{parent_node.args['this'].args['this'].name}"
+                    )
         if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
             if isinstance(parent_node, (exp.Tuple, exp.Values)):
                 added_kwargs["wrap_tuple_in_parentheses"] = False
