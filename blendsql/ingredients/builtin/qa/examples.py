@@ -54,10 +54,9 @@ class QAExample(Example):
                     else:
                         s += f"You may generate between {min_length} and {max_length} responses in your list.\n"
         if self.context is not None:
-            if len(self.context) > 0:
-                s += f"Context:"
-                for c in self.context:
-                    s += f"\n{context_formatter(c)}"
+            s += f"Context:"
+            for c in self.context:
+                s += f"\n{context_formatter(c)}"
         s += "\nAnswer: "
         return s
 

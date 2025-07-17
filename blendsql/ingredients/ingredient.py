@@ -672,11 +672,11 @@ class QAIngredient(Ingredient):
                     + Fore.RESET
                 )
                 # This will now override whatever context we passed
-                subtables = None
+                subtables = []
 
         response: t.Union[str, int, float, tuple] = self._run(
             question=question,
-            context=subtables,
+            context=subtables if len(subtables) > 0 else None,
             options=options,
             **self.__dict__ | kwargs,
         )
