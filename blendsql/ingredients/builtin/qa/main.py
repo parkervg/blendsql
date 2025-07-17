@@ -27,8 +27,8 @@ from blendsql.types import DataType, QuantifierType, prepare_datatype
 from .examples import QAExample, AnnotatedQAExample
 from blendsql.search.searcher import Searcher
 
-MAIN_INSTRUCTION = "Answer the question given the table context, if provided.\n"
-LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire table.\n"
+MAIN_INSTRUCTION = "Answer the question given the context, if provided.\n"
+LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire context.\n"
 SHORT_ANSWER_INSTRUCTION = "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
 DEFAULT_QA_FEW_SHOT: t.List[AnnotatedQAExample] = [
     AnnotatedQAExample(**d)

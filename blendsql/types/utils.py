@@ -19,7 +19,7 @@ def prepare_datatype(
     quantifier: t.Optional[QuantifierType] = None,
 ) -> DataType:
     if return_type is None:
-        resolved_output_type = DataTypes.STR()
+        resolved_output_type = DataTypes.ANY()
     elif isinstance(return_type, str):
         # The user has passed us an output type in the BlendSQL query
         # That should take precedence

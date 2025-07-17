@@ -23,7 +23,7 @@ class MapExample(Example):
     mapping: t.Optional[t.Dict[str, str]] = attrib(default=None)
     return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
-        default=DataTypes.STR(),
+        default=DataTypes.ANY(),
     )
     context_type: ContextType = attrib(default=None)
 

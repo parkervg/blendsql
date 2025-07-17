@@ -17,7 +17,7 @@ class QAExample(Example):
     options: t.Optional[Collection[str]] = attrib(default=None)
     return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
-        default=DataTypes.STR(),
+        default=DataTypes.ANY(),
     )
 
     def to_string(
@@ -33,7 +33,7 @@ class QAExample(Example):
                 s += f"Output datatype: {self.return_type.name}\n"
         if list_options:
             if self.options is not None:
-                s += f"Options: {', '.join(sorted(self.options))}\n"
+                s += f"Options: {list(sorted(self.options))}\n"
         if self.return_type is not None:
             quantifier = self.return_type.quantifier
             if quantifier is not None:
@@ -53,7 +53,7 @@ class QAExample(Example):
                         s += f"You may generate {min_length} responses in your list.\n"
                     else:
                         s += f"You may generate between {min_length} and {max_length} responses in your list.\n"
-        if self.context is not None:
+        if len(self.context) > 0:
             s += f"Context:"
             for c in self.context:
                 s += f"\n{context_formatter(c)}"

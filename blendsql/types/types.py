@@ -74,7 +74,7 @@ class DataTypes:
         "date", r"\d{4}-\d{2}-\d{2}", quantifier, lambda s: s
     )
     ANY = lambda quantifier=None: DataType(
-        "Any", None, quantifier, lambda s: str_to_numeric(str_to_bool(s))
+        "Any", None, quantifier, lambda s: s  # Let the DBMS transform, if it allows
     )
 
 
@@ -85,6 +85,7 @@ STR_TO_DATATYPE: t.Dict[str, DataType] = {
     "bool": DataTypes.BOOL(),
     "date": DataTypes.ISO_8601_DATE(),
     "substring": DataTypes.STR(),
+    "Any": DataTypes.ANY(),
     "List[Any]": DataTypes.ANY("*"),
     "List[str]": DataTypes.STR("*"),
     "List[int]": DataTypes.INT("*"),
