@@ -44,7 +44,7 @@ dependencies = [
     "numpy<2",
     "bm25s"
 ]
-version = "0.0.45"
+version = "0.0.46"
 
 [project.urls]
 Documentation = "https://parkervg.github.io/blendsql/"
