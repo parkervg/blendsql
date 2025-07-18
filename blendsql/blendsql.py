@@ -1,3 +1,4 @@
+import os
 import copy
 import logging
 import time
@@ -186,6 +187,10 @@ def preprocess_blendsql(
             # e.g. `options=('something')`
             return [n.this.name]
         elif isinstance(n, exp.Literal):
+            to_py = n.to_py()
+            if os.getenv("BLENDSQL_EXPERIMENTAL_RUST_REF") == "1":
+                if isinstance(to_py, str) and "::" in to_py:
+                    return ColumnRef(to_py)
             return n.to_py()  # Makes sure we encode as correct Python type
         elif isinstance(n, exp.Boolean):
             return n.to_py()
@@ -850,6 +855,8 @@ def _blend(
                 )
 
     # Finally, iter through tables in query and see if we need to collect LazyTable
+    # TODO: this is materializing tables, even if we don't need them
+    #   but, without it, test_cte_qa_multi_exec fails
     for table in query_context.node.find_all((exp.Table, exp.TableAlias)):
         if table.name in db.lazy_tables:
             materialized_smoothie = db.lazy_tables.pop(table.name).collect()
