@@ -1,4 +1,3 @@
-import os
 import copy
 import logging
 import time
@@ -187,11 +186,7 @@ def preprocess_blendsql(
             # e.g. `options=('something')`
             return [n.this.name]
         elif isinstance(n, exp.Literal):
-            to_py = n.to_py()
-            if os.getenv("BLENDSQL_EXPERIMENTAL_RUST_REF") == "1":
-                if isinstance(to_py, str) and "::" in to_py:
-                    return ColumnRef(to_py)
-            return n.to_py()  # Makes sure we encode as correct Python type
+            return n.to_py()
         elif isinstance(n, exp.Boolean):
             return n.to_py()
         elif isinstance(n, exp.Column):
