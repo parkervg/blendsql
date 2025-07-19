@@ -994,6 +994,24 @@ class BlendSQL:
                 f"Could not resolve '{df_or_db_path}' to a valid database type!"
             )
 
+    def visualize(self, query: str, output_path: t.Optional[str] = None, format="pdf"):
+        """Visualize query as a DAG with graphviz."""
+        from .visualize import SQLGlotASTVisualizer
+
+        visualizer = SQLGlotASTVisualizer()
+
+        dialect: sqlglot.Dialect = get_dialect(self.db.__class__.__name__)
+
+        # Generate visualization
+        dot = visualizer.visualize(
+            _parse_one(query, dialect=dialect, schema=self.db.sqlglot_schema)
+        )
+
+        if output_path is not None:
+            # Save as PDF
+            dot.render(output_path, format=format, cleanup=True)
+        return dot
+
     def execute(
         self,
         query: str,
