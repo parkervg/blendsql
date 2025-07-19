@@ -77,6 +77,8 @@ class SQLGlotASTVisualizer:
             return format_label(f"{node.name}={node.value}")
         elif isinstance(node, exp.Predicate):
             return node_type
+        elif isinstance(node, exp.Star):
+            return "*"
         elif isinstance(node, exp.Boolean):
             return format_label(node.to_py())
         elif isinstance(node, exp.Literal):
