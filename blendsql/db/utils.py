@@ -16,6 +16,7 @@ class LazyTable:
 
     tablename: str = attrib()
     collect_fn: t.Callable[..., pd.DataFrame] = attrib()
+    has_blendsql_function: bool = attrib()
 
     def __str__(self):
         return self.tablename

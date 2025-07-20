@@ -66,7 +66,7 @@ class SQLGlotASTVisualizer:
 
         if isinstance(node, (exp.From, exp.EQ, exp.Count)):
             return node_type
-        if isinstance(node, (exp.Column, exp.Table)):
+        if isinstance(node, (exp.Column, exp.Table, exp.TableAlias)):
             # Get Identifier
             return format_label(node.this.this, node_type)
         elif isinstance(node, KeywordArgument):

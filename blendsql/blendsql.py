@@ -533,8 +533,8 @@ def _blend(
                 #   until we set `w` to `SELECT DISTINCT Symbol FROM portfolio`
                 db.lazy_tables.add(
                     LazyTable(
-                        tablename,
-                        partial(
+                        tablename=tablename,
+                        collect_fn=partial(
                             materialize_cte,
                             query_context=query_context,
                             subquery=aliased_subquery,
@@ -549,6 +549,10 @@ def _blend(
                             verbose=verbose,
                             _prev_passed_values=_prev_passed_values,
                         ),
+                        has_blendsql_function=aliased_subquery.find(
+                            exp.BlendSQLFunction
+                        )
+                        is not None,
                     )
                 )
             if abstracted_query_str is not None:
@@ -602,8 +606,8 @@ def _blend(
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
             db.lazy_tables.add(
                 LazyTable(
-                    aliasname,
-                    partial(
+                    tablename=aliasname,
+                    collect_fn=partial(
                         materialize_cte,
                         query_context=query_context,
                         subquery=aliased_subquery,
@@ -618,6 +622,8 @@ def _blend(
                         verbose=verbose,
                         _prev_passed_values=_prev_passed_values,
                     ),
+                    has_blendsql_function=aliased_subquery.find(exp.BlendSQLFunction)
+                    is not None,
                 )
             )
         if prev_subquery_has_ingredient:
@@ -854,8 +860,10 @@ def _blend(
     #   but, without it, test_cte_qa_multi_exec fails
     for table in query_context.node.find_all((exp.Table, exp.TableAlias)):
         if table.name in db.lazy_tables:
-            materialized_smoothie = db.lazy_tables.pop(table.name).collect()
-            _prev_passed_values += materialized_smoothie.meta.num_values_passed
+            lazy_table = db.lazy_tables.pop(table.name)
+            if lazy_table.has_blendsql_function:
+                materialized_smoothie = lazy_table.collect()
+                _prev_passed_values += materialized_smoothie.meta.num_values_passed
 
     query = query_context.to_string()
 
