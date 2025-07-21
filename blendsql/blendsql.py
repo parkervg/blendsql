@@ -185,9 +185,7 @@ def preprocess_blendsql(
             # This happens when we try to define a tuple with a single item
             # e.g. `options=('something')`
             return [n.this.name]
-        elif isinstance(n, exp.Literal):
-            return n.to_py()
-        elif isinstance(n, exp.Boolean):
+        elif isinstance(n, (exp.Literal, exp.Boolean)):
             return n.to_py()
         elif isinstance(n, exp.Column):
             return ColumnRef(n.sql(dialect=dialect).strip('"'))
