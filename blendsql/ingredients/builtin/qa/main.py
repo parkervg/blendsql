@@ -479,5 +479,5 @@ class LLMQA(QAIngredient):
                 return True
             if response == "False":
                 return False
-            return response.lower().strip("'").strip('"')
+            return response.lower()
         return response  # type: ignore
