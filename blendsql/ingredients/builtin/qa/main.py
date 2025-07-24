@@ -473,4 +473,9 @@ class LLMQA(QAIngredient):
                 response = f"'{single_quote_escape(response)}'"  # type: ignore
         else:
             response = tuple(response)  # type: ignore
+        if (
+            options is not None
+            and os.getenv("BLENDSQL_ALWAYS_LOWERCASE_OPTIONS") == "1"
+        ):
+            return response.lower()
         return response  # type: ignore
