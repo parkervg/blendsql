@@ -33,7 +33,8 @@ class QAExample(Example):
                 s += f"Output datatype: {self.return_type.name}\n"
         if list_options:
             if self.options is not None:
-                s += f"Options: {', '.join(sorted(self.options))}\n"
+                # s += f"Options: {', '.join(sorted(self.options))}\n"
+                s += f"Options: {list(sorted(self.options))}\n"
         if self.return_type is not None:
             quantifier = self.return_type.quantifier
             if quantifier is not None:
