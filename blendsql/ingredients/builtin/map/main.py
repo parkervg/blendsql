@@ -495,4 +495,7 @@ class LLMMap(MapIngredient):
             + f"Finished LLMMap with values:\n{json.dumps(dict(zip(values[:10], mapped_values[:10])), indent=4)}"
             + Fore.RESET
         )
+        if os.getenv("BLENDSQL_ALWAYS_LOWERCASE_RESPONSE") == "1":
+            # Basic transforms not handled by SQLite type affinity
+            return [{"True": True, "False": False}.get(v, v) for v in mapped_values]
         return mapped_values

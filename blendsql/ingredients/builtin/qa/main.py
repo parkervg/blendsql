@@ -474,5 +474,10 @@ class LLMQA(QAIngredient):
         else:
             response = tuple(response)  # type: ignore
         if os.getenv("BLENDSQL_ALWAYS_LOWERCASE_RESPONSE") == "1":
+            # Basic transforms not handled by SQLite type affinity
+            if response == "True":
+                return True
+            if response == "False":
+                return False
             return response.lower()
         return response  # type: ignore
