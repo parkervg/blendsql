@@ -497,5 +497,8 @@ class LLMMap(MapIngredient):
         )
         if os.getenv("BLENDSQL_ALWAYS_LOWERCASE_RESPONSE") == "1":
             # Basic transforms not handled by SQLite type affinity
-            return [{"True": True, "False": False}.get(v, v) for v in mapped_values]
+            return [
+                {"True": True, "False": False}.get(v, v.strip("'").strip('"'))
+                for v in mapped_values
+            ]
         return mapped_values
