@@ -1,3 +1,4 @@
+import typing as t
 import importlib.util
 from sqlalchemy.engine import make_url, URL
 from colorama import Fore
@@ -41,5 +42,17 @@ class PostgreSQL(SQLAlchemyDatabase):
 
     @cached_property
     def sqlglot_schema(self) -> dict:
-        # TODO
-        return None
+        schema: t.Dict[str, dict] = {}
+        for tablename in self.tables():
+            schema[tablename] = {}
+            for _, row in self.execute_to_df(
+                """
+                    SELECT column_name as name, data_type as type 
+                    FROM information_schema.columns 
+                    WHERE table_name = :t
+                    AND table_schema = 'public'
+                    """,
+                {"t": tablename},
+            ).iterrows():
+                schema[tablename][row["name"]] = row["type"]
+        return schema
