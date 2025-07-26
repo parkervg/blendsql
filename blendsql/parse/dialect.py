@@ -199,7 +199,7 @@ def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
         return BlendSQLSQLite
     elif db_type == "DuckDB":
         return BlendSQLDuckDB
-    elif db_type == "Postgres":
+    elif db_type == "PostgreSQL":
         return BlendSQLPostgres
     else:
         raise ValueError(f"Unknown db_type {db_type}")
