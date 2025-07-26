@@ -381,7 +381,7 @@ class SubqueryContextManager:
                 if "table" not in parent_node.args["this"].args:
                     if not isinstance(parent_node, exp.BlendSQLFunction):
                         logger.debug(
-                            f"When inferring `options` in infer_gen_kwargs, encountered column node `{parent_node}` with "
+                            f"When inferring `options` in infer_gen_kwargs, encountered column node with "
                             "no table specified!\nShould probably mark `schema_qualify` arg as True"
                         )
                 else:
