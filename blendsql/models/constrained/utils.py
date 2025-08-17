@@ -20,9 +20,6 @@ class LMString(str):
         new_lm._variables[key] = value
         return new_lm
 
-    def _current_prompt(self):
-        return str(self)
-
     def __add__(self, other):
         new_content = super().__add__(other)
         return LMString(new_content, self._variables)

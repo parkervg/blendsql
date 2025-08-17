@@ -351,10 +351,6 @@ class LLMMap(MapIngredient):
             batch_inference_strings = []
             batch_inference_values = []
             value_to_cache_key = {}
-            # Due to guidance's prefix caching, this is a one-time cost
-            model.prompt_tokens += len(
-                model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
-            )
             for c, v in zip(context_in_use, values):
                 if context_in_use_type == ContextType.LOCAL:
                     current_example.context = c
@@ -418,8 +414,10 @@ class LLMMap(MapIngredient):
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
-                    lm._variables.update(batch_lm._variables)
-                    add_to_global_history(batch_lm._current_prompt())
+                    lm._interpreter.state.captures.update(
+                        batch_lm._interpreter.state.captures
+                    )
+                    add_to_global_history(str(batch_lm))
                     if model.caching:
                         for value in batch_inference_values[i : i + batch_size]:
                             cache_key = value_to_cache_key[value]
@@ -431,6 +429,9 @@ class LLMMap(MapIngredient):
             )
             # For each value, call the DataType's `coerce_fn()`
             mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
+
+            model.completion_tokens += lm._get_usage().output_tokens
+            model.prompt_tokens += lm._get_usage().input_tokens
         else:
             sorted_values = sorted(values)
             messages_list: t.List[t.List[dict]] = []

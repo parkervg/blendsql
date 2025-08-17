@@ -112,7 +112,7 @@ class TransformersLLM(ConstrainedModel):
     def _load_model(self) -> ModelObj:
         # https://huggingface.co/blog/how-to-generate
         # from guidance.models._transformers import Transformers
-        from ._guidance._transformers import Transformers
+        from guidance.models import Transformers
 
         if "chat_template" not in self.config:
             self.config["chat_template"] = infer_chat_template(self.model_name_or_path)
