@@ -392,21 +392,24 @@ class SubqueryContextManager:
         if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
             if isinstance(parent_node, (exp.Tuple, exp.Values)):
                 added_kwargs["wrap_tuple_in_parentheses"] = False
-            # If the ingredient is in the 2nd arg place
-            # E.g. not `{{LLMMap()}} IN ('a', 'b')`
-            # Only `column IN {{LLMQA()}}`
-            # AST will look like:
-            # In(
-            #     this=Column(
-            #         this=Identifier(this=name, quoted=False),
-            #         table=Identifier(this=c, quoted=False)),
-            #     field=BlendSQLFunction(
-            #         this=A))
-            field_val = parent_node.args.get("field", None)
-            if field_val is not None:
-                if parent_node == field_val:
+            if isinstance(parent_node, exp.In):
+                # If the ingredient is in the 2nd arg place
+                # E.g. not `{{LLMMap()}} IN ('a', 'b')`
+                # Only `column IN {{LLMQA()}}`
+                # AST will look like:
+                # In(
+                #     this=Column(
+                #         this=Identifier(this=name, quoted=False),
+                #         table=Identifier(this=c, quoted=False)),
+                #     field=BlendSQLFunction(
+                #         this=A))
+                field_val = parent_node.args.get("field", None)
+                if field_val is not None:
+                    if parent_node == field_val:
+                        quantifier = "+"
+                if isinstance(field_val, exp.BlendSQLFunction):
                     quantifier = "+"
-            if isinstance(field_val, exp.BlendSQLFunction):
+            else:
                 quantifier = "+"
         if parent_node is not None and parent_node.expression is not None:
             # Get predicate args
@@ -438,7 +441,7 @@ class SubqueryContextManager:
                 output_type = DataTypes.INT(quantifier)
             else:
                 predicate_literals = [str(i) for i in predicate_literals]
-                added_kwargs["return_type"] = DataTypes.STR(quantifier)
+                added_kwargs["return_type"] = DataTypes.ANY(quantifier)
                 if len(predicate_literals) == 1:
                     predicate_literals = predicate_literals + [predicate_literals[0]]
                 added_kwargs["example_outputs"] = predicate_literals

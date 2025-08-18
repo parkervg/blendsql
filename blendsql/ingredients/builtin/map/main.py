@@ -307,7 +307,9 @@ class LLMMap(MapIngredient):
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
                     # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    stop=[")", f"\n{INDENT()}"]
+                    stop=None
+                    if regex is not None
+                    else [")", f"\n{INDENT()}"]
                     + (['"'] if resolved_return_type.name == "str" else []),
                     regex=regex,
                 )  # type: ignore
@@ -351,10 +353,6 @@ class LLMMap(MapIngredient):
             batch_inference_strings = []
             batch_inference_values = []
             value_to_cache_key = {}
-            # Due to guidance's prefix caching, this is a one-time cost
-            model.prompt_tokens += len(
-                model.tokenizer.encode(CONSTRAINED_MAIN_INSTRUCTION + example_str)
-            )
             for c, v in zip(context_in_use, values):
                 if context_in_use_type == ContextType.LOCAL:
                     current_example.context = c
@@ -418,8 +416,10 @@ class LLMMap(MapIngredient):
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
-                    lm._variables.update(batch_lm._variables)
-                    add_to_global_history(batch_lm._current_prompt())
+                    lm._interpreter.state.captures.update(
+                        batch_lm._interpreter.state.captures
+                    )
+                    add_to_global_history(str(batch_lm))
                     if model.caching:
                         for value in batch_inference_values[i : i + batch_size]:
                             cache_key = value_to_cache_key[value]
@@ -429,6 +429,7 @@ class LLMMap(MapIngredient):
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
+            model.prompt_tokens += lm._get_usage().input_tokens
             # For each value, call the DataType's `coerce_fn()`
             mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
         else:

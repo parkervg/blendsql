@@ -19,9 +19,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "guidance==0.1.16",
-    "transformers==4.47.0",
-    "accelerate==1.5.2",
+    "guidance>0.1.16",
+    "transformers>4.47.0",
     "litellm",
     "pandas>=2.0.0",
     "bottleneck>=1.3.6",

@@ -386,19 +386,16 @@ class LLMQA(QAIngredient):
                 with guidance.user():
                     lm += curr_example_str
 
-                model.prompt_tokens += len(model.tokenizer.encode(lm._current_prompt()))
                 with guidance.assistant():
                     lm += gen_f(**gen_kwargs)
-                add_to_global_history(lm._current_prompt())
+                add_to_global_history(str(lm))
 
-                if is_list_output:
-                    response: list = lm.get("response", [])[::-1]  # type: ignore
-                else:
-                    response: str = lm["response"]  # type: ignore
-                model.completion_tokens += len(model.tokenizer.encode(str(response)))
-
+                response: str = lm["response"]
                 if model.caching:
                     model.cache[key] = response  # type: ignore
+
+                model.completion_tokens += len(model.tokenizer.encode(str(response)))
+                model.prompt_tokens += lm._get_usage().input_tokens
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
