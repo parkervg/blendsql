@@ -307,7 +307,9 @@ class LLMMap(MapIngredient):
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get("max_tokens", 200),
                     # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    stop=[")", f"\n{INDENT()}"]
+                    stop=None
+                    if regex is not None
+                    else [")", f"\n{INDENT()}"]
                     + (['"'] if resolved_return_type.name == "str" else []),
                     regex=regex,
                 )  # type: ignore
@@ -427,11 +429,9 @@ class LLMMap(MapIngredient):
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
+            model.prompt_tokens += lm._get_usage().input_tokens
             # For each value, call the DataType's `coerce_fn()`
             mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
-
-            model.completion_tokens += lm._get_usage().output_tokens
-            model.prompt_tokens += lm._get_usage().input_tokens
         else:
             sorted_values = sorted(values)
             messages_list: t.List[t.List[dict]] = []

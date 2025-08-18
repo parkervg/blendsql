@@ -394,7 +394,7 @@ class LLMQA(QAIngredient):
                 if model.caching:
                     model.cache[key] = response  # type: ignore
 
-                model.completion_tokens += lm._get_usage().output_tokens
+                model.completion_tokens += len(model.tokenizer.encode(str(response)))
                 model.prompt_tokens += lm._get_usage().input_tokens
         else:
             messages = []

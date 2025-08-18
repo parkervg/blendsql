@@ -1,5 +1,6 @@
 from typing import Union
 import copy
+from dataclasses import dataclass
 
 from ..model import ModelObj, Model
 
@@ -26,6 +27,13 @@ class LMString(str):
 
     def __getitem__(self, item):
         return self._variables[item]
+
+    def _get_usage(self):
+        @dataclass
+        class DummyOutput:
+            input_tokens: int
+
+        return DummyOutput(len(str(self)))
 
 
 def maybe_load_lm(model: Model, lm: Union[LMString, ModelObj]) -> ModelObj:
