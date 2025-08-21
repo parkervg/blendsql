@@ -50,7 +50,7 @@ class ImageCaption(MapIngredient):
         from PIL import Image
 
         model_output = model.model_obj(
-            images=[Image.open(BytesIO(value)) for value in values],
+            [Image.open(BytesIO(value)) for value in values],
             # prompt=prompt,
             generate_kwargs={"max_new_tokens": 200},
         )
