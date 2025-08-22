@@ -224,8 +224,10 @@ class LLMJoin(JoinIngredient):
                         left_values=current_example.left_values,
                         right_values=current_example.right_values,
                     )  # type: ignore
-                mapping: dict = lm._variables
-                add_to_global_history(lm._current_prompt())
+                mapping: dict = {
+                    left_value: lm[left_value] for left_value in left_values
+                }
+                add_to_global_history(str(lm))
                 if model.caching:
                     model.cache[key] = mapping  # type: ignore
             model.completion_tokens += sum(
