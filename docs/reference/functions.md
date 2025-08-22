@@ -128,13 +128,13 @@ SELECT GROUP_CONCAT(Name, ', ') AS Names,
 {{
     LLMMap(
         'In which time period was this person born?',
-        'People::Name',
+        p.Name,
         /* BlendSQL differs from standard SQL binding logic below, 
         since we can invoke a table (`Eras`) not previously referenced */
         options=Eras.Years
     )
 }} AS Born
-FROM People
+FROM People p
 GROUP BY Born
 ```
 
