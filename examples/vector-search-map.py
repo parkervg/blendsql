@@ -1,8 +1,8 @@
 from blendsql.ingredients import LLMMap
 import pandas as pd
 from blendsql import BlendSQL
-from blendsql.search import HybridSearch
-from blendsql.models import LiteLLM
+from blendsql.search import ColbertWikipediaSearch
+from blendsql.models import TransformersLLM
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -57,53 +57,30 @@ if __name__ == "__main__":
                         "Date": "July 28",
                     },
                 ]
-            ),
-            "documents": pd.DataFrame(
-                [
-                    {
-                        "title": "Ryan Lochte",
-                        "content": "Ryan Steven Lochte (/ˈlɒkti/ LOK-tee; born August 3, 1984) is an American former[2] competition swimmer and 12-time Olympic medalist.",
-                    },
-                    {
-                        "title": "Elizabeth Beisel",
-                        "content": "Elizabeth Lyon Beisel (/ˈbaɪzəl/; born August 18, 1992) is an American competition swimmer who specializes in backstroke and individual medley events.",
-                    },
-                    {
-                        "title": "Rebecca Soni",
-                        "content": "Rebecca Soni (born March 18, 1987) is an American former competition swimmer and breaststroke specialist who is a six-time Olympic medalist.",
-                    },
-                    {
-                        "title": "Dana Vollmer",
-                        "content": "Dana Whitney Vollmer (born November 13, 1987) is a former American competition swimmer, five-time Olympic gold medalist, and former world record-holder.",
-                    },
-                ]
-            ),
+            )
         },
-        model=LiteLLM("openai/gpt-4o", caching=False),
+        model=TransformersLLM("HuggingFaceTB/SmolLM2-135M-Instruct"),
         verbose=True,
     )
     _ = bsql.model.model_obj
 
     WikipediaSearchMap = LLMMap.from_args(
-        searcher=HybridSearch(
-            documents=bsql.db.execute_to_list("SELECT content FROM documents;"),
-            k=3,  # Retrieve 3 documents for each scalar value on the map call
+        searcher=ColbertWikipediaSearch(
+            k=1,  # Retrieve 1 document for each scalar value on the map call
         ),
     )
     bsql.ingredients = {
         WikipediaSearchMap,
     }
 
-    # What is the name of the oldest person whose result, not including team race, was above 2 minutes?
-    # The `WikipediaSearchMap` will aggregate context for each entry using the FaissVectorStore,
+    # What is the name of the oldest person?
+    # The `WikipediaSearchMap` will aggregate context for each entry using the ColbertWikipediaSearch,
     #   passing it as context to yield an integer
     smoothie = bsql.execute(
         """
-        WITH t AS (
-            SELECT Name FROM "world_aquatic_championships"
-            WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE
-        ) SELECT Name FROM t
-        ORDER BY {{WikipediaSearchMap('What year was {} born?', t.Name)}} ASC LIMIT 1
+        SELECT Name FROM world_aquatic_championships w
+        WHERE event NOT LIKE '%team%'
+        ORDER BY {{WikipediaSearchMap('What year was {} born?', w.Name)}} ASC LIMIT 1
         """
     )
 
@@ -113,3 +90,6 @@ if __name__ == "__main__":
     # ├─────────────┤
     # │ Ryan Lochte │
     # └─────────────┘
+    from blendsql.configure import GLOBAL_HISTORY
+
+    print(GLOBAL_HISTORY)

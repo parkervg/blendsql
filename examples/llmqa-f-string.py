@@ -48,7 +48,7 @@ bsql = BlendSQL(
 
 # Create embeddings for the concatenation of `title` and `content` columns
 DocumentSearch = LLMQA.from_args(
-    vector_store=FaissVectorStore(
+    searcher=FaissVectorStore(
         documents=bsql.db.execute_to_list(
             "SELECT CONCAT(title, ' | ', content) FROM documents;"
         ),

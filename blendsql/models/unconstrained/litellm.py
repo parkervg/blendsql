@@ -76,6 +76,7 @@ class LiteLLM(UnconstrainedModel):
         if self.caching:
             responses, key = self.check_cache(*args, **kwargs)
         if responses is None:
+            asyncio.set_event_loop(asyncio.new_event_loop())
             responses = asyncio.get_event_loop().run_until_complete(
                 self._generate(*args, **kwargs)
             )  # type: ignore

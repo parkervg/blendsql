@@ -1,9 +1,5 @@
-"""
-https://github.com/meta-llama/llama-stack-apps/blob/a1b3d89ad7f47f4d8e5cb6510bb6ba0e3bbabb72/examples/client_tools/web_search.py#L18
-"""
-import os
-import typing as t
 from dataclasses import dataclass, field
+import typing as t
 import httpx
 import asyncio
 
@@ -11,23 +7,18 @@ from blendsql.search.searcher import Searcher
 
 
 @dataclass(kw_only=True)
-class TavilySearch(Searcher):
-    api_key: str = field(default=None)
-
-    def __post_init__(self):
-        self.api_key = self.api_key or os.getenv("TAVILY_API_KEY")
+class ColbertWikipediaSearch(Searcher):
+    url: str = field(default="http://20.102.90.50:2017/wiki17_abstracts")
 
     @staticmethod
     def _cleanup_response(search_response):
-        return [
-            f"{res['title']} | {res['content']}" for res in search_response["results"]
-        ]
+        return [res["text"] for res in search_response["topk"]]
 
     async def asearch(self, query: str, k: int) -> str:
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.tavily.com/search",
-                json={"api_key": self.api_key, "query": query, "max_results": k},
+            response = await client.get(
+                self.url,
+                params={"query": query, "k": k},
             )
             response.raise_for_status()
 
