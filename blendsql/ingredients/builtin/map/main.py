@@ -236,7 +236,7 @@ class LLMMap(MapIngredient):
         table_name, column_name = self.unpack_default_kwargs(**kwargs)
         if value_limit is not None:
             values = values[:value_limit]
-        values = [value if not pd.isna(value) else "-" for value in values]
+        values = [str(value) if not pd.isna(value) else "-" for value in values]
         resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=None
         )
