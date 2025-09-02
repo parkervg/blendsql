@@ -59,9 +59,10 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "K-5",
         "BlendSQL": """SELECT GSoffered
-            FROM schools s
-            WHERE {{LLMMap('Is this county in Silicon Valley?', s.County)}} = TRUE
-            ORDER BY "Longitude" DESC 
+            FROM schools
+            WHERE {{LLMMap('Is this county in Silicon Valley?', County)}} = TRUE
+            AND County IS NOT NULL
+            ORDER BY Longitude DESC 
             LIMIT 1""",
         "Notes": "This is changed to 'counties' in hand_written.py. If Sonoma is in the Bay Area (many sources consider it to be), this answer would be K-12.",
     },
@@ -110,9 +111,9 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Reasoning",
         "Answer": "4",
         "BlendSQL": """SELECT COUNT(*) 
-        FROM comments c
+        FROM comments
         WHERE Score = 17 
-        AND {{LLMMap('Is this text about statistics?', c.Text)}} = TRUE""",
+        AND {{LLMMap('Is this text about statistics?', Text)}} = TRUE""",
         "Notes": None,
     },
     {
@@ -189,14 +190,19 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "Query type": "Match",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "Hans Vonk",
-        "BlendSQL": """WITH DateRange AS (
-SELECT * FROM VALUES {{LLMQA('What are the start and end date ranges for an Aquarius? Respond in MM-DD.', regex='\\d{2}-\\d{2}', quantifier='{2}')}}
-)
-SELECT player_name FROM Player
-WHERE birthday LIKE '1970%'
-AND strftime('%m-%d', birthday) >= (SELECT min(column1, column2) FROM DateRange)
-AND strftime('%m-%d', birthday) <= (SELECT max(column1, column2) FROM DateRange)""",
-        "Notes": None,
+        "BlendSQL": """
+        SELECT player_name FROM Player 
+        WHERE birthday LIKE '1970%'
+        AND {{LLMMap('Would someone born on this day be an Aquarius?', birthday)}} = TRUE
+        """,
+        #         "BlendSQL": """WITH DateRange AS (
+        # SELECT * FROM VALUES {{LLMQA('What are the start and end date ranges for an Aquarius? Respond in MM-DD.', regex='\\d{2}-\\d{2}', quantifier='{2}')}}
+        # )
+        # SELECT player_name FROM Player
+        # WHERE birthday LIKE '1970%'
+        # AND strftime('%m-%d', birthday) >= (SELECT min(column1, column2) FROM DateRange)
+        # AND strftime('%m-%d', birthday) <= (SELECT max(column1, column2) FROM DateRange)""",
+        "Notes": "The second program is quicker since it relies on native SQLite comparisons. But for parity with the LOTUS program, we measure the map variant.",
     },
     {
         "Query ID": 19,
@@ -222,8 +228,13 @@ AND strftime('%m-%d', birthday) <= (SELECT max(column1, column2) FROM DateRange)
         "BlendSQL": """SELECT COUNT(*) FROM "Match" m
         JOIN Country c ON m.country_id = c.id
         WHERE m.season = '2008/2009' 
-        AND c.name IN {{LLMQA('In which of these countries is French an official language?')}}
+        AND {{LLMMap('Is French an official language in this country?', c.name)}} = TRUE
         """,
+        # "BlendSQL": """SELECT COUNT(*) FROM "Match" m
+        # JOIN Country c ON m.country_id = c.id
+        # WHERE m.season = '2008/2009'
+        # AND c.name IN {{LLMQA('In which of these countries is French an official language?')}}
+        # """,
         "Notes": None,
     },
     {
@@ -340,7 +351,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Answer": "453",
         "BlendSQL": """SELECT CAST(ROUND(AVG(t.Price)) AS INT) FROM transactions_1k t 
         JOIN gasstations g ON g.GasStationID = t.GasStationID
-        WHERE g.Country = {{LLMQA('Which is the abbreviation for the country historically known as Bohemia')}} 
+        WHERE g.Country IN {{LLMQA('What are abbreviations for the country historically known as Bohemia? If there are multiple possible abbreviations list them as a python list with quotes around each abbreviation.')}} 
         """,
         "Notes": "Good example of program-inferred constraints.",
     },
@@ -439,9 +450,17 @@ ORDER BY away_team_goal DESC LIMIT 3
         JOIN circuits c ON c.circuitId = r.circuitId 
         WHERE r.name = 'European Grand Prix'
         ) SELECT CAST(ROUND(1.0 *
-        (SELECT COUNT(*) FROM gp_races WHERE gp_races.country = {{LLMQA('Where does the Bundesliga happen?')}}) / 
+        (SELECT COUNT(*) FROM gp_races WHERE {{LLMMap('Does the Bundesliga happen here?', country)}} = TRUE) / 
         (SELECT COUNT(*) FROM gp_races) * 100) AS INT)
         """,
+        # "BlendSQL": """WITH gp_races AS (
+        # SELECT country FROM races r
+        # JOIN circuits c ON c.circuitId = r.circuitId
+        # WHERE r.name = 'European Grand Prix'
+        # ) SELECT CAST(ROUND(1.0 *
+        # (SELECT COUNT(*) FROM gp_races WHERE gp_races.country = {{LLMQA('Where does the Bundesliga happen?')}}) /
+        # (SELECT COUNT(*) FROM gp_races) * 100) AS INT)
+        # """,
         "Notes": None,
     },
     {
@@ -470,14 +489,24 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "3",
         "BlendSQL": """WITH gp_drivers AS (
-        SELECT CONCAT(d.forename, ' ', d.surname) AS name FROM drivers d
+        SELECT CONCAT(d.forename, ' ', d.surname) AS name, ra.year FROM drivers d
         JOIN results r ON r.driverId = d.driverId 
         JOIN races ra ON r.raceId = ra.raceId
         WHERE ra.name = 'Australian Grand Prix'
         AND ra.year = 2008 
+        AND r.time IS NOT NULL
         ) SELECT COUNT(*) FROM gp_drivers
-        WHERE {{LLMMap('What year did this driver debut?', gp_drivers.name, return_type='int')}} > {{LLMQA('What year did Lewis Hamilton debut in F1?', return_type='int')}}
+        WHERE gp_drivers.year > {{LLMMap('What year did this driver debut?', gp_drivers.name, regex='\d{4}')}}
         """,
+        # "BlendSQL": """WITH gp_drivers AS (
+        # SELECT CONCAT(d.forename, ' ', d.surname) AS name FROM drivers d
+        # JOIN results r ON r.driverId = d.driverId
+        # JOIN races ra ON r.raceId = ra.raceId
+        # WHERE ra.name = 'Australian Grand Prix'
+        # AND ra.year = 2008
+        # ) SELECT COUNT(*) FROM gp_drivers
+        # WHERE {{LLMMap('What year did this driver debut?', gp_drivers.name, return_type='int')}} > {{LLMQA('What year did Lewis Hamilton debut in F1?', return_type='int')}}
+        # """,
         "Notes": "TAG seems wrong? No mention of Lewis Hamilton.",
     },
     {
@@ -620,7 +649,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Answer": "Hungaroring",
         "BlendSQL": """{{
             LLMQA(
-                'Which is located closer to a capital city?', 
+                'Which circuit is located closer to a capital city?', 
                 options=('Silverstone Circuit', 'Hockenheimring', 'Hungaroring')
             )
             
@@ -699,7 +728,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "BlendSQL": """SELECT p.Id FROM posts p 
         JOIN comments c ON p.Id = c.PostId 
         WHERE c.CreationDate LIKE '2014-09-14%'
-        AND {{LLMMap("Is this a grateful comment, saying things like 'Thank you'?", c.Text)}} = TRUE
+        AND {{LLMMap("Is the sentiment on this comment grateful?", c.Text)}} = TRUE
         GROUP BY p.Id
         ORDER BY COUNT(c.Id) DESC
         LIMIT 2
