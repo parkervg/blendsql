@@ -1,6 +1,9 @@
 import typing as t
 from functools import partialmethod
+import guidance
+import re
 
+from ..types import QuantifierType
 from .few_shot import Example
 
 
@@ -22,3 +25,51 @@ def partialclass(cls, *args, **kwds):
 
     NewCls.__name__ = cls.__name__
     return NewCls
+
+
+@guidance(stateless=True, dedent=False)
+def gen_list(
+    lm,
+    force_quotes: bool,
+    quantifier=None,
+    options: t.Optional[t.List[str]] = None,
+    regex: t.Optional[str] = None,
+):
+    if options:
+        single_item = guidance.select(options, list_append=True, name="response")
+    else:
+        single_item = guidance.gen(
+            max_tokens=100,
+            # If not regex is passed, default to all characters except these specific to list-syntax
+            regex=regex or "[^],']+",
+            list_append=True,
+            name="response",
+        )  # type: ignore
+    quote = "'"
+    if not force_quotes:
+        quote = guidance.optional(quote)  # type: ignore
+    single_item = quote + single_item + quote
+    single_item += guidance.optional(", ")  # type: ignore
+    return lm + "[" + get_quantifier_wrapper(quantifier)(single_item) + "]"
+
+
+def get_quantifier_wrapper(
+    quantifier: QuantifierType,
+) -> t.Callable[[guidance.models.Model], guidance.models.Model]:
+    quantifier_wrapper = lambda x: x
+    if quantifier is not None:
+        if quantifier == "*":
+            quantifier_wrapper = guidance.zero_or_more
+        elif quantifier == "+":
+            quantifier_wrapper = guidance.one_or_more
+        elif re.match(r"{\d+}", quantifier):
+            repeats = [
+                int(i) for i in quantifier.replace("}", "").replace("{", "").split(",")
+            ]
+            if len(repeats) == 1:
+                repeats = repeats * 2
+            min_length, max_length = repeats
+            quantifier_wrapper = lambda f: guidance.sequence(
+                f, min_length=min_length, max_length=max_length
+            )  # type: ignore
+    return quantifier_wrapper  # type: ignore

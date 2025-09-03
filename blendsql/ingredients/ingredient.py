@@ -175,6 +175,41 @@ class Ingredient:
             return [question.format(value) for value in values]
         return [question for _ in range(len(values))]
 
+    def unpack_context(
+        self,
+        aliases_to_tablenames: t.Dict[str, str],
+        context: t.Tuple[t.Union[ColumnRef, str]],
+    ) -> t.List[pd.DataFrame]:
+        subtables: t.List[pd.DataFrame] = []
+        for _context in context:
+            if isinstance(_context, ColumnRef):
+                tablename, colname = utils.get_tablename_colname(_context)
+                tablename = aliases_to_tablenames.get(tablename, tablename)
+                # Optionally materialize a CTE
+                if tablename in self.db.lazy_tables:
+                    materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+                    self.num_values_passed += (
+                        materialized_smoothie.meta.num_values_passed
+                    )
+                    subtable: pd.DataFrame = pd.DataFrame(
+                        materialized_smoothie.df[colname]
+                    )
+                else:
+                    subtable: pd.DataFrame = self.db.execute_to_df(
+                        f'SELECT "{colname}" FROM "{tablename}"'
+                    )
+            elif isinstance(_context, pd.DataFrame):
+                subtable: pd.DataFrame = _context
+            else:
+                subtable = pd.DataFrame([{"_col": _context}])
+            if subtable.empty:
+                raise IngredientException(
+                    f"Empty subtable passed as context to {self.__name__}!"
+                )
+            self.num_values_passed += len(subtable)
+            subtables.append(subtable)
+        return subtables
+
 
 @attrs
 class AliasIngredient(Ingredient):
@@ -273,12 +308,20 @@ class MapIngredient(Ingredient):
         self,
         question: t.Optional[str] = None,
         values: t.Optional[t.Union[ColumnRef]] = None,
+        *context: t.Union[str, pd.DataFrame],
         options: t.Optional[t.Union[ColumnRef, list]] = None,
-        *args,
         **kwargs,
     ) -> tuple:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
+        # Extract single `context` from kwargs if provided
+        if "context" in kwargs:
+            context_kwarg = kwargs.pop("context")
+            # Combine positional and keyword context
+            if isinstance(context_kwarg, (list, tuple)):
+                context = context + tuple(context_kwarg)
+            else:
+                context = context + (context_kwarg,)
         aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
         get_temp_subquery_table: t.Callable = kwargs["get_temp_subquery_table"]
         get_temp_session_table: t.Callable = kwargs["get_temp_session_table"]
@@ -342,6 +385,10 @@ class MapIngredient(Ingredient):
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
 
+        subtables = self.unpack_context(
+            aliases_to_tablenames=aliases_to_tablenames, context=context
+        )
+
         if options is not None:
             # Override any pattern with our new unpacked options
             options = self.unpack_options(
@@ -365,10 +412,10 @@ class MapIngredient(Ingredient):
             question=question,
             unpacked_questions=unpacked_questions,
             values=unpacked_values,
+            context=subtables if len(subtables) > 0 else None,
             options=options,
             tablename=tablename,
             colname=colname,
-            *args,
             **self.__dict__ | kwargs,
         )
         self.num_values_passed += len(mapped_values)
@@ -613,32 +660,9 @@ class QAIngredient(Ingredient):
                 context = context + (context_kwarg,)
         aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
 
-        subtables: t.List[pd.DataFrame] = []
-        for _context in context:
-            if isinstance(_context, ColumnRef):
-                tablename, colname = utils.get_tablename_colname(_context)
-                tablename = aliases_to_tablenames.get(tablename, tablename)
-                # Optionally materialize a CTE
-                if tablename in self.db.lazy_tables:
-                    materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
-                    self.num_values_passed += (
-                        materialized_smoothie.meta.num_values_passed
-                    )
-                    subtable: pd.DataFrame = pd.DataFrame(
-                        materialized_smoothie.df[colname]
-                    )
-                else:
-                    subtable: pd.DataFrame = self.db.execute_to_df(
-                        f'SELECT "{colname}" FROM "{tablename}"'
-                    )
-            elif isinstance(_context, pd.DataFrame):
-                subtable: pd.DataFrame = _context
-            else:
-                subtable = pd.DataFrame([{"_col": _context}])
-            if subtable.empty:
-                raise IngredientException("Empty subtable passed to QAIngredient!")
-            self.num_values_passed += len(subtable)
-            subtables.append(subtable)
+        subtables = self.unpack_context(
+            aliases_to_tablenames=aliases_to_tablenames, context=context
+        )
 
         if options is not None:
             options = self.unpack_options(

@@ -63,6 +63,15 @@ if __name__ == "__main__":
         RAGQA,
     }
 
+    # from blendsql.db import SQLite
+    # all_dbs = set([item["DB used"] for item in BLENDSQL_ANNOTATED_TAG_DATASET if item["BlendSQL"] is not None])
+    # num_rows = []
+    # for db_path in all_dbs:
+    #     db = SQLite(load_tag_db_path(db_path))
+    #     for t in db.tables():
+    #         num_rows.append(db.execute_to_list(f"SELECT COUNT(*) FROM {t}")[0])
+    #
+
     if CONFIG.filename is not None:
         model = LlamaCpp(
             CONFIG.filename,
@@ -77,7 +86,7 @@ if __name__ == "__main__":
             caching=False,
         )
     # Pre-load model obj
-    _ = model.model_obj
+    # _ = model.model_obj
 
     load_bsql = lambda path: BlendSQL(
         path,
@@ -92,6 +101,7 @@ if __name__ == "__main__":
         if item["BlendSQL"] is None:
             continue
         bsql = load_bsql(load_tag_db_path(item["DB used"]))
+
         smoothie = bsql.execute(item["BlendSQL"])
         curr_pred_data["latency"] = smoothie.meta.process_time_seconds
         curr_pred_data["completion_tokens"] = smoothie.meta.completion_tokens

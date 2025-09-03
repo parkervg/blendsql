@@ -1,3 +1,4 @@
+import ast
 import logging
 import os
 import typing as t
@@ -17,12 +18,9 @@ from blendsql.models.utils import user
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
-from blendsql.ingredients.utils import (
-    initialize_retriever,
-    partialclass,
-)
+from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql.types import DataType, prepare_datatype
+from blendsql.types import DataType, QuantifierType, prepare_datatype
 from .examples import (
     MapExample,
     AnnotatedMapExample,
@@ -180,9 +178,10 @@ class LLMMap(MapIngredient):
         ] = None,
         value_limit: t.Optional[int] = None,
         example_outputs: t.Optional[str] = None,
+        quantifier: QuantifierType = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
-        context: t.Optional[pd.DataFrame] = None,
+        context: t.Optional[t.List[pd.DataFrame]] = None,
         batch_size: int = None,
         **kwargs,
     ) -> t.List[t.Union[float, int, str, bool]]:
@@ -207,30 +206,48 @@ class LLMMap(MapIngredient):
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
 
+        # Resolve context argument
+        # If we explicitly passed `context`, this should take precedence over the vector store.
         context_in_use: t.List[str] = [None] * len(values)
         context_in_use_type: ContextType = None
-        # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
             if unpacked_questions:  # Implies we have different context for each value
                 context_in_use = searcher(unpacked_questions)
-                logger.debug(
-                    Fore.LIGHTBLACK_EX
-                    + f"Retrieved contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
-                    + Fore.RESET
-                )
                 context_in_use_type = ContextType.LOCAL
             else:
                 context_in_use = " | ".join(searcher(question)[0])
-                logger.debug(
-                    Fore.LIGHTBLACK_EX
-                    + f"Retrieved context '{context_in_use[:50]}...'"
-                    + Fore.RESET
-                )
                 context_in_use_type = ContextType.GLOBAL
         elif context is not None:  # If we've passed a table context
-            if isinstance(context, pd.DataFrame):
+            if len(context) == 1:
                 context_in_use = context_formatter(context)
-            context_in_use_type = ContextType.GLOBAL
+                context_in_use_type = ContextType.GLOBAL
+            else:
+                assert all(
+                    len(x) == len(values) for x in context
+                ), "Length of scalars passed in LLMMap `context` doesn't match number of values!"
+                context_in_use = [
+                    list(row)
+                    for row in zip(*[df.iloc[:, 0].tolist() for df in context])
+                ]  # Kind of ugly
+                context_in_use_type = ContextType.LOCAL
+
+        # Log what we found
+        if context_in_use_type == ContextType.GLOBAL:
+            logger.debug(
+                Fore.LIGHTBLACK_EX
+                + f"Retrieved global context '{context_in_use[:50]}...'"
+                + Fore.RESET
+            )
+        elif context_in_use_type == ContextType.LOCAL:
+            logger.debug(
+                Fore.LIGHTBLACK_EX
+                + f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
+                + Fore.RESET
+            )
+        else:
+            raise ValueError(
+                f"Invalid `context_in_use_type`: {type(context_in_use_type)}"
+            )
 
         # Unpack default kwargs
         table_name, column_name = self.unpack_default_kwargs(**kwargs)
@@ -238,7 +255,7 @@ class LLMMap(MapIngredient):
             values = values[:value_limit]
         values = [str(value) if not pd.isna(value) else "-" for value in values]
         resolved_return_type: DataType = prepare_datatype(
-            return_type=return_type, options=options, quantifier=None
+            return_type=return_type, options=options, quantifier=quantifier
         )
         current_example = MapExample(
             question=question,
@@ -267,7 +284,9 @@ class LLMMap(MapIngredient):
                 )
             ]
 
+        is_list_output = resolved_return_type.quantifier is not None
         regex = regex or resolved_return_type.regex
+        quantifier = resolved_return_type.quantifier
 
         if options is not None and list_options_in_prompt:
             if len(options) > int(
@@ -288,31 +307,38 @@ class LLMMap(MapIngredient):
                 )
 
             lm = LMString()  # type: ignore
-
-            if options is not None and self.enable_constrained_decoding:
-                gen_f = lambda _: guidance.select(options=options)  # type: ignore
-            elif (
-                resolved_return_type.name == "substring"
-                and self.enable_constrained_decoding
-            ):
-                # Special case for substring datatypes
-                gen_f = lambda s: guidance.substring(target_string=s)
-            else:
-                if not self.enable_constrained_decoding:
-                    logger.debug(
-                        Fore.YELLOW
-                        + "Not applying constraints, since `enable_constrained_decoding==False`"
-                        + Fore.RESET
-                    )
-                gen_f = lambda _: guidance.gen(
-                    max_tokens=kwargs.get("max_tokens", 200),
-                    # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    stop=None
-                    if regex is not None
-                    else [")", f"\n{INDENT()}"]
-                    + (['"'] if resolved_return_type.name == "str" else []),
+            if is_list_output and self.enable_constrained_decoding:
+                gen_f = lambda _: gen_list(
+                    force_quotes=bool("str" in resolved_return_type.name),
+                    quantifier=quantifier,
+                    options=options,
                     regex=regex,
-                )  # type: ignore
+                )
+            else:
+                if options is not None and self.enable_constrained_decoding:
+                    gen_f = lambda _: guidance.select(options=options)  # type: ignore
+                elif (
+                    resolved_return_type.name == "substring"
+                    and self.enable_constrained_decoding
+                ):
+                    # Special case for substring datatypes
+                    gen_f = lambda s: guidance.substring(target_string=s)
+                else:
+                    if not self.enable_constrained_decoding:
+                        logger.debug(
+                            Fore.YELLOW
+                            + "Not applying constraints, since `enable_constrained_decoding==False`"
+                            + Fore.RESET
+                        )
+                    gen_f = lambda _: guidance.gen(
+                        max_tokens=kwargs.get("max_tokens", 200),
+                        # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                        stop=None
+                        if regex is not None
+                        else [")", f"\n{INDENT()}"]
+                        + (['"'] if resolved_return_type.name == "str" else []),
+                        regex=regex,
+                    )  # type: ignore
 
             def make_prediction(
                 value: str,
@@ -431,7 +457,17 @@ class LLMMap(MapIngredient):
             )
             model.prompt_tokens += lm._get_usage().input_tokens
             # For each value, call the DataType's `coerce_fn()`
-            mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
+            if is_list_output:
+                mapped_values = [
+                    [
+                        current_example.return_type.coerce_fn(c)
+                        for c in ast.literal_eval(s)
+                    ]
+                    for s in lm_mapping
+                ]
+            else:
+                mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
+
         else:
             sorted_values = sorted(values)
             messages_list: t.List[t.List[dict]] = []
