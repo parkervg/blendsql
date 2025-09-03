@@ -134,3 +134,13 @@ def test_llmqa_in_tuple(bsql, model):
         """,
         model=model,
     )
+
+
+def test_llmmap_on_int(bsql, model):
+    """466cc7b"""
+    _ = bsql.execute(
+        """
+        SELECT {{LLMMap('Is this number greater than 20?', Age)}} FROM w;
+        """,
+        model=model,
+    )
