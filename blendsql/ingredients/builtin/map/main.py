@@ -244,7 +244,7 @@ class LLMMap(MapIngredient):
                 + f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
                 + Fore.RESET
             )
-        else:
+        elif context_in_use_type is not None:
             raise ValueError(
                 f"Invalid `context_in_use_type`: {type(context_in_use_type)}"
             )
