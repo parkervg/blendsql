@@ -93,3 +93,19 @@ def test_llmjoin_with_alias(bsql, model):
         """,
         model=model,
     )
+
+
+def test_llmmap_with_multi_ctes(bsql, model):
+    """ae65c2b"""
+    _ = bsql.execute(
+        """
+        WITH t1 AS (
+            SELECT *,
+            {{LLMMap('Is this in France?', name)}}
+            FROM League
+        ), t2 AS (
+            SELECT * FROM t1 
+        ) SELECT * FROM t2 WHERE id > 5000
+        """,
+        model=model,
+    )
