@@ -283,7 +283,18 @@ def materialize_cte(
         transform.replace_subquery_with_direct_alias_call,
         subquery=subquery.parent,
         aliasname=aliasname,
-    ).transform(transform.remove_nodetype, exp.With)
+    )
+    # Remove any hanging CTE statements referencing `aliasname`
+    for n in query_context.node.find_all((exp.With, exp.CTE)):
+        for _n in n.expressions:
+            if isinstance(_n, exp.Table):
+                if _n.this == exp.Identifier(this=aliasname):
+                    if len(n.expressions) == 1:
+                        # Remove the whole With/CTE clause
+                        n.replace(None)
+                    else:
+                        # Just replace the current node
+                        _n.replace(None)
     return materialized_smoothie
 
 
