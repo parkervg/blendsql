@@ -9,10 +9,18 @@ from blendsql.db.utils import truncate_df_content
 
 class PrettyDataFrame(pd.DataFrame):
     def __str__(self):
-        return tabulate(truncate_df_content(self, 50))
+        truncated = truncate_df_content(self, 50)
+        try:
+            return tabulate(truncated)
+        except:
+            return str(truncated)
 
     def __repr__(self):
-        return tabulate(truncate_df_content(self, 50))
+        truncated = truncate_df_content(self, 50)
+        try:
+            return tabulate(truncated)
+        except:
+            return str(truncated)
 
 
 @dataclass

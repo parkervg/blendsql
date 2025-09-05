@@ -218,8 +218,8 @@ class LLMMap(MapIngredient):
                 context_in_use = " | ".join(searcher(question)[0])
                 context_in_use_type = ContextType.GLOBAL
         elif context is not None:  # If we've passed a table context
-            if len(context) == 1:
-                context_in_use = context_formatter(context)
+            if all([len(c) == 1 for c in context]):
+                context_in_use = " | ".join([context_formatter(c[0]) for c in context])
                 context_in_use_type = ContextType.GLOBAL
             else:
                 assert all(
@@ -337,7 +337,7 @@ class LLMMap(MapIngredient):
                         if regex is not None
                         else [")", f"\n{INDENT()}"]
                         + (['"'] if resolved_return_type.name == "str" else []),
-                        regex=regex,
+                        regex=regex if self.enable_constrained_decoding else None,
                     )  # type: ignore
 
             def make_prediction(
@@ -396,7 +396,10 @@ class LLMMap(MapIngredient):
                         example_str,
                         current_example_str,
                         question,
+                        regex,
                         options,
+                        quantifier,
+                        kwargs.get("max_tokens", 200),
                         c,
                         v,
                         funcs=[make_prediction, gen_f],

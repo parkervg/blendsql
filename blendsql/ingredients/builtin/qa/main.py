@@ -269,19 +269,15 @@ class LLMQA(QAIngredient):
             )
 
             if is_list_output and self.enable_constrained_decoding:
-                gen_kwargs = {
-                    "force_quotes": bool("str" in resolved_return_type.name),
-                    "regex": regex,
-                    "options": options_with_aliases,
-                    "quantifier": quantifier,
-                }
-                gen_f = gen_list
+                gen_f = lambda _: gen_list(
+                    force_quotes=bool("str" in resolved_return_type.name),
+                    regex=regex,
+                    options=options_with_aliases,
+                    quantifier=quantifier,
+                )
             else:
                 if options and self.enable_constrained_decoding:
-                    # Too many options here raises:
-                    # ValueError: Parser Error: Current row has 10850 items; max is 2000; consider making your grammar left-recursive if it's right-recursive
-                    gen_kwargs = {"options": options, "name": "response"}
-                    gen_f = guidance.select
+                    gen_f = lambda _: guidance.select(options=options, name="response")
                 else:
                     if not self.enable_constrained_decoding:
                         logger.debug(
@@ -289,15 +285,11 @@ class LLMQA(QAIngredient):
                             + "Not applying constraints, since `enable_constrained_decoding==False`"
                             + Fore.RESET
                         )
-                    gen_kwargs = {
-                        "max_tokens": kwargs.get("max_tokens", 200),
-                        "regex": regex if self.enable_constrained_decoding else None,
-                        "name": "response",
-                        # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                        # "stop": ["\n"] if regex is None else None,
-                    }
-                    gen_f = guidance.gen
-
+                    gen_f = lambda _: guidance.gen(
+                        max_tokens=kwargs.get("max_tokens", 200),
+                        regex=regex if self.enable_constrained_decoding else None,
+                        name="response",
+                    )
             # First check - do we need to load the model?
             in_cache = False
             if model.caching:
@@ -311,7 +303,9 @@ class LLMQA(QAIngredient):
                         ]
                     ),
                     regex,
-                    gen_kwargs,
+                    options,
+                    quantifier,
+                    kwargs.get("max_tokens", 200),
                     funcs=[gen_f],
                 )
                 if response is not None:
@@ -332,7 +326,7 @@ class LLMQA(QAIngredient):
                     lm += curr_example_str
 
                 with guidance.assistant():
-                    lm += gen_f(**gen_kwargs)
+                    lm += gen_f()
                 add_to_global_history(str(lm))
 
                 response: str = lm["response"]
