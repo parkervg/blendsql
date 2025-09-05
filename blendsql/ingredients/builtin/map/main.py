@@ -219,7 +219,7 @@ class LLMMap(MapIngredient):
                 context_in_use_type = ContextType.GLOBAL
         elif context is not None:  # If we've passed a table context
             if all([len(c) == 1 for c in context]):
-                context_in_use = " | ".join([context_formatter(c[0]) for c in context])
+                context_in_use = " | ".join([context_formatter(c) for c in context])
                 context_in_use_type = ContextType.GLOBAL
             else:
                 assert all(

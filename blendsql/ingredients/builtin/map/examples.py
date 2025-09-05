@@ -66,9 +66,10 @@ class ConstrainedMapExample(MapExample):
             s += f"""\ndef f(s: str)"""
         s += f' -> {type_annotation}:\n{INDENT()}"""{self.question}'
         if self.context_type == ContextType.GLOBAL:
+            indented_context = self.context.replace("\n", "\n" + INDENT())
             s += (
                 f"""\n{INDENT()}All function outputs are based on the following context:\n{INDENT()}"""
-                + f"\n{INDENT()}{self.context}"
+                + f"\n{INDENT()}{indented_context}"
             )
 
         s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}s (str): {args_str}"""

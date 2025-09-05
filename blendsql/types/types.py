@@ -63,9 +63,11 @@ class DataTypes:
     BOOL = lambda quantifier=None: DataType(
         "bool", r"(t|f|true|false|True|False)", quantifier, str_to_bool
     )
-    INT = lambda quantifier=None: DataType("int", r"(\d+)", quantifier, str_to_numeric)
+    INT = lambda quantifier=None: DataType(
+        "int", r"-?(\d+)", quantifier, str_to_numeric
+    )
     FLOAT = lambda quantifier=None: DataType(
-        "float", r"(\d+(\.\d+)?)", quantifier, str_to_numeric
+        "float", r"-?(\d+(\.\d+)?)", quantifier, str_to_numeric
     )
     NUMERIC = lambda quantifier=None: DataType(
         "Union[int, float]", r"(\d+(\.\d+)?)", quantifier, str_to_numeric
@@ -85,12 +87,12 @@ STR_TO_DATATYPE: t.Dict[str, DataType] = {
     "bool": DataTypes.BOOL(),
     "date": DataTypes.ISO_8601_DATE(),
     "substring": DataTypes.STR(),
-    "Any": DataTypes.ANY(),
-    "List[Any]": DataTypes.ANY("*"),
-    "List[str]": DataTypes.STR("*"),
-    "List[int]": DataTypes.INT("*"),
-    "List[float]": DataTypes.FLOAT("*"),
-    "List[bool]": DataTypes.BOOL("*"),
-    "List[date]": DataTypes.ISO_8601_DATE("*"),
-    "List[substring]": DataTypes.STR("*"),
+    "any": DataTypes.ANY(),
+    "list[Any]": DataTypes.ANY("*"),
+    "list[str]": DataTypes.STR("*"),
+    "list[int]": DataTypes.INT("*"),
+    "list[float]": DataTypes.FLOAT("*"),
+    "list[bool]": DataTypes.BOOL("*"),
+    "list[date]": DataTypes.ISO_8601_DATE("*"),
+    "list[substring]": DataTypes.STR("*"),
 }

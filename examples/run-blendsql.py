@@ -119,7 +119,7 @@ smoothie = bsql.execute(
     {{
         LLMMap(
             'In which time period was this person born?',
-            'People::Name',
+            Name,
             options=Eras.Years
         )
     }} AS Born

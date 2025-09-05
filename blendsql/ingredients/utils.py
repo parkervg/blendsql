@@ -2,7 +2,9 @@ import typing as t
 from functools import partialmethod
 import guidance
 import re
+from colorama import Fore
 
+from blendsql.common.logger import logger
 from ..types import QuantifierType
 from .few_shot import Example
 
@@ -41,7 +43,12 @@ def gen_list(
         single_item = guidance.gen(
             max_tokens=100,
             # If not regex is passed, default to all characters except these specific to list-syntax
-            regex=regex or "[^],']+",
+            # regex=regex or "[^],'\[\]]*",
+            # regex="(?:[],'\[\]]|\\)*",
+            # regex="([^'\[\]]|\\')*",
+            # Default to all characters, except list-syntax
+            regex=regex or "([^\]]|\\')*",
+            stop_regex="(\n|',)" if not regex else None,
             list_append=True,
             name="response",
         )  # type: ignore
@@ -62,7 +69,7 @@ def get_quantifier_wrapper(
             quantifier_wrapper = guidance.zero_or_more
         elif quantifier == "+":
             quantifier_wrapper = guidance.one_or_more
-        elif re.match(r"{\d+}", quantifier):
+        elif re.match(r"{\d+(,\d+)?}", quantifier):
             repeats = [
                 int(i) for i in quantifier.replace("}", "").replace("{", "").split(",")
             ]
@@ -72,4 +79,8 @@ def get_quantifier_wrapper(
             quantifier_wrapper = lambda f: guidance.sequence(
                 f, min_length=min_length, max_length=max_length
             )  # type: ignore
+        else:
+            logger.debug(
+                Fore.RED + f"Unable to parse quantifier '{quantifier}'" + Fore.RESET
+            )
     return quantifier_wrapper  # type: ignore

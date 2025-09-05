@@ -59,6 +59,11 @@ def infer_chat_template(model_name_or_path: str) -> dict:
 
         chat_template = ChatMLTemplate
 
+    elif "gemma-3" in model_name_or_path.lower():
+        from guidance.chat import Gemma29BInstructChatTemplate
+
+        chat_template = Gemma29BInstructChatTemplate
+
     if chat_template is not None:
         logger.debug(
             Fore.MAGENTA
