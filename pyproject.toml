@@ -41,7 +41,8 @@ dependencies = [
     "httpx",
     "setuptools",            # For python 3.12
     "numpy<2",
-    "bm25s"
+    "bm25s",
+    "diskcache"
 ]
 version = "0.0.48"
 
