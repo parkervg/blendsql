@@ -996,6 +996,13 @@ class BlendSQL:
         elif isinstance(df_or_db_path, (pd.DataFrame, dict)):
             from .db.pandas import Pandas
 
+            if isinstance(df_or_db_path, dict):
+                try:
+                    df_or_db_path = pd.DataFrame(df_or_db_path)
+                except Exception:
+                    raise Exception(
+                        "Error converting dict to pd.DataFrame\n{e}"
+                    ) from None
             return Pandas(df_or_db_path)
         elif isinstance(df_or_db_path, (str, Path)):
             if Path(df_or_db_path).exists():
