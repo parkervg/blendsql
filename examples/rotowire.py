@@ -28,6 +28,7 @@ if __name__ == "__main__":
                 return_type='List[str]'
             )
         }} AS players_list FROM w 
+        /* Can remove below if you want to run on more data */
         LIMIT 5
         """
     )
@@ -69,4 +70,3 @@ if __name__ == "__main__":
         """
     )
     print(smoothie.df)
-    print()
