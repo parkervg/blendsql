@@ -326,7 +326,7 @@ class LLMQA(QAIngredient):
                     lm += curr_example_str
 
                 with guidance.assistant():
-                    lm += gen_f()
+                    lm += gen_f(question)
                 add_to_global_history(str(lm))
 
                 response: str = lm["response"]

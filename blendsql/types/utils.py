@@ -23,6 +23,7 @@ def prepare_datatype(
     elif isinstance(return_type, str):
         # The user has passed us an output type in the BlendSQL query
         # That should take precedence
+        return_type = return_type.lower()
         if return_type not in STR_TO_DATATYPE:
             raise IngredientException(
                 f"{return_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
