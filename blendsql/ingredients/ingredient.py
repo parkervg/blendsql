@@ -402,7 +402,7 @@ class MapIngredient(Ingredient):
                 f'SELECT DISTINCT {select_distinct_arg} FROM "{value_source_tablename}"',
             )
 
-        context_subtables = None
+        context_subtables = []
         if context_was_passed:
             unpacked_values: list = distinct_values[colname].tolist()
             context_subtables = [
@@ -427,10 +427,23 @@ class MapIngredient(Ingredient):
 
         unpacked_questions = None
         if question is not None:
-            if "{}" in question:
+            num_braces = question.count("{}")
+            if num_braces > 0:
+                # # Pop off 'context' into question, if there are > 1 '{}'
+                # lists_to_zip = []
+                # for i in range(num_braces - 1):
+                #     lists_to_zip.append(context_subtables[i].values.flatten().tolist())
+                # extra_values_to_insert = list(zip(*lists_to_zip))
+
                 unpacked_questions = [
                     question.format(value) for value in unpacked_values
                 ]
+
+                # unpacked_questions = [
+                #     question.format(value, *extra_values) for value, extra_values in
+                #     zip(unpacked_values, extra_values_to_insert)
+                # ]
+
                 logger.debug(
                     Fore.LIGHTBLACK_EX
                     + f"Unpacked question to '{unpacked_questions[:10]}'"
@@ -441,7 +454,7 @@ class MapIngredient(Ingredient):
             question=question,
             unpacked_questions=unpacked_questions,
             values=unpacked_values,
-            context=context_subtables,
+            context=context_subtables if len(context_subtables) > 0 else None,
             options=options,
             tablename=tablename,
             colname=colname,
