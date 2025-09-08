@@ -382,7 +382,7 @@ class MapIngredient(Ingredient):
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
-            temp_session_table = select_distinct_fn(
+            temp_session_table = self.db.execute_to_df(
                 select_all_from_table_query(temp_session_tablename)
             )
             # We don't need to run this function on everything,
@@ -404,14 +404,14 @@ class MapIngredient(Ingredient):
 
         context_subtables = None
         if context_was_passed:
-            unpacked_values = distinct_values[colname].tolist()
+            unpacked_values: list = distinct_values[colname].tolist()
             context_subtables = [
                 pd.DataFrame(distinct_values[c])
                 for c in distinct_values.columns
                 if c != colname
             ]
         else:
-            unpacked_values = distinct_values
+            unpacked_values: list = distinct_values
 
         # No need to run ingredient if we have no values to map onto
         if len(unpacked_values) == 0:
