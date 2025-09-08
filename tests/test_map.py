@@ -19,6 +19,12 @@ def bsql() -> BlendSQL:
                 }
             ),
             "v": pd.DataFrame({"people": ["john", "jayson", "emily"]}),
+            "names_and_ages": pd.DataFrame(
+                {
+                    "Name": ["Tommy", "Sarah", "Tommy"],
+                    "Description": ["He is 24 years old", "She's 12", "He's only 3"],
+                }
+            ),
         },
     )
 
@@ -34,7 +40,6 @@ def test_map_to_columns(bsql, model):
                 'How many points and assists did {} have? Respond in the order [points, assists].', 
                 player_name, 
                 Report, 
-                AnotherOptionalReport, 
                 return_type='List[int]',
                 quantifier='{2}'
                 )
@@ -49,3 +54,24 @@ def test_map_to_columns(bsql, model):
         model=model,
     )
     assert smoothie.df.columns.tolist() == ["player_name", "points", "assists"]
+
+
+def test_map_context_with_duplicate_values(bsql, model):
+    if not isinstance(model, ConstrainedModel):
+        pytest.skip()
+    smoothie = bsql.execute(
+        """
+         SELECT *, {{
+            LLMMap(
+                'How old is {}?',
+                Name,
+                Description,
+                return_type='int'
+            )
+        }} FROM "names_and_ages"
+        """,
+        model=model,
+    )
+    df = smoothie.df
+    assert set(df[df["Name"] == "Tommy"]["How old is {}?"].values.tolist()) == {24, 3}
+    assert df[df["Description"] == "He's only 3"]["How old is {}?"].values.item() == 3

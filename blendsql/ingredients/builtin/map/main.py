@@ -20,7 +20,7 @@ from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
 from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql.types import DataType, QuantifierType, prepare_datatype
+from blendsql.types import DataType, prepare_datatype, QuantifierType
 from .examples import (
     MapExample,
     AnnotatedMapExample,
@@ -181,7 +181,7 @@ class LLMMap(MapIngredient):
         quantifier: QuantifierType = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
-        context: t.Optional[t.List[pd.DataFrame]] = None,
+        context: t.Optional[pd.DataFrame] = None,
         batch_size: int = None,
         **kwargs,
     ) -> t.List[t.Union[float, int, str, bool]]:
@@ -210,6 +210,7 @@ class LLMMap(MapIngredient):
         # If we explicitly passed `context`, this should take precedence over the vector store.
         context_in_use: t.List[str] = [None] * len(values)
         context_in_use_type: ContextType = None
+        # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
             if unpacked_questions:  # Implies we have different context for each value
                 context_in_use = searcher(unpacked_questions)
@@ -367,7 +368,7 @@ class LLMMap(MapIngredient):
                     gen_str = (
                         f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote})"""
                     )
-                gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
+                gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if str_output else ''}"""
                 return gen_str
 
             example_str = ""
@@ -377,9 +378,16 @@ class LLMMap(MapIngredient):
 
             loaded_lm = False
             batch_inference_strings = []
-            batch_inference_values = []
-            value_to_cache_key = {}
+            batch_inference_identifiers = []
+            all_identifiers = []
+            identifier_to_cache_key = {}
             for c, v in zip(context_in_use, values):
+                if c is None:
+                    curr_identifier = v
+                else:
+                    curr_identifier = f"{v}_{c}"
+                all_identifiers.append(curr_identifier)
+
                 if context_in_use_type == ContextType.LOCAL:
                     current_example.context = c
 
@@ -405,10 +413,10 @@ class LLMMap(MapIngredient):
                         funcs=[make_prediction, gen_f],
                     )
                     if cached_response is not None:
-                        lm = lm.set(v, cached_response)
+                        lm = lm.set(curr_identifier, cached_response)
                         in_cache = True
                     else:
-                        value_to_cache_key[v] = cache_key
+                        identifier_to_cache_key[curr_identifier] = cache_key
 
                 if not in_cache and not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
@@ -429,7 +437,7 @@ class LLMMap(MapIngredient):
                             gen_f=gen_f,
                         )
                     )
-                    batch_inference_values.append(v)
+                    batch_inference_identifiers.append(curr_identifier)
 
             with guidance.assistant():
                 iter = range(0, len(batch_inference_strings), batch_size)
@@ -450,11 +458,13 @@ class LLMMap(MapIngredient):
                     )
                     add_to_global_history(str(batch_lm))
                     if model.caching:
-                        for value in batch_inference_values[i : i + batch_size]:
-                            cache_key = value_to_cache_key[value]
-                            model.cache[cache_key] = lm.get(value)  # type: ignore
+                        for identifier in batch_inference_identifiers[
+                            i : i + batch_size
+                        ]:
+                            cache_key = identifier_to_cache_key[identifier]
+                            model.cache[cache_key] = lm.get(identifier)  # type: ignore
 
-            lm_mapping: t.List[str] = [lm[value] for value in values]  # type: ignore
+            lm_mapping: t.List[str] = [lm[identifier] for identifier in all_identifiers]  # type: ignore
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
