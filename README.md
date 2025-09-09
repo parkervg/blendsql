@@ -1,23 +1,3 @@
-<div align="right">
-<a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
-<a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
-<a><img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/parkervg/e24f1214fdff3ab086b829b5f01f85a8/raw/covbadge.json"/></a>
-<a><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue"/></a>
-<br>
-</div>
-
-<div align="center"><picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo_dark.png">
-  <img alt="blendsql" src="docs/img/logo_light.png" width=350">
-</picture>
-<p align="center">
-    <i> SQL 🤝 LLMs </i>
-  </p>
-<b><h3>Check out our <a href="https://parkervg.github.io/blendsql/reference/functions/" target="_blank">online documentation</a> for a more comprehensive overview.</h3></b>
-<b><h4>Join our <a href="https://discord.gg/vCv7ak3WrU" target="_blank">Discord server</a> for more discussion!</h4></b>
-</div>
-<br/>
-
 # 💻 Installation
 ```
 pip install blendsql
@@ -141,7 +121,7 @@ smoothie = bsql.execute("""
             'Describe BlendSQL in 50 words.',
             context=(
                 SELECT content[0:5000] AS "README"
-                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
+                FROM read_text('https://raw.githubusercontent.com/user/blendsql/main/README.md')
             )
         )
     }} AS answer
@@ -310,19 +290,6 @@ Now, we have an intermediate representation for our LLM to use that is explainab
 
 For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
 
-
-# Citation
-
-```bibtex
-@article{glenn2024blendsql,
-      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
-      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
-      year={2024},
-      eprint={2402.17882},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
-}
-```
 
 # Few-Shot Prompting
 For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples and dynamically retrieve those top-`k` most relevant examples at runtime, given the current inference example.
