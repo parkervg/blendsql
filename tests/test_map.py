@@ -2,7 +2,6 @@ import pytest
 import pandas as pd
 
 from blendsql import BlendSQL, config
-from blendsql.models import ConstrainedModel
 
 config.set_async_limit(1)
 
@@ -30,8 +29,6 @@ def bsql() -> BlendSQL:
 
 
 def test_map_to_columns(bsql, model):
-    if not isinstance(model, ConstrainedModel):
-        pytest.skip()
     smoothie = bsql.execute(
         """
         WITH player_stats AS (
@@ -57,8 +54,6 @@ def test_map_to_columns(bsql, model):
 
 
 def test_map_context_with_duplicate_values(bsql, model):
-    if not isinstance(model, ConstrainedModel):
-        pytest.skip()
     smoothie = bsql.execute(
         """
          SELECT *, {{

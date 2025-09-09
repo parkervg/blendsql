@@ -482,15 +482,23 @@ class LLMMap(MapIngredient):
                 mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
 
         else:
-            sorted_values = sorted(values)
+            sorted_indices = sorted(range(len(values)), key=lambda i: values[i])
+            sorted_indices_to_original = {
+                k: idx for idx, k in enumerate(sorted_indices)
+            }
+            sorted_values = [values[i] for i in sorted_indices]
+            if context_in_use_type is not None:
+                context_in_use = [context_in_use[i] for i in sorted_indices]
+
             messages_list: t.List[t.List[dict]] = []
             batch_sizes: t.List[int] = []
             if current_example.context_type == ContextType.LOCAL:
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Overriding batch_size={batch_size} to 0, since UnconstrainedModels with LLMMap don't support local context for now"
-                    + Fore.RESET
-                )
+                if batch_size != 1:
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Overriding batch_size={batch_size} to 1, since UnconstrainedModels with LLMMap don't support local context for now"
+                        + Fore.RESET
+                    )
                 batch_size = 1
                 current_example.context_type = ContextType.GLOBAL
                 current_example.context = None
@@ -506,7 +514,8 @@ class LLMMap(MapIngredient):
                     user_msg_str += example.to_string()
                 # Add the current question + context for inference
                 if current_batch_example.context_type == ContextType.GLOBAL:
-                    current_batch_example.context = "\n".join(curr_batch_contexts[0])
+                    str_context = "\n".join(curr_batch_contexts[0])
+                    current_batch_example.context = str_context
                 user_msg_str += current_batch_example.to_string(
                     values=curr_batch_values,
                     list_options=list_options_in_prompt,
@@ -522,17 +531,38 @@ class LLMMap(MapIngredient):
             total_missing_values = 0
             for idx, r in enumerate(responses):
                 expected_len = batch_sizes[idx]
-                predictions: t.List[Union[str, None]] = r.split(DEFAULT_ANS_SEP)  # type: ignore
+                predictions: t.List[t.Union[str, None]] = r.split(DEFAULT_ANS_SEP)  # type: ignore
+                # Add null values, if we under-predicted
                 while len(predictions) < expected_len:
                     total_missing_values += 1
                     predictions.append(None)
-                # Try to map to booleans, `None`, and numeric datatypes
-                mapped_values.extend(
-                    [current_example.return_type.coerce_fn(s) for s in predictions]
-                )
-
-            mapping = {k: v for k, v in zip(sorted_values, mapped_values)}
-            mapped_values = [mapping[value] for value in values]
+                # Cutoff, if we over-predicted
+                predictions = predictions[:expected_len]
+                if is_list_output:
+                    curr_converted_preds = []
+                    for pred in predictions:
+                        try:
+                            list_converted = ast.literal_eval(pred)
+                        except (ValueError, SyntaxError):
+                            logger.debug(
+                                Fore.RED
+                                + f"Error casting prediction '{pred}' to a list"
+                            )
+                            curr_converted_preds.append([])
+                            continue
+                        for item in list_converted:
+                            curr_converted_preds.append(
+                                current_example.return_type.coerce_fn(item)
+                            )
+                    mapped_values.append(curr_converted_preds)
+                else:
+                    mapped_values.extend(
+                        [current_example.return_type.coerce_fn(s) for s in predictions]
+                    )
+            mapped_values = [
+                mapped_values[sorted_indices_to_original[i]]
+                for i in range(len(mapped_values))
+            ]
 
             if total_missing_values > 0:
                 logger.debug(

@@ -161,55 +161,6 @@ class Ingredient:
             )
         return list(unpacked_options) if len(unpacked_options) > 0 else None
 
-    def unpack_question(
-        self,
-        question: str,
-        values: t.List[str],
-    ) -> t.List[str]:
-        """Unpack any f-string ValueArray references in question.
-
-        Example:
-            question='Where is {} located?', values=["Sydney", "San Jose"]
-        """
-        if "{}" in question:
-            return [question.format(value) for value in values]
-        return [question for _ in range(len(values))]
-
-    def unpack_context(
-        self,
-        aliases_to_tablenames: t.Dict[str, str],
-        context: t.Tuple[t.Union[ColumnRef, str]],
-    ) -> t.List[pd.DataFrame]:
-        subtables: t.List[pd.DataFrame] = []
-        for _context in context:
-            if isinstance(_context, ColumnRef):
-                tablename, colname = utils.get_tablename_colname(_context)
-                tablename = aliases_to_tablenames.get(tablename, tablename)
-                # Optionally materialize a CTE
-                if tablename in self.db.lazy_tables:
-                    materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
-                    self.num_values_passed += (
-                        materialized_smoothie.meta.num_values_passed
-                    )
-                    subtable: pd.DataFrame = pd.DataFrame(
-                        materialized_smoothie.df[colname]
-                    )
-                else:
-                    subtable: pd.DataFrame = self.db.execute_to_df(
-                        f'SELECT "{colname}" FROM "{tablename}"'
-                    )
-            elif isinstance(_context, pd.DataFrame):
-                subtable: pd.DataFrame = _context
-            else:
-                subtable = pd.DataFrame([{"_col": _context}])
-            if subtable.empty:
-                raise IngredientException(
-                    f"Empty subtable passed as context to {self.__name__}!"
-                )
-            self.num_values_passed += len(subtable)
-            subtables.append(subtable)
-        return subtables
-
 
 @attrs
 class AliasIngredient(Ingredient):
