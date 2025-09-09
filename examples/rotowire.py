@@ -1,6 +1,6 @@
 from datasets import load_dataset
 from blendsql import BlendSQL
-from blendsql.models import LiteLLM
+from blendsql.models import LlamaCpp
 from blendsql.ingredients import LLMMap
 
 
@@ -11,13 +11,12 @@ if __name__ == "__main__":
     dataset["Report"] = dataset["summary"].apply(lambda x: " ".join(x))
     dataset["id"] = dataset.index
 
-    # model = LlamaCpp(
-    #     "google_gemma-3-12b-it-Q6_K.gguf",
-    #     "bartowski/google_gemma-3-12b-it-GGUF",
-    #     config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-    #     caching=False,
-    # )
-    model = LiteLLM("openai/gpt-4o-mini")
+    model = LlamaCpp(
+        "google_gemma-3-12b-it-Q6_K.gguf",
+        "bartowski/google_gemma-3-12b-it-GGUF",
+        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
+        caching=False,
+    )
 
     # First, extract player names
     bsql = BlendSQL(

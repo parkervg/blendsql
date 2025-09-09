@@ -11,15 +11,11 @@
           }
       },
       {
-          "question": "Is the time less than a week?",
-          "column_name": "Length of use",
-          "table_name": "Crest Whitestrips",
-          "return_type": "bool",
+          "question": "Who played in the game?",
+          "return_type": "List[str]",
           "mapping": {
-            "14 days": false,
-            "10 days": true,
-            "daily": true,
-            "2 hours": true
+              "Lebron James played very well, but Steph Curry struggled.": ["Lebron James", "Steph Curry"],
+              "Patty Mills had a great game": ["Patty Mills"]
           }
       },
       {
