@@ -14,7 +14,7 @@ if __name__ == "__main__":
         "google_gemma-3-12b-it-Q6_K.gguf",
         "bartowski/google_gemma-3-12b-it-GGUF",
         config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-        caching=True,
+        caching=False,
     )
 
     # First, extract player names
@@ -40,13 +40,7 @@ if __name__ == "__main__":
         .sort_values(by="player")
         .reset_index(drop=True)
     )
-    # Below is kind of a hack for now - I need to re-write logic so that duplicate player names are handled
-    expanded_df["player"] = (
-        expanded_df["player"]
-        + " ("
-        + (expanded_df.groupby("player").cumcount() + 1).astype(str)
-        + ")"
-    )
+
     bsql = BlendSQL(expanded_df, model=model, verbose=True)
     smoothie = bsql.execute(
         """
