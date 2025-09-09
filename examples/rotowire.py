@@ -1,6 +1,7 @@
 from datasets import load_dataset
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp
+from blendsql.models import LiteLLM
+from blendsql.ingredients import LLMMap
 
 
 if __name__ == "__main__":
@@ -10,15 +11,18 @@ if __name__ == "__main__":
     dataset["Report"] = dataset["summary"].apply(lambda x: " ".join(x))
     dataset["id"] = dataset.index
 
-    model = LlamaCpp(
-        "google_gemma-3-12b-it-Q6_K.gguf",
-        "bartowski/google_gemma-3-12b-it-GGUF",
-        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-        caching=True,
-    )
+    # model = LlamaCpp(
+    #     "google_gemma-3-12b-it-Q6_K.gguf",
+    #     "bartowski/google_gemma-3-12b-it-GGUF",
+    #     config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
+    #     caching=False,
+    # )
+    model = LiteLLM("openai/gpt-4o-mini")
 
     # First, extract player names
-    bsql = BlendSQL(dataset, model=model, verbose=True)
+    bsql = BlendSQL(
+        dataset, model=model, verbose=True, ingredients=[LLMMap.from_args(batch_size=1)]
+    )
     smoothie = bsql.execute(
         """
         SELECT Report, {{
@@ -40,13 +44,7 @@ if __name__ == "__main__":
         .sort_values(by="player")
         .reset_index(drop=True)
     )
-    # Below is kind of a hack for now - I need to re-write logic so that duplicate player names are handled
-    expanded_df["player"] = (
-        expanded_df["player"]
-        + " ("
-        + (expanded_df.groupby("player").cumcount() + 1).astype(str)
-        + ")"
-    )
+
     bsql = BlendSQL(expanded_df, model=model, verbose=True)
     smoothie = bsql.execute(
         """

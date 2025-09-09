@@ -16,7 +16,7 @@ class QAExample(Example):
     )
     options: t.Optional[Collection[str]] = attrib(default=None)
     return_type: DataType = attrib(
-        converter=lambda s: STR_TO_DATATYPE[s] if isinstance(s, str) else s,
+        converter=lambda s: STR_TO_DATATYPE[s.lower()] if isinstance(s, str) else s,
         default=DataTypes.ANY(),
     )
 

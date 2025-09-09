@@ -20,7 +20,7 @@ from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
 from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql.types import DataType, QuantifierType, prepare_datatype
+from blendsql.types import DataType, prepare_datatype, QuantifierType
 from .examples import (
     MapExample,
     AnnotatedMapExample,
@@ -181,7 +181,7 @@ class LLMMap(MapIngredient):
         quantifier: QuantifierType = None,
         return_type: t.Optional[t.Union[DataType, str]] = None,
         regex: t.Optional[str] = None,
-        context: t.Optional[t.List[pd.DataFrame]] = None,
+        context: t.Optional[pd.DataFrame] = None,
         batch_size: int = None,
         **kwargs,
     ) -> t.List[t.Union[float, int, str, bool]]:
@@ -210,6 +210,7 @@ class LLMMap(MapIngredient):
         # If we explicitly passed `context`, this should take precedence over the vector store.
         context_in_use: t.List[str] = [None] * len(values)
         context_in_use_type: ContextType = None
+        # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
             if unpacked_questions:  # Implies we have different context for each value
                 context_in_use = searcher(unpacked_questions)
@@ -367,7 +368,7 @@ class LLMMap(MapIngredient):
                     gen_str = (
                         f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote})"""
                     )
-                gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=value)}{'"' if str_output else ''}"""
+                gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if str_output else ''}"""
                 return gen_str
 
             example_str = ""
@@ -377,9 +378,16 @@ class LLMMap(MapIngredient):
 
             loaded_lm = False
             batch_inference_strings = []
-            batch_inference_values = []
-            value_to_cache_key = {}
+            batch_inference_identifiers = []
+            all_identifiers = []
+            identifier_to_cache_key = {}
             for c, v in zip(context_in_use, values):
+                if c is None:
+                    curr_identifier = v
+                else:
+                    curr_identifier = f"{v}_{c}"
+                all_identifiers.append(curr_identifier)
+
                 if context_in_use_type == ContextType.LOCAL:
                     current_example.context = c
 
@@ -405,10 +413,10 @@ class LLMMap(MapIngredient):
                         funcs=[make_prediction, gen_f],
                     )
                     if cached_response is not None:
-                        lm = lm.set(v, cached_response)
+                        lm = lm.set(curr_identifier, cached_response)
                         in_cache = True
                     else:
-                        value_to_cache_key[v] = cache_key
+                        identifier_to_cache_key[curr_identifier] = cache_key
 
                 if not in_cache and not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
@@ -429,7 +437,7 @@ class LLMMap(MapIngredient):
                             gen_f=gen_f,
                         )
                     )
-                    batch_inference_values.append(v)
+                    batch_inference_identifiers.append(curr_identifier)
 
             with guidance.assistant():
                 iter = range(0, len(batch_inference_strings), batch_size)
@@ -450,11 +458,13 @@ class LLMMap(MapIngredient):
                     )
                     add_to_global_history(str(batch_lm))
                     if model.caching:
-                        for value in batch_inference_values[i : i + batch_size]:
-                            cache_key = value_to_cache_key[value]
-                            model.cache[cache_key] = lm.get(value)  # type: ignore
+                        for identifier in batch_inference_identifiers[
+                            i : i + batch_size
+                        ]:
+                            cache_key = identifier_to_cache_key[identifier]
+                            model.cache[cache_key] = lm.get(identifier)  # type: ignore
 
-            lm_mapping: t.List[str] = [lm[value] for value in values]  # type: ignore
+            lm_mapping: t.List[str] = [lm[identifier] for identifier in all_identifiers]  # type: ignore
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
@@ -472,15 +482,23 @@ class LLMMap(MapIngredient):
                 mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
 
         else:
-            sorted_values = sorted(values)
+            sorted_indices = sorted(range(len(values)), key=lambda i: values[i])
+            sorted_indices_to_original = {
+                k: idx for idx, k in enumerate(sorted_indices)
+            }
+            sorted_values = [values[i] for i in sorted_indices]
+            if context_in_use_type is not None:
+                context_in_use = [context_in_use[i] for i in sorted_indices]
+
             messages_list: t.List[t.List[dict]] = []
             batch_sizes: t.List[int] = []
             if current_example.context_type == ContextType.LOCAL:
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Overriding batch_size={batch_size} to 0, since UnconstrainedModels with LLMMap don't support local context for now"
-                    + Fore.RESET
-                )
+                if batch_size != 1:
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Overriding batch_size={batch_size} to 1, since UnconstrainedModels with LLMMap don't support local context for now"
+                        + Fore.RESET
+                    )
                 batch_size = 1
                 current_example.context_type = ContextType.GLOBAL
                 current_example.context = None
@@ -496,7 +514,8 @@ class LLMMap(MapIngredient):
                     user_msg_str += example.to_string()
                 # Add the current question + context for inference
                 if current_batch_example.context_type == ContextType.GLOBAL:
-                    current_batch_example.context = "\n".join(curr_batch_contexts[0])
+                    str_context = "\n".join(curr_batch_contexts[0])
+                    current_batch_example.context = str_context
                 user_msg_str += current_batch_example.to_string(
                     values=curr_batch_values,
                     list_options=list_options_in_prompt,
@@ -512,17 +531,38 @@ class LLMMap(MapIngredient):
             total_missing_values = 0
             for idx, r in enumerate(responses):
                 expected_len = batch_sizes[idx]
-                predictions: t.List[Union[str, None]] = r.split(DEFAULT_ANS_SEP)  # type: ignore
+                predictions: t.List[t.Union[str, None]] = r.split(DEFAULT_ANS_SEP)  # type: ignore
+                # Add null values, if we under-predicted
                 while len(predictions) < expected_len:
                     total_missing_values += 1
                     predictions.append(None)
-                # Try to map to booleans, `None`, and numeric datatypes
-                mapped_values.extend(
-                    [current_example.return_type.coerce_fn(s) for s in predictions]
-                )
-
-            mapping = {k: v for k, v in zip(sorted_values, mapped_values)}
-            mapped_values = [mapping[value] for value in values]
+                # Cutoff, if we over-predicted
+                predictions = predictions[:expected_len]
+                if is_list_output:
+                    curr_converted_preds = []
+                    for pred in predictions:
+                        try:
+                            list_converted = ast.literal_eval(pred)
+                        except (ValueError, SyntaxError):
+                            logger.debug(
+                                Fore.RED
+                                + f"Error casting prediction '{pred}' to a list"
+                            )
+                            curr_converted_preds.append([])
+                            continue
+                        for item in list_converted:
+                            curr_converted_preds.append(
+                                current_example.return_type.coerce_fn(item)
+                            )
+                    mapped_values.append(curr_converted_preds)
+                else:
+                    mapped_values.extend(
+                        [current_example.return_type.coerce_fn(s) for s in predictions]
+                    )
+            mapped_values = [
+                mapped_values[sorted_indices_to_original[i]]
+                for i in range(len(mapped_values))
+            ]
 
             if total_missing_values > 0:
                 logger.debug(

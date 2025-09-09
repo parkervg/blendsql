@@ -161,55 +161,6 @@ class Ingredient:
             )
         return list(unpacked_options) if len(unpacked_options) > 0 else None
 
-    def unpack_question(
-        self,
-        question: str,
-        values: t.List[str],
-    ) -> t.List[str]:
-        """Unpack any f-string ValueArray references in question.
-
-        Example:
-            question='Where is {} located?', values=["Sydney", "San Jose"]
-        """
-        if "{}" in question:
-            return [question.format(value) for value in values]
-        return [question for _ in range(len(values))]
-
-    def unpack_context(
-        self,
-        aliases_to_tablenames: t.Dict[str, str],
-        context: t.Tuple[t.Union[ColumnRef, str]],
-    ) -> t.List[pd.DataFrame]:
-        subtables: t.List[pd.DataFrame] = []
-        for _context in context:
-            if isinstance(_context, ColumnRef):
-                tablename, colname = utils.get_tablename_colname(_context)
-                tablename = aliases_to_tablenames.get(tablename, tablename)
-                # Optionally materialize a CTE
-                if tablename in self.db.lazy_tables:
-                    materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
-                    self.num_values_passed += (
-                        materialized_smoothie.meta.num_values_passed
-                    )
-                    subtable: pd.DataFrame = pd.DataFrame(
-                        materialized_smoothie.df[colname]
-                    )
-                else:
-                    subtable: pd.DataFrame = self.db.execute_to_df(
-                        f'SELECT "{colname}" FROM "{tablename}"'
-                    )
-            elif isinstance(_context, pd.DataFrame):
-                subtable: pd.DataFrame = _context
-            else:
-                subtable = pd.DataFrame([{"_col": _context}])
-            if subtable.empty:
-                raise IngredientException(
-                    f"Empty subtable passed as context to {self.__name__}!"
-                )
-            self.num_values_passed += len(subtable)
-            subtables.append(subtable)
-        return subtables
-
 
 @attrs
 class AliasIngredient(Ingredient):
@@ -322,6 +273,8 @@ class MapIngredient(Ingredient):
                 context = context + tuple(context_kwarg)
             else:
                 context = context + (context_kwarg,)
+
+        context_was_passed = len(context) > 0
         aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
         get_temp_subquery_table: t.Callable = kwargs["get_temp_subquery_table"]
         get_temp_session_table: t.Callable = kwargs["get_temp_session_table"]
@@ -357,6 +310,26 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
+        if context_was_passed:
+            all_context_colnames = []
+            for _context in context:
+                if isinstance(_context, ColumnRef):
+                    _, context_colname = utils.get_tablename_colname(_context)
+                    all_context_colnames.append(context_colname)
+                else:
+                    raise ValueError(
+                        f"Not sure what to do with context arg passed to MapIngredient: {_context}"
+                    )
+            select_distinct_fn = lambda q: self.db.execute_to_df(q)
+            select_distinct_arg = (
+                f'"{colname}"'
+                + ", "
+                + ", ".join([f'"{c}"' for c in all_context_colnames])
+            )
+        else:
+            select_distinct_fn = lambda q: self.db.execute_to_list(q)
+            select_distinct_arg = f'"{colname}"'
+
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
@@ -366,28 +339,35 @@ class MapIngredient(Ingredient):
             # We don't need to run this function on everything,
             #   if a previous subquery already got to certain values
             if new_arg_column in temp_session_table.columns:
-                unpacked_values = self.db.execute_to_list(
-                    f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
+                distinct_values = select_distinct_fn(
+                    f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
                 )
             # Base case: this is the first time we've used this particular ingredient
             # BUT, temp_session_tablename still exists
             else:
-                unpacked_values = self.db.execute_to_list(
-                    f'SELECT DISTINCT "{colname}" FROM "{temp_session_tablename}"',
+                distinct_values = select_distinct_fn(
+                    f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}"',
                 )
         else:
-            unpacked_values = self.db.execute_to_list(
-                f'SELECT DISTINCT "{colname}" FROM "{value_source_tablename}"',
+            distinct_values = select_distinct_fn(
+                f'SELECT DISTINCT {select_distinct_arg} FROM "{value_source_tablename}"',
             )
+
+        context_subtables = []
+        if context_was_passed:
+            unpacked_values: list = distinct_values[colname].tolist()
+            context_subtables = [
+                pd.DataFrame(distinct_values[c])
+                for c in distinct_values.columns
+                if c != colname
+            ]
+        else:
+            unpacked_values: list = distinct_values
 
         # No need to run ingredient if we have no values to map onto
         if len(unpacked_values) == 0:
             original_table[new_arg_column] = None
             return (new_arg_column, tablename, colname, original_table)
-
-        subtables = self.unpack_context(
-            aliases_to_tablenames=aliases_to_tablenames, context=context
-        )
 
         if options is not None:
             # Override any pattern with our new unpacked options
@@ -398,10 +378,23 @@ class MapIngredient(Ingredient):
 
         unpacked_questions = None
         if question is not None:
-            if "{}" in question:
+            num_braces = question.count("{}")
+            if num_braces > 0:
+                # # Pop off 'context' into question, if there are > 1 '{}'
+                # lists_to_zip = []
+                # for i in range(num_braces - 1):
+                #     lists_to_zip.append(context_subtables[i].values.flatten().tolist())
+                # extra_values_to_insert = list(zip(*lists_to_zip))
+
                 unpacked_questions = [
                     question.format(value) for value in unpacked_values
                 ]
+
+                # unpacked_questions = [
+                #     question.format(value, *extra_values) for value, extra_values in
+                #     zip(unpacked_values, extra_values_to_insert)
+                # ]
+
                 logger.debug(
                     Fore.LIGHTBLACK_EX
                     + f"Unpacked question to '{unpacked_questions[:10]}'"
@@ -412,7 +405,7 @@ class MapIngredient(Ingredient):
             question=question,
             unpacked_questions=unpacked_questions,
             values=unpacked_values,
-            context=subtables if len(subtables) > 0 else None,
+            context=context_subtables if len(context_subtables) > 0 else None,
             options=options,
             tablename=tablename,
             colname=colname,
@@ -423,14 +416,23 @@ class MapIngredient(Ingredient):
         for value, mapped_value in zip(unpacked_values, mapped_values):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
-        subtable = pd.DataFrame(df_as_dict)
+        mapped_subtable = pd.DataFrame(df_as_dict)
         if all(
             isinstance(x, (int, type(None))) and not isinstance(x, bool)
             for x in mapped_values
         ):
-            subtable[new_arg_column] = subtable[new_arg_column].astype("Int64")
+            mapped_subtable[new_arg_column] = mapped_subtable[new_arg_column].astype(
+                "Int64"
+            )
         # Add new_table to original table
-        new_table = original_table.merge(subtable, how="left", on=colname)
+        if context_was_passed:
+            _mapped_subtable = distinct_values
+            _mapped_subtable[new_arg_column] = mapped_subtable[new_arg_column]
+            new_table = original_table.merge(
+                _mapped_subtable, how="left", on=[colname] + all_context_colnames
+            )
+        else:
+            new_table = original_table.merge(mapped_subtable, how="left", on=colname)
         if new_table.shape[0] != original_table.shape[0]:
             raise IngredientException(
                 f"subtable from MapIngredient.run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
@@ -660,9 +662,32 @@ class QAIngredient(Ingredient):
                 context = context + (context_kwarg,)
         aliases_to_tablenames: t.Dict[str, str] = kwargs["aliases_to_tablenames"]
 
-        subtables = self.unpack_context(
-            aliases_to_tablenames=aliases_to_tablenames, context=context
-        )
+        subtables: t.List[pd.DataFrame] = []
+        for _context in context:
+            if isinstance(_context, ColumnRef):
+                tablename, colname = utils.get_tablename_colname(_context)
+                tablename = aliases_to_tablenames.get(tablename, tablename)
+                # Optionally materialize a CTE
+                if tablename in self.db.lazy_tables:
+                    materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+                    self.num_values_passed += (
+                        materialized_smoothie.meta.num_values_passed
+                    )
+                    subtable: pd.DataFrame = pd.DataFrame(
+                        materialized_smoothie.df[colname]
+                    )
+                else:
+                    subtable: pd.DataFrame = self.db.execute_to_df(
+                        f'SELECT "{colname}" FROM "{tablename}"'
+                    )
+            elif isinstance(_context, pd.DataFrame):
+                subtable: pd.DataFrame = _context
+            else:
+                subtable = pd.DataFrame([{"_col": _context}])
+            if subtable.empty:
+                raise IngredientException("Empty subtable passed to QAIngredient!")
+            self.num_values_passed += len(subtable)
+            subtables.append(subtable)
 
         if options is not None:
             options = self.unpack_options(
