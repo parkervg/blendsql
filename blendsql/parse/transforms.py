@@ -112,14 +112,41 @@ def maybe_set_subqueries_to_true(node):
 
 
 def replace_tablename(node, original_tablename, new_tablename):
+    original_tablename = original_tablename.lower()
+    # Check if we can collapse `JOIN` clauses
+    # e.g. in `SELECT SUM(s.NumTstTakr) FROM satscores AS ss JOIN s ON s.CDSCode = ss.cds WHERE "s"."something" > 2000000
+    #   where original_tablename == 's' and new_tablename == 'temp_s', we've already applied the `JOIN` with satscores
+    #   so query should be `SELECT SUM(NumTstTakr) FROM temp_s WHERE "s"."something" > 2000000`
+    extra_call = None
+    eligible_joins_to_collapse = [
+        join
+        for join in node.find_all(exp.Join)
+        if join.this.find(exp.Table)
+        and join.this.find(exp.Table).name.lower() == original_tablename
+    ]
+    if len(eligible_joins_to_collapse) > 0:
+        if len(eligible_joins_to_collapse) != 1:
+            raise ValueError("Not sure what to do here")
+        collapse_join = eligible_joins_to_collapse[0]
+        eq_node = collapse_join.find(exp.EQ)
+        t1, t2 = eq_node.this.this.name.lower(), eq_node.expression.this.name.lower()
+        other_table_name = t1 if t2 == original_tablename else t2
+        collapse_join.replace(None)
+        extra_call = lambda n: replace_tablename(n, other_table_name, new_tablename)
+
     if isinstance(node, exp.Table):
-        if node.name.lower() == original_tablename.lower():
+        if node.name.lower() == original_tablename:
             node.set("this", exp.Identifier(this=new_tablename, quoted=True))
-        if "alias" in node.args and node.args["alias"].name == original_tablename:
+        if (
+            "alias" in node.args
+            and node.args["alias"].name.lower() == original_tablename
+        ):
             node.args["alias"].set(
                 "this", exp.Identifier(this=new_tablename, quoted=True)
             )
     elif isinstance(node, exp.Column) and "table" in node.args:
-        if node.args["table"].name.lower() == original_tablename.lower():
+        if node.args["table"].name.lower() == original_tablename:
             node.set("table", exp.Identifier(this=new_tablename, quoted=True))
+    if extra_call is not None:
+        return extra_call(node)
     return node
