@@ -1,5 +1,5 @@
 site_name: BlendSQL
-site_description: Unified dialect for orchestrating SQLite logic and LLM reasoning.
+site_description: Query language for blending SQL and LLMs across structured + unstructured data, with type constraints.
 
 repo_name: parkervg/blendsql
 repo_url: https://github.com/parkervg/blendsql

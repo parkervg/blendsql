@@ -38,16 +38,16 @@ An optional `quantifier` argument can be passed, which will be used to modify th
 
 - `'*'`, meaning 'zero-or-more'
 - `'+`', meaning 'one-or-more'
-- Any string matching the pattern `{\d(,\d)?}`
+- Any string matching the pattern `{\d(,\d)?}` (e.g. `{1,2}`)
 
 ```python
 def LLMQA(
     question: str,
-    context: t.Optional[Query] = None,
-    options: t.Optional[ValueArray] = None,
-    return_type: t.Optional[ReturnType] = None,
-    regex: t.Optional[str] = None,
-    quantifier: t.Optional[Quantifier] = None
+    *context: Query,
+    options: Optional[ValueArray] = None,
+    return_type: Optional[ReturnType] = None,
+    regex: Optional[str] = None,
+    quantifier: Optional[Quantifier] = None
 ):
     ...
 ```
@@ -106,10 +106,11 @@ The `LLMMap` is a unary scalar function, much like `LENGTH` or `ABS` in SQlite. 
 ```python
 def LLMMap(
     question: str,
-    values: ValueArray,
-    options: t.Optional[ValueArray] = None,
-    return_type: t.Optional[ReturnType] = None,
-    regex: t.Optional[str] = None
+    values: ColumnRef,
+    *context: ValueArray,
+    options: Optional[ValueArray] = None,
+    return_type: Optional[ReturnType] = None,
+    regex: Optional[str] = None
 ):
     ...
 ```
@@ -138,6 +139,26 @@ FROM People p
 GROUP BY Born
 ```
 
+```sql
+WITH player_stats AS (
+    SELECT *, {{
+        LLMMap(
+            'How many points and assists did {} have? Respond in the order [points, assists]. If a stat is not present for a player, return -1.', 
+            player, 
+            Report, /* Pass `Report` in as context for each `player` */
+            return_type='List[int]',
+            quantifier='{2}'
+        )
+    }} AS box_score_values
+    FROM w
+) SELECT 
+player,
+Report,
+list_element(box_score_values, 1) AS points,
+list_element(box_score_values, 2) AS assists
+FROM player_stats
+```
+
 #### Also See:
 - [LLMMap with search](https://github.com/parkervg/blendsql/blob/main/examples/vector-search-map.py)
 - [Mapping with `return_type='substring'`](https://github.com/parkervg/blendsql/blob/main/examples/map-substring.py)
@@ -150,7 +171,7 @@ The `LLMJoin` function can be used to perform semantic entity linking between co
 def LLMJoin(
     left_on: ValueArray,
     right_on: ValueArray,
-    join_criteria: t.Optional[str]
+    join_criteria: Optional[str] = "Join to same topics."
 ):
     ...
 ```
