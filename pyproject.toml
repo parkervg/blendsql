@@ -44,7 +44,7 @@ dependencies = [
     "bm25s",
     "diskcache"
 ]
-version = "0.0.50"
+version = "0.0.51"
 
 [project.urls]
 Documentation = "https://parkervg.github.io/blendsql/"

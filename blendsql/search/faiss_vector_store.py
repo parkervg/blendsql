@@ -123,7 +123,7 @@ class FaissVectorStore(Searcher):
                 self.factory_str,
             )
             embeddings: NDArray[np.float32] = self.embedding_model.encode(
-                self.documents, progress_bar=True
+                self.documents, show_progress_bar=True
             )
             self.index.add(embeddings)
             faiss.write_index(self.index, str(curr_index_path))

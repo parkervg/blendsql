@@ -15,13 +15,14 @@ if __name__ == "__main__":
         "google_gemma-3-12b-it-Q6_K.gguf",
         "bartowski/google_gemma-3-12b-it-GGUF",
         config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-        caching=False,
+        caching=True,
     )
 
     # First, extract player names
     bsql = BlendSQL(
         dataset, model=model, verbose=True, ingredients=[LLMMap.from_args(batch_size=1)]
     )
+
     smoothie = bsql.execute(
         """
         SELECT Report, {{

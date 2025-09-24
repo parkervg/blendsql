@@ -159,11 +159,13 @@ class LLMJoin(JoinIngredient):
             @guidance(stateless=True, dedent=False)
             def make_predictions(lm, left_values, right_values):
                 lm += "```json\n{"
-                gen_f = guidance.select(options=right_values)
+                gen_f = guidance.select(options=right_values + ["-"])
                 for idx, value in enumerate(left_values):
                     lm += (
                         f'\n\t"{value}": '
+                        + '"'
                         + guidance.capture(gen_f, name=value)
+                        + '"'
                         + ("," if idx + 1 != len(left_values) else "")
                     )
                 lm += "\n}\n```"

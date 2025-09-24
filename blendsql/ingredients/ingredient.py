@@ -520,11 +520,15 @@ class JoinIngredient(Ingredient):
                 )
             )
             modified_lr_identifiers.append((tablename, colname))
-        sorted_values = sorted(values, key=len)
-        # check swapping only once, at the beginning
-        if sorted_values != values:
-            swapped = True
+
+        sorted_values = values
+        swapped = False
         if join_criteria is None:
+            # Only do order optimization if we haven't passed a custom `join_criteria`
+            sorted_values = sorted(values, key=len)
+            # check swapping only once, at the beginning
+            if sorted_values != values:
+                swapped = True
             # First, check which values we actually need to call Model on
             # We don't want to join when there's already an intuitive alignment
             # First, make sure outer loop is shorter of the two lists
@@ -583,6 +587,7 @@ class JoinIngredient(Ingredient):
 
         # Now, we have our final values to process.
         left_values, right_values = sorted_values
+        # right_values, left_values = sorted_values
 
         (left_tablename, left_colname), (
             right_tablename,
