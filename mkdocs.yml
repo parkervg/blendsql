@@ -57,10 +57,6 @@ extra_css:
 nav:
   - Home:
       - Home: index.md
-      - Examples from QA Datasets:
-          - HybridQA: examples/hybridqa.md
-          - OTT-QA: examples/ottqa.md
-          - FEVEROUS: examples/feverous.md
       - FAQ: faq.md
   - Getting Started:
       - Quickstart: quickstart.md
@@ -72,14 +68,6 @@ nav:
   - Documentation:
       - BlendSQL Functions: reference/functions.md
       - Execute a BlendSQL Query: reference/execute-blendsql.md
-      - Ingredients:
-          - reference/ingredients/ingredients.md
-          - Creating Custom Ingredients: reference/ingredients/creating-custom-ingredients.md
-          - Built-in:
-              - LLMMap: reference/ingredients/LLMMap.md
-              - LLMQA: reference/ingredients/LLMQA.md
-              - LLMJoin: reference/ingredients/LLMJoin.md
-              - RAGQA: reference/ingredients/RAGQA.md
       - Language Models:
           - reference/models/models.md
           - LiteLLM: reference/models/litellm.md
