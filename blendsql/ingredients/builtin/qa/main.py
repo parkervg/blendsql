@@ -329,7 +329,7 @@ class LLMQA(QAIngredient):
                     lm += gen_f(question)
                 add_to_global_history(str(lm))
 
-                response: str = lm["response"]
+                response: str = current_example.return_type.coerce_fn(lm["response"])
                 if model.caching:
                     model.cache[key] = response  # type: ignore
 

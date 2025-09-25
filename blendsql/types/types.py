@@ -96,3 +96,16 @@ STR_TO_DATATYPE: t.Dict[str, DataType] = {
     "list[date]": DataTypes.ISO_8601_DATE("*"),
     "list[substring]": DataTypes.STR("*"),
 }
+
+DB_TYPE_TO_STR = {
+    "BIGINT": "int",
+    "VARCHAR": "str",
+    "BOOLEAN": "bool",
+    "FLOAT": "float",
+    "HUGEINT": "int",
+    "INTEGER": "int",
+    "SMALLINT": "int",
+    "TEXT": "str",
+    "REAL": "float",
+    "DATE": "date",
+}

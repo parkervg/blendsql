@@ -675,7 +675,10 @@ def _blend(
                 # So if we already define something in kwargs_dict,
                 #   It's not overriden here
                 kwargs_dict = (
-                    scm.infer_gen_constraints(function_node=function_node) | kwargs_dict
+                    scm.infer_gen_constraints(
+                        function_node=function_node, schema=db.sqlglot_schema
+                    )
+                    | kwargs_dict
                 )
 
             if table_to_title is not None:

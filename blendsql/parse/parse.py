@@ -9,7 +9,7 @@ from colorama import Fore
 
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.constants import ColumnRef
-from ..types import QuantifierType, DataTypes
+from ..types import QuantifierType, DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE
 from .dialect import _parse_one
 from . import checks as check
 from . import transforms as transform
@@ -337,7 +337,9 @@ class SubqueryContextManager:
             }
             self.alias_to_subquery |= curr_alias_to_subquery
 
-    def infer_gen_constraints(self, function_node: exp.Expression) -> dict:
+    def infer_gen_constraints(
+        self, function_node: exp.Expression, schema: dict
+    ) -> dict:
         """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
             downstream Model generations.
 
@@ -374,6 +376,7 @@ class SubqueryContextManager:
             parent_node = function_node.parent
         predicate_literals: t.List[str] = []
         quantifier: QuantifierType = None
+
         # Check for instances like `{column} = {QAIngredient}`
         # where we can infer the space of possible options for QAIngredient
         if isinstance(parent_node, (exp.EQ, exp.In)):
@@ -389,84 +392,112 @@ class SubqueryContextManager:
                     added_kwargs["options"] = ColumnRef(
                         f"{parent_node.args['this'].args['table'].name}.{parent_node.args['this'].args['this'].name}"
                     )
-        if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
-            if isinstance(parent_node, (exp.Tuple, exp.Values)):
-                added_kwargs["wrap_tuple_in_parentheses"] = False
-            if isinstance(parent_node, exp.In):
-                # If the ingredient is in the 2nd arg place
-                # E.g. not `{{LLMMap()}} IN ('a', 'b')`
-                # Only `column IN {{LLMQA()}}`
-                # AST will look like:
-                # In(
-                #     this=Column(
-                #         this=Identifier(this=name, quoted=False),
-                #         table=Identifier(this=c, quoted=False)),
-                #     field=BlendSQLFunction(
-                #         this=A))
-                field_val = parent_node.args.get("field", None)
-                if field_val is not None:
-                    if parent_node == field_val:
+
+        output_type = None
+        # First check - is this predicate referencing an existing column with a non-TEXT datatype?
+        # If so, we adopt that type as our generation
+        column_in_predicate = parent_node.find(exp.Column)
+        if column_in_predicate is not None:
+            native_db_type = schema.get(column_in_predicate.table, {}).get(
+                column_in_predicate.this.name, None
+            )
+            if native_db_type in DB_TYPE_TO_STR:
+                resolved_type = DB_TYPE_TO_STR[native_db_type]
+                if resolved_type != "str":
+                    output_type = STR_TO_DATATYPE[DB_TYPE_TO_STR[native_db_type]]
+                    logger.debug(
+                        Fore.LIGHTBLACK_EX
+                        + f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
+                        + Fore.RESET
+                    )
+            else:
+                logger.debug(
+                    Fore.YELLOW
+                    + f"No type logic for native DB type {native_db_type}!"
+                    + Fore.RESET
+                )
+        if output_type is None:
+            if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
+                if isinstance(parent_node, (exp.Tuple, exp.Values)):
+                    added_kwargs["wrap_tuple_in_parentheses"] = False
+                if isinstance(parent_node, exp.In):
+                    # If the ingredient is in the 2nd arg place
+                    # E.g. not `{{LLMMap()}} IN ('a', 'b')`
+                    # Only `column IN {{LLMQA()}}`
+                    # AST will look like:
+                    # In(
+                    #     this=Column(
+                    #         this=Identifier(this=name, quoted=False),
+                    #         table=Identifier(this=c, quoted=False)),
+                    #     field=BlendSQLFunction(
+                    #         this=A))
+                    field_val = parent_node.args.get("field", None)
+                    if field_val is not None:
+                        if parent_node == field_val:
+                            quantifier = "+"
+                    if isinstance(field_val, exp.BlendSQLFunction):
                         quantifier = "+"
-                if isinstance(field_val, exp.BlendSQLFunction):
+                else:
                     quantifier = "+"
-            else:
-                quantifier = "+"
-        if parent_node is not None and parent_node.expression is not None:
-            # Get predicate args
-            predicate_literals = []
-            # Literals
-            predicate_literals.extend(
-                [
-                    literal_eval(i.this) if not i.is_string else i.this
-                    for i in parent_node.expression.find_all(exp.Literal)
-                ]
-            )
-            # Booleans
-            predicate_literals.extend(
-                [i.args["this"] for i in parent_node.expression.find_all(exp.Boolean)]
-            )
-        # Try to infer output type given the literals we've been given
-        # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
-        if len(predicate_literals) > 0:
-            logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Extracted predicate literals `{predicate_literals}`"
-                + Fore.RESET
-            )
-            if all(isinstance(x, bool) for x in predicate_literals):
-                output_type = DataTypes.BOOL(quantifier)
-            elif all(isinstance(x, float) for x in predicate_literals):
-                output_type = DataTypes.FLOAT(quantifier)
-            elif all(isinstance(x, int) for x in predicate_literals):
-                output_type = DataTypes.INT(quantifier)
-            else:
-                predicate_literals = [str(i) for i in predicate_literals]
-                added_kwargs["return_type"] = DataTypes.ANY(quantifier)
-                if len(predicate_literals) == 1:
-                    predicate_literals = predicate_literals + [predicate_literals[0]]
-                added_kwargs["example_outputs"] = predicate_literals
-                return added_kwargs
-        elif len(predicate_literals) == 0 and isinstance(
-            parent_node,
-            (
-                exp.Order,
-                exp.Ordered,
-                exp.AggFunc,
-                exp.GT,
-                exp.GTE,
-                exp.LT,
-                exp.LTE,
-                exp.Sum,
-            ),
-        ):
-            output_type = DataTypes.NUMERIC(
-                quantifier
-            )  # `Numeric` = `t.Union[int, float]`
-        elif quantifier:
-            # Fallback to a generic list datatype
-            output_type = DataTypes.STR(quantifier)
-        else:
-            output_type = None
+            if parent_node is not None and parent_node.expression is not None:
+                # Get predicate args
+                predicate_literals = []
+                # Literals
+                predicate_literals.extend(
+                    [
+                        literal_eval(i.this) if not i.is_string else i.this
+                        for i in parent_node.expression.find_all(exp.Literal)
+                    ]
+                )
+                # Booleans
+                predicate_literals.extend(
+                    [
+                        i.args["this"]
+                        for i in parent_node.expression.find_all(exp.Boolean)
+                    ]
+                )
+            # Try to infer output type given the literals we've been given
+            # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
+            if len(predicate_literals) > 0:
+                logger.debug(
+                    Fore.LIGHTBLACK_EX
+                    + f"Extracted predicate literals `{predicate_literals}`"
+                    + Fore.RESET
+                )
+                if all(isinstance(x, bool) for x in predicate_literals):
+                    output_type = DataTypes.BOOL(quantifier)
+                elif all(isinstance(x, float) for x in predicate_literals):
+                    output_type = DataTypes.FLOAT(quantifier)
+                elif all(isinstance(x, int) for x in predicate_literals):
+                    output_type = DataTypes.INT(quantifier)
+                else:
+                    predicate_literals = [str(i) for i in predicate_literals]
+                    added_kwargs["return_type"] = DataTypes.ANY(quantifier)
+                    if len(predicate_literals) == 1:
+                        predicate_literals = predicate_literals + [
+                            predicate_literals[0]
+                        ]
+                    added_kwargs["example_outputs"] = predicate_literals
+                    return added_kwargs
+            elif len(predicate_literals) == 0 and isinstance(
+                parent_node,
+                (
+                    exp.Order,
+                    exp.Ordered,
+                    exp.AggFunc,
+                    exp.GT,
+                    exp.GTE,
+                    exp.LT,
+                    exp.LTE,
+                    exp.Sum,
+                ),
+            ):
+                output_type = DataTypes.NUMERIC(
+                    quantifier
+                )  # `Numeric` = `t.Union[int, float]`
+            elif quantifier:
+                # Fallback to a generic list datatype
+                output_type = DataTypes.STR(quantifier)
         added_kwargs["return_type"] = output_type
         return added_kwargs
 
