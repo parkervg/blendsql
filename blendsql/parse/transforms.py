@@ -5,7 +5,6 @@ https://github.com/tobymao/sqlglot
 """
 
 from typing import Union, Type, Tuple
-
 from sqlglot import exp
 
 from . import checks as check
@@ -111,13 +110,13 @@ def maybe_set_subqueries_to_true(node):
     return node.transform(set_subqueries_to_true).transform(prune_empty_where)
 
 
-def replace_tablename(node, original_tablename, new_tablename):
+def replace_tablename(node, original_tablename, new_tablename, alias_to_tablename):
     original_tablename = original_tablename.lower()
     # Check if we can collapse `JOIN` clauses
     # e.g. in `SELECT SUM(s.NumTstTakr) FROM satscores AS ss JOIN s ON s.CDSCode = ss.cds WHERE "s"."something" > 2000000
     #   where original_tablename == 's' and new_tablename == 'temp_s', we've already applied the `JOIN` with satscores
     #   so query should be `SELECT SUM(NumTstTakr) FROM temp_s WHERE "s"."something" > 2000000`
-    extra_call = None
+    extra_calls = []
     eligible_joins_to_collapse = [
         join
         for join in node.find_all(exp.Join)
@@ -129,12 +128,23 @@ def replace_tablename(node, original_tablename, new_tablename):
             raise ValueError("Not sure what to do here")
         collapse_join = eligible_joins_to_collapse[0]
         eq_node = collapse_join.find(exp.EQ)
-        t1, t2 = eq_node.this.this.name.lower(), eq_node.expression.this.name.lower()
-        other_table_name = t1 if t2 == original_tablename else t2
+        t1, t2 = eq_node.this.table.lower(), eq_node.expression.table.lower()
+        # Check if either of these are aliases - we need original
+        for t in set(
+            [
+                t1,
+                t2,
+                alias_to_tablename.get(t1, t1).lower(),
+                alias_to_tablename.get(t2, t2).lower(),
+            ]
+        ):
+            print(t)
+            print(new_tablename)
+            print()
+            extra_calls.append((t, new_tablename))
+            # extra_calls.append(lambda n: replace_tablename(n, t, new_tablename, None))
         collapse_join.replace(None)
-        extra_call = lambda n: replace_tablename(n, other_table_name, new_tablename)
-
-    if isinstance(node, exp.Table):
+    if isinstance(node, (exp.Table, exp.TableAlias)):
         if node.name.lower() == original_tablename:
             node.set("this", exp.Identifier(this=new_tablename, quoted=True))
         if (
@@ -147,6 +157,7 @@ def replace_tablename(node, original_tablename, new_tablename):
     elif isinstance(node, exp.Column) and "table" in node.args:
         if node.args["table"].name.lower() == original_tablename:
             node.set("table", exp.Identifier(this=new_tablename, quoted=True))
-    if extra_call is not None:
-        return extra_call(node)
+    if len(extra_calls) > 0:
+        for original, new in extra_calls:
+            node = node.transform(replace_tablename, original, new, None)
     return node

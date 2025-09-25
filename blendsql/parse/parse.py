@@ -126,6 +126,19 @@ class SubqueryContextManager:
     def get_columns_referenced_by_ingredients(
         self, ingredient_alias_to_parsed_dict: dict
     ):
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class _Column:
+            table: str
+            column: str
+
+            def __str__(self):
+                return self.value
+
+            def __repr__(self):
+                return f"JoinedLink(table='{self.table}', column='{self.column}')"
+
         # TODO: call infer_gen_constraints() first, to populate `options`
         columns_referenced_by_ingredients = {}
         ingredient_aliases = [i.name for i in check.get_ingredient_nodes(self.node)]
@@ -153,7 +166,26 @@ class SubqueryContextManager:
                         tablename, columnname = get_tablename_colname(arg)
                         if tablename not in columns_referenced_by_ingredients:
                             columns_referenced_by_ingredients[tablename] = set()
-                        columns_referenced_by_ingredients[tablename].add(columnname)
+                        columns_referenced_by_ingredients[tablename].add(
+                            _Column(column=columnname, table=tablename)
+                        )
+
+        from blendsql.parse.dialect import BlendSQLDuckDB
+
+        print(self.node.sql(dialect=BlendSQLDuckDB))
+
+        for tablename in columns_referenced_by_ingredients:
+            for n in self.node.find_all(exp.Join):
+                eq_node = n.find(exp.EQ)
+                t1, t2 = eq_node.this.table.lower(), eq_node.expression.table.lower()
+                if any([x == tablename for x in [t1, t2]]):
+                    joined_tablename = t1 if t2 == tablename else t2
+                    # Get all columns from this table in existing SQL
+                    for c in self.node.find_all(exp.Column):
+                        if c.table == joined_tablename:
+                            columns_referenced_by_ingredients[tablename].add(
+                                _Column(column=c.this.name, table=joined_tablename)
+                            )
         return columns_referenced_by_ingredients
 
     def abstracted_table_selects(

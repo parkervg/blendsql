@@ -855,7 +855,10 @@ def _blend(
     query_context.parse(query)
     for t in session_modified_tables:
         query_context.node = query_context.node.transform(
-            transform.replace_tablename, t, _get_temp_session_table(t)
+            transform.replace_tablename,
+            t,
+            _get_temp_session_table(t),
+            scm.alias_to_tablename,
         )
     if scm is not None:
         for a, t in scm.alias_to_tablename.items():
