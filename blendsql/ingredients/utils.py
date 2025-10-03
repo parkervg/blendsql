@@ -42,6 +42,7 @@ def gen_list(
     else:
         single_item = guidance.gen(
             max_tokens=100,
+            regex=regex,
             # Stop at Python list item separators
             stop_regex="""(\n|',|",|']|"])""" if not regex else None,
             list_append=True,

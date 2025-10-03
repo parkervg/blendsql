@@ -22,6 +22,7 @@ import inspect
 from textwrap import dedent
 from abc import abstractmethod
 from attr import attrs, attrib
+from functools import cached_property
 
 from ..db.utils import truncate_df_content
 from blendsql.common.logger import logger
@@ -170,7 +171,55 @@ class Model:
 
 
 class ConstrainedModel(Model):
-    pass
+    @staticmethod
+    def infer_chat_template(model_name_or_path: str) -> dict:
+        # Try to infer chat template
+        chat_template = None
+        if "smollm" in model_name_or_path.lower():
+            from guidance.chat import ChatMLTemplate
+
+            chat_template = ChatMLTemplate
+        elif "llama-3" in model_name_or_path.lower():
+            from guidance.chat import Llama3ChatTemplate
+
+            chat_template = Llama3ChatTemplate
+        elif "llama-2" in model_name_or_path.lower():
+            from guidance.chat import Llama2ChatTemplate
+
+            chat_template = Llama2ChatTemplate
+        elif "phi-3" in model_name_or_path.lower():
+            from guidance.chat import Phi3MiniChatTemplate
+
+            chat_template = Phi3MiniChatTemplate
+
+        elif "qwen" in model_name_or_path.lower():
+            # https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/tokenizer_config.json
+            # Uses ChatML
+            from guidance.chat import ChatMLTemplate
+
+            chat_template = ChatMLTemplate
+
+        elif "gemma" in model_name_or_path.lower():
+            from guidance.chat import Gemma29BInstructChatTemplate
+
+            chat_template = Gemma29BInstructChatTemplate
+
+        if chat_template is not None:
+            logger.debug(
+                Fore.MAGENTA
+                + f"Loading '{model_name_or_path}' with '{chat_template.__name__}' chat template..."
+                + Fore.RESET
+            )
+        return chat_template
+
+    @cached_property
+    def model_obj(self) -> ModelObj:
+        """Allows for lazy loading of underlying model weights."""
+        if "chat_template" not in self.config:
+            self.config["chat_template"] = self.infer_chat_template(
+                self.model_name_or_path
+            )
+        return self._load_model()
 
 
 class UnconstrainedModel(Model):
