@@ -42,20 +42,22 @@ def gen_list(
     else:
         single_item = guidance.gen(
             max_tokens=100,
-            # If not regex is passed, default to all characters except these specific to list-syntax
-            # regex=regex or "[^],'\[\]]*",
-            # regex="(?:[],'\[\]]|\\)*",
-            # regex="([^'\[\]]|\\')*",
-            # Default to all characters, except list-syntax
-            regex=regex or "([^\]]|\\')*",
-            stop_regex="(\n|',)" if not regex else None,
+            # Stop at Python list item separators
+            stop_regex="""(\n|',|",|']|"])""" if not regex else None,
             list_append=True,
             name="response",
         )  # type: ignore
-    quote = "'"
+    single_quote = "'"
+    double_quote = '"'
     if not force_quotes:
-        quote = guidance.optional(quote)  # type: ignore
-    single_item = quote + single_item + quote
+        single_quote = guidance.optional(single_quote)
+        double_quote = guidance.optional(double_quote)
+    single_item = guidance.select(
+        [
+            single_quote + single_item + single_quote,
+            double_quote + single_item + double_quote,
+        ]
+    )
     single_item += guidance.optional(", ")  # type: ignore
     return lm + "[" + get_quantifier_wrapper(quantifier)(single_item) + "]"
 
