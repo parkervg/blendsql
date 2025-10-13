@@ -17,9 +17,10 @@ from blendsql.models.constrained.utils import maybe_load_lm, LMString
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 from blendsql.common.exceptions import IngredientException
+from blendsql.common.typing import DataType, QuantifierType
 from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql.types import DataType, QuantifierType, prepare_datatype
+from blendsql.types import prepare_datatype
 from blendsql.search.searcher import Searcher
 from .examples import QAExample, AnnotatedQAExample
 

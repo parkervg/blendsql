@@ -3,7 +3,8 @@ import typing as t
 from enum import Enum
 
 from blendsql.ingredients.few_shot import Example
-from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
+from blendsql.types import DataTypes, STR_TO_DATATYPE
+from blendsql.common.typing import DataType
 from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
 
 

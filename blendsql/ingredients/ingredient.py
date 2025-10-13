@@ -13,15 +13,12 @@ from typeguard import check_type
 from blendsql.common.exceptions import IngredientException
 from blendsql.common.logger import logger
 from blendsql.common import utils
-from blendsql.common.constants import (
-    IngredientType,
-)
+from blendsql.common.typing import IngredientType, ColumnRef
 from blendsql.db import Database
 from blendsql.db.utils import select_all_from_table_query, format_tuple
 from blendsql.common.utils import get_tablename_colname
 from blendsql.search.searcher import Searcher
 from blendsql.ingredients.few_shot import Example
-from blendsql.common.constants import ColumnRef
 
 
 def unpack_default_kwargs(**kwargs):
@@ -113,7 +110,7 @@ class Ingredient:
         tablename, colname = get_tablename_colname(v)
         tablename = aliases_to_tablenames.get(tablename, tablename)
         # IMPORTANT: Below was commented out, since it would cause:
-        #   `SELECT {{select_first_sorted(options='w::Symbol')}} FROM w LIMIT 1`
+        #   `SELECT {{select_first_sorted(options=w.Symbol)}} FROM w LIMIT 1`
         #   ...to always select the result of the `LIMIT 1`.
         # Check for previously created temporary tables
         # value_source_tablename, _ = self.maybe_get_temp_table(
@@ -504,7 +501,7 @@ class JoinIngredient(Ingredient):
             #   make sure we keep the `referenced_tablename` variable.
             # So the below works:
             #     SELECT f.name, colors.name FROM fruits f
-            #     JOIN {{LLMJoin('f::name', 'colors::name', join_criteria='Align the fruit to its color')}}
+            #     JOIN colors c ON {{LLMJoin(f.name, c.name, join_criteria='Align the fruit to its color')}}
             referenced_tablename, colname = utils.get_tablename_colname(on_arg)
             tablename = aliases_to_tablenames.get(
                 referenced_tablename, referenced_tablename

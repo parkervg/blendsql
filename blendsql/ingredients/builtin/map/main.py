@@ -18,9 +18,10 @@ from blendsql.models.utils import user
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
+from blendsql.common.typing import DataType, QuantifierType
 from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
 from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
-from blendsql.types import DataType, prepare_datatype, QuantifierType
+from blendsql.types import prepare_datatype
 from .examples import (
     MapExample,
     AnnotatedMapExample,

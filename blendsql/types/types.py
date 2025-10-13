@@ -3,30 +3,7 @@ from ast import literal_eval
 from dataclasses import dataclass
 
 from blendsql.common.constants import DEFAULT_NAN_ANS
-
-# The 'quantifier' arg can be either '*' or '+',
-#   or any string matching '{\d(,\d)?}'
-QuantifierType = t.Union[t.Literal["*", "+"], str, None]
-
-
-@dataclass
-class DataType:
-    _name: str
-    regex: t.Optional[str]
-    quantifier: t.Optional[QuantifierType]
-    _coerce_fn: t.Callable
-
-    @property
-    def name(self) -> str:
-        if self._name != "list" and self.quantifier is not None:
-            return f"List[{self._name}]"
-        return self._name
-
-    def coerce_fn(self, s: t.Union[str, None]) -> t.Any:
-        """Language models output strings.
-        We want to coerce their outputs to the DB-friendly type here.
-        """
-        return self._coerce_fn(s)
+from blendsql.common.typing import DataType
 
 
 def str_to_bool(s: t.Union[str, None]) -> t.Union[bool, str, None]:
@@ -97,6 +74,7 @@ STR_TO_DATATYPE: t.Dict[str, DataType] = {
     "list[substring]": DataTypes.STR("*"),
 }
 
+# Align different database types to our type system
 DB_TYPE_TO_STR = {
     "BIGINT": "int",
     "VARCHAR": "str",

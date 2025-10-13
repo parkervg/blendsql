@@ -1,11 +1,9 @@
 import typing as t
 import sqlglot.dialects
-from sqlglot.dialects import SQLite, Postgres, DuckDB
-from sqlglot.tokens import TokenType
-from sqlglot.schema import Schema, MappingSchema
+from sqlglot.dialects import SQLite, Postgres
+from sqlglot.schema import MappingSchema
 from sqlglot import exp, parse_one
 from typing import Union, Optional
-from sqlglot import exp
 from sqlglot.dialects.dialect import Dialect, DialectType
 from sqlglot.optimizer.isolate_table_selects import isolate_table_selects
 from sqlglot.optimizer.qualify_columns import (

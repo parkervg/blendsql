@@ -4,7 +4,8 @@ import typing as t
 from collections.abc import Collection
 
 from blendsql.ingredients.few_shot import Example
-from blendsql.types import DataType, DataTypes, STR_TO_DATATYPE
+from blendsql.common.typing import DataType
+from blendsql.types import DataTypes, STR_TO_DATATYPE
 
 
 @attrs(kw_only=True)

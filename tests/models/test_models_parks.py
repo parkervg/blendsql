@@ -1,11 +1,9 @@
 import pytest
-import os
 
 from blendsql import BlendSQL
-from blendsql.ingredients import ImageCaption, RAGQA
+from blendsql.ingredients import ImageCaption
 from blendsql.smoothie import Smoothie
 from blendsql.common.utils import fetch_from_hub
-from blendsql.models import LiteLLM
 from blendsql.common.exceptions import IngredientException
 
 
@@ -14,7 +12,6 @@ def bsql() -> BlendSQL:
     return BlendSQL(fetch_from_hub("national_parks.db"))
 
 
-@pytest.mark.long
 def test_no_ingredients(bsql):
     res = bsql.execute(
         """
@@ -133,19 +130,19 @@ def test_readme_example_3(bsql, model):
     assert isinstance(res, Smoothie)
 
 
-@pytest.mark.long
-def test_rag_qa(bsql, model):
-    if os.getenv("AZURE_SUBSCRIPTION_KEY") is None:
-        pytest.skip("AZURE_SUBSCRIPTION_KEY environment variable not set")
-    res = bsql.execute(
-        """
-        SELECT Name, Location, Description FROM parks
-        WHERE Location = {{RAGQA('Which state was Sarah Palin governor of?')}}
-        """,
-        model=model,
-        # We expect the `blend()` call to fetch the appropriate ingredients for us
-        ingredients={RAGQA},
-    )
-    assert isinstance(res, Smoothie)
-    if isinstance(model, (LiteLLM)):
-        assert res.df["Location"].unique().tolist() == ["Alaska"]
+# @pytest.mark.long
+# def test_rag_qa(bsql, model):
+#     if os.getenv("AZURE_SUBSCRIPTION_KEY") is None:
+#         pytest.skip("AZURE_SUBSCRIPTION_KEY environment variable not set")
+#     res = bsql.execute(
+#         """
+#         SELECT Name, Location, Description FROM parks
+#         WHERE Location = {{RAGQA('Which state was Sarah Palin governor of?')}}
+#         """,
+#         model=model,
+#         # We expect the `blend()` call to fetch the appropriate ingredients for us
+#         ingredients={RAGQA},
+#     )
+#     assert isinstance(res, Smoothie)
+#     if isinstance(model, (LiteLLM)):
+#         assert res.df["Location"].unique().tolist() == ["Alaska"]

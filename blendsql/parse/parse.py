@@ -8,14 +8,14 @@ from attr import attrs, attrib
 from colorama import Fore
 
 from blendsql.common.utils import get_tablename_colname
-from blendsql.common.constants import ColumnRef
-from ..types import QuantifierType, DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE
+from blendsql.common.typing import QuantifierType, ColumnRef
+from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE
+from blendsql.common.logger import logger
 from .dialect import _parse_one
 from . import checks as check
 from . import transforms as transform
 from .constants import SUBQUERY_EXP
 from .utils import set_select_to
-from blendsql.common.logger import logger
 
 
 def get_reversed_subqueries(node):

@@ -5,7 +5,7 @@ import re
 from colorama import Fore
 
 from blendsql.common.logger import logger
-from ..types import QuantifierType
+from blendsql.common.typing import QuantifierType
 from .few_shot import Example
 
 

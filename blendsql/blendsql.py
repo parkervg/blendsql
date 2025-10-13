@@ -40,7 +40,7 @@ from blendsql.parse import (
 from blendsql.parse.constants import MODIFIERS
 from blendsql.ingredients.ingredient import Ingredient, IngredientException
 from blendsql.smoothie import Smoothie, SmoothieMeta
-from blendsql.common.constants import IngredientType, Subquery, ColumnRef
+from blendsql.common.typing import IngredientType, Subquery, ColumnRef
 from blendsql.models.model import Model
 
 format_blendsql_function = lambda name: "{{" + name + "()}}"

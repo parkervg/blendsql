@@ -5,11 +5,10 @@ from collections.abc import Collection
 
 from blendsql.common.exceptions import IngredientException
 from blendsql.types.types import (
-    QuantifierType,
-    DataType,
     DataTypes,
     STR_TO_DATATYPE,
 )
+from blendsql.common.typing import QuantifierType, DataType
 from blendsql.common.logger import logger
 
 

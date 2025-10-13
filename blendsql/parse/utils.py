@@ -1,7 +1,7 @@
 import copy
 from sqlglot import exp
 
-from ..db.utils import double_quote_escape
+from blendsql.db.utils import double_quote_escape
 
 
 def get_first_child(node):
