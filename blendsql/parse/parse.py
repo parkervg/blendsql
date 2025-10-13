@@ -338,7 +338,7 @@ class SubqueryContextManager:
             self.alias_to_subquery |= curr_alias_to_subquery
 
     def infer_gen_constraints(
-        self, function_node: exp.Expression, schema: dict
+        self, function_node: exp.Expression, schema: dict, alias_to_tablename: dict
     ) -> dict:
         """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
             downstream Model generations.
@@ -398,24 +398,28 @@ class SubqueryContextManager:
         # If so, we adopt that type as our generation
         column_in_predicate = parent_node.find(exp.Column)
         if column_in_predicate is not None:
-            native_db_type = schema.get(column_in_predicate.table, {}).get(
+            tablename = alias_to_tablename.get(
+                column_in_predicate.table, column_in_predicate.table
+            )
+            native_db_type = schema.get(tablename, {}).get(
                 column_in_predicate.this.name, None
             )
-            if native_db_type in DB_TYPE_TO_STR:
-                resolved_type = DB_TYPE_TO_STR[native_db_type]
-                if resolved_type != "str":
-                    output_type = STR_TO_DATATYPE[DB_TYPE_TO_STR[native_db_type]]
+            if native_db_type is not None:
+                if native_db_type in DB_TYPE_TO_STR:
+                    resolved_type = DB_TYPE_TO_STR[native_db_type]
+                    if resolved_type != "str":
+                        output_type = STR_TO_DATATYPE[DB_TYPE_TO_STR[native_db_type]]
+                        logger.debug(
+                            Fore.LIGHTBLACK_EX
+                            + f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
+                            + Fore.RESET
+                        )
+                else:
                     logger.debug(
-                        Fore.LIGHTBLACK_EX
-                        + f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
+                        Fore.YELLOW
+                        + f"No type logic for native DB type {native_db_type}!"
                         + Fore.RESET
                     )
-            else:
-                logger.debug(
-                    Fore.YELLOW
-                    + f"No type logic for native DB type {native_db_type}!"
-                    + Fore.RESET
-                )
         if output_type is None:
             if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
                 if isinstance(parent_node, (exp.Tuple, exp.Values)):

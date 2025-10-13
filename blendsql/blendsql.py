@@ -676,7 +676,9 @@ def _blend(
                 #   It's not overriden here
                 kwargs_dict = (
                     scm.infer_gen_constraints(
-                        function_node=function_node, schema=db.sqlglot_schema
+                        function_node=function_node,
+                        schema=db.sqlglot_schema,
+                        alias_to_tablename=scm.alias_to_tablename,
                     )
                     | kwargs_dict
                 )
