@@ -165,6 +165,7 @@ print(smoothie.summary())
 ```
 
 # 📰 News
+- (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
 - (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
 - (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
 - (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
@@ -198,6 +199,12 @@ As a result, we can *Blend* together...
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
   - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+
+# Benchmarks 
+
+See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208) for more details. 
+
+![latency_analysis](docs/img/runtime_analysis.png)
 
 # Example
 For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
