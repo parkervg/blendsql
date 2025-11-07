@@ -14,7 +14,7 @@
     <i> SQL 🤝 LLMs </i>
   </p>
 <div align="center">
-```sql
+<pre><code class="language-sql">
 SELECT {{
     LLMQA(
         'Describe BlendSQL in 50 words.',
@@ -25,7 +25,7 @@ SELECT {{
     )
 }} AS answer
 ```
-
+</code></pre>
 </div>
 <b><h3>Check out our <a href="https://parkervg.github.io/blendsql/reference/functions/" target="_blank">online documentation</a> for a more comprehensive overview.</h3></b>
 <b><h4>Join our <a href="https://discord.gg/vCv7ak3WrU" target="_blank">Discord server</a> for more discussion!</h4></b>
