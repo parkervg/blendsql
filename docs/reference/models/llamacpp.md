@@ -13,7 +13,7 @@ hide:
     ```
 
 
-## TransformersLLM
+## LlamaCpp
 
 ::: blendsql.models.constrained.guidance.LlamaCpp
     handler: python
