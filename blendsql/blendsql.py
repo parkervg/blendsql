@@ -392,7 +392,10 @@ def _blend(
     dialect: sqlglot.Dialect = get_dialect(db.__class__.__name__)
 
     query_context = QueryContextManager(dialect)
-    query_context.parse(query, schema=db.sqlglot_schema)
+    # sqlglot will add `"".column` if we pass an empty dict as a schema instead of `None`
+    query_context.parse(
+        query, schema=db.sqlglot_schema if len(db.sqlglot_schema) > 0 else None
+    )
 
     session_uuid = str(uuid.uuid4())[:4]
     if ingredients is None:
@@ -432,7 +435,9 @@ def _blend(
         # Check to see if there is a table we haven't materialized yet
         # Need to `try`, `except` for cases like DuckDB's `...FROM read_text(x)`
         try:
-            for tablename in [i.name for i in query_context.node.find_all(exp.Table)]:
+            for tablename in [
+                i.name for i in query_context.node.find_all(exp.Table) if i.name != ""
+            ]:
                 if tablename not in db.tables():
                     materialized_smoothie = db.lazy_tables.pop(tablename).collect()
                     _prev_passed_values += materialized_smoothie.meta.num_values_passed
