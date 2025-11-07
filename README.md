@@ -49,9 +49,13 @@ USE_LOCAL_CONSTRAINED_MODEL = False
 
 # Load model, either a local transformers model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
+    # Local models enable BlendSQL's expression-guided constrained decoding
+    # https://arxiv.org/abs/2509.20208
+    import torch
+    
     model = TransformersLLM(
-        "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
-    )  # Local models enable BlendSQL's predicate-guided constrained decoding
+        "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto", "torch_dtype": torch.bfloat16}
+    ) 
 else:
     model = LiteLLM("openai/gpt-4o-mini")
 
