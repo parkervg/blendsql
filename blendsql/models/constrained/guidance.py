@@ -24,7 +24,11 @@ class TransformersLLM(ConstrainedModel):
     Examples:
         ```python
         from blendsql.models import TransformersLLM
-        model = TransformersLLM("Qwen/Qwen1.5-0.5B")
+
+        model = TransformersLLM(
+            "Qwen/Qwen1.5-0.5B",
+            config={"device_map": "auto", "torch_dtype": torch.bfloat16},
+        )
         ```
     """
 
@@ -81,7 +85,12 @@ class LlamaCpp(ConstrainedModel):
     Examples:
         ```python
         from blendsql.models import LlamaCpp
-        model = LlamaCpp("Qwen/Qwen1.5-0.5B")
+
+        model = LlamaCpp(
+            "google_gemma-3-12b-it-Q6_K.gguf",
+            "bartowski/google_gemma-3-12b-it-GGUF",
+            config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
+        )
         ```
     """
 
