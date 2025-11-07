@@ -20,6 +20,7 @@ class TransformersLLM(ConstrainedModel):
     Args:
         model_name_or_path: Name of the model on HuggingFace, or the path to a local model
         caching: Bool determining whether we access the model's cache
+        config: Additional parameters to pass to the `from_pretrained()` call
 
     Examples:
         ```python
@@ -79,8 +80,10 @@ class LlamaCpp(ConstrainedModel):
     """Class for LlamaCpp local Model.
 
     Args:
-        model_name_or_path: Name of the model on HuggingFace, or the path to a local model
+        filename: Specific .gguf file (local or on HuggingFace) to load
+        model_name_or_path: Optional path to the model on HuggingFace
         caching: Bool determining whether we access the model's cache
+        config: Additional parameters to pass to the `Llama()` construction call
 
     Examples:
         ```python
