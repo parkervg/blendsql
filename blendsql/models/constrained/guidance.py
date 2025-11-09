@@ -90,8 +90,8 @@ class LlamaCpp(ConstrainedModel):
         from blendsql.models import LlamaCpp
 
         model = LlamaCpp(
-            "google_gemma-3-12b-it-Q6_K.gguf",
-            "bartowski/google_gemma-3-12b-it-GGUF",
+            filename="google_gemma-3-12b-it-Q6_K.gguf",
+            model_name_or_path="bartowski/google_gemma-3-12b-it-GGUF",
             config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
         )
         ```
@@ -162,7 +162,8 @@ class LlamaCpp(ConstrainedModel):
 
         # llama.cpp doesn't like when we have two running simultaneously
         #   so we do a little switcheroo with the tokenizer here
-        self.__delattr__("tokenizer")
+        if hasattr(self, "tokenizer"):
+            self.__delattr__("tokenizer")
 
         lm = GuidanceLlamaCpp(
             self._load_llama_cpp(
