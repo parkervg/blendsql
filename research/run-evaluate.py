@@ -2,6 +2,8 @@ from pathlib import Path
 import pandas as pd
 import json
 import typing as t
+from functools import lru_cache
+import duckdb
 from dataclasses import dataclass, field, asdict
 
 import torch
@@ -10,7 +12,7 @@ from tag_queries import BLENDSQL_ANNOTATED_TAG_DATASET
 
 from blendsql import BlendSQL
 from blendsql.models import LlamaCpp, TransformersLLM
-from blendsql.ingredients import LLMQA, LLMMap, LLMJoin, RAGQA
+from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 
 CURR_DIR = Path(__file__).resolve().parent
 
@@ -26,6 +28,111 @@ def load_tag_db_path(name: str) -> str:
     return (
         CURR_DIR / "data/bird-sql/dev_20240627/dev_databases/" / name / f"{name}.sqlite"
     )
+
+
+# Define DuckDB UDFs
+# Since UDFs here don't support a union type,
+# we need to create a separate function for each possible type
+def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
+    def _run_llmmap(return_type: str):
+        @lru_cache(maxsize=1000)
+        def run_llmmap(question: str, value: str, options: list[str]):
+            if options is not None:
+                options = [i for i in set(options) if i is not None]
+                options = [option.strip("'").strip('"') for option in options]
+            global NUM_VALUES_PASSED
+            mapped_values = LLMMap.run(
+                model=model,
+                question=question,
+                values=[value],
+                options=options,
+                list_options_in_prompt=True,
+                return_type=return_type,
+                context_formatter=LLMMap.context_formatter,
+            )
+            NUM_VALUES_PASSED += len(mapped_values)
+            return mapped_values[0]
+
+        return run_llmmap
+
+    def _run_llmqa(return_type: str):
+        def run_llmqa(question: str, context: str, options: list[str]):
+            if options is not None:
+                options = [i for i in set(options) if i is not None]
+                options = [option.strip("'").strip('"') for option in options]
+            if context is not None:
+                context = [pd.DataFrame({"values": context.split("\n---\n")})]
+            response: str = LLMQA.run(
+                model=model,
+                question=question,
+                context=context,
+                options=options,
+                list_options_in_prompt=True,
+                return_type=return_type,
+                context_formatter=LLMQA.context_formatter,
+            )
+            print(response)
+            if return_type == "str":
+                return response.strip("'").strip('"')
+
+        return run_llmqa
+
+    for func_name, func in [("LLMMap", _run_llmmap), ("LLMQA", _run_llmqa)]:
+        conn.create_function(
+            name=f"{func_name}Bool",
+            function=func("bool"),
+            parameters=[
+                duckdb.sqltype("string"),
+                duckdb.sqltype("string"),
+                duckdb.list_type(duckdb.sqltype("string")),
+            ],
+            return_type=duckdb.sqltype("bool"),
+            null_handling="special",
+        )
+        conn.create_function(
+            name=f"{func_name}Int",
+            function=func("int"),
+            parameters=[
+                duckdb.sqltype("string"),
+                duckdb.sqltype("string"),
+                duckdb.list_type(duckdb.sqltype("string")),
+            ],
+            return_type=duckdb.sqltype("int"),
+            null_handling="special",
+        )
+        conn.create_function(
+            name=f"{func_name}Str",
+            function=func("str"),
+            parameters=[
+                duckdb.sqltype("string"),
+                duckdb.sqltype("string"),
+                duckdb.list_type(duckdb.sqltype("string")),
+            ],
+            return_type=duckdb.sqltype("string"),
+            null_handling="special",
+        )
+        conn.create_function(
+            name=f"{func_name}Substr",
+            function=func("substring"),
+            parameters=[
+                duckdb.sqltype("string"),
+                duckdb.sqltype("string"),
+                duckdb.list_type(duckdb.sqltype("string")),
+            ],
+            return_type=duckdb.sqltype("string"),
+            null_handling="special",
+        )
+        conn.create_function(
+            name=f"{func_name}List",
+            function=func("List[str]"),
+            parameters=[
+                duckdb.sqltype("string"),
+                duckdb.sqltype("string"),
+                duckdb.list_type(duckdb.sqltype("string")),
+            ],
+            return_type=duckdb.list_type(duckdb.sqltype("string")),
+            null_handling="special",
+        )
 
 
 def get_group_stats(df: pd.DataFrame, group_on: str, metrics: list) -> pd.DataFrame:
@@ -47,10 +154,6 @@ if __name__ == "__main__":
         experiment_name="orient_dict_fmt_code_map_prompt",
     )
 
-    # CONFIG = ExperimentConfig(
-    #     repo_id="microsoft/Phi-3.5-mini-instruct",
-    #     experiment_name="no_llmqa_examples"
-    # )
     ingredients = {
         LLMQA.from_args(
             num_few_shot_examples=0,
@@ -60,7 +163,6 @@ if __name__ == "__main__":
         ),
         LLMMap,
         LLMJoin,
-        RAGQA,
     }
 
     # from blendsql.db import SQLite
@@ -86,7 +188,7 @@ if __name__ == "__main__":
             caching=False,
         )
     # Pre-load model obj
-    # _ = model.model_obj
+    _ = model.model_obj
 
     load_bsql = lambda path: BlendSQL(
         path,

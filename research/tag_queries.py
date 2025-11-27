@@ -12,6 +12,16 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
                 JOIN satscores sa ON s.CDSCode = sa.cds 
                 WHERE sa.AvgScrMath > 560 
                 AND {{LLMMap('Is this a county in the California Bay Area?', s.County)}} = TRUE""",
+        "DuckDB": """SELECT COUNT(DISTINCT s.CDSCode) 
+                FROM schools s 
+                JOIN satscores sa ON s.CDSCode = sa.cds 
+                WHERE sa.AvgScrMath > 560 
+                AND LLMMapBool(
+                    'Is this a county in the California Bay Area?', 
+                    s.County,
+                    NULL
+                ) = TRUE
+        """,
         "Notes": None,
     },
     {
@@ -29,6 +39,18 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
             AND ss.AvgScrRead IS NOT NULL
             ORDER BY ss.AvgScrRead ASC 
             LIMIT 1""",
+        "DuckDB": """SELECT s.Phone 
+            FROM satscores ss 
+            JOIN schools s ON ss.cds = s.CDSCode 
+            WHERE LLMMapBool(
+                'Is this county in Southern California?', 
+                s.County,
+                NULL
+            ) = TRUE
+            AND ss.AvgScrRead IS NOT NULL
+            ORDER BY ss.AvgScrRead ASC 
+            LIMIT 1
+        """,
         "Notes": None,
     },
     {
@@ -45,9 +67,18 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         WHERE {{
             LLMMap(
                 'What is the population of this California county? Give your best guess.',
-                s.County
+                s.County, 
+                NULL
             )
         }} > 2000000""",
+        "DuckDB": """SELECT SUM(ss.NumTstTakr)
+        FROM satscores ss
+        JOIN schools s ON s.CDSCode = ss.cds
+        WHERE LLMMapInt(
+            'What is the population of this California county? Give your best guess.',
+            s.County,
+            NULL
+        ) > 2000000""",
         "Notes": None,
     },
     {
@@ -61,6 +92,12 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT GSoffered
             FROM schools
             WHERE {{LLMMap('Is this county in Silicon Valley?', County)}} = TRUE
+            AND County IS NOT NULL
+            ORDER BY Longitude DESC 
+            LIMIT 1""",
+        "DuckDB": """SELECT GSoffered
+            FROM schools
+            WHERE LLMMapBool('Is this county in Silicon Valley?', County, NULL) = TRUE
             AND County IS NOT NULL
             ORDER BY Longitude DESC 
             LIMIT 1""",
@@ -84,6 +121,15 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         ) SELECT name FROM top_names 
         WHERE {{LLMMap('Is this a female name?', name)}} = TRUE
         ORDER BY count DESC LIMIT 2""",
+        "DuckDB": """WITH top_names AS (
+            SELECT AdmFName1 AS name, COUNT(AdmFName1) AS count
+            FROM schools 
+            GROUP BY "AdmFName1" 
+            ORDER BY count DESC 
+            LIMIT 20
+        ) SELECT name FROM top_names 
+        WHERE LLMMapBool('Is this a female name?', name, NULL) = TRUE
+        ORDER BY count DESC LIMIT 2""",
         "Notes": "Works, assuming that two of the top 20 names are female names. Otherwise would need to apply LLM function over entire table - but, that's the 'correct' interpretation of the query. TAG bench uses only the top 20 names, like we do here.",
     },
     {
@@ -100,6 +146,12 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         WHERE u.DisplayName = 'csgillespie'
         AND ParentId IS NULL 
         AND {{LLMMap('Does this post mention academic papers?', p.Body)}} = TRUE""",
+        "DuckDB": """SELECT COUNT(*)
+       FROM posts p
+       JOIN users u ON u.Id = p.OwnerUserId
+       WHERE u.DisplayName = 'csgillespie'
+       AND ParentId IS NULL 
+       AND LLMMapBool('Does this post mention academic papers?', p.Body, NULL) = TRUE""",
         "Notes": None,
     },
     {
@@ -114,6 +166,10 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         FROM comments
         WHERE Score = 17 
         AND {{LLMMap('Is this text about statistics?', Text)}} = TRUE""",
+        "DuckDB": """SELECT COUNT(*) 
+        FROM comments
+        WHERE Score = 17 
+        AND LLMMapBool('Is this text about statistics?', Text, NULL) = TRUE""",
         "Notes": None,
     },
     {
@@ -127,7 +183,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT COUNT(*) 
         FROM posts 
         WHERE ViewCount > 80000 
-        AND {{LLMMap('Does this text discuss the R programming language?', Body)}} = TRUE""",
+        AND LLMMap('Does this text discuss the R programming language?', Body, NULL) = TRUE""",
         "Notes": None,
     },
     {
@@ -149,7 +205,11 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         FROM races r 
         JOIN circuits c ON r.circuitId = c.circuitId 
         WHERE {{LLMMap('Is this a country in the Middle East?', c.country)}} = TRUE""",
-        "Notes": "Is Europe in the Middle East?",
+        "DuckDB": """SELECT DISTINCT r.name 
+        FROM races r 
+        JOIN circuits c ON r.circuitId = c.circuitId 
+        WHERE LLMMapBool('Is this a country in the Middle East?', c.country, NULL) = TRUE""",
+        "Notes": "Is Europe in the Middle East? The ground truth says it is.",
     },
     {
         "Query ID": 13,
@@ -164,6 +224,11 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         JOIN results r ON d.driverId = r.driverId
         JOIN races ra ON r.raceId = ra.raceId
         WHERE ra.year = 2008 AND ra.name = 'Australian Grand Prix' AND {{LLMMap('Is this nationality Asian?', d.nationality)}} = TRUE""",
+        "DuckDB": """SELECT COUNT(DISTINCT d.driverId) AS asian_driver_count
+        FROM drivers d
+        JOIN results r ON d.driverId = r.driverId
+        JOIN races ra ON r.raceId = ra.raceId
+        WHERE ra.year = 2008 AND ra.name = 'Australian Grand Prix' AND LLMMapBool('Is this nationality Asian?', d.nationality) = TRUE""",
         "Notes": None,
     },
     {
@@ -180,6 +245,12 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
                     "Which player has the most Ballon d'Or awards?"
                 )
             }} LIMIT 1""",
+        "DuckDB": """SELECT preferred_foot FROM Player p JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
+        WHERE player_name = LLMQAStr(
+            "Which player has the most Ballon d'Or awards?",
+            NULL,
+            (SELECT LIST(player_name) FROM Player),
+        ) LIMIT 1""",
         "Notes": None,
     },
     {
@@ -194,6 +265,11 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         SELECT player_name FROM Player 
         WHERE birthday LIKE '1970%'
         AND {{LLMMap('Would someone born on this day be an Aquarius?', birthday)}} = TRUE
+        """,
+        "DuckDB": """
+        SELECT player_name FROM Player 
+        WHERE birthday LIKE '1970%'
+        AND LLMMapBool('Would someone born on this day be an Aquarius?', birthday, NULL) = TRUE
         """,
         #         "BlendSQL": """WITH DateRange AS (
         # SELECT * FROM VALUES {{LLMQA('What are the start and end date ranges for an Aquarius? Respond in MM-DD.', regex='\\d{2}-\\d{2}', quantifier='{2}')}}
@@ -215,7 +291,10 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT l.name FROM League l 
         JOIN Country c ON l.country_id = c.id
         WHERE {{LLMMap('Is this country landlocked?', c.name)}} = TRUE""",
-        "Notes": "Broken as of d2af6ed, due to JOIN on duplicate column names",
+        "DuckDB": """SELECT l.name FROM League l 
+        JOIN Country c ON l.country_id = c.id
+        WHERE LLMMapBool('Is this country landlocked?', c.name, NULL) = TRUE""",
+        "Notes": None,
     },
     {
         "Query ID": 20,
@@ -229,6 +308,11 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         JOIN Country c ON m.country_id = c.id
         WHERE m.season = '2008/2009' 
         AND {{LLMMap('Is French an official language in this country?', c.name)}} = TRUE
+        """,
+        "DuckDB": """SELECT COUNT(*) FROM "Match" m
+        JOIN Country c ON m.country_id = c.id
+        WHERE m.season = '2008/2009' 
+        AND LLMMapBool('Is French an official language in this country?', c.name, NULL) = TRUE
         """,
         # "BlendSQL": """SELECT COUNT(*) FROM "Match" m
         # JOIN Country c ON m.country_id = c.id
@@ -250,6 +334,11 @@ SELECT DISTINCT team_long_name AS name, away_team_Goal FROM Team t
 JOIN "Match" m ON t.team_api_id = m.away_team_api_id
 ORDER BY away_team_goal DESC LIMIT 3
 ) SELECT {{LLMQA('Which team has the most fans?', options=top_teams.name)}}""",
+        "DuckDB": """WITH top_teams AS (
+    SELECT DISTINCT team_long_name AS name, away_team_Goal FROM Team t 
+    JOIN "Match" m ON t.team_api_id = m.away_team_api_id
+    ORDER BY away_team_goal DESC LIMIT 3
+    ) SELECT LLMQA('Which team has the most fans?', NULL, (SELECT LIST(name) FROM top_teams))""",
         "Notes": None,
     },
     {
@@ -266,6 +355,12 @@ ORDER BY away_team_goal DESC LIMIT 3
         GROUP BY "year"
         ORDER BY SUM(ym.Consumption) DESC LIMIT 1
         """,
+        "DuckDB": """SELECT ym.Date / 100 AS "year" FROM customers c
+        JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
+        WHERE c.Currency = LLMQAStr('Which currency is the higher value?', NULL, (SELECT LIST(Currency) FROM customers))
+        GROUP BY "year"
+        ORDER BY SUM(ym.Consumption) DESC LIMIT 1
+        """,
         "Notes": None,
     },
     {
@@ -278,6 +373,9 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Answer": ["YES", "YES", "YES"],
         "order_insensitive_answer": True,
         "BlendSQL": """SELECT {{LLMMap('Is the post relevant to Machine Learning?', p.Body, options=('YES', 'NO'))}} 
+        FROM posts p JOIN votes v ON p.Id = v.PostId WHERE v.UserId = 1465
+        """,
+        "DuckDB": """SELECT CASE WHEN LLMMapBool('Is the post relevant to Machine Learning?', p.Body, NULL) = TRUE THEN 'YES' ELSE 'NO' END
         FROM posts p JOIN votes v ON p.Id = v.PostId WHERE v.UserId = 1465
         """,
         "Notes": None,
@@ -298,6 +396,8 @@ ORDER BY away_team_goal DESC LIMIT 3
         "order_insensitive_answer": True,
         "BlendSQL": """SELECT {{LLMMap('Extract the most statistical term from the title', p.Title, return_type='substring')}}
         FROM posts p JOIN users u ON p.OwnerUserId = u.Id WHERE u.DisplayName = 'Vebjorn Ljosa'""",
+        "DuckDB": """SELECT LLMMapSubstr('Extract the most statistical term from the title', p.Title, NULL)
+        FROM posts p JOIN users u ON p.OwnerUserId = u.Id WHERE u.DisplayName = 'Vebjorn Ljosa'""",
         "Notes": None,
     },
     {
@@ -317,6 +417,14 @@ ORDER BY away_team_goal DESC LIMIT 3
             WHERE p.Title = 'Analysing wind data with R'
             ORDER BY u.CreationDate LIMIT 5
         ) SELECT Id FROM new_c WHERE {{LLMMap('Does the comment have a positive sentiment?', Text)}} = TRUE""",
+        "DuckDB": """WITH new_c AS
+        (
+            SELECT c.Id, c.Text FROM comments c
+            JOIN posts p ON p.Id = c.PostId
+            JOIN users u ON p.OwnerUserId = u.Id
+            WHERE p.Title = 'Analysing wind data with R'
+            ORDER BY u.CreationDate LIMIT 5
+        ) SELECT Id FROM new_c WHERE LLMMapBool('Does the comment have a positive sentiment?', Text, NULL) = TRUE""",
         "Notes": None,
     },
     {
@@ -339,6 +447,17 @@ ORDER BY away_team_goal DESC LIMIT 3
             )
         }}
         """,
+        "DuckDB": """SELECT CASE WHEN 
+            LLMQABool(
+                'Is the content in "Body" true or false?',
+                (
+                    SELECT STRING_AGG(Body, '\n---\n') FROM posts p 
+                    JOIN tags t ON t.ExcerptPostId = p.Id 
+                    WHERE t.TagName = 'bayesian'
+                ),
+                NULL
+            ) = TRUE THEN 'True' ELSE 'False' END
+        """,
         "Notes": None,
     },
     {
@@ -352,6 +471,10 @@ ORDER BY away_team_goal DESC LIMIT 3
         "BlendSQL": """SELECT CAST(ROUND(AVG(t.Price)) AS INT) FROM transactions_1k t 
         JOIN gasstations g ON g.GasStationID = t.GasStationID
         WHERE g.Country IN {{LLMQA('What are abbreviations for the country historically known as Bohemia? If there are multiple possible abbreviations list them as a python list with quotes around each abbreviation.')}} 
+        """,
+        "DuckDB": """SELECT CAST(ROUND(AVG(t.Price)) AS INT) FROM transactions_1k t 
+        JOIN gasstations g ON g.GasStationID = t.GasStationID
+        WHERE g.Country IN LLMQAList('What are abbreviations for the country historically known as Bohemia? If there are multiple possible abbreviations list them as a python list with quotes around each abbreviation.', NULL, NULL) 
         """,
         "Notes": "Good example of program-inferred constraints.",
     },
@@ -369,6 +492,12 @@ ORDER BY away_team_goal DESC LIMIT 3
         AND u.Location = {{LLMQA("What's the capital city of Austria?")}}
         ORDER BY u.Age DESC LIMIT 1
         """,
+        "DuckDB": """SELECT DisplayName FROM users u
+       JOIN badges b ON u.Id = b.UserId
+       WHERE b.Name = 'Supporter'
+       AND u.Location = LLMQAStr('What''s the capital city of Austria?', NULL, (SELECT LIST(Location) FROM users))
+       ORDER BY u.Age DESC LIMIT 1
+       """,
         "Notes": "TAG code is incorrect. There are many different ways 'Vienna' is represented in the database: ['Vienna, Austria', 'Vienna/Austria', 'vienna', 'Vienna, VA']. Though it is impossible to determine which are pointing to the location in Austria.",
     },
     {
@@ -387,6 +516,14 @@ ORDER BY away_team_goal DESC LIMIT 3
         CAST(ROUND((SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = {{LLMQA('Currency code of Czech Republic?')}}) - 
         (SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = {{LLMQA('Currency code of European Union?')}})) AS INT)
         """,
+        "DuckDB": """WITH gas_consumption AS (
+            SELECT ym.Consumption, c.Currency FROM customers c 
+            JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
+            WHERE CAST(ym.Date AS INT) / 100 = 2012
+        ) SELECT 
+        CAST(ROUND((SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = LLMQAStr('Currency code of European Union?', NULL, (SELECT LIST(Currency) FROM gas_consumption))) - 
+        (SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = LLMQAStr('Currency code of European Union?', NULL, (SELECT LIST(Currency) FROM gas_consumption)))) AS INT)
+        """,
         "Notes": None,
     },
     {
@@ -401,7 +538,14 @@ ORDER BY away_team_goal DESC LIMIT 3
         SELECT * FROM customers c WHERE c.Segment = 'SME'
         ) SELECT CASE 
         WHEN (SELECT COUNT(*) FROM sme_payers p WHERE p.Currency = 'CZK') >
-        (SELECT COUNT(*) FROM sme_payers p WHERE p.Currency = {{LLMQA('What is the 3 letter code for the second-largest reserved currency in the')}})
+        (SELECT COUNT(*) FROM sme_payers p WHERE p.Currency = {{LLMQA('What is the 3 letter code for the second-largest reserved currency in the world?')}})
+        THEN 'Yes' ELSE 'No' END
+        """,
+        "DuckDB": """WITH sme_payers AS (
+        SELECT * FROM customers c WHERE c.Segment = 'SME'
+        ) SELECT CASE 
+        WHEN (SELECT COUNT(*) FROM sme_payers p WHERE p.Currency = 'CZK') >
+        (SELECT COUNT(*) FROM sme_payers p WHERE p.Currency = LLMQAStr('What is the 3 letter code for the second-largest reserved currency in the world?', NULL, (SELECT LIST(Currency) FROM sme_payers)))
         THEN 'Yes' ELSE 'No' END
         """,
         "Notes": None,
@@ -420,6 +564,12 @@ ORDER BY away_team_goal DESC LIMIT 3
         WHERE s.City = {{LLMQA('What is the name of the city that is the county seat of Lake County, California?')}}
         AND ss.AvgScrMath + ss.AvgScrWrite + ss.AvgScrRead >= 1500
         """,
+        "DuckDB": """
+        SELECT COUNT(*) FROM schools s 
+        JOIN satscores ss ON ss.cds = s.CDSCode
+        WHERE s.City = LLMQAstr('What is the name of the city that is the county seat of Lake County, California?', NULL, (SELECT LIST(City) FROM schools))
+        AND ss.AvgScrMath + ss.AvgScrWrite + ss.AvgScrRead >= 1500
+        """,
         "Notes": None,
     },
     {
@@ -435,6 +585,11 @@ ORDER BY away_team_goal DESC LIMIT 3
         WHERE r.rank = 2 
         AND CAST(SUBSTR(d.dob, 1, 4) AS NUMERIC) > {{LLMQA('What year did the Vietnam war end?', regex='\d{4}')}}
         """,
+        "DuckDB": """SELECT COUNT(DISTINCT d.driverId) FROM drivers d 
+       JOIN results r ON d.driverId = r.driverId 
+       WHERE r.rank = 2 
+       AND CAST(SUBSTR(d.dob, 1, 4) AS NUMERIC) > LLMQAInt('What year did the Vietnam war end?', NULL, NULL)
+       """,
         "Notes": None,
     },
     {
@@ -451,6 +606,14 @@ ORDER BY away_team_goal DESC LIMIT 3
         WHERE r.name = 'European Grand Prix'
         ) SELECT CAST(ROUND(1.0 *
         (SELECT COUNT(*) FROM gp_races WHERE {{LLMMap('Does the Bundesliga happen here?', country)}} = TRUE) / 
+        (SELECT COUNT(*) FROM gp_races) * 100) AS INT)
+        """,
+        "DuckDB": """WITH gp_races AS (
+        SELECT country FROM races r 
+        JOIN circuits c ON c.circuitId = r.circuitId 
+        WHERE r.name = 'European Grand Prix'
+        ) SELECT CAST(ROUND(1.0 *
+        (SELECT COUNT(*) FROM gp_races WHERE LLMMapBool('Does the Bundesliga happen here?', country, NULL) = TRUE) / 
         (SELECT COUNT(*) FROM gp_races) * 100) AS INT)
         """,
         # "BlendSQL": """WITH gp_races AS (
@@ -478,6 +641,13 @@ ORDER BY away_team_goal DESC LIMIT 3
         AND p.height < {{LLMQA('How tall was Michael Jordan in cm? Give your best guess.')}}
         AND CAST(SUBSTR(pa.date, 1, 4) AS NUMERIC) BETWEEN 2010 AND 2015
         """,
+        "DuckDB": """SELECT CAST(ROUND(AVG(pa.overall_rating)) AS INT)
+        FROM Player_Attributes pa 
+        JOIN Player p ON p.player_api_id = pa.player_api_id 
+        WHERE p.height > 170 
+        AND p.height < LLMQAInt('How tall was Michael Jordan in cm? Give your best guess.', NULL, NULL)
+        AND CAST(SUBSTR(pa.date, 1, 4) AS NUMERIC) BETWEEN 2010 AND 2015
+        """,
         "Notes": None,
     },
     {
@@ -497,6 +667,16 @@ ORDER BY away_team_goal DESC LIMIT 3
         AND r.time IS NOT NULL
         ) SELECT COUNT(*) FROM gp_drivers
         WHERE gp_drivers.year > {{LLMMap('What year did this driver debut?', gp_drivers.name, regex='\d{4}')}}
+        """,
+        "DuckDB": """WITH gp_drivers AS (
+        SELECT CONCAT(d.forename, ' ', d.surname) AS name, ra.year FROM drivers d
+        JOIN results r ON r.driverId = d.driverId 
+        JOIN races ra ON r.raceId = ra.raceId
+        WHERE ra.name = 'Australian Grand Prix'
+        AND ra.year = 2008 
+        AND r.time IS NOT NULL
+        ) SELECT COUNT(*) FROM gp_drivers
+        WHERE gp_drivers.year > LLMMapInt('What year did this driver debut?', gp_drivers.name, NULL, NULL)
         """,
         # "BlendSQL": """WITH gp_drivers AS (
         # SELECT CONCAT(d.forename, ' ', d.surname) AS name FROM drivers d
@@ -518,7 +698,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "3028",
         "BlendSQL": """SELECT COUNT(*) FROM Player p 
-        WHERE CAST(SUBSTR(birthday, 1, 4) AS NUMERIC) > {{LLMQA('What year did the 14th FIFA World Cup take place?', regex='\d{4}')}}
+        WHERE CAST(SUBSTR(birthday, 1, 4) AS NUMERIC) > LLMQAInt('What year did the 14th FIFA World Cup take place?', NULL, NULL)
         """,
         "Notes": "Gets wrong year for 14th FIFA World Cup.",
     },
@@ -536,6 +716,12 @@ ORDER BY away_team_goal DESC LIMIT 3
         AND pa.volleys > 70
         AND p.height > {{LLMQA('How tall is Bill Clinton in centimeters?')}}
         """,
+        "DuckDB": """SELECT COUNT(DISTINCT p.player_api_id) FROM Player p 
+       JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
+       WHERE p.height >= 180 
+       AND pa.volleys > 70
+       AND p.height > LLMQA('How tall is Bill Clinton in centimeters?', NULL, NULL)
+       """,
         "Notes": "Gets Bill Clinton height wrong",
     },
     {
@@ -551,6 +737,11 @@ ORDER BY away_team_goal DESC LIMIT 3
         WHERE f."Free Meal Count (K-12)" / f."Enrollment (K-12)" > 0.1
         AND ss.AvgScrRead + ss.AvgScrMath >= {{LLMQA('What is the maximum possible SAT score?')}} - 300
         """,
+        "DuckDB": """SELECT COUNT(DISTINCT f.CDSCode) FROM frpm f 
+        JOIN satscores ss ON ss.cds = f.CDSCode
+        WHERE f."Free Meal Count (K-12)" / f."Enrollment (K-12)" > 0.1
+        AND ss.AvgScrRead + ss.AvgScrMath >= LLMQAInt('What is the maximum possible SAT score?', NULL, NULL) - 300
+        """,
         "Notes": "TAG query seems wrong, they subtract 300 instead of 100.",
     },
     {
@@ -564,6 +755,10 @@ ORDER BY away_team_goal DESC LIMIT 3
         "BlendSQL": """SELECT COUNT(DISTINCT s.CDSCode) FROM frpm f 
         JOIN schools s ON s.CDSCode = f.CDSCode
         WHERE (f."Enrollment (K-12)" - f."Enrollment (Ages 5-17)") > {{LLMQA('How many days are in April?')}}
+        """,
+        "DuckDB": """SELECT COUNT(DISTINCT s.CDSCode) FROM frpm f 
+        JOIN schools s ON s.CDSCode = f.CDSCode
+        WHERE (f."Enrollment (K-12)" - f."Enrollment (Ages 5-17)") > LLMQAInt('How many days are in April?', NULL, NULL)
         """,
         "Notes": "Ground truth answer seems wrong - looks like it should be 1239?",
     },
@@ -579,6 +774,10 @@ ORDER BY away_team_goal DESC LIMIT 3
         WHERE u.UpVotes > 100
         AND u.Age > {{LLMQA('What is the median age in America? Give your best guess.')}}
         """,
+        "DuckDB": """SELECT COUNT(DISTINCT u.Id) FROM users u 
+        WHERE u.UpVotes > 100
+        AND u.Age > LLMQA('What is the median age in America? Give your best guess.', NULL, NULL)
+        """,
         "Notes": None,
     },
     {
@@ -593,6 +792,9 @@ ORDER BY away_team_goal DESC LIMIT 3
         "BlendSQL": """SELECT DISTINCT p.player_name FROM Player p
         WHERE p.height > {{LLMQA('What is 6 foot 8 in centimeters?')}}
         """,
+        "DuckDB": """SELECT DISTINCT p.player_name FROM Player p
+        WHERE p.height > LLMQAInt('What is 6 foot 8 in centimeters?', NULL, NULL)
+        """,
         "Notes": None,
     },
     {
@@ -603,9 +805,13 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Query type": "Comparison",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "24",
-        "BlendSQL": """SELECT COUNT(*) FROM Player p 
+        # "BlendSQL": """SELECT COUNT(*) FROM Player p
+        # WHERE p.player_name LIKE 'Adam%'
+        # AND p.weight > {{LLMQA('What is 77.1kg in pounds?')}}
+        # """,
+        "DuckDB": """SELECT COUNT(*) FROM Player p 
         WHERE p.player_name LIKE 'Adam%'
-        AND p.weight > {{LLMQA('What is 77.1kg in pounds?')}}
+        AND p.weight > LLMQAInt('What is 77.1kg in pounds?', NULL, NULL)
         """,
         "Notes": None,
     },
@@ -622,6 +828,10 @@ ORDER BY away_team_goal DESC LIMIT 3
         WHERE p.height > {{LLMQA('What is 5 foot 11 in centimeters?')}}
         ORDER BY player_name LIMIT 3
         """,
+        "DuckDB": """SELECT player_name FROM Player p 
+        WHERE p.height > LLMQAInt('What is 5 foot 11 in centimeters?', NULL, NULL)
+        ORDER BY player_name LIMIT 3
+        """,
         "Notes": None,
     },
     {
@@ -636,6 +846,11 @@ ORDER BY away_team_goal DESC LIMIT 3
         JOIN gasstations gs ON t.GasStationID = gs.GasStationID 
         WHERE gs.Country = 'CZE'
         AND t.Price > {{LLMQA('What is 45 USD in CZK?')}}
+        """,
+        "DuckDB": """SELECT COUNT(*) FROM transactions_1k t 
+        JOIN gasstations gs ON t.GasStationID = gs.GasStationID 
+        WHERE gs.Country = 'CZE'
+        AND t.Price > LLMQAInt('What is 45 USD in CZK?')
         """,
         "Notes": "Currency conversion is wrong",
     },
@@ -655,6 +870,13 @@ ORDER BY away_team_goal DESC LIMIT 3
             
         }}
         """,
+        "DuckDB": """SELECT 
+            LLMQAStr(
+                'Which circuit is located closer to a capital city?', 
+                NULL,
+                ['Silverstone Circuit', 'Hockenheimring', 'Hungaroring']
+            )
+        """,
         "Notes": None,
     },
     {
@@ -670,6 +892,12 @@ ORDER BY away_team_goal DESC LIMIT 3
         JOIN races ra ON ra.raceId = r.raceId 
         WHERE d.forename = 'Alex' AND d.surname = 'Yoong'
         AND r.position < {{LLMQA('How many starting positions are typically in an F1 race?')}} / 2
+        """,
+        "DuckDB": """SELECT ra.name FROM drivers d
+        JOIN results r ON d.driverId = r.driverId
+        JOIN races ra ON ra.raceId = r.raceId 
+        WHERE d.forename = 'Alex' AND d.surname = 'Yoong'
+        AND r.position < LLMQAInt('How many starting positions are typically in an F1 race?', NULL, NULL) / 2
         """,
         "Notes": "LLMQA is wrong (22 instead of 20), but this database results in the correct answer, despite returning multiple values.",
     },
@@ -692,6 +920,17 @@ ORDER BY away_team_goal DESC LIMIT 3
                 )
             )
         }}""",
+        "DuckDB": """SELECT 
+            LLMQA(
+                'Which school name sounds the most futuristic?',
+                (
+                    SELECT STRING_AGG(s.School, '\n---\n') FROM schools s 
+                    JOIN satscores ss ON s.CDSCode = ss.cds
+                    WHERE s.Magnet = TRUE
+                    AND ss.NumTstTakr > 500
+                )
+            )
+        """,
         "Notes": "'Most Futuristic' feels incredibly subjective here.",
     },
     {
@@ -714,6 +953,12 @@ ORDER BY away_team_goal DESC LIMIT 3
             LIMIT 5
         ) SELECT * FROM VALUES {{LLMQA('Order the article titles, from most technical to least technical', options=top_posts.Title)}} 
         """,
+        "DuckDB": """WITH top_posts AS (
+            SELECT Title FROM posts p 
+            ORDER BY p.ViewCount DESC 
+            LIMIT 5
+        ) SELECT * FROM VALUES LLMQAList('Order the article titles, from most technical to least technical', NULL, (SELECT LIST(Title) FROM top_posts))
+        """,
         "Notes": "Again, 'Most technical' is very subjective.",
     },
     {
@@ -729,6 +974,14 @@ ORDER BY away_team_goal DESC LIMIT 3
         JOIN comments c ON p.Id = c.PostId 
         WHERE c.CreationDate LIKE '2014-09-14%'
         AND {{LLMMap("Is the sentiment on this comment grateful?", c.Text)}} = TRUE
+        GROUP BY p.Id
+        ORDER BY COUNT(c.Id) DESC
+        LIMIT 2
+        """,
+        "DuckDB": """SELECT p.Id FROM posts p 
+        JOIN comments c ON p.Id = c.PostId 
+        WHERE CAST(c.CreationDate AS STRING) LIKE '2014-09-14%'
+        AND LLMMapBool('Is the sentiment on this comment grateful?', c.Text, NULL) = TRUE
         GROUP BY p.Id
         ORDER BY COUNT(c.Id) DESC
         LIMIT 2
@@ -758,6 +1011,20 @@ ORDER BY away_team_goal DESC LIMIT 3
             )
         }}
         """,
+        "DuckDB": """WITH top_post AS (
+        SELECT p.Id FROM posts p
+        JOIN users u ON p.OwnerUserId = u.Id 
+        WHERE u.DisplayName = 'csgillespie'
+        ORDER BY p.ViewCount DESC LIMIT 1
+        ) SELECT LLMQAStr(
+            'Which of these comments is the most sarcastic?',
+            NULL,
+            (
+                SELECT LIST(c.Text) FROM comments c 
+                JOIN top_post ON top_post.Id = c.PostId
+            )
+        )
+        """,
         "Notes": "Ground truth is wrong - it contains a value not present in the database. It misses the final '\n;-)' bit. I've corrected it here.",
     },
     {
@@ -777,6 +1044,14 @@ ORDER BY away_team_goal DESC LIMIT 3
                 options=popular_tags.TagName
             )
         }}""",
+        "DuckDB": """WITH popular_tags AS (
+       SELECT TagName FROM tags t 
+       ORDER BY t.Count DESC LIMIT 10
+       ) SELECT LLMQAStr(
+           'Which of these tags is LEAST related to statistics?',
+           NULL,
+           (SELECT LIST(TagName) FROM popular_tags)
+       )""",
         "Notes": None,
     },
     {
@@ -792,6 +1067,12 @@ ORDER BY away_team_goal DESC LIMIT 3
         ORDER BY p.FavoriteCount DESC LIMIT 10
         ) SELECT Id FROM favorited_posts 
         WHERE Body = {{LLMQA('Which of these is the most lighthearted?')}}
+        """,
+        "DuckDB": """WITH favorited_posts AS (
+        SELECT Id, Body FROM posts p 
+        ORDER BY p.FavoriteCount DESC LIMIT 10
+        ) SELECT Id FROM favorited_posts 
+        WHERE Body = LLMQA('Which of these is the most lighthearted?', NULL, (SELECT LIST(Body) FROM favorited_posts))
         """,
         "Notes": """Questionable annotation. Ground truth post is:
         '<p>This is one of my favorites:</p>\n\n<p><img src="http://imgs.xkcd.com/comics/correlation.png" alt="alt text"></p>\n\n<p>One entry per answer. This is in the vein of the Stack Overflow question <em><a href="http://stackoverflow.com/questions/84556/whats-your-favorite-programmer-cartoon">What’s your favorite “programmer” cartoon?</a></em>.</p>\n\n<p>P.S. Do not hotlink the cartoon without the site\'s permission please.</p>\n'
