@@ -54,7 +54,7 @@ class FaissVectorStore(Searcher):
     )
     return_objs: list[ReturnObj] = field(default=None)
     st_encode_kwargs: dict[str, Any] | None = field(default=None)
-    batch_size: t.Optional[int] = field(default=32)
+    batch_size: int | None = field(default=32)
 
     index: "faiss.Index" = field(init=False)
     embedding_model: "SentenceTransformer" = field(init=False)

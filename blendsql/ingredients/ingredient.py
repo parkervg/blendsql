@@ -4,7 +4,7 @@ from abc import abstractmethod
 import pandas as pd
 from sqlglot import exp
 import json
-from typing import Type, Callable
+from typing import Type, Callable, Any
 from collections.abc import Collection, Iterable
 import uuid
 from colorama import Fore
@@ -52,11 +52,11 @@ class Ingredient:
         return f"{self.ingredient_type} {self.name}"
 
     @abstractmethod
-    def run(self, *args, **kwargs) -> t.Any:
+    def run(self, *args, **kwargs) -> Any:
         ...
 
     @abstractmethod
-    def __call__(self, *args, **kwargs) -> t.Any:
+    def __call__(self, *args, **kwargs) -> Any:
         ...
 
     def _run(self, *args, **kwargs):
@@ -247,7 +247,7 @@ class MapIngredient(Ingredient):
     '''
 
     ingredient_type: str = IngredientType.MAP.value
-    allowed_output_types: tuple[Type] = (t.Iterable[t.Any],)
+    allowed_output_types: tuple[Type] = (Iterable[Any],)
 
     def unpack_default_kwargs(self, **kwargs):
         return unpack_default_kwargs(**kwargs)
@@ -275,7 +275,7 @@ class MapIngredient(Ingredient):
         aliases_to_tablenames: dict[str, str] = kwargs["aliases_to_tablenames"]
         get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
-        prev_subquery_map_columns: t.Set[str] = kwargs["prev_subquery_map_columns"]
+        prev_subquery_map_columns: set[str] = kwargs["prev_subquery_map_columns"]
 
         # TODO: make sure we support all types of ValueArray references here
         tablename, colname = utils.get_tablename_colname(values)
@@ -398,7 +398,7 @@ class MapIngredient(Ingredient):
                     + Fore.RESET
                 )
 
-        mapped_values: Collection[t.Any] = self._run(
+        mapped_values: Collection[Any] = self._run(
             question=question,
             unpacked_questions=unpacked_questions,
             values=unpacked_values,
@@ -438,7 +438,7 @@ class MapIngredient(Ingredient):
         return (new_arg_column, tablename, colname, new_table)
 
     @abstractmethod
-    def run(self, *args, **kwargs) -> Iterable[t.Any]:
+    def run(self, *args, **kwargs) -> Iterable[Any]:
         ...
 
 
