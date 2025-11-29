@@ -1126,7 +1126,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             LLMQAList(
                 'Which 2 `Id` values are attached to the 2 posts whose authors have the least expertise?',
                 (
-                    SELECT SELECT STRING_AGG(Id || ' ' || Body, '\n---\n') FROM posts p  FROM filtered_posts
+                    SELECT STRING_AGG(Id || ' ' || Body, '\n---\n') FROM posts p  FROM filtered_posts
                 ),
                 filtered_posts.Id,
                 '{2}'
@@ -1154,6 +1154,17 @@ ORDER BY away_team_goal DESC LIMIT 3
             )
         }}
         """,
+        "DuckDB": """WITH filtered_badges AS (
+        SELECT b.Name FROM badges b 
+        JOIN users u ON u.Id = b.UserId
+        WHERE u.DisplayName = 'csgillespie'
+        ) SELECT LLMQA(
+            'Which is most similar to an English grammar guide?', 
+            NULL, 
+            (SELECT LIST(Name) FROM filtered_badges),
+            NULL
+        )
+        """,
         "Notes": "How is 'Strunk & White' like an English grammar guide?",
     },
     {
@@ -1177,6 +1188,20 @@ ORDER BY away_team_goal DESC LIMIT 3
                 ),
                 options=yevgeny_posts.Id,
                 quantifier='{3}'
+            )
+        }}""",
+        "DuckDB": """WITH yevgeny_posts AS (
+            SELECT p.Id, p.Body FROM posts p 
+            JOIN users u ON p.OwnerUserId = u.Id
+            WHERE u.DisplayName = 'Yevgeny'
+        ) SELECT * FROM VALUES {{
+            LLMQA(
+                'Which 2 `Id` values are attached to the 3 most pessimistic comments?',
+                (
+                    SELECT STRING_AGG('Id: ' || Id || '\n' || 'Body: ' || Body, '\n---\n') FROM yevgeny_posts
+                ),
+                (SELECT LIST(Id) FROM yevgeny_posts),
+                '{3}'
             )
         }}""",
         "Notes": "Very long context passed to LLMQA here.",
@@ -1205,6 +1230,20 @@ ORDER BY away_team_goal DESC LIMIT 3
             )
         }}
         """,
+        "DuckDB": """WITH top_players AS (
+            SELECT p.player_name, AVG(pa.heading_accuracy) AS avg_heading_accuracy FROM Player p 
+            JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
+            WHERE p.height > 180 
+            GROUP BY p.player_api_id 
+            ORDER BY avg_heading_accuracy DESC 
+            LIMIT 10
+        ) SELECT * FROM VALUES LLMQAList(
+            'Which 3 of these names could be said to be the ''most unique''?', 
+            NULL,
+            (SELECT LIST(player_name) FROM top_players), 
+            '{3}'
+        )
+        """,
         "Notes": "'Unique sounding name' doesn't mean much. Why is 'Per Mertesacker' more unique than 'Miroslav Klose', etc.?",
     },
     {
@@ -1228,6 +1267,17 @@ ORDER BY away_team_goal DESC LIMIT 3
                 quantifier='{2}'
             )
         }}""",
+        "DuckDB": """SELECT * FROM VALUES LLMQAList(
+            'Which 2 of these display names most based off of a real name?',
+            NULL,
+            (
+                SELECT LIST(u.DisplayName) FROM users u
+                JOIN badges b ON u.Id = b.UserId
+                GROUP BY u.DisplayName 
+                HAVING COUNT(*) >= 200
+            ),
+            '{2}'
+        )""",
         "Notes": "Subjective question - why is 'Glen_b' more based off of a real name than 'whuber'?",
     },
     {
@@ -1243,6 +1293,12 @@ ORDER BY away_team_goal DESC LIMIT 3
             ORDER BY Views DESC LIMIT 5
         ) SELECT DisplayName FROM top_users
         WHERE {{LLMMap('Is a social media link present in this text?', AboutMe)}} = TRUE
+        """,
+        "DuckDB": """WITH top_users AS (
+            SELECT AboutMe, DisplayName FROM users 
+            ORDER BY Views DESC LIMIT 5
+        ) SELECT DisplayName FROM top_users
+        WHERE LLMMapBool('Is a social media link present in this text?', AboutMe, NULL, NULL)}} = TRUE
         """,
         "Notes": None,
     },
@@ -1270,6 +1326,21 @@ ORDER BY away_team_goal DESC LIMIT 3
                 quantifier='{3}'
             )
         }}""",
+        "DuckDB": """WITH harvey_comments AS (
+            SELECT c.PostId, c.Text FROM comments c 
+            JOIN users u ON u.Id = c.UserId
+            WHERE c.Score = 5
+            AND u.DisplayName = 'Harvey Motulsky'
+        ) SELECT * FROM VALUES LLMQAList(
+            'Rank the post IDs in order of most helpful to least helpful.',
+            (
+                SELECT STRING_AGG('PostId: ' || PostId || '\n' || 'Text: ' || Text, '\n---\n') FROM harvey_comments
+            ),
+            (
+                SELECT LIST(PostId) FROM harvey_comments
+            ),
+            '{3}'
+        )""",
         "Notes": "Subjective - what is 'most helpful'?",
     },
     {
@@ -1291,6 +1362,15 @@ ORDER BY away_team_goal DESC LIMIT 3
                 quantifier='{3}'
             )
         }}""",
+        "DuckDB": """SELECT * FROM VALUES LLMQAList(
+            'Which 3 cities are considered the safest places to live?',
+            NULL,
+            (
+                SELECT LIST(City) FROM schools
+                WHERE Virtual = 'F'
+            ),
+            '{3}'
+        )""",
         "Notes": "Subjective question - 'safest place to live' by what standard?",
     },
     {
@@ -1320,6 +1400,17 @@ ORDER BY away_team_goal DESC LIMIT 3
             )
         }}
         """,
+        "DuckDB": """WITH top_schools AS (
+           SELECT City FROM schools s 
+           JOIN frpm f ON f.CDSCode = s.CDSCode
+           ORDER BY f."Enrollment (K-12)" DESC LIMIT 5
+       ) SELECT * FROM VALUES LLMQAList(
+           'Rank the cities, in order of most diverse to least diverse.', 
+           NULL,
+           (SELECT LIST(City) FROM top_schools),
+           '{5}'
+       )
+       """,
         "Notes": "What does 'most diverse' mean?",
     },
     {
@@ -1353,6 +1444,22 @@ ORDER BY away_team_goal DESC LIMIT 3
                 quantifier='{3}'
             )
         }}""",
+        "DuckDB": """WITH top_schools AS (
+            SELECT 
+                s.City, 
+                s.School, 
+                f."Free Meal Count (Ages 5-17)" / f."Enrollment (Ages 5-17)" AS frpm_rate
+            FROM schools s 
+            JOIN frpm f ON f.CDSCode = s.CDSCode 
+            WHERE f."Educational Option Type" = 'Continuation School'
+            AND frpm_rate IS NOT NULL
+            ORDER BY frpm_rate ASC LIMIT 3
+        ) SELECT * FROM VALUES LLMQAList(
+            'Rank the schools, from least affordable city to most affordable city.',
+            (SELECT STRING_AGG('City: ' || City || '\n' || 'School: ' || School, '\n---\n') FROM top_schools),
+            (SELECT LIST(School) FROM top_schools),
+            '{3}'
+        )""",
         "Notes": "Doesn't specify whether ranking should be increasing or decreasing",
     },
     {
@@ -1373,6 +1480,20 @@ ORDER BY away_team_goal DESC LIMIT 3
             LLMQA(
                 'Which county has the strongest academic reputation?',
                 options=top_schools.County
+            )
+        }}""",
+        "DuckDB": """WITH top_schools AS (
+            SELECT DISTINCT s.County, 1.0 * ss."NumGE1500" / ss.NumTstTakr AS rate 
+            FROM schools s 
+            JOIN satscores ss ON s.CDSCode = ss.cds
+            WHERE rate IS NOT NULL
+            ORDER BY rate DESC LIMIT 3
+        ) SELECT {{
+            LLMQAStr(
+                'Which county has the strongest academic reputation?',
+                NULL,
+                (SELECT LIST(County) FROM top_schools),
+                NULL
             )
         }}""",
         "Notes": "'Strongest academic reputations' is subjective - wouldn't Los Angeles be above Santa Clara?. Also, question asks for a ranked list, but gold answer (and written TAG program) returns the top.",
@@ -1400,6 +1521,19 @@ ORDER BY away_team_goal DESC LIMIT 3
                 quantifier='{2}'
             )
         }}""",
+        "DuckDB": """WITH lowest_enrollment AS (
+            SELECT s.City, SUM(f."Enrollment (K-12)") AS total_enrollment 
+            FROM schools s 
+            JOIN frpm f ON s.CDSCode = f.CDSCode 
+            GROUP BY s.City 
+            ORDER BY total_enrollment ASC 
+            LIMIT 10
+        ) SELECT * FROM VALUES LLMQAList(
+            'Which 2 California cities are the most popular to visit?',
+            NULL,
+            (SELECT LIST(City) FROM lowest_enrollment),
+            '{2}'
+        )""",
         "Notes": """'Most popular cities to visit' is subjective? But, looking at online resources, it also seems wrong. 
         Yosemite (where Wawona is) has 4 million visitors per year: https://www.nps.gov/yose/planyourvisit/traffic.htm#:~:text=Each%20year%2C%20Yosemite%20National%20Park,no%20lodging%20or%20campground%20availability.
         Shaver Lake has less information, but this resource estimates 200,000+ per year: https://www.sce.com/sites/default/files/inline-files/RecreationWorkshop.pdf
@@ -1424,6 +1558,18 @@ ORDER BY away_team_goal DESC LIMIT 3
                 options=top_constructors.name
             ) 
         }}""",
+        "DuckDB": """WITH top_constructors AS (
+            SELECT DISTINCT c.name FROM constructors c 
+            JOIN results r ON r.constructorId = c.constructorId
+            JOIN races ra ON r.raceId = ra.raceId
+            WHERE r.rank = 1 AND ra.year = 2014
+        ) SELECT LLMQAStr(
+            "Which company's logo looks the most like Secretariat?",
+            NULL,
+            (SELECT LIST(name) FROM top_constructors),
+            NULL,
+        ) 
+        """,
         "Notes": "'Most prestige' is subjective. Also - in `hand_written.py`, this question is different: 'Of the constructors that have been ranked 1 in 2014, whose logo looks most like Secretariat?'",
     },
     {
@@ -1446,6 +1592,16 @@ ORDER BY away_team_goal DESC LIMIT 3
                 quantifier='{5}'
             )
         }}""",
+        "DuckDB": """WITH recent_races AS (
+            SELECT c.location FROM races ra 
+            JOIN circuits c ON c.circuitId = ra.circuitId
+            ORDER BY ra.date DESC LIMIT 5
+        ) SELECT * FROM VALUES LLMQAList(
+            'Order the locations by distance to the equator (closest -> farthest)',
+            NULL,
+            (SELECT LIST(location) FROM recent_races),
+            '{5}'
+        )""",
         "Notes": "Question doesn't specify ascending or descending.",
     },
     {

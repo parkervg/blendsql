@@ -2,8 +2,8 @@ from pathlib import Path
 import pandas as pd
 import json
 import typing as t
-from functools import lru_cache
 import duckdb
+import pyarrow as pa
 from dataclasses import dataclass, field, asdict
 
 import torch
@@ -33,47 +33,99 @@ def load_tag_db_path(name: str) -> str:
 # Define DuckDB UDFs
 # Since UDFs here don't support a union type,
 # we need to create a separate function for each possible type
+# https://duckdb.org/docs/stable/clients/python/function#creating-functions
 def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
+    def _get_pa_type(return_type: str):
+        """Helper to get PyArrow type from return_type string."""
+        if return_type == "bool":
+            return pa.bool_()
+        elif return_type == "int":
+            return pa.int64()
+        elif return_type in ("str", "substring"):
+            return pa.string()
+        elif return_type == "List[str]":
+            return pa.list_(pa.string())
+
     def _run_llmmap(return_type: str):
-        @lru_cache(maxsize=10000)
-        def run_llmmap(question: str, value: str, options: list[str], quantifier: str):
-            if options is not None:
-                options = [i for i in set(options) if i is not None]
-                options = [option.strip("'").strip('"') for option in options]
-            global NUM_VALUES_PASSED
-            mapped_values = LLMMap.run(
+        def run_llmmap(
+            questions: pa.Array,
+            values: pa.Array,
+            options: pa.Array,
+            quantifiers: pa.Array,
+        ):
+            # Convert Arrow arrays to Python lists
+            questions_list = questions.to_pylist()
+            values_list = values.to_pylist()
+            quantifiers_list = quantifiers.to_pylist()
+
+            # Handle the question and quantifier (may be None/null)
+            question = questions_list[0]
+            quantifier = quantifiers_list[0]  # Will be Python None if SQL NULL
+
+            # Handle options - need to check if the scalar itself is null
+            # options is an Array of Lists, so options[0] is a ListScalar
+            if options[0].is_valid:  # Check if the scalar is not null
+                opts = options[0].as_py()  # Convert to Python list
+                opts = list(set(o.strip("'\"") for o in opts if o is not None))
+            else:
+                opts = None
+
+            # Filter out null values from the input
+            unique_values = list(set(v for v in values_list if v is not None))
+            if not unique_values:
+                # All values were null, return nulls
+                return pa.array(
+                    [None] * len(values_list), type=_get_pa_type(return_type)
+                )
+
+            # Single batched LLM call for all unique values
+            mapped_results = LLMMap.run(
                 model=model,
                 question=question,
-                values=[value],
-                options=options,
+                values=unique_values,
+                options=opts,
                 list_options_in_prompt=True,
                 return_type=return_type,
                 context_formatter=LLMMap.context_formatter,
                 quantifier=quantifier,
             )
-            NUM_VALUES_PASSED += len(mapped_values)
-            return mapped_values[0]
+
+            # Create lookup dict
+            result_map = dict(zip(unique_values, mapped_results))
+
+            # Map back to original order, preserving nulls
+            results = [
+                result_map.get(v) if v is not None else None for v in values_list
+            ]
+
+            return pa.array(results, type=_get_pa_type(return_type))
 
         return run_llmmap
 
     def _run_llmqa(return_type: str):
         def run_llmqa(question: str, context: str, options: list[str], quantifier: str):
-            if options is not None:
-                options = [i for i in set(options) if i is not None]
-                options = [option.strip("'").strip('"') for option in options]
-            if context is not None:
-                context = [pd.DataFrame({"values": context.split("\n---\n")})]
+            cleaned_options = (
+                [opt.strip("'\"") for opt in set(options) if opt is not None]
+                if options is not None
+                else None
+            )
+
+            parsed_context = (
+                [pd.DataFrame({"values": context.split("\n---\n")})]
+                if context is not None
+                else None
+            )
+
             response: str = LLMQA.run(
                 model=model,
                 question=question,
-                context=context,
-                options=options,
+                context=parsed_context,
+                options=cleaned_options,
                 list_options_in_prompt=True,
                 return_type=return_type,
                 context_formatter=LLMQA.context_formatter,
                 quantifier=quantifier,
             )
-            print(response)
             if return_type == "str":
                 return response.strip("'").strip('"')
 
@@ -91,6 +143,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             ],
             return_type=duckdb.sqltype("bool"),
             null_handling="special",
+            type="arrow" if func_name == "LLMMap" else "native",
         )
         conn.create_function(
             name=f"{func_name}Int",
@@ -103,6 +156,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             ],
             return_type=duckdb.sqltype("int"),
             null_handling="special",
+            type="arrow" if func_name == "LLMMap" else "native",
         )
         conn.create_function(
             name=f"{func_name}Str",
@@ -115,6 +169,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             ],
             return_type=duckdb.sqltype("string"),
             null_handling="special",
+            type="arrow" if func_name == "LLMMap" else "native",
         )
         conn.create_function(
             name=f"{func_name}Substr",
@@ -127,6 +182,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             ],
             return_type=duckdb.sqltype("string"),
             null_handling="special",
+            type="arrow" if func_name == "LLMMap" else "native",
         )
         conn.create_function(
             name=f"{func_name}List",
@@ -139,6 +195,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             ],
             return_type=duckdb.list_type(duckdb.sqltype("string")),
             null_handling="special",
+            type="arrow" if func_name == "LLMMap" else "native",
         )
 
 
