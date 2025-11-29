@@ -35,8 +35,8 @@ def load_tag_db_path(name: str) -> str:
 # we need to create a separate function for each possible type
 def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
     def _run_llmmap(return_type: str):
-        @lru_cache(maxsize=1000)
-        def run_llmmap(question: str, value: str, options: list[str]):
+        @lru_cache(maxsize=10000)
+        def run_llmmap(question: str, value: str, options: list[str], quantifier: str):
             if options is not None:
                 options = [i for i in set(options) if i is not None]
                 options = [option.strip("'").strip('"') for option in options]
@@ -49,6 +49,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 list_options_in_prompt=True,
                 return_type=return_type,
                 context_formatter=LLMMap.context_formatter,
+                quantifier=quantifier,
             )
             NUM_VALUES_PASSED += len(mapped_values)
             return mapped_values[0]
@@ -56,7 +57,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
         return run_llmmap
 
     def _run_llmqa(return_type: str):
-        def run_llmqa(question: str, context: str, options: list[str]):
+        def run_llmqa(question: str, context: str, options: list[str], quantifier: str):
             if options is not None:
                 options = [i for i in set(options) if i is not None]
                 options = [option.strip("'").strip('"') for option in options]
@@ -70,6 +71,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 list_options_in_prompt=True,
                 return_type=return_type,
                 context_formatter=LLMQA.context_formatter,
+                quantifier=quantifier,
             )
             print(response)
             if return_type == "str":
@@ -85,6 +87,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 duckdb.sqltype("string"),
                 duckdb.sqltype("string"),
                 duckdb.list_type(duckdb.sqltype("string")),
+                duckdb.sqltype("string"),
             ],
             return_type=duckdb.sqltype("bool"),
             null_handling="special",
@@ -96,6 +99,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 duckdb.sqltype("string"),
                 duckdb.sqltype("string"),
                 duckdb.list_type(duckdb.sqltype("string")),
+                duckdb.sqltype("string"),
             ],
             return_type=duckdb.sqltype("int"),
             null_handling="special",
@@ -107,6 +111,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 duckdb.sqltype("string"),
                 duckdb.sqltype("string"),
                 duckdb.list_type(duckdb.sqltype("string")),
+                duckdb.sqltype("string"),
             ],
             return_type=duckdb.sqltype("string"),
             null_handling="special",
@@ -118,6 +123,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 duckdb.sqltype("string"),
                 duckdb.sqltype("string"),
                 duckdb.list_type(duckdb.sqltype("string")),
+                duckdb.sqltype("string"),
             ],
             return_type=duckdb.sqltype("string"),
             null_handling="special",
@@ -129,6 +135,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 duckdb.sqltype("string"),
                 duckdb.sqltype("string"),
                 duckdb.list_type(duckdb.sqltype("string")),
+                duckdb.sqltype("string"),
             ],
             return_type=duckdb.list_type(duckdb.sqltype("string")),
             null_handling="special",
