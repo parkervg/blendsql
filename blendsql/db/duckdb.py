@@ -1,5 +1,6 @@
 import importlib.util
-import typing as t
+from typing import Callable, Generator
+from collections.abc import Collection
 import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
@@ -54,12 +55,12 @@ class DuckDB(Database):
     db_url: str = attrib()
 
     # We use below to track which tables we should drop on '_reset_connection'
-    temp_tables: t.Set[str] = set()
+    temp_tables: set[str] = set()
 
     @classmethod
     def from_pandas(
         cls,
-        data: t.Union[t.Dict[str, pd.DataFrame], pd.DataFrame],
+        data: dict[str, pd.DataFrame] | pd.DataFrame,
         tablename: str = "w",
     ):
         if not _has_duckdb:
@@ -127,7 +128,7 @@ class DuckDB(Database):
             > {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
             ```
         """
-        schema: t.Dict[str, dict] = {}
+        schema: dict[str, dict] = {}
         for tablename in self.tables():
             schema[tablename] = {}
             for column_name, column_type in self.con.sql(
@@ -136,16 +137,16 @@ class DuckDB(Database):
                 schema[tablename][column_name] = column_type
         return schema
 
-    def tables(self) -> t.List[str]:
+    def tables(self) -> list[str]:
         return self.execute_to_list("SHOW TABLES;")
 
-    def iter_columns(self, tablename: str) -> t.Generator[str, None, None]:
+    def iter_columns(self, tablename: str) -> Generator[str, None, None]:
         for row in self.con.sql(
             f"SELECT column_name FROM (DESCRIBE {tablename})"
         ).fetchall():
             yield row[0]
 
-    def schema_string(self, use_tables: t.Optional[t.Collection[str]] = None) -> str:
+    def schema_string(self, use_tables: Collection[str] | None = None) -> str:
         """Converts the database to a series of 'CREATE TABLE' statements."""
         # TODO
         return None
@@ -165,14 +166,12 @@ class DuckDB(Database):
         self.temp_tables.add(tablename)
         logger.debug(Fore.CYAN + f"Created temp table {tablename}" + Fore.RESET)
 
-    def execute_to_df(
-        self, query: str, params: t.Optional[dict] = None
-    ) -> pd.DataFrame:
+    def execute_to_df(self, query: str, params: dict | None = None) -> pd.DataFrame:
         """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933"""
         return self.con.sql(query).df()
 
     def execute_to_list(
-        self, query: str, to_type: t.Optional[t.Callable] = lambda x: x
+        self, query: str, to_type: Callable | None = lambda x: x
     ) -> list:
         res = []
         for row in self.con.sql(query).fetchall():

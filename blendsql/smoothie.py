@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-import typing as t
+from typing import Iterable, Type
 import pandas as pd
 
 from blendsql.ingredients import Ingredient
@@ -31,9 +31,9 @@ class SmoothieMeta:
     num_generation_calls: int = field()  # Number of generation calls made to the model
     prompt_tokens: int = field()
     completion_tokens: int = field()
-    prompts: t.List[dict] = field()  # Log of prompts submitted to model
-    raw_prompts: t.List[str] = field()
-    ingredients: t.Iterable[t.Type[Ingredient]] = field()
+    prompts: list[dict] = field()  # Log of prompts submitted to model
+    raw_prompts: list[str] = field()
+    ingredients: Iterable[Type[Ingredient]] = field()
     query: str = field()
     db_url: str = field()
     contains_ingredient: bool = field(default=True)

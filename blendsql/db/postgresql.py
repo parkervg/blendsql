@@ -1,4 +1,3 @@
-import typing as t
 import importlib.util
 from sqlalchemy.engine import make_url, URL
 from colorama import Fore
@@ -42,7 +41,7 @@ class PostgreSQL(SQLAlchemyDatabase):
 
     @cached_property
     def sqlglot_schema(self) -> dict:
-        schema: t.Dict[str, dict] = {}
+        schema: dict[str, dict] = {}
         for tablename in self.tables():
             schema[tablename] = {}
             for _, row in self.execute_to_df(

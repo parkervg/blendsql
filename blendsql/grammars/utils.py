@@ -1,15 +1,16 @@
 from pathlib import Path
-import typing as t
+from typing import Type
+from collections.abc import Collection
 from string import Template
 from colorama import Fore
 
 from blendsql.common.logger import logger
 from ..ingredients import Ingredient
-from blendsql.common.constants import IngredientType
+from blendsql.common.typing import IngredientType
 from .minEarley.parser import EarleyParser
 
 
-def format_ingredient_names_to_lark(names: t.List[str]) -> str:
+def format_ingredient_names_to_lark(names: list[str]) -> str:
     """Formats list of ingredient names the way our Lark grammar expects.
 
     Examples:
@@ -22,7 +23,7 @@ def format_ingredient_names_to_lark(names: t.List[str]) -> str:
 
 
 def load_cfg_parser(
-    ingredients: t.Optional[t.Collection[t.Type[Ingredient]]] = None,
+    ingredients: Collection[Type[Ingredient]] | None = None,
 ) -> EarleyParser:
     """Loads BlendSQL CFG parser.
     Dynamically modifies grammar string to include only valid ingredients.
@@ -35,10 +36,10 @@ def load_cfg_parser(
         ingredients = set()
     with open(Path(__file__).parent / "./cfg_grammar.lark", encoding="utf-8") as f:
         cfg_grammar = Template(f.read())
-    blendsql_join_functions: t.List[str] = []
-    blendsql_aggregate_functions: t.List[str] = []
-    blendsql_scalar_functions: t.List[str] = []
-    ingredient_type_to_function_type: t.Dict[str, t.List[str]] = {
+    blendsql_join_functions: list[str] = []
+    blendsql_aggregate_functions: list[str] = []
+    blendsql_scalar_functions: list[str] = []
+    ingredient_type_to_function_type: t.Dict[str, list[str]] = {
         IngredientType.JOIN: blendsql_join_functions,
         IngredientType.QA: blendsql_aggregate_functions,
         IngredientType.MAP: blendsql_scalar_functions,
@@ -66,11 +67,3 @@ def load_cfg_parser(
         start="start",
         keep_all_tokens=True,
     )
-
-
-if __name__ == "__main__":
-    from blendsql import LLMMap, LLMJoin, LLMValidate
-
-    parser = load_cfg_parser({LLMMap, LLMJoin, LLMValidate})
-    parser.parse("{{LLMQA('what is the answer', (select * from w))}}")
-    print()

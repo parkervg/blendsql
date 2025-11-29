@@ -1,4 +1,3 @@
-import typing as t
 from pathlib import Path
 from sqlalchemy.engine import make_url, URL
 from functools import cached_property
@@ -35,7 +34,7 @@ class SQLite(SQLAlchemyDatabase):
             >>> db.sqlglot_schema
             {"x": {"A": "INT", "B": "INT", "C": "INT", "D": "INT", "Z": "STRING"}}
         """
-        schema: t.Dict[str, dict] = {}
+        schema: dict[str, dict] = {}
         for tablename in self.tables():
             schema[tablename] = {}
             for _, row in self.execute_to_df(

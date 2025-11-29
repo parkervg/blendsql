@@ -1,6 +1,5 @@
 import os
 import importlib.util
-from typing import Optional
 from colorama import Fore
 
 from blendsql.common.logger import logger
@@ -36,7 +35,7 @@ class TransformersLLM(ConstrainedModel):
     def __init__(
         self,
         model_name_or_path: str,
-        config: Optional[dict] = None,
+        config: dict | None = None,
         caching: bool = True,
         **kwargs,
     ):
@@ -100,8 +99,8 @@ class LlamaCpp(ConstrainedModel):
     def __init__(
         self,
         filename: str,
-        model_name_or_path: Optional[str] = None,
-        config: Optional[dict] = None,
+        model_name_or_path: str | None = None,
+        config: dict | None = None,
         caching: bool = True,
         **kwargs,
     ):
@@ -126,7 +125,7 @@ class LlamaCpp(ConstrainedModel):
     @staticmethod
     def _load_llama_cpp(
         filename: str,
-        model_name_or_path: Optional[str],
+        model_name_or_path: str | None,
         config: dict,
         vocab_only: bool = False,
     ):
@@ -182,7 +181,7 @@ class ConstrainedLiteLLM(ConstrainedModel):
     def __init__(
         self,
         model_name_or_path: str,
-        config: Optional[dict] = None,
+        config: dict | None = None,
         caching: bool = True,
         **kwargs,
     ):

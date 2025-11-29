@@ -1,5 +1,4 @@
 import itertools
-import typing as t
 from colorama import Fore
 from collections.abc import Collection
 
@@ -13,9 +12,9 @@ from blendsql.common.logger import logger
 
 
 def prepare_datatype(
-    options: t.Optional[Collection[str]],
-    return_type: t.Optional[t.Union[str, DataType]] = None,
-    quantifier: t.Optional[QuantifierType] = None,
+    options: Collection[str] | None,
+    return_type: str | DataType | None = None,
+    quantifier: QuantifierType | None = None,
 ) -> DataType:
     if return_type is None:
         resolved_output_type = DataTypes.ANY()

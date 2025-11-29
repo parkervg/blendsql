@@ -36,8 +36,8 @@ def get_reversed_subqueries(node):
 def get_scope_nodes(
     nodetype: t.Type[exp.Expression],
     restrict_scope: bool = False,
-    root: t.Optional[sqlglot.optimizer.Scope] = None,
-    node: t.Optional[exp.Expression] = None,
+    root: sqlglot.optimizer.Scope | None = None,
+    node: exp.Expression | None = None,
 ) -> t.Generator:
     """Utility to get nodes of a certain type within our subquery scope.
 
@@ -76,7 +76,7 @@ class QueryContextManager:
     _query: str = attrib(default=None)
     _last_to_string_node: exp.Expression = None
 
-    def parse(self, query, schema: t.Optional[t.Union[dict, Schema]] = None):
+    def parse(self, query, schema: dict | Schema | None = None):
         self._query = query
         self.node = _parse_one(query, dialect=self.dialect, schema=schema)
 
@@ -368,13 +368,13 @@ class SubqueryContextManager:
                 - options: Optional str default to pass to `options` argument in a QAIngredient
                     - Will have the form '{table}.{column}'
         """
-        added_kwargs: t.Dict[str, t.Any] = {}
+        added_kwargs: dict[str, t.Any] = {}
         if isinstance(function_node.parent, exp.Select):
             # We don't want to traverse up in cases of `SELECT {{A()}} FROM table WHERE x < y`
             parent_node = function_node
         else:
             parent_node = function_node.parent
-        predicate_literals: t.List[str] = []
+        predicate_literals: list[str] = []
         quantifier: QuantifierType = None
 
         # Check for instances like `{column} = {QAIngredient}`
@@ -496,9 +496,7 @@ class SubqueryContextManager:
                     exp.Sum,
                 ),
             ):
-                output_type = DataTypes.NUMERIC(
-                    quantifier
-                )  # `Numeric` = `t.Union[int, float]`
+                output_type = DataTypes.NUMERIC(quantifier)  # `Numeric` = `int | float`
             elif quantifier:
                 # Fallback to a generic list datatype
                 output_type = DataTypes.STR(quantifier)

@@ -1,5 +1,4 @@
 import importlib.util
-from typing import Optional
 from functools import cached_property
 
 from blendsql.models.model import UnconstrainedModel, ModelObj
@@ -16,7 +15,7 @@ class TransformersVisionModel(UnconstrainedModel):
     def __init__(
         self,
         model_name_or_path: str,
-        config: Optional[dict] = None,
+        config: dict | None = None,
         caching: bool = True,
         **kwargs,
     ):

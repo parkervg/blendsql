@@ -1,9 +1,6 @@
 from typing import (
     Any,
-    List,
-    Optional,
     Generic,
-    Dict,
     TypeVar,
     Sequence,
     Callable,
@@ -54,15 +51,15 @@ class Model:
     model_name_or_path: str = attrib()
     tokenizer: Any = attrib(default=None)
     requires_config: bool = attrib(default=False)
-    refresh_interval_min: Optional[int] = attrib(default=None)
+    refresh_interval_min: int | None = attrib(default=None)
     config: dict = attrib(default=None)
     env: str = attrib(default=".")
     caching: bool = attrib(default=True)
 
     model_obj: Generic[ModelObj] = attrib(init=False)
-    prompts: List[dict] = attrib(factory=list)
-    raw_prompts: List[str] = attrib(factory=list)
-    cache: Optional[Cache] = attrib(default=None)
+    prompts: list[dict] = attrib(factory=list)
+    raw_prompts: list[str] = attrib(factory=list)
+    cache: Cache | None = attrib(default=None)
     run_setup_on_load: bool = attrib(default=True)
 
     prompt_tokens: int = 0
@@ -100,7 +97,7 @@ class Model:
             self._setup()
 
     def _create_key(
-        self, *args, funcs: Optional[Sequence[Callable]] = None, **kwargs
+        self, *args, funcs: Sequence[Callable] | None = None, **kwargs
     ) -> str:
         """Generates a hash to use in diskcache Cache.
         This way, we don't need to send our prompts to the same Model
@@ -125,9 +122,9 @@ class Model:
         return hasher.hexdigest()
 
     def check_cache(
-        self, *args, funcs: Optional[Sequence[Callable]] = None, **kwargs
+        self, *args, funcs: Sequence[Callable] | None = None, **kwargs
     ) -> Tuple[Any, str]:
-        response: Dict[str, str] = None  # type: ignore
+        response: dict[str, str] = None  # type: ignore
         key: str = self._create_key(funcs=funcs, *args, **kwargs)
         if key in self.cache:
             logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
@@ -141,7 +138,7 @@ class Model:
 
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
-        d: Dict[str, Any] = {"answer": response}
+        d: dict[str, Any] = {"answer": response}
         if "question" in kwargs:
             d["question"] = kwargs.get("question")
         if "context" in kwargs:

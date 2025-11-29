@@ -1,4 +1,4 @@
-import typing as t
+from typing import Callable
 import json
 from colorama import Fore
 from pathlib import Path
@@ -14,7 +14,7 @@ from blendsql.ingredients.utils import initialize_retriever, partialclass
 
 from .examples import AnnotatedJoinExample, JoinExample
 
-DEFAULT_JOIN_FEW_SHOT: t.List[AnnotatedJoinExample] = [
+DEFAULT_JOIN_FEW_SHOT: list[AnnotatedJoinExample] = [
     AnnotatedJoinExample(**d)
     for d in json.loads(
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
@@ -30,19 +30,17 @@ class LLMJoin(JoinIngredient):
         `{{LLMJoin(left_on='table::column', right_on='table::column')}}`
     """
     model: Model = attrib(default=None)
-    few_shot_retriever: t.Callable[[str], t.List[AnnotatedJoinExample]] = attrib(
+    few_shot_retriever: Callable[[str], list[AnnotatedJoinExample]] = attrib(
         default=None
     )
 
     @classmethod
     def from_args(
         cls,
-        model: t.Optional[Model] = None,
+        model: Model | None = None,
         use_skrub_joiner: bool = True,
-        few_shot_examples: t.Optional[
-            t.Union[t.List[dict], t.List[AnnotatedJoinExample]]
-        ] = None,
-        num_few_shot_examples: t.Optional[int] = None,
+        few_shot_examples: list[dict] | list[AnnotatedJoinExample] | None = None,
+        num_few_shot_examples: int | None = None,
         enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
@@ -108,10 +106,10 @@ class LLMJoin(JoinIngredient):
     def run(
         self,
         model: Model,
-        left_values: t.List[str],
-        right_values: t.List[str],
-        join_criteria: t.Optional[str] = None,
-        few_shot_retriever: t.Callable[[str], t.List[AnnotatedJoinExample]] = None,
+        left_values: list[str],
+        right_values: list[str],
+        join_criteria: str | None = None,
+        few_shot_retriever: Callable[[str], list[AnnotatedJoinExample]] = None,
         **kwargs,
     ) -> dict:
         """
@@ -147,7 +145,7 @@ class LLMJoin(JoinIngredient):
                 "right_values": sorted(right_values),
             }
         )
-        few_shot_examples: t.List[AnnotatedJoinExample] = few_shot_retriever(
+        few_shot_examples: list[AnnotatedJoinExample] = few_shot_retriever(
             current_example.to_string()
         )
 

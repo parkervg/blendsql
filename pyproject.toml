@@ -50,7 +50,7 @@ version = "0.0.52"
 Documentation = "https://parkervg.github.io/blendsql/"
 
 [project.scripts]
-blendsql = "blendsql.blend_cli:main"
+#blendsql = "blendsql.blend_cli:main"
 
 [tool.setuptools.packages.find]
 exclude = ["examples*", "research*", "img*"]

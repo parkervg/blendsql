@@ -1,6 +1,6 @@
 import re
 import pandas as pd
-import typing as t
+from typing import Callable
 from attr import attrs, attrib
 from colorama import Fore
 
@@ -15,7 +15,7 @@ class LazyTable:
     """
 
     tablename: str = attrib()
-    collect_fn: t.Callable[..., pd.DataFrame] = attrib()
+    collect_fn: Callable[..., pd.DataFrame] = attrib()
     has_blendsql_function: bool = attrib()
 
     def __str__(self):
@@ -57,7 +57,7 @@ def escape(s):
     return single_quote_escape(double_quote_escape(s))
 
 
-def format_tuple(value: tuple, wrap_in_parentheses: t.Optional[bool] = True):
+def format_tuple(value: tuple, wrap_in_parentheses: bool | None = True):
     formatted = ",".join(repr(v) for v in value)
     if wrap_in_parentheses:
         formatted = "(" + formatted + ")"
