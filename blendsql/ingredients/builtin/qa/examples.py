@@ -15,7 +15,7 @@ class QAExample(Example):
         converter=lambda d: [pd.DataFrame.from_dict(d)] if isinstance(d, dict) else d,
         default=None,
     )
-    options: t.Optional[Collection[str]] = attrib(default=None)
+    options: Collection[str] | None = attrib(default=None)
     return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s.lower()] if isinstance(s, str) else s,
         default=DataTypes.ANY(),
