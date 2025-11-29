@@ -226,17 +226,17 @@ See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Function
 
 ![latency_analysis](docs/img/runtime_analysis.png)
 
-# Features 
+# Documentation 
 
-## Retrieve-then-Map 
+- [Simple Row-Wise Classification](#simple-row-wise-classification)
+- [Search-then-Reduce ](#search-then-map)
+- [Search-then-Map ](#search-then-map)
+    - [Specifying `return_type`](#specifying-returntype)
+- [Few-Shot Prompting](#few-shot-prompting)
 
-Some question answering tasks require hybrid reasoning - some information is present in a given table, but some information exists only in external free text documents. 
-
+The below examples can use this model initialization logic to define the variable `model`:
 
 ```python
-import pandas as pd 
-
-from blendsql import BlendSQL
 from blendsql.models import LlamaCpp, LiteLLM
 
 USE_LOCAL_CONSTRAINED_MODEL = True 
@@ -250,51 +250,189 @@ if USE_LOCAL_CONSTRAINED_MODEL:
     ) 
 else:
     model = LiteLLM("openai/gpt-4o-mini")
-    
-if __name__ == '__main__':
-  bsql = BlendSQL(
-      {
-          "world_aquatic_championships": pd.DataFrame(
-              [
-                  {
-                      "Medal": "Silver",
-                      "Name": "Dana Vollmer",
-                      "Sport": "Swimming",
-                      "Event": "Women's 100 m butterfly",
-                      "Time/Score": "56.87",
-                      "Date": "July 25",
-                  },
-                  {
-                      "Medal": "Gold",
-                      "Name": "Ryan Lochte",
-                      "Sport": "Swimming",
-                      "Event": "Men's 200 m freestyle",
-                      "Time/Score": "1:44.44",
-                  },
-                  {
-                      "Medal": "Gold",
-                      "Name": "Rebecca Soni",
-                      "Sport": "Swimming",
-                      "Event": "Women's 100 m breaststroke",
-                      "Time/Score": "1:05.05",
-                      "Date": "July 26",
-                  },
-                  {
-                      "Medal": "Gold",
-                      "Name": "Elizabeth Beisel",
-                      "Sport": "Swimming",
-                      "Event": "Women's 400 m individual medley",
-                      "Time/Score": "4:31.78",
-                      "Date": "July 31",
-                  },
-              ]
-          )
-      },
-      model=model,
-      verbose=True, # Set `verbose=True` to see the query plan as it executes
+```
+
+## Simple Row-Wise Classification 
+
+```python
+import pandas as pd
+from blendsql import BlendSQL
+
+if __name__ == "__main__":
+    bsql = BlendSQL(
+        {
+            "posts": pd.DataFrame(
+                {"content": ["I hate this product", "I love this product"]}
+            )
+        },
+        model=model,
+        verbose=True,
+    )
+
+    smoothie = bsql.execute(
+        """
+        SELECT {{
+            LLMMap(
+                'What is the sentiment of this text?',
+                content,
+                options=('positive', 'negative')
+            )      
+        }} AS classification FROM posts
+        """
+    )
+    print(smoothie.df)
+```
+
+## Search-then-Reduce  
+
+Below we use the scalar `LLMQA` function to do a search over our documents with the question formatted with a value from the structured `european_countries` table.
+
+```python 
+import pandas as pd 
+
+from blendsql import BlendSQL
+from blendsql.search import FaissVectorStore
+from blendsql.ingredients import LLMQA
+
+bsql = BlendSQL(
+    {
+        "documents": pd.DataFrame(
+            [
+                {
+                    "title": "Steve Nash",
+                    "content": "Steve Nash played college basketball at Santa Clara University",
+                },
+                {
+                    "title": "E.F. Codd",
+                    "content": 'Edgar Frank "Ted" Codd (19 August 1923 – 18 April 2003) was a British computer scientist who, while working for IBM, invented the relational model for database management, the theoretical basis for relational databases and relational database management systems.',
+                },
+                {
+                    "title": "George Washington (February 22, 1732 – December 14, 1799) was a Founding Father and the first president of the United States, serving from 1789 to 1797."
+                },
+                {
+                    "title": "Thomas Jefferson",
+                    "content": "Thomas Jefferson (April 13, 1743 – July 4, 1826) was an American Founding Father and the third president of the United States from 1801 to 1809.",
+                },
+                {
+                    "title": "John Adams",
+                    "content": "John Adams (October 30, 1735 – July 4, 1826) was an American Founding Father who was the second president of the United States from 1797 to 1801.",
+                },
+            ]
+        ),
+        "european_countries": pd.DataFrame(
+            [
+                {
+                    "Country": "Portugal",
+                    "Area (km²)": 91568,
+                    "Population (As of 2011)": 10555853,
+                    "Population density (per km²)": 115.2,
+                    "Capital": "Lisbon",
+                },
+                {
+                    "Country": "Sweden",
+                    "Area (km²)": 449964,
+                    "Population (As of 2011)": 9088728,
+                    "Population density (per km²)": 20.1,
+                    "Capital": "Stockholm",
+                },
+                {
+                    "Country": "United Kingdom",
+                    "Area (km²)": 244820,
+                    "Population (As of 2011)": 62300000,
+                    "Population density (per km²)": 254.4,
+                    "Capital": "London",
+                },
+            ]
+        ),
+    },
+    model=model,
+    verbose=True,
+)
+
+USE_SEARCH = True 
+if USE_SEARCH:
+  LLMQA = LLMQA.from_args(
+    searcher=FaissVectorStore(
+      documents=bsql.db.execute_to_list("SELECT DISTINCT title || content FROM documents"),
+      k=3
+    )
   )
-  
-  _ = bsql.model.model_obj # Models are lazy loaded by default. Use this line if you want to pre-load models before execution.
+  bsql.ingredients = {LLMQA}
+
+smoothie = bsql.execute(
+"""
+SELECT {{
+    LLMQA(
+      'Who is from {}?', 
+      /* The below subquery gets executed, and the result is inserted into the below `{}`. */
+      (
+        SELECT Country FROM european_countries c
+        WHERE Capital = 'London'
+      ),
+    )
+}} AS answer
+"""
+)
+print(smoothie.df)
+# ┌────────────┐
+# │ answer     │
+# ├────────────┤
+# │ E.F. Codd  │
+# └────────────┘
+```
+
+## Search-then-Map 
+
+Some question answering tasks require hybrid reasoning - some information is present in a given table, but some information exists only in external free text documents. 
+
+```python
+import pandas as pd 
+
+from blendsql import BlendSQL
+    
+bsql = BlendSQL(
+    {
+        "world_aquatic_championships": pd.DataFrame(
+            [
+                {
+                    "Medal": "Silver",
+                    "Name": "Dana Vollmer",
+                    "Sport": "Swimming",
+                    "Event": "Women's 100 m butterfly",
+                    "Time/Score": "56.87",
+                    "Date": "July 25",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Ryan Lochte",
+                    "Sport": "Swimming",
+                    "Event": "Men's 200 m freestyle",
+                    "Time/Score": "1:44.44",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Rebecca Soni",
+                    "Sport": "Swimming",
+                    "Event": "Women's 100 m breaststroke",
+                    "Time/Score": "1:05.05",
+                    "Date": "July 26",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Elizabeth Beisel",
+                    "Sport": "Swimming",
+                    "Event": "Women's 400 m individual medley",
+                    "Time/Score": "4:31.78",
+                    "Date": "July 31",
+                },
+            ]
+        )
+    },
+    model=model,
+    verbose=True, # Set `verbose=True` to see the query plan as it executes
+)
+
+_ = bsql.model.model_obj # Models are lazy loaded by default. Use this line if you want to pre-load models before execution.
 ```
 
 We can now create a custom function that will: 
@@ -310,8 +448,13 @@ USE_TAVILY = True # This requires a `.env` file with a `TAVILY_API_KEY` variable
 if USE_TAVILY:
   searcher = TavilySearch(k=3)
 else:
+  # We can also define a local FAISS vector store
   searcher = FaissVectorStore(
-    documents=[],
+    documents=[
+      "Ryan Steven Lochte (/ˈlɒkti/ LOK-tee; born August 3, 1984) is an American former[2] competition swimmer and 12-time Olympic medalist.",
+      "Rebecca Soni (born March 18, 1987) is an American former competition swimmer and breaststroke specialist.",
+      "Elizabeth Lyon Beisel (/ˈbaɪzəl/; born August 18, 1992) is an American competition swimmer who specializes in backstroke and individual medley events."
+    ],
     k=3
   )
 
@@ -392,7 +535,7 @@ smoothie = bsql.execute(
 }
 ```
 
-# Few-Shot Prompting
+## Few-Shot Prompting
 For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples and dynamically retrieve those top-`k` most relevant examples at runtime, given the current inference example.
 #### `LLMMap`
 - [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
