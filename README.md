@@ -233,7 +233,7 @@ See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Function
 - [Simple Row-Wise Classification](#simple-row-wise-classification)
 - [Search-then-Reduce ](#search-then-map)
 - [Search-then-Map ](#search-then-map)
-    - [Specifying `return_type`](#specifying-`return_type`)
+    - [Specifying `return_type`](#specifying-return_type)
 - [Few-Shot Prompting](#few-shot-prompting)
 
 The below examples can use this model initialization logic to define the variable `model`:
