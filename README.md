@@ -183,16 +183,6 @@ print(smoothie.summary())
 
 ```
 
-# 📰 News
-- (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
-- (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
-- (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
-- (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
-- (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
-- (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
-- (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
-  - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
-
 # Summary
 
 BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
@@ -202,9 +192,21 @@ As a result, we can *Blend* together...
 - 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
 - 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
 
-![comparison](docs/img/comparison.jpg)
+At its core, BlendSQL follows a simple design principle: be lazy.
 
-**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
+Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally execute back in the native SQL dialect. In this way, blendsql 'compiles to SQL'.
+
+For more info on query execution in BlendSQL, see Section 2.4 [here](https://arxiv.org/pdf/2509.20208). 
+
+# 📰 News
+- (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
+- (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
+- (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
+- (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
+- (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
+- (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
+- (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
+  - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
 
 # Features
 

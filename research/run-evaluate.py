@@ -1,4 +1,7 @@
+import time
 from pathlib import Path
+from typing import Iterable
+
 import pandas as pd
 import json
 import typing as t
@@ -13,8 +16,10 @@ from tag_queries import BLENDSQL_ANNOTATED_TAG_DATASET
 from blendsql import BlendSQL
 from blendsql.models import LlamaCpp, TransformersLLM
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
+from blendsql.ingredients import Ingredient
 
 CURR_DIR = Path(__file__).resolve().parent
+NUM_VALUES_PASSED = 0
 
 
 @dataclass
@@ -34,7 +39,17 @@ def load_tag_db_path(name: str) -> str:
 # Since UDFs here don't support a union type,
 # we need to create a separate function for each possible type
 # https://duckdb.org/docs/stable/clients/python/function#creating-functions
-def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
+def create_duckdb_udfs(
+    conn: duckdb.DuckDBPyConnection, ingredients: Iterable[t.Type[Ingredient]]
+) -> None:
+    name_to_initialized_ingredient = {}
+    for ingredient in ingredients:
+        name_to_initialized_ingredient[ingredient.__name__] = ingredient(
+            name=ingredient.__name__,
+            db=None,
+            session_uuid=None,
+        )
+
     def _get_pa_type(return_type: str):
         """Helper to get PyArrow type from return_type string."""
         if return_type == "bool":
@@ -53,6 +68,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             options: pa.Array,
             quantifiers: pa.Array,
         ):
+            global NUM_VALUES_PASSED
             # Convert Arrow arrays to Python lists
             questions_list = questions.to_pylist()
             values_list = values.to_pylist()
@@ -77,16 +93,16 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 return pa.array(
                     [None] * len(values_list), type=_get_pa_type(return_type)
                 )
-
+            NUM_VALUES_PASSED += len(unique_values)
             # Single batched LLM call for all unique values
-            mapped_results = LLMMap.run(
+            mapped_results = name_to_initialized_ingredient["LLMMap"].run(
                 model=model,
                 question=question,
                 values=unique_values,
                 options=opts,
                 list_options_in_prompt=True,
                 return_type=return_type,
-                context_formatter=LLMMap.context_formatter,
+                context_formatter=None,
                 quantifier=quantifier,
             )
 
@@ -116,14 +132,16 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
                 else None
             )
 
-            response: str = LLMQA.run(
+            response: str = name_to_initialized_ingredient["LLMQA"].run(
                 model=model,
                 question=question,
                 context=parsed_context,
                 options=cleaned_options,
                 list_options_in_prompt=True,
                 return_type=return_type,
-                context_formatter=LLMQA.context_formatter,
+                context_formatter=lambda df: json.dumps(
+                    df.to_dict(orient="records"), ensure_ascii=False, indent=4
+                ),
                 quantifier=quantifier,
             )
             if return_type == "str":
@@ -131,6 +149,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
 
         return run_llmqa
 
+    # https://duckdb.org/docs/stable/clients/python/function#creating-functions
     for func_name, func in [("LLMMap", _run_llmmap), ("LLMQA", _run_llmqa)]:
         conn.create_function(
             name=f"{func_name}Bool",
@@ -144,6 +163,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             return_type=duckdb.sqltype("bool"),
             null_handling="special",
             type="arrow" if func_name == "LLMMap" else "native",
+            side_effects=False,
         )
         conn.create_function(
             name=f"{func_name}Int",
@@ -157,6 +177,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             return_type=duckdb.sqltype("int"),
             null_handling="special",
             type="arrow" if func_name == "LLMMap" else "native",
+            side_effects=False,
         )
         conn.create_function(
             name=f"{func_name}Str",
@@ -170,6 +191,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             return_type=duckdb.sqltype("string"),
             null_handling="special",
             type="arrow" if func_name == "LLMMap" else "native",
+            side_effects=False,
         )
         conn.create_function(
             name=f"{func_name}Substr",
@@ -183,6 +205,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             return_type=duckdb.sqltype("string"),
             null_handling="special",
             type="arrow" if func_name == "LLMMap" else "native",
+            side_effects=False,
         )
         conn.create_function(
             name=f"{func_name}List",
@@ -196,6 +219,7 @@ def create_duckdb_udfs(conn: duckdb.DuckDBPyConnection) -> None:
             return_type=duckdb.list_type(duckdb.sqltype("string")),
             null_handling="special",
             type="arrow" if func_name == "LLMMap" else "native",
+            side_effects=False,
         )
 
 
@@ -212,12 +236,16 @@ def get_group_stats(df: pd.DataFrame, group_on: str, metrics: list) -> pd.DataFr
 
 
 if __name__ == "__main__":
+    # CONFIG = ExperimentConfig(
+    #     repo_id="QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
+    #     filename="Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
+    #     experiment_name="orient_dict_fmt_code_map_prompt",
+    # )
     CONFIG = ExperimentConfig(
-        repo_id="QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-        filename="Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
+        repo_id="bartowski/SmolLM2-135M-Instruct-GGUF",
+        filename="SmolLM2-135M-Instruct-Q6_K.gguf",
         experiment_name="orient_dict_fmt_code_map_prompt",
     )
-
     ingredients = {
         LLMQA.from_args(
             num_few_shot_examples=0,
@@ -254,51 +282,80 @@ if __name__ == "__main__":
     # Pre-load model obj
     _ = model.model_obj
 
-    load_bsql = lambda path: BlendSQL(
-        path,
-        model=model,
-        ingredients=ingredients,
-        verbose=False,
-    )
+    for exp_type in ["DuckDB", "BlendSQL"]:
+        load_bsql = lambda path: BlendSQL(
+            path,
+            model=model,
+            ingredients=ingredients,
+            verbose=False,
+        )
 
-    prediction_data = []
-    for item in BLENDSQL_ANNOTATED_TAG_DATASET:
-        curr_pred_data = item.copy()
-        if item["BlendSQL"] is None:
-            continue
-        bsql = load_bsql(load_tag_db_path(item["DB used"]))
+        prediction_data = []
+        for item in BLENDSQL_ANNOTATED_TAG_DATASET:
+            curr_pred_data = item.copy()
+            if exp_type == "BlendSQL":
+                if item["BlendSQL"] is None:
+                    continue
+                bsql = load_bsql(load_tag_db_path(item["DB used"]))
+                smoothie = bsql.execute(item["BlendSQL"])
+                curr_pred_data["latency"] = smoothie.meta.process_time_seconds
+                curr_pred_data["completion_tokens"] = smoothie.meta.completion_tokens
+                curr_pred_data["prompt_tokens"] = smoothie.meta.prompt_tokens
+                curr_pred_data["num_values_passed"] = smoothie.meta.num_values_passed
+                flattened_preds = [str(i) for i in smoothie.df.values.flat]
+                print(smoothie.meta.num_values_passed)
+            elif exp_type == "DuckDB":
+                NUM_VALUES_PASSED = 0
+                print(f"Running Query ID {item['Query ID']}...")
+                conn = duckdb.connect()
+                create_duckdb_udfs(conn, ingredients)
+                conn.execute(
+                    f"""ATTACH '{load_tag_db_path(item["DB used"])}' AS db (TYPE SQLITE)"""
+                )
+                conn.execute("SET search_path = 'db,main'")
+                conn.execute("SET arrow_large_buffer_size = true")
+                start = time.time()
+                try:
+                    pred = conn.execute(item["DuckDB"]).df()
+                except Exception as e:
+                    print(e)
+                flattened_preds = [str(i) for i in pred.values.flat]
+                curr_pred_data["completion_tokens"] = -1
+                curr_pred_data["prompt_tokens"] = -1
+                curr_pred_data["latency"] = time.time() - start
+                curr_pred_data["num_values_passed"] = NUM_VALUES_PASSED
+                print(NUM_VALUES_PASSED)
+                print(flattened_preds)
+            pred_to_add = flattened_preds
+            if len(curr_pred_data["Answer"]) == 1:
+                curr_pred_data["Answer"] = curr_pred_data["Answer"][0]
+            if len(flattened_preds) > 1:
+                if item.get("order_insensitive_answer", False):
+                    pred_to_add = sorted(flattened_preds)
+                    curr_pred_data["Answer"] = sorted(curr_pred_data["Answer"])
+            else:
+                pred_to_add = next(iter(flattened_preds), None)
+            curr_pred_data["prediction"] = pred_to_add
+            prediction_data.append(curr_pred_data)
+        prediction_df = pd.DataFrame(prediction_data)
+        prediction_df["correct"] = (
+            prediction_df["prediction"] == prediction_df["Answer"]
+        )
 
-        smoothie = bsql.execute(item["BlendSQL"])
-        curr_pred_data["latency"] = smoothie.meta.process_time_seconds
-        curr_pred_data["completion_tokens"] = smoothie.meta.completion_tokens
-        curr_pred_data["prompt_tokens"] = smoothie.meta.prompt_tokens
-        flattened_preds = [str(i) for i in smoothie.df.values.flat]
-        pred_to_add = flattened_preds
-        if len(curr_pred_data["Answer"]) == 1:
-            curr_pred_data["Answer"] = curr_pred_data["Answer"][0]
-        if len(flattened_preds) > 1:
-            if item.get("order_insensitive_answer", False):
-                pred_to_add = sorted(flattened_preds)
-                curr_pred_data["Answer"] = sorted(curr_pred_data["Answer"])
-        else:
-            pred_to_add = next(iter(flattened_preds), None)
-        curr_pred_data["prediction"] = pred_to_add
-        prediction_data.append(curr_pred_data)
-    prediction_df = pd.DataFrame(prediction_data)
-    prediction_df["correct"] = prediction_df["prediction"] == prediction_df["Answer"]
-
-    output_dir = (
-        CURR_DIR / f"results/TAG-Benchmark/{CONFIG.filename}/{CONFIG.experiment_name}"
-    )
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True)
-    print(f"Results for {CONFIG.filename}: {CONFIG.experiment_name}")
-    metric_df = get_group_stats(
-        df=prediction_df, group_on="Query type", metrics=["correct", "latency"]
-    )
-    print(metric_df)
-    with open(output_dir / f"aggregated_metrics.csv", "w") as f:
-        metric_df.to_json(f, indent=4)
-    with open(output_dir / f"config.json", "w") as f:
-        json.dumps(asdict(CONFIG), indent=4)
-    prediction_df.to_csv(output_dir / "predictions.csv", index=False)
+        output_dir = (
+            CURR_DIR
+            / f"results/TAG-Benchmark/{exp_type}/{CONFIG.filename}/{CONFIG.experiment_name}"
+        )
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True)
+        print(f"Results for {CONFIG.filename}: {CONFIG.experiment_name}")
+        metric_df = get_group_stats(
+            df=prediction_df, group_on="Query type", metrics=["correct", "latency"]
+        )
+        print(metric_df)
+        with open(output_dir / f"aggregated_metrics.csv", "w") as f:
+            metric_df.to_json(f, indent=4)
+        with open(output_dir / f"config.json", "w") as f:
+            json.dumps(asdict(CONFIG), indent=4)
+        prediction_df.to_csv(output_dir / "predictions.csv", index=False)
+        torch.cuda.empty_cache()

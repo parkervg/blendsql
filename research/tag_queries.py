@@ -359,7 +359,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         GROUP BY "year"
         ORDER BY SUM(ym.Consumption) DESC LIMIT 1
         """,
-        "DuckDB": """SELECT ym.Date / 100 AS "year" FROM customers c
+        "DuckDB": """SELECT CAST(ym.Date AS INT) / 100 AS "year" FROM customers c
         JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
         WHERE c.Currency = LLMQAStr('Which currency is the higher value?', NULL, (SELECT LIST(Currency) FROM customers), NULL)
         GROUP BY "year"
@@ -526,7 +526,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
             WHERE CAST(ym.Date AS INT) / 100 = 2012
         ) SELECT 
-        CAST(ROUND((SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = LLMQAStr('Currency code of European Union?', NULL, (SELECT LIST(Currency) FROM gas_consumption))) - 
+        CAST(ROUND((SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = LLMQAStr('Currency code of European Union?', NULL, (SELECT LIST(Currency) FROM gas_consumption), NULL)) - 
         (SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = LLMQAStr('Currency code of European Union?', NULL, (SELECT LIST(Currency) FROM gas_consumption), NULL))) AS INT)
         """,
         "Notes": None,
@@ -593,7 +593,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         "DuckDB": """SELECT COUNT(DISTINCT d.driverId) FROM drivers d 
        JOIN results r ON d.driverId = r.driverId 
        WHERE r.rank = 2 
-       AND CAST(SUBSTR(d.dob, 1, 4) AS NUMERIC) > LLMQAInt('What year did the Vietnam war end?', NULL, NULL, NULL)
+       AND CAST(SUBSTR(CAST(d.dob AS STRING), 1, 4) AS NUMERIC) > LLMQAInt('What year did the Vietnam war end?', NULL, NULL, NULL)
        """,
         "Notes": None,
     },
@@ -681,7 +681,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         AND ra.year = 2008 
         AND r.time IS NOT NULL
         ) SELECT COUNT(*) FROM gp_drivers
-        WHERE gp_drivers.year > LLMMapInt('What year did this driver debut?', gp_drivers.name, NULL, NULL, NULL)
+        WHERE gp_drivers.year > LLMMapInt('What year did this driver debut?', gp_drivers.name, NULL, NULL)
         """,
         # "BlendSQL": """WITH gp_drivers AS (
         # SELECT CONCAT(d.forename, ' ', d.surname) AS name FROM drivers d
@@ -725,7 +725,7 @@ ORDER BY away_team_goal DESC LIMIT 3
        JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
        WHERE p.height >= 180 
        AND pa.volleys > 70
-       AND p.height > LLMQA('How tall is Bill Clinton in centimeters?', NULL, NULL, NULL)
+       AND p.height > LLMQAInt('How tall is Bill Clinton in centimeters?', NULL, NULL, NULL)
        """,
         "Notes": "Gets Bill Clinton height wrong",
     },
@@ -781,7 +781,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         """,
         "DuckDB": """SELECT COUNT(DISTINCT u.Id) FROM users u 
         WHERE u.UpVotes > 100
-        AND u.Age > LLMQA('What is the median age in America? Give your best guess.', NULL, NULL, NULL)
+        AND u.Age > LLMQAInt('What is the median age in America? Give your best guess.', NULL, NULL, NULL)
         """,
         "Notes": None,
     },
