@@ -1,9 +1,7 @@
-import typing as t
 import sqlglot.dialects
 from sqlglot.dialects import SQLite, Postgres
 from sqlglot.schema import MappingSchema
-from sqlglot import exp, parse_one
-from typing import Union, Optional
+from sqlglot import parse_one
 from sqlglot.dialects.dialect import Dialect, DialectType
 from sqlglot.optimizer.isolate_table_selects import isolate_table_selects
 from sqlglot.optimizer.qualify_columns import (
@@ -206,12 +204,12 @@ def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
 def qualify(
     expression: exp.Expression,
     dialect: DialectType = None,
-    db: t.Optional[str] = None,
-    catalog: t.Optional[str] = None,
-    schema: t.Optional[dict | Schema] = None,
+    db: str | None = None,
+    catalog: str | None = None,
+    schema: dict | Schema = None,
     expand_alias_refs: bool = True,
     expand_stars: bool = True,
-    infer_schema: t.Optional[bool] = None,
+    infer_schema: bool | None = None,
     isolate_tables: bool = False,
     qualify_columns: bool = True,
     allow_partial_qualification: bool = False,
@@ -295,9 +293,9 @@ def qualify(
 
 
 def _parse_one(
-    sql: Union[str, exp.Expression],
+    sql: str | exp.Expression,
     dialect: sqlglot.Dialect,
-    schema: Optional[Union[dict, Schema]] = None,
+    schema: dict | Schema | None = None,
 ):
     """Utility to make sure we parse/read queries with the correct dialect."""
     # https://www.sqlite.org/optoverview.html

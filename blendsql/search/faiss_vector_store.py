@@ -4,14 +4,14 @@ from pathlib import Path
 import hashlib
 import numpy as np
 import platformdirs
-import typing as t
+from typing import Any, TypeVar
 
 from colorama import Fore
 
 from blendsql.common.logger import logger
 from blendsql.search.searcher import Searcher
 
-ReturnObj = t.TypeVar("ReturnObj")
+ReturnObj = TypeVar("ReturnObj")
 
 
 def maybe_make_dir(dir_path: Path):
@@ -19,7 +19,7 @@ def maybe_make_dir(dir_path: Path):
         dir_path.mkdir(parents=True)
 
 
-def dependable_faiss_import(no_avx2: t.Optional[bool] = None) -> t.Any:
+def dependable_faiss_import(no_avx2: bool | None = None) -> Any:
     """
     https://python.langchain.com/v0.2/api_reference/_modules/langchain_community/vectorstores/faiss.html#dependable_faiss_import
     Import faiss if available, otherwise raise error.
@@ -45,20 +45,20 @@ def dependable_faiss_import(no_avx2: t.Optional[bool] = None) -> t.Any:
 
 @dataclass(kw_only=True)
 class FaissVectorStore(Searcher):
-    documents: t.List[str] = field()
+    documents: list[str] = field()
     # https://github.com/facebookresearch/faiss/wiki/The-index-factory
     factory_str: str = field(default="Flat")
     model_name_or_path: str = field(default="sentence-transformers/all-mpnet-base-v2")
     index_dir: Path = field(
         default=Path(platformdirs.user_cache_dir("blendsql")) / "faiss_vectors"
     )
-    return_objs: t.List[ReturnObj] = field(default=None)
-    st_encode_kwargs: t.Optional[dict[str, t.Any]] = field(default=None)
-    batch_size: t.Optional[int] = field(default=32)
+    return_objs: list[ReturnObj] = field(default=None)
+    st_encode_kwargs: dict[str, Any] | None = field(default=None)
+    batch_size: int | None = field(default=32)
 
     index: "faiss.Index" = field(init=False)
     embedding_model: "SentenceTransformer" = field(init=False)
-    idx_to_return_obj: t.Dict[int, ReturnObj] = field(init=False)
+    idx_to_return_obj: dict[int, ReturnObj] = field(init=False)
     hashed_documents_str: str = field(init=False)
 
     def __post_init__(self):
@@ -130,10 +130,10 @@ class FaissVectorStore(Searcher):
 
     def __call__(
         self,
-        query: t.Union[t.List[str], str],
-        k: t.Optional[int] = None,
+        query: list[str] | str,
+        k: int | None = None,
         scores_only: bool = False,
-    ) -> t.List[t.List[str]]:
+    ) -> list[list[str]]:
         is_single_query = isinstance(query, str)
         queries = [query] if is_single_query else query
 

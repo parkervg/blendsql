@@ -2,7 +2,6 @@ from .builtin import (
     LLMQA,
     LLMJoin,
     LLMMap,
-    LLMValidate,
     ImageCaption,
 )
 from .ingredient import (

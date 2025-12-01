@@ -43,18 +43,18 @@ pip install blendsql
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.models import TransformersLLM, LiteLLM
+from blendsql.models import LlamaCpp, LiteLLM
 
 USE_LOCAL_CONSTRAINED_MODEL = False
 
-# Load model, either a local transformers model, or remote provider via LiteLLM
+# Load model, either a local LlamaCpp model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
     # Local models enable BlendSQL's expression-guided constrained decoding
-    # https://arxiv.org/abs/2509.20208
-    import torch
-    
-    model = TransformersLLM(
-        "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto", "torch_dtype": torch.bfloat16}
+    # https://arxiv.org/abs/2509.20208    
+    model = LlamaCpp(
+        model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
+        filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
+        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
     ) 
 else:
     model = LiteLLM("openai/gpt-4o-mini")
@@ -183,6 +183,21 @@ print(smoothie.summary())
 
 ```
 
+# Summary
+
+BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
+
+As a result, we can *Blend* together...
+
+- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
+- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
+
+At its core, BlendSQL follows a simple design principle: be lazy.
+
+Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally execute back in the native SQL dialect. In this way, blendsql 'compiles to SQL'.
+
+For more info on query execution in BlendSQL, see Section 2.4 [here](https://arxiv.org/pdf/2509.20208). 
+
 # 📰 News
 - (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
 - (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
@@ -193,26 +208,12 @@ print(smoothie.summary())
 - (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
   - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
 
-# Summary
-
-BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
-
-As a result, we can *Blend* together...
-
-- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
-- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
-
-![comparison](docs/img/comparison.jpg)
-
-**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
-
 # Features
 
 - Supports many DBMS 💾
   - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
 - Supports local & remote models ✨
   - Transformers, OpenAI, Anthropic, Ollama, and 100+ more!
-- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
@@ -221,136 +222,325 @@ As a result, we can *Blend* together...
 
 # Benchmarks 
 
+On a dataset of complex questions converted to executable declarative programs (e.g. *How many test
+takers are there at the school/s in a county with population over 2 million?*), **BlendSQL is 53% faster than the pandas-based LOTUS, and xxx% faster than vanilla DuckDB functions**.
 See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208) for more details. 
 
 ![latency_analysis](docs/img/runtime_analysis.png)
 
-# Example
-For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
 
-We can use BlendSQL to build a travel planning LLM chatbot to help us navigate the options below.
+### But - why not just define UDFs? 
 
+Many DBMS allow for the creation of Python user-defined functions (UDFs), like [DuckDB](https://duckdb.org/docs/stable/clients/python/function). So why not just use those to embed language model functions instead of BlendSQL?
+The below plot adds the DuckDB UDF approach to the same benchmark we did above - where DuckDB UDFs come in with at average of 133.2 seconds per query.  
 
-| **Name**        | **Image**                                                                       | **Location**       | **Area**                          | **Recreation Visitors (2022)** | **Description**                                                                                                                          |
-|-----------------|---------------------------------------------------------------------------------|--------------------|-----------------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| Death Valley    | ![death_valley.jpeg](./docs/img/national_parks_example/death_valley.jpeg)       | California, Nevada | 3,408,395.63 acres (13,793.3 km2) | 1,128,862                      | Death Valley is the hottest, lowest, and driest place in the United States, with daytime temperatures that have exceeded 130 °F (54 °C). |
-| Everglades      | ![everglades.jpeg](./docs/img/national_parks_example/everglades.jpeg)           | Alaska             | 7,523,897.45 acres (30,448.1 km2) | 9,457                          | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.              |
-| New River Gorge | ![new_river_gorge.jpeg](./docs/img/national_parks_example/new_river_gorge.jpeg) | West Virgina       | 7,021 acres (28.4 km2)            | 1,593,523                      | The New River Gorge is the deepest river gorge east of the Mississippi River.                                                            |
- | Katmai          | ![katmai.jpg](./docs/img/national_parks_example/katmai.jpg)                     | Alaska             |  3,674,529.33 acres (14,870.3 km2)                                 | 33,908 | This park on the Alaska Peninsula protects the Valley of Ten Thousand Smokes, an ash flow formed by the 1912 eruption of Novarupta.  |
+![latency_analysis_with_duckdb](docs/img/runtime_analysis_with_duckdb.png)
 
-BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
+The reason for this? DuckDB uses a generalized query optimizer, very good at many different optimizations. But when we introduce a UDF with an unknown cost, many values get passed to the highly expensive language model functions that could have been filtered out via vanilla SQL expressions first (`JOIN`, `WHERE`, `LIMIT`, etc.).
 
-_Which parks don't have park facilities?_
-```sql
-SELECT "Name", "Description" FROM parks p
-  WHERE {{
-      LLMMap(
-          'Does this location have park facilities?',
-          p.Description
-      )
-  }} = FALSE
+This highlights an important point about the value-add of BlendSQL. While you *can* just import the individual language model functions and call them on data (see [here](https://github.com/parkervg/blendsql/blob/duckdb-udf-eval/research/run-evaluate.py#L42)) - if you know the larger query context where the function output will be used, you *should* use the BlendSQL query optimizer (`bsql.execute()`), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.
+
+> [!TIP]
+> How do we know the BlendSQL optimizer is passing the minimal required data to the language model functions? Check out our extensive [test suite](./tests/) for examples.
+
+# Documentation 
+
+- [Simple Row-Wise Classification](#simple-row-wise-classification)
+- [Search-then-Map ](#search-then-map)
+    - [Specifying `return_type`](#specifying-return_type)
+- [Search-then-Reduce ](#search-then-map)
+- [Few-Shot Prompting](#few-shot-prompting)
+
+The below examples can use this model initialization logic to define the variable `model`:
+
+```python
+from blendsql.models import LlamaCpp, LiteLLM
+
+USE_LOCAL_CONSTRAINED_MODEL = True 
+if USE_LOCAL_CONSTRAINED_MODEL:
+    # Local models enable BlendSQL's expression-guided constrained decoding
+    # https://arxiv.org/abs/2509.20208    
+    model = LlamaCpp(
+        model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
+        filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
+        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
+    ) 
+else:
+    model = LiteLLM("openai/gpt-4o-mini")
 ```
-| Name            | Description                                                                                                                            |
-|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
-| Everglades      | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.            |
-<hr>
 
-_What does the largest park in Alaska look like?_
+## Simple Row-Wise Classification 
 
-```sql
-SELECT "Name",
-{{ImageCaption(Image)}} as "Image Description",
-{{
-    LLMMap(
-        question='Size in km2?',
-        values=Area
+```python
+import pandas as pd
+from blendsql import BlendSQL
+
+if __name__ == "__main__":
+    bsql = BlendSQL(
+        {
+            "posts": pd.DataFrame(
+                {"content": ["I hate this product", "I love this product"]}
+            )
+        },
+        model=model,
+        verbose=True,
     )
-}} as "Size in km" FROM parks p
-WHERE "Location" = 'Alaska'
-ORDER BY "Size in km" DESC LIMIT 1
+
+    smoothie = bsql.execute(
+        """
+        SELECT {{
+            LLMMap(
+                'What is the sentiment of this text?',
+                content,
+                options=('positive', 'negative')
+            )      
+        }} AS classification FROM posts
+        """
+    )
+    print(smoothie.df)
 ```
 
-| Name       | Image Description                                       |   Size in km |
-|:-----------|:--------------------------------------------------------|-------------:|
-| Everglades | A forest of tall trees with a sunset in the background. |      30448.1 |
+## Search-then-Map 
 
-<hr>
+Some question answering tasks require hybrid reasoning - some information is present in a given table, but some information exists only in external free text documents. 
 
-_Which state is the park in that protects an ash flow?_
+```python
+import pandas as pd 
 
-```sql
-SELECT Location, Name AS "Park Protecting Ash Flow" FROM parks
-    WHERE Name = {{
-      LLMQA(
-        'Which park protects an ash flow?',
-        context=(SELECT Name, Description FROM parks),
-        options=Name
+from blendsql import BlendSQL
+    
+bsql = BlendSQL(
+    {
+        "world_aquatic_championships": pd.DataFrame(
+            [
+                {
+                    "Medal": "Silver",
+                    "Name": "Dana Vollmer",
+                    "Sport": "Swimming",
+                    "Event": "Women's 100 m butterfly",
+                    "Time/Score": "56.87",
+                    "Date": "July 25",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Ryan Lochte",
+                    "Sport": "Swimming",
+                    "Event": "Men's 200 m freestyle",
+                    "Time/Score": "1:44.44",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Rebecca Soni",
+                    "Sport": "Swimming",
+                    "Event": "Women's 100 m breaststroke",
+                    "Time/Score": "1:05.05",
+                    "Date": "July 26",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Elizabeth Beisel",
+                    "Sport": "Swimming",
+                    "Event": "Women's 400 m individual medley",
+                    "Time/Score": "4:31.78",
+                    "Date": "July 31",
+                },
+            ]
+        )
+    },
+    model=model,
+    verbose=True, # Set `verbose=True` to see the query plan as it executes
+)
+
+_ = bsql.model.model_obj # Models are lazy loaded by default. Use this line if you want to pre-load models before execution.
+```
+
+We can now create a custom function that will: 
+  1) Fill in our f-string templatized question with values in the database
+  2) Batch-retrieve top `k` relevant documents for each unrolled question 
+  3) Batch-apply the provied language model to generate a type constrained output given the document contexts 
+
+```python
+from blendsql.search import TavilySearch, FaissVectorStore
+from blendsql.ingredients import LLMMap
+
+USE_TAVILY = True # This requires a `.env` file with a `TAVILY_API_KEY` variable defined
+if USE_TAVILY:
+  searcher = TavilySearch(k=3)
+else:
+  # We can also define a local FAISS vector store
+  searcher = FaissVectorStore(
+    documents=[
+      "Ryan Steven Lochte (/ˈlɒkti/ LOK-tee; born August 3, 1984) is an American former[2] competition swimmer and 12-time Olympic medalist.",
+      "Rebecca Soni (born March 18, 1987) is an American former competition swimmer and breaststroke specialist.",
+      "Elizabeth Lyon Beisel (/ˈbaɪzəl/; born August 18, 1992) is an American competition swimmer who specializes in backstroke and individual medley events."
+    ],
+    k=3
+  )
+
+DocumentSearchMap = LLMMap.from_args(
+  searcher=searcher
+)
+
+# This line registers our new function in our `BlendSQL` connection context
+# Replacement scans allow us to now reference the function by the variable name we initialized it to (`DocumentSearchMap`)
+bsql.ingredients = {DocumentSearchMap} 
+
+# Define a blendsql program to answer: 'What is the name of the oldest person who won gold?'
+smoothie = bsql.execute(
+    """
+    SELECT Name FROM world_aquatic_championships w
+    WHERE Medal = 'Gold'
+    /* By default, blendsql infers type constraints given expression context. */ 
+    /* So below, the return_type will be constrained to an integer (`\d+`) */ 
+    ORDER BY {{DocumentSearchMap('What year was {} born?', w.Name)}} ASC LIMIT 1
+    """
+)
+
+print(smoothie.df)
+# ┌─────────────┐
+# │ Name        │
+# ├─────────────┤
+# │ Ryan Lochte │
+# └─────────────┘
+```
+
+To analyze the prompts we sent to the model, we can access `GLOBAL_HISTORY`. 
+
+```python
+from blendsql import GLOBAL_HISTORY
+
+# This is a list
+print(GLOBAL_HISTORY)
+```
+
+## Specifying `return_type`
+
+Notice in the above example - what if two athletes were born in the same year, but different days? 
+
+In this case, simply fetching the year of birth isn't enough for the ordering we need to do. For cases when the required datatype is unable to be inferred via expression context, you can override the inferred default via passing `return_type`. The following are valid. 
+
+| `return_type` Argument | Regex                                                                                                  | DB Mapping Logic                                                                                                                     |
+|------------------------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `any`                  | N.A.                                                                                                   | N.A. The DB implicitly casts the type, if type affinity is supported (e.g. SQLite does this).                                        |
+| `str`                  | N.A.                                                                                                   | N.A. Same behavior as `any`, but the language model is prompted with the cue that the return type should look like a string.         |
+| `int`                  | `r"-?(\d+)"`                                                                                           |                                                                                                                                      |
+| `float`                | `r"-?(\d+(\.\d+)?)"`                                                                                   |                                                                                                                                      |
+| `bool`                 | `r"(t\|f\|true\|false\|True\|False)"`                                                                  |                                                                                                                                      |
+| `substring`            | complicated - see https://github.com/guidance-ai/guidance/blob/main/guidance/library/_substring.py#L11 |                                                                                                                                      |
+| `date`                 | `r"\d{4}-\d{2}-\d{2}"`                                                                                 | The ISO8601 is inserted into the query as a date type. This differs for different DBMS - in DuckDB, it would be `'1992-09-20'::DATE` |
+
+```python
+smoothie = bsql.execute(
+    """
+    SELECT Name FROM world_aquatic_championships w
+    WHERE Medal = 'Gold'
+    /* Defining `return_type = 'date'` will constrain generation to a date format, and handle type conversion to the respective database context for you. */  
+    /* For example, DuckDB and SQLite stores dates as a ISO8601 string */
+    ORDER BY {{DocumentSearchMap('When was {} born?', w.Name, return_type='date')}} ASC LIMIT 1
+    """
+)
+```
+
+## Search-then-Reduce  
+
+Below we use the scalar `LLMQA` function to do a search over our documents with the question formatted with a value from the structured `european_countries` table.
+
+```python 
+import pandas as pd 
+
+from blendsql import BlendSQL
+from blendsql.search import FaissVectorStore
+from blendsql.ingredients import LLMQA
+
+bsql = BlendSQL(
+    {
+        "documents": pd.DataFrame(
+            [
+                {
+                    "title": "Steve Nash",
+                    "content": "Steve Nash played college basketball at Santa Clara University",
+                },
+                {
+                    "title": "E.F. Codd",
+                    "content": 'Edgar Frank "Ted" Codd (19 August 1923 – 18 April 2003) was a British computer scientist who, while working for IBM, invented the relational model for database management, the theoretical basis for relational databases and relational database management systems.',
+                },
+                {
+                    "title": "George Washington (February 22, 1732 – December 14, 1799) was a Founding Father and the first president of the United States, serving from 1789 to 1797."
+                },
+                {
+                    "title": "Thomas Jefferson",
+                    "content": "Thomas Jefferson (April 13, 1743 – July 4, 1826) was an American Founding Father and the third president of the United States from 1801 to 1809.",
+                },
+                {
+                    "title": "John Adams",
+                    "content": "John Adams (October 30, 1735 – July 4, 1826) was an American Founding Father who was the second president of the United States from 1797 to 1801.",
+                },
+            ]
+        ),
+        "european_countries": pd.DataFrame(
+            [
+                {
+                    "Country": "Portugal",
+                    "Area (km²)": 91568,
+                    "Population (As of 2011)": 10555853,
+                    "Population density (per km²)": 115.2,
+                    "Capital": "Lisbon",
+                },
+                {
+                    "Country": "Sweden",
+                    "Area (km²)": 449964,
+                    "Population (As of 2011)": 9088728,
+                    "Population density (per km²)": 20.1,
+                    "Capital": "Stockholm",
+                },
+                {
+                    "Country": "United Kingdom",
+                    "Area (km²)": 244820,
+                    "Population (As of 2011)": 62300000,
+                    "Population density (per km²)": 254.4,
+                    "Capital": "London",
+                },
+            ]
+        ),
+    },
+    model=model,
+    verbose=True,
+)
+
+USE_SEARCH = True 
+if USE_SEARCH:
+  LLMQA = LLMQA.from_args(
+    searcher=FaissVectorStore(
+      documents=bsql.db.execute_to_list("SELECT DISTINCT title || content FROM documents"),
+      k=3
+    )
+  )
+  bsql.ingredients = {LLMQA}
+
+smoothie = bsql.execute(
+"""
+SELECT {{
+    LLMQA(
+      'Who is from {}?', 
+      /* The below subquery gets executed, and the result is inserted into the below `{}`. */
+      (
+        SELECT Country FROM european_countries c
+        WHERE Capital = 'London'
       )
-  }}
-```
-| Location   | Park Protecting Ash Flow   |
-|:-----------|:---------------------------|
-| Alaska     | Katmai                     |
-
-<hr>
-
-_How many parks are located in more than 1 state?_
-
-```sql
-SELECT COUNT(*) FROM parks
-    WHERE {{LLMMap('How many states?', Location)}} > 1
-```
-|   Count |
-|--------:|
-|       1 |
-<hr>
-
-_Give me some info about the park in the state that Sarah Palin was governor of._
-```sql
-SELECT "Name", "Location", "Description" FROM parks
-/* Will gather relevant context via WebSearch, and automatically constrain output 
-   to one of the values in 'parks.Location'*/
-WHERE Location = {{WebSearchQA('Which state was Sarah Palin governor of?')}}
-```
-| Name       | Location   | Description                                                                                                                         |
-|:-----------|:-----------|:------------------------------------------------------------------------------------------------------------------------------------|
-| Everglades | Alaska     | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.         |
-| Katmai     | Alaska     | This park on the Alaska Peninsula protects the Valley of Ten Thousand Smokes, an ash flow formed by the 1912 eruption of Novarupta. |
-<hr>
-
-_What's the difference in visitors for those parks with a superlative in their description vs. those without?_
-```sql
-SELECT SUM(CAST(REPLACE("Recreation Visitors (2022)", ',', '') AS integer)) AS "Total Visitors",
-{{LLMMap('Contains a superlative?', Description, options=('t', 'f'))}} AS "Description Contains Superlative",
-GROUP_CONCAT(Name, ', ') AS "Park Names"
-FROM parks
-GROUP BY "Description Contains Superlative"
-```
-| Total Visitors |   Description Contains Superlative | Park Names                    |
-|---------------:|-----------------------------------:|:------------------------------|
-|          43365 |                                  0 | Everglades, Katmai            |
-|        2722385 |                                  1 | Death Valley, New River Gorge |
-<hr>
-
-Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
-
-For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
-
-
-# Citation
-
-```bibtex
-@article{glenn2024blendsql,
-      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
-      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
-      year={2024},
-      eprint={2402.17882},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
-}
+    )
+}} AS answer
+"""
+)
+print(smoothie.df)
+# ┌────────────┐
+# │ answer     │
+# ├────────────┤
+# │ E.F. Codd  │
+# └────────────┘
 ```
 
-# Few-Shot Prompting
+
+## Few-Shot Prompting
 For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples and dynamically retrieve those top-`k` most relevant examples at runtime, given the current inference example.
 #### `LLMMap`
 - [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
@@ -454,6 +644,18 @@ ingredients = {
 bsql = BlendSQL(db, ingredients=ingredients)
 ```
 
+# Citation
+
+```bibtex
+@article{glenn2024blendsql,
+      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
+      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
+      year={2024},
+      eprint={2402.17882},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
 
 # Acknowledgements
 Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!

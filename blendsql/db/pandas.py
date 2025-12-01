@@ -1,11 +1,10 @@
-import typing as t
 import pandas as pd
 
 from blendsql.db.duckdb import DuckDB
 
 
 def Pandas(
-    data: t.Union[t.Dict[str, pd.DataFrame], pd.DataFrame], tablename: str = "w"
+    data: dict[str, pd.DataFrame] | pd.DataFrame, tablename: str = "w"
 ) -> DuckDB:
     """This is just a wrapper over the `DuckDB.from_pandas` class method.
     Makes it more intuitive to do a `from blendsql.db import Pandas`, for those

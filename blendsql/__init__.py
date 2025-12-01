@@ -5,3 +5,4 @@ setattr(sqlglot.exp, "BlendSQLFunction", BlendSQLFunction)
 
 from .blendsql import BlendSQL
 from . import configure as config
+from .configure import GLOBAL_HISTORY

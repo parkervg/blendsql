@@ -1,6 +1,6 @@
 from enum import Enum, EnumMeta
 from dataclasses import dataclass
-import typing as t
+from typing import Literal, Callable, Any
 
 
 class StrInMeta(EnumMeta):
@@ -18,15 +18,15 @@ class IngredientType(str, Enum, metaclass=StrInMeta):
 
 # The 'quantifier' arg can be either '*' or '+',
 #   or any string matching '{\d(,\d)?}'
-QuantifierType = t.Union[t.Literal["*", "+"], str, None]
+QuantifierType = Literal["*", "+"] | str | None
 
 
 @dataclass
 class DataType:
     _name: str
-    regex: t.Optional[str]
-    quantifier: t.Optional[QuantifierType]
-    _coerce_fn: t.Callable
+    regex: str | None
+    quantifier: QuantifierType | None
+    _coerce_fn: Callable
 
     @property
     def name(self) -> str:
@@ -34,7 +34,7 @@ class DataType:
             return f"List[{self._name}]"
         return self._name
 
-    def coerce_fn(self, s: t.Union[str, None]) -> t.Any:
+    def coerce_fn(self, s: str | None) -> Any:
         """Language models output strings.
         We want to coerce their outputs to the DB-friendly type here.
         """

@@ -4,7 +4,7 @@ https://github.com/tobymao/sqlglot
 
 """
 
-from typing import Union, Type, Tuple
+from typing import Type
 
 from sqlglot import exp
 
@@ -12,7 +12,7 @@ from . import checks as check
 from .constants import SUBQUERY_EXP
 
 
-def set_subqueries_to_true(node) -> Union[exp.Expression, None]:
+def set_subqueries_to_true(node) -> exp.Expression | None:
     """For all subqueries (i.e. children exp.Select statements)
     set all these to TRUE abstractions.
 
@@ -35,7 +35,7 @@ def set_subqueries_to_true(node) -> Union[exp.Expression, None]:
     return node
 
 
-def prune_empty_where(node) -> Union[exp.Expression, None]:
+def prune_empty_where(node) -> exp.Expression | None:
     """
     Removes any `exp.Where` clause without any values.
 
@@ -59,7 +59,7 @@ def prune_empty_where(node) -> Union[exp.Expression, None]:
     return node
 
 
-def set_ingredient_nodes_to_true(node) -> Union[exp.Expression, None]:
+def set_ingredient_nodes_to_true(node) -> exp.Expression | None:
     """Prunes all nodes with an ingredient parent.
 
     CASE 1
@@ -97,9 +97,7 @@ def replace_subquery_with_direct_alias_call(node, subquery, aliasname):
     return node
 
 
-def remove_nodetype(
-    node, nodetype: Union[Type[exp.Expression], Tuple[Type[exp.Expression]]]
-):
+def remove_nodetype(node, nodetype: Type[exp.Expression] | tuple[Type[exp.Expression]]):
     if isinstance(node, nodetype):
         return None
     return node

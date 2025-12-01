@@ -1,4 +1,3 @@
-from typing import Union
 import copy
 from dataclasses import dataclass
 
@@ -36,7 +35,7 @@ class LMString(str):
         return DummyOutput(len(str(self)))
 
 
-def maybe_load_lm(model: Model, lm: Union[LMString, ModelObj]) -> ModelObj:
+def maybe_load_lm(model: Model, lm: LMString | ModelObj) -> ModelObj:
     if isinstance(lm, LMString):
         new_lm = model.model_obj + lm
         for k, v in lm._variables.items():

@@ -1,4 +1,4 @@
-import typing as t
+from typing import Callable
 from functools import partialmethod
 import guidance
 import re
@@ -10,9 +10,9 @@ from .few_shot import Example
 
 
 def initialize_retriever(
-    examples: t.List[Example],
-    num_few_shot_examples: t.Optional[int] = None,
-) -> t.Callable[[str], t.List[Example]]:
+    examples: list[Example],
+    num_few_shot_examples: int | None = None,
+) -> Callable[[str], list[Example]]:
     """Initializes a DPR retriever over the few-shot examples provided."""
     if num_few_shot_examples == 0:
         return lambda *_: []
@@ -34,8 +34,8 @@ def gen_list(
     lm,
     force_quotes: bool,
     quantifier=None,
-    options: t.Optional[t.List[str]] = None,
-    regex: t.Optional[str] = None,
+    options: list[str] | None = None,
+    regex: str | None = None,
 ):
     if options:
         single_item = guidance.select(options, list_append=True, name="response")
@@ -65,7 +65,7 @@ def gen_list(
 
 def get_quantifier_wrapper(
     quantifier: QuantifierType,
-) -> t.Callable[[guidance.models.Model], guidance.models.Model]:
+) -> Callable[[guidance.models.Model], guidance.models.Model]:
     quantifier_wrapper = lambda x: x
     if quantifier is not None:
         if quantifier == "*":

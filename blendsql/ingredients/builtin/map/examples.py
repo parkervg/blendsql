@@ -1,5 +1,5 @@
 from attr import attrs, attrib
-import typing as t
+from collections.abc import Collection
 from enum import Enum
 
 from blendsql.ingredients.few_shot import Example
@@ -16,12 +16,12 @@ class ContextType(Enum):
 @attrs(kw_only=True)
 class MapExample(Example):
     question: str = attrib(default=None)
-    context: t.Optional[t.Union[str, t.List[str]]] = attrib(default=None)
+    context: str | list[str] | None = attrib(default=None)
     table_name: str = attrib(default=None)
     column_name: str = attrib(default=None)
-    options: t.Optional[t.Collection[str]] = attrib(default=None)
-    example_outputs: t.Optional[t.List[str]] = attrib(default=None)
-    mapping: t.Optional[t.Dict[str, str]] = attrib(default=None)
+    options: Collection[str] | None = attrib(default=None)
+    example_outputs: list[str] | None = attrib(default=None)
+    mapping: dict[str, str] | None = attrib(default=None)
     return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s.lower()] if isinstance(s, str) else s,
         default=DataTypes.ANY(),
@@ -31,7 +31,7 @@ class MapExample(Example):
 
 @attrs(kw_only=True)
 class AnnotatedMapExample(MapExample):
-    mapping: t.Dict[str, str] = attrib()
+    mapping: dict[str, str] = attrib()
 
 
 # Below are for use with constrained models
@@ -110,7 +110,7 @@ class ConstrainedAnnotatedMapExample(ConstrainedMapExample):
 # Below are for use with unconstrained models
 class UnconstrainedMapExample(MapExample):
     def to_string(
-        self, values: t.List[str] = None, list_options: bool = True, *args, **kwargs
+        self, values: list[str] = None, list_options: bool = True, *args, **kwargs
     ) -> str:
         s = f"\n\nQuestion: {self.question}\n"
         if self.table_name and self.column_name:

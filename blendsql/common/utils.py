@@ -1,4 +1,3 @@
-from typing import Tuple
 from tabulate import tabulate
 from functools import partial
 
@@ -23,7 +22,7 @@ def fetch_from_hub(filename: str):
     )
 
 
-def get_tablename_colname(s: ColumnRef) -> Tuple[str, str]:
+def get_tablename_colname(s: ColumnRef) -> tuple[str, str]:
     """Takes as input a string in the format `{tablename}.{colname}`
     Returns individual parts, but raises error if `s` is in the wrong format.
     """

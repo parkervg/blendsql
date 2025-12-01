@@ -1,7 +1,7 @@
 import ast
 import logging
 import os
-import typing as t
+from typing import Callable
 from pathlib import Path
 import json
 import pandas as pd
@@ -33,7 +33,7 @@ from .examples import (
 )
 from blendsql.search.searcher import Searcher
 
-DEFAULT_MAP_FEW_SHOT: t.List[AnnotatedMapExample] = [
+DEFAULT_MAP_FEW_SHOT: list[AnnotatedMapExample] = [
     AnnotatedMapExample(**d)
     for d in json.loads(
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
@@ -63,14 +63,14 @@ class LLMMap(MapIngredient):
         `{{LLMMap('question', 'table::column')}}`
     """
     model: Model = attrib(default=None)
-    few_shot_retriever: t.Callable[[str], t.List[AnnotatedMapExample]] = attrib(
+    few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = attrib(
         default=None
     )
     list_options_in_prompt: bool = attrib(default=True)
-    few_shot_retriever: t.Callable[[str], t.List[AnnotatedMapExample]] = attrib(
+    few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = attrib(
         default=None
     )
-    context_formatter: t.Callable[[pd.DataFrame], str] = attrib(
+    context_formatter: Callable[[pd.DataFrame], str] = attrib(
         default=DEFAULT_CONTEXT_FORMATTER,
     )
     batch_size: int = attrib(default=None)
@@ -78,14 +78,12 @@ class LLMMap(MapIngredient):
     @classmethod
     def from_args(
         cls,
-        model: t.Optional[Model] = None,
-        few_shot_examples: t.Optional[
-            t.Union[t.List[dict], t.List[AnnotatedMapExample]]
-        ] = None,
+        model: Model | None = None,
+        few_shot_examples: list[dict] | list[AnnotatedMapExample] | None = None,
         list_options_in_prompt: bool = True,
-        batch_size: t.Optional[int] = None,
-        num_few_shot_examples: t.Optional[int] = None,
-        searcher: t.Optional[Searcher] = None,
+        batch_size: int | None = None,
+        num_few_shot_examples: int | None = None,
+        searcher: Searcher | None = None,
         enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
@@ -168,24 +166,24 @@ class LLMMap(MapIngredient):
         self,
         model: Model,
         question: str,
-        values: t.List[str],
-        context_formatter: t.Callable[[pd.DataFrame], str],
+        values: list[str],
+        context_formatter: Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
-        unpacked_questions: t.List[str] = None,
-        searcher: t.Optional[Searcher] = None,
-        options: t.Optional[t.List[str]] = None,
-        few_shot_retriever: t.Callable[
-            [str], t.List[ConstrainedAnnotatedMapExample]
+        unpacked_questions: list[str] = None,
+        searcher: Searcher | None = None,
+        options: list[str] | None = None,
+        few_shot_retriever: Callable[
+            [str], list[ConstrainedAnnotatedMapExample]
         ] = None,
-        value_limit: t.Optional[int] = None,
-        example_outputs: t.Optional[str] = None,
+        value_limit: int | None = None,
+        example_outputs: str | None = None,
         quantifier: QuantifierType = None,
-        return_type: t.Optional[t.Union[DataType, str]] = None,
-        regex: t.Optional[str] = None,
-        context: t.Optional[pd.DataFrame] = None,
+        return_type: DataType | str | None = None,
+        regex: str | None = None,
+        context: pd.DataFrame | None = None,
         batch_size: int = None,
         **kwargs,
-    ) -> t.List[t.Union[float, int, str, bool]]:
+    ) -> list[float | int | str | bool]:
         """For each value in a given column, calls a Model and retrieves the output.
 
         Args:
@@ -209,7 +207,7 @@ class LLMMap(MapIngredient):
 
         # Resolve context argument
         # If we explicitly passed `context`, this should take precedence over the vector store.
-        context_in_use: t.List[str] = [None] * len(values)
+        context_in_use: list[str] = [None] * len(values)
         context_in_use_type: ContextType = None
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
@@ -272,14 +270,14 @@ class LLMMap(MapIngredient):
         if isinstance(model, ConstrainedModel):
             batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
             current_example = ConstrainedMapExample(**current_example.__dict__)
-            few_shot_examples: t.List[ConstrainedAnnotatedMapExample] = [
+            few_shot_examples: list[ConstrainedAnnotatedMapExample] = [
                 ConstrainedAnnotatedMapExample(**example.__dict__)
                 for example in few_shot_retriever(current_example.to_string())
             ]
         else:
             batch_size = batch_size or DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE
             current_example = UnconstrainedMapExample(**current_example.__dict__)
-            few_shot_examples: t.List[UnconstrainedAnnotatedMapExample] = [
+            few_shot_examples: list[UnconstrainedAnnotatedMapExample] = [
                 UnconstrainedAnnotatedMapExample(**example.__dict__)
                 for example in few_shot_retriever(
                     current_example.to_string(values=values)
@@ -344,9 +342,9 @@ class LLMMap(MapIngredient):
 
             def make_prediction(
                 value: str,
-                context: t.Optional[t.Union[str, t.List[str]]],
+                context: str | list[str] | None,
                 str_output: bool,
-                gen_f: t.Callable,
+                gen_f: Callable,
             ) -> str:
                 """If `context` is a string, it is a serialized table subset.
                 Else, it's a list of documents.
@@ -465,7 +463,7 @@ class LLMMap(MapIngredient):
                             cache_key = identifier_to_cache_key[identifier]
                             model.cache[cache_key] = lm.get(identifier)  # type: ignore
 
-            lm_mapping: t.List[str] = [lm[identifier] for identifier in all_identifiers]  # type: ignore
+            lm_mapping: list[str] = [lm[identifier] for identifier in all_identifiers]  # type: ignore
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
@@ -491,8 +489,8 @@ class LLMMap(MapIngredient):
             if context_in_use_type is not None:
                 context_in_use = [context_in_use[i] for i in sorted_indices]
 
-            messages_list: t.List[t.List[dict]] = []
-            batch_sizes: t.List[int] = []
+            messages_list: list[list[dict]] = []
+            batch_sizes: list[int] = []
             if current_example.context_type == ContextType.LOCAL:
                 if batch_size != 1:
                     logger.debug(
@@ -523,7 +521,7 @@ class LLMMap(MapIngredient):
                 )
                 messages_list.append([user(user_msg_str)])
             add_to_global_history(messages_list)
-            responses: t.List[str] = model.generate(
+            responses: list[str] = model.generate(
                 messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
             )
 
@@ -532,7 +530,7 @@ class LLMMap(MapIngredient):
             total_missing_values = 0
             for idx, r in enumerate(responses):
                 expected_len = batch_sizes[idx]
-                predictions: t.List[t.Union[str, None]] = r.split(DEFAULT_ANS_SEP)  # type: ignore
+                predictions: list[t.Union[str, None]] = r.split(DEFAULT_ANS_SEP)  # type: ignore
                 # Add null values, if we under-predicted
                 while len(predictions) < expected_len:
                     total_missing_values += 1

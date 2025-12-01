@@ -1,5 +1,4 @@
 import os
-from typing import Optional, List
 from asyncio import Semaphore
 import asyncio
 from litellm import acompletion
@@ -33,7 +32,7 @@ class LiteLLM(UnconstrainedModel):
         self,
         model_name_or_path: str,
         env: str = ".",
-        config: Optional[dict] = None,
+        config: dict | None = None,
         caching: bool = True,
         **kwargs,
     ):
@@ -51,9 +50,9 @@ class LiteLLM(UnconstrainedModel):
 
     async def _generate(
         self,
-        messages_list: List[List[dict]],
-        max_tokens: Optional[int] = None,
-        stop_at: Optional[List[str]] = None,
+        messages_list: list[list[dict]],
+        max_tokens: int | None = None,
+        stop_at: list[str] | None = None,
         **kwargs,
     ):
         sem = Semaphore(int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT)))
@@ -70,7 +69,7 @@ class LiteLLM(UnconstrainedModel):
             ]
             return [m for m in await asyncio.gather(*responses)]
 
-    def generate(self, *args, **kwargs) -> List[str]:
+    def generate(self, *args, **kwargs) -> list[str]:
         """Handles cache lookup and generation using LiteLLM."""
         responses, key = None, None
         if self.caching:

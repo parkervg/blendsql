@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-import typing as t
 import httpx
 import asyncio
 
@@ -24,13 +23,11 @@ class ColbertWikipediaSearch(Searcher):
 
         return self._cleanup_response(response.json())
 
-    async def _search(self, queries: t.List[str], k: int):
+    async def _search(self, queries: list[str], k: int):
         responses = [self.asearch(q, k) for q in queries]
         return [i for i in await asyncio.gather(*responses)]
 
-    def __call__(
-        self, query: t.Union[t.List[str], str], k: t.Optional[int] = None
-    ) -> t.List[t.List[str]]:
+    def __call__(self, query: list[str] | str, k: int | None = None) -> list[list[str]]:
         asyncio.set_event_loop(asyncio.new_event_loop())
         is_single_query = isinstance(query, str)
         queries = [query] if is_single_query else query

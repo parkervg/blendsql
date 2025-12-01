@@ -1,6 +1,6 @@
 from attr import attrs, attrib
 import pandas as pd
-import typing as t
+from typing import Callable
 from collections.abc import Collection
 
 from blendsql.ingredients.few_shot import Example
@@ -11,11 +11,11 @@ from blendsql.types import DataTypes, STR_TO_DATATYPE
 @attrs(kw_only=True)
 class QAExample(Example):
     question: str = attrib()
-    context: t.List[pd.DataFrame] = attrib(
+    context: list[pd.DataFrame] = attrib(
         converter=lambda d: [pd.DataFrame.from_dict(d)] if isinstance(d, dict) else d,
         default=None,
     )
-    options: t.Optional[Collection[str]] = attrib(default=None)
+    options: Collection[str] | None = attrib(default=None)
     return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s.lower()] if isinstance(s, str) else s,
         default=DataTypes.ANY(),
@@ -23,7 +23,7 @@ class QAExample(Example):
 
     def to_string(
         self,
-        context_formatter: t.Callable[[pd.DataFrame], str],
+        context_formatter: Callable[[pd.DataFrame], str],
         list_options: bool = True,
         *args,
         **kwargs,
@@ -69,7 +69,7 @@ class AnnotatedQAExample(QAExample):
 
     def to_string(
         self,
-        context_formatter: t.Callable[[pd.DataFrame], str],
+        context_formatter: Callable[[pd.DataFrame], str],
         include_answer: bool = False,
     ):
         s = super().to_string(context_formatter=context_formatter)
