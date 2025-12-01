@@ -228,12 +228,26 @@ See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Function
 
 ![latency_analysis](docs/img/runtime_analysis.png)
 
+
+### But - why not just define UDFs? 
+
+Many DBMS allow for the creation of Python user-defined functions (UDFs), like [DuckDB](https://duckdb.org/docs/stable/clients/python/function). So why not just use those to embed language model functions instead of BlendSQL?
+
+....
+
+The reason for this? DuckDB uses a generalized query optimizer, very good at many different optimizations. But when we introduce a UDF with an unknown cost, many values get passed to the highly expensive language model functions that could have been filtered out via vanilla SQL expressions first (`JOIN`, `WHERE`, `LIMIT`, etc.).
+
+This highlights an important point about the value-add of BlendSQL. While you *can* just import the individual language model functions and call them on data (see [here](https://github.com/parkervg/blendsql/blob/duckdb-udf-eval/research/run-evaluate.py#L42)) - if you know the larger query context where the function output will be used, you *should* use the BlendSQL query optimizer (`bsql.execute()`), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.
+
+> [!TIP]
+> How do we know the BlendSQL optimizer is passing the minimal required data to the language model functions? Check out our extensive [test suite](./tests/) for examples.
+
 # Documentation 
 
 - [Simple Row-Wise Classification](#simple-row-wise-classification)
-- [Search-then-Reduce ](#search-then-map)
 - [Search-then-Map ](#search-then-map)
     - [Specifying `return_type`](#specifying-return_type)
+- [Search-then-Reduce ](#search-then-map)
 - [Few-Shot Prompting](#few-shot-prompting)
 
 The below examples can use this model initialization logic to define the variable `model`:
@@ -283,104 +297,6 @@ if __name__ == "__main__":
         """
     )
     print(smoothie.df)
-```
-
-## Search-then-Reduce  
-
-Below we use the scalar `LLMQA` function to do a search over our documents with the question formatted with a value from the structured `european_countries` table.
-
-```python 
-import pandas as pd 
-
-from blendsql import BlendSQL
-from blendsql.search import FaissVectorStore
-from blendsql.ingredients import LLMQA
-
-bsql = BlendSQL(
-    {
-        "documents": pd.DataFrame(
-            [
-                {
-                    "title": "Steve Nash",
-                    "content": "Steve Nash played college basketball at Santa Clara University",
-                },
-                {
-                    "title": "E.F. Codd",
-                    "content": 'Edgar Frank "Ted" Codd (19 August 1923 – 18 April 2003) was a British computer scientist who, while working for IBM, invented the relational model for database management, the theoretical basis for relational databases and relational database management systems.',
-                },
-                {
-                    "title": "George Washington (February 22, 1732 – December 14, 1799) was a Founding Father and the first president of the United States, serving from 1789 to 1797."
-                },
-                {
-                    "title": "Thomas Jefferson",
-                    "content": "Thomas Jefferson (April 13, 1743 – July 4, 1826) was an American Founding Father and the third president of the United States from 1801 to 1809.",
-                },
-                {
-                    "title": "John Adams",
-                    "content": "John Adams (October 30, 1735 – July 4, 1826) was an American Founding Father who was the second president of the United States from 1797 to 1801.",
-                },
-            ]
-        ),
-        "european_countries": pd.DataFrame(
-            [
-                {
-                    "Country": "Portugal",
-                    "Area (km²)": 91568,
-                    "Population (As of 2011)": 10555853,
-                    "Population density (per km²)": 115.2,
-                    "Capital": "Lisbon",
-                },
-                {
-                    "Country": "Sweden",
-                    "Area (km²)": 449964,
-                    "Population (As of 2011)": 9088728,
-                    "Population density (per km²)": 20.1,
-                    "Capital": "Stockholm",
-                },
-                {
-                    "Country": "United Kingdom",
-                    "Area (km²)": 244820,
-                    "Population (As of 2011)": 62300000,
-                    "Population density (per km²)": 254.4,
-                    "Capital": "London",
-                },
-            ]
-        ),
-    },
-    model=model,
-    verbose=True,
-)
-
-USE_SEARCH = True 
-if USE_SEARCH:
-  LLMQA = LLMQA.from_args(
-    searcher=FaissVectorStore(
-      documents=bsql.db.execute_to_list("SELECT DISTINCT title || content FROM documents"),
-      k=3
-    )
-  )
-  bsql.ingredients = {LLMQA}
-
-smoothie = bsql.execute(
-"""
-SELECT {{
-    LLMQA(
-      'Who is from {}?', 
-      /* The below subquery gets executed, and the result is inserted into the below `{}`. */
-      (
-        SELECT Country FROM european_countries c
-        WHERE Capital = 'London'
-      ),
-    )
-}} AS answer
-"""
-)
-print(smoothie.df)
-# ┌────────────┐
-# │ answer     │
-# ├────────────┤
-# │ E.F. Codd  │
-# └────────────┘
 ```
 
 ## Search-then-Map 
@@ -524,18 +440,104 @@ smoothie = bsql.execute(
 )
 ```
 
-# Citation
+## Search-then-Reduce  
 
-```bibtex
-@article{glenn2024blendsql,
-      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
-      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
-      year={2024},
-      eprint={2402.17882},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
-}
+Below we use the scalar `LLMQA` function to do a search over our documents with the question formatted with a value from the structured `european_countries` table.
+
+```python 
+import pandas as pd 
+
+from blendsql import BlendSQL
+from blendsql.search import FaissVectorStore
+from blendsql.ingredients import LLMQA
+
+bsql = BlendSQL(
+    {
+        "documents": pd.DataFrame(
+            [
+                {
+                    "title": "Steve Nash",
+                    "content": "Steve Nash played college basketball at Santa Clara University",
+                },
+                {
+                    "title": "E.F. Codd",
+                    "content": 'Edgar Frank "Ted" Codd (19 August 1923 – 18 April 2003) was a British computer scientist who, while working for IBM, invented the relational model for database management, the theoretical basis for relational databases and relational database management systems.',
+                },
+                {
+                    "title": "George Washington (February 22, 1732 – December 14, 1799) was a Founding Father and the first president of the United States, serving from 1789 to 1797."
+                },
+                {
+                    "title": "Thomas Jefferson",
+                    "content": "Thomas Jefferson (April 13, 1743 – July 4, 1826) was an American Founding Father and the third president of the United States from 1801 to 1809.",
+                },
+                {
+                    "title": "John Adams",
+                    "content": "John Adams (October 30, 1735 – July 4, 1826) was an American Founding Father who was the second president of the United States from 1797 to 1801.",
+                },
+            ]
+        ),
+        "european_countries": pd.DataFrame(
+            [
+                {
+                    "Country": "Portugal",
+                    "Area (km²)": 91568,
+                    "Population (As of 2011)": 10555853,
+                    "Population density (per km²)": 115.2,
+                    "Capital": "Lisbon",
+                },
+                {
+                    "Country": "Sweden",
+                    "Area (km²)": 449964,
+                    "Population (As of 2011)": 9088728,
+                    "Population density (per km²)": 20.1,
+                    "Capital": "Stockholm",
+                },
+                {
+                    "Country": "United Kingdom",
+                    "Area (km²)": 244820,
+                    "Population (As of 2011)": 62300000,
+                    "Population density (per km²)": 254.4,
+                    "Capital": "London",
+                },
+            ]
+        ),
+    },
+    model=model,
+    verbose=True,
+)
+
+USE_SEARCH = True 
+if USE_SEARCH:
+  LLMQA = LLMQA.from_args(
+    searcher=FaissVectorStore(
+      documents=bsql.db.execute_to_list("SELECT DISTINCT title || content FROM documents"),
+      k=3
+    )
+  )
+  bsql.ingredients = {LLMQA}
+
+smoothie = bsql.execute(
+"""
+SELECT {{
+    LLMQA(
+      'Who is from {}?', 
+      /* The below subquery gets executed, and the result is inserted into the below `{}`. */
+      (
+        SELECT Country FROM european_countries c
+        WHERE Capital = 'London'
+      )
+    )
+}} AS answer
+"""
+)
+print(smoothie.df)
+# ┌────────────┐
+# │ answer     │
+# ├────────────┤
+# │ E.F. Codd  │
+# └────────────┘
 ```
+
 
 ## Few-Shot Prompting
 For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples and dynamically retrieve those top-`k` most relevant examples at runtime, given the current inference example.
@@ -641,6 +643,18 @@ ingredients = {
 bsql = BlendSQL(db, ingredients=ingredients)
 ```
 
+# Citation
+
+```bibtex
+@article{glenn2024blendsql,
+      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
+      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
+      year={2024},
+      eprint={2402.17882},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
 
 # Acknowledgements
 Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
