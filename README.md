@@ -3,7 +3,7 @@
 <a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
 <a><img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/parkervg/e24f1214fdff3ab086b829b5f01f85a8/raw/covbadge.json"/></a>
 <a><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue"/></a>
-<a><img src="hhttps://img.shields.io/discord/1389219790404452462?label=Discord&logo=discord&color=5865F2"/></a>
+<a><img src="https://img.shields.io/discord/1389219790404452462?label=Discord&logo=discord&color=5865F2"/></a>
 <br>
 </div>
 
