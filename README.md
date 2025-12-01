@@ -39,7 +39,7 @@ pip install blendsql
 ```
 
 <details>
-<summary>⭐ Quickstart</summary>
+<summary><h1>⭐ Quickstart</h1></summary>
 
 ```python
 import pandas as pd
