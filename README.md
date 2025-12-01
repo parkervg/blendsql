@@ -38,7 +38,9 @@ SELECT {{
 pip install blendsql
 ```
 
-# ⭐ Quickstart
+<details>
+<summary>⭐ Quickstart</summary>
+
 ```python
 import pandas as pd
 
@@ -180,8 +182,8 @@ print(smoothie.summary())
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
 # │    4.07617 │                    1 │            1921 │                  50 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
-
 ```
+</details>
 
 # Summary
 
