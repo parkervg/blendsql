@@ -3,6 +3,7 @@
 <a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
 <a><img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/parkervg/e24f1214fdff3ab086b829b5f01f85a8/raw/covbadge.json"/></a>
 <a><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue"/></a>
+<a><img src="https://img.shields.io/discord/vCv7ak3WrU"/></a>
 <br>
 </div>
 
@@ -196,7 +197,7 @@ As a result, we can *Blend* together...
 
 At its core, BlendSQL follows a simple design principle: be lazy.
 
-Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally execute back in the native SQL dialect. In this way, blendsql 'compiles to SQL'.
+Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data into memory that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally sync back to the native SQL dialect and execute. In this way, blendsql 'compiles to SQL'.
 
 For more info on query execution in BlendSQL, see Section 2.4 [here](https://arxiv.org/pdf/2509.20208). 
 
