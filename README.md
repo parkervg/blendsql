@@ -223,7 +223,7 @@ For more info on query execution in BlendSQL, see Section 2.4 [here](https://arx
 # Benchmarks 
 
 On a dataset of complex questions converted to executable declarative programs (e.g. *How many test
-takers are there at the school/s in a county with population over 2 million?*), **BlendSQL is 53% faster than the pandas-based LOTUS, and xxx% faster than vanilla DuckDB functions**.
+takers are there at the school/s in a county with population over 2 million?*), **BlendSQL is 53% faster than the pandas-based LOTUS**.
 See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208) for more details. 
 
 ![latency_analysis](docs/img/runtime_analysis.png)
