@@ -232,8 +232,9 @@ See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Function
 ### But - why not just define UDFs? 
 
 Many DBMS allow for the creation of Python user-defined functions (UDFs), like [DuckDB](https://duckdb.org/docs/stable/clients/python/function). So why not just use those to embed language model functions instead of BlendSQL?
+The below plot adds the DuckDB UDF approach to the same benchmark we did above - where DuckDB UDFs come in with at average of 133.2 seconds per query.  
 
-....
+![latency_analysis_with_duckdb](docs/img/runtime_analysis_with_duckdb.png)
 
 The reason for this? DuckDB uses a generalized query optimizer, very good at many different optimizations. But when we introduce a UDF with an unknown cost, many values get passed to the highly expensive language model functions that could have been filtered out via vanilla SQL expressions first (`JOIN`, `WHERE`, `LIMIT`, etc.).
 

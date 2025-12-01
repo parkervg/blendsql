@@ -146,6 +146,7 @@ def create_duckdb_udfs(
             )
             if return_type == "str":
                 return response.strip("'").strip('"')
+            return response
 
         return run_llmqa
 
@@ -236,16 +237,12 @@ def get_group_stats(df: pd.DataFrame, group_on: str, metrics: list) -> pd.DataFr
 
 
 if __name__ == "__main__":
-    # CONFIG = ExperimentConfig(
-    #     repo_id="QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-    #     filename="Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
-    #     experiment_name="orient_dict_fmt_code_map_prompt",
-    # )
     CONFIG = ExperimentConfig(
-        repo_id="bartowski/SmolLM2-135M-Instruct-GGUF",
-        filename="SmolLM2-135M-Instruct-Q6_K.gguf",
-        experiment_name="orient_dict_fmt_code_map_prompt",
+        repo_id="QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
+        filename="Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
+        experiment_name="current",
     )
+
     ingredients = {
         LLMQA.from_args(
             num_few_shot_examples=0,
@@ -282,16 +279,22 @@ if __name__ == "__main__":
     # Pre-load model obj
     _ = model.model_obj
 
-    for exp_type in ["DuckDB", "BlendSQL"]:
-        load_bsql = lambda path: BlendSQL(
-            path,
-            model=model,
-            ingredients=ingredients,
-            verbose=False,
-        )
-
+    for exp_type in [
+        # "DuckDB",
+        "BlendSQL"
+    ]:
+        if exp_type == "BlendSQL":
+            load_bsql = lambda path: BlendSQL(
+                path,
+                model=model,
+                ingredients=ingredients,
+                verbose=True,  # toggle this off for actual runtime test
+            )
+        do_eval = False
         prediction_data = []
         for item in BLENDSQL_ANNOTATED_TAG_DATASET:
+            if item["Answer"] is None:
+                continue
             curr_pred_data = item.copy()
             if exp_type == "BlendSQL":
                 if item["BlendSQL"] is None:
@@ -303,8 +306,11 @@ if __name__ == "__main__":
                 curr_pred_data["prompt_tokens"] = smoothie.meta.prompt_tokens
                 curr_pred_data["num_values_passed"] = smoothie.meta.num_values_passed
                 flattened_preds = [str(i) for i in smoothie.df.values.flat]
-                print(smoothie.meta.num_values_passed)
             elif exp_type == "DuckDB":
+                # if not do_eval:
+                #     if item["Query ID"] == 29:
+                #         do_eval = True
+                #     continue
                 NUM_VALUES_PASSED = 0
                 print(f"Running Query ID {item['Query ID']}...")
                 conn = duckdb.connect()
@@ -326,6 +332,7 @@ if __name__ == "__main__":
                 curr_pred_data["num_values_passed"] = NUM_VALUES_PASSED
                 print(NUM_VALUES_PASSED)
                 print(flattened_preds)
+                model.model_obj.engine.model_obj.reset()
             pred_to_add = flattened_preds
             if len(curr_pred_data["Answer"]) == 1:
                 curr_pred_data["Answer"] = curr_pred_data["Answer"][0]
@@ -337,6 +344,7 @@ if __name__ == "__main__":
                 pred_to_add = next(iter(flattened_preds), None)
             curr_pred_data["prediction"] = pred_to_add
             prediction_data.append(curr_pred_data)
+
         prediction_df = pd.DataFrame(prediction_data)
         prediction_df["correct"] = (
             prediction_df["prediction"] == prediction_df["Answer"]
@@ -344,7 +352,7 @@ if __name__ == "__main__":
 
         output_dir = (
             CURR_DIR
-            / f"results/TAG-Benchmark/{exp_type}/{CONFIG.filename}/{CONFIG.experiment_name}"
+            / f"results/TAG-Benchmark/{exp_type.lower()}/{CONFIG.filename}/{CONFIG.experiment_name}"
         )
         if not output_dir.exists():
             output_dir.mkdir(parents=True)

@@ -69,8 +69,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         WHERE {{
             LLMMap(
                 'What is the population of this California county? Give your best guess.',
-                s.County, 
-                NULL
+                s.County 
             )
         }} > 2000000""",
         "DuckDB": """SELECT SUM(ss.NumTstTakr)
@@ -186,7 +185,11 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT COUNT(*) 
         FROM posts 
         WHERE ViewCount > 80000 
-        AND LLMMap('Does this text discuss the R programming language?', Body, NULL, NULL) = TRUE""",
+        AND {{LLMMap('Does this text discuss the R programming language?', Body)}} = TRUE""",
+        "DuckDB": """SELECT COUNT(*) 
+        FROM posts 
+        WHERE ViewCount > 80000 
+        AND LLMMapBool('Does this text discuss the R programming language?', Body, NULL, NULL) = TRUE""",
         "Notes": None,
     },
     {
@@ -231,7 +234,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
         FROM drivers d
         JOIN results r ON d.driverId = r.driverId
         JOIN races ra ON r.raceId = ra.raceId
-        WHERE ra.year = 2008 AND ra.name = 'Australian Grand Prix' AND LLMMapBool('Is this nationality Asian?', d.nationality, NULL) = TRUE""",
+        WHERE ra.year = 2008 AND ra.name = 'Australian Grand Prix' AND LLMMapBool('Is this nationality Asian?', d.nationality, NULL, NULL) = TRUE""",
         "Notes": None,
     },
     {
@@ -250,7 +253,7 @@ BLENDSQL_ANNOTATED_TAG_DATASET = [
             }} LIMIT 1""",
         "DuckDB": """SELECT preferred_foot FROM Player p JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
         WHERE player_name = LLMQAStr(
-            "Which player has the most Ballon d'Or awards?",
+            'Which player has the most Ballon d''Or awards?',
             NULL,
             (SELECT LIST(player_name) FROM Player),
             NULL
@@ -342,7 +345,7 @@ ORDER BY away_team_goal DESC LIMIT 3
     SELECT DISTINCT team_long_name AS name, away_team_Goal FROM Team t 
     JOIN "Match" m ON t.team_api_id = m.away_team_api_id
     ORDER BY away_team_goal DESC LIMIT 3
-    ) SELECT LLMQA('Which team has the most fans?', NULL, (SELECT LIST(name) FROM top_teams), NULL)""",
+    ) SELECT LLMQAStr('Which team has the most fans?', NULL, (SELECT LIST(name) FROM top_teams), NULL)""",
         "Notes": None,
     },
     {
@@ -703,6 +706,9 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "3028",
         "BlendSQL": """SELECT COUNT(*) FROM Player p 
+        WHERE CAST(SUBSTR(birthday, 1, 4) AS NUMERIC) > {{LLMQA('What year did the 14th FIFA World Cup take place?')}}
+        """,
+        "DuckDB": """SELECT COUNT(*) FROM Player p 
         WHERE CAST(SUBSTR(birthday, 1, 4) AS NUMERIC) > LLMQAInt('What year did the 14th FIFA World Cup take place?', NULL, NULL, NULL)
         """,
         "Notes": "Gets wrong year for 14th FIFA World Cup.",
@@ -810,10 +816,10 @@ ORDER BY away_team_goal DESC LIMIT 3
         "Query type": "Comparison",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "24",
-        # "BlendSQL": """SELECT COUNT(*) FROM Player p
-        # WHERE p.player_name LIKE 'Adam%'
-        # AND p.weight > {{LLMQA('What is 77.1kg in pounds?')}}
-        # """,
+        "BlendSQL": """SELECT COUNT(*) FROM Player p
+        WHERE p.player_name LIKE 'Adam%'
+        AND p.weight > {{LLMQA('What is 77.1kg in pounds?')}}
+        """,
         "DuckDB": """SELECT COUNT(*) FROM Player p 
         WHERE p.player_name LIKE 'Adam%'
         AND p.weight > LLMQAInt('What is 77.1kg in pounds?', NULL, NULL, NULL)
@@ -965,7 +971,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             SELECT Title FROM posts p 
             ORDER BY p.ViewCount DESC 
             LIMIT 5
-        ) SELECT * FROM VALUES LLMQAList('Order the article titles, from most technical to least technical', NULL, (SELECT LIST(Title) FROM top_posts), NULL)
+        ) SELECT UNNEST(LLMQAList('Order the article titles, from most technical to least technical', NULL, (SELECT LIST(Title) FROM top_posts), NULL))
         """,
         "Notes": "Again, 'Most technical' is very subjective.",
     },
@@ -1082,7 +1088,7 @@ ORDER BY away_team_goal DESC LIMIT 3
         SELECT Id, Body FROM posts p 
         ORDER BY p.FavoriteCount DESC LIMIT 10
         ) SELECT Id FROM favorited_posts 
-        WHERE Body = LLMQA('Which of these is the most lighthearted?', NULL, (SELECT LIST(Body) FROM favorited_posts), NULL)
+        WHERE Body = LLMQAStr('Which of these is the most lighthearted?', NULL, (SELECT LIST(Body) FROM favorited_posts), NULL)
         """,
         "Notes": """Questionable annotation. Ground truth post is:
         '<p>This is one of my favorites:</p>\n\n<p><img src="http://imgs.xkcd.com/comics/correlation.png" alt="alt text"></p>\n\n<p>One entry per answer. This is in the vein of the Stack Overflow question <em><a href="http://stackoverflow.com/questions/84556/whats-your-favorite-programmer-cartoon">What’s your favorite “programmer” cartoon?</a></em>.</p>\n\n<p>P.S. Do not hotlink the cartoon without the site\'s permission please.</p>\n'
@@ -1122,16 +1128,14 @@ ORDER BY away_team_goal DESC LIMIT 3
             SELECT p.Id, p.Body FROM posts p
             JOIN users u ON p.OwnerUserId = u.Id
             WHERE u.Age > 65 AND p.Score > 10
-        ) SELECT * FROM VALUES {{
-            LLMQAList(
+        ) SELECT UNNEST(LLMQAList(
                 'Which 2 `Id` values are attached to the 2 posts whose authors have the least expertise?',
                 (
                     SELECT STRING_AGG(Id || ' ' || Body, '\n---\n') FROM posts p  FROM filtered_posts
                 ),
                 filtered_posts.Id,
                 '{2}'
-            )
-        }}
+            ))
         """,
         "Notes": "What does 'written with the least expertise' mean?",
     },
@@ -1194,16 +1198,14 @@ ORDER BY away_team_goal DESC LIMIT 3
             SELECT p.Id, p.Body FROM posts p 
             JOIN users u ON p.OwnerUserId = u.Id
             WHERE u.DisplayName = 'Yevgeny'
-        ) SELECT * FROM VALUES {{
-            LLMQA(
+        ) SELECT UNNEST(LLMQAList(
                 'Which 2 `Id` values are attached to the 3 most pessimistic comments?',
                 (
                     SELECT STRING_AGG('Id: ' || Id || '\n' || 'Body: ' || Body, '\n---\n') FROM yevgeny_posts
                 ),
                 (SELECT LIST(Id) FROM yevgeny_posts),
                 '{3}'
-            )
-        }}""",
+            ))""",
         "Notes": "Very long context passed to LLMQA here.",
     },
     {
@@ -1237,12 +1239,12 @@ ORDER BY away_team_goal DESC LIMIT 3
             GROUP BY p.player_api_id 
             ORDER BY avg_heading_accuracy DESC 
             LIMIT 10
-        ) SELECT * FROM VALUES LLMQAList(
+        ) SELECT UNNEST(LLMQAList(
             'Which 3 of these names could be said to be the ''most unique''?', 
             NULL,
             (SELECT LIST(player_name) FROM top_players), 
             '{3}'
-        )
+        ))
         """,
         "Notes": "'Unique sounding name' doesn't mean much. Why is 'Per Mertesacker' more unique than 'Miroslav Klose', etc.?",
     },
@@ -1267,7 +1269,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                 quantifier='{2}'
             )
         }}""",
-        "DuckDB": """SELECT * FROM VALUES LLMQAList(
+        "DuckDB": """SELECT UNNEST(LLMQAList(
             'Which 2 of these display names most based off of a real name?',
             NULL,
             (
@@ -1277,7 +1279,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                 HAVING COUNT(*) >= 200
             ),
             '{2}'
-        )""",
+        ))""",
         "Notes": "Subjective question - why is 'Glen_b' more based off of a real name than 'whuber'?",
     },
     {
@@ -1298,7 +1300,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             SELECT AboutMe, DisplayName FROM users 
             ORDER BY Views DESC LIMIT 5
         ) SELECT DisplayName FROM top_users
-        WHERE LLMMapBool('Is a social media link present in this text?', AboutMe, NULL, NULL)}} = TRUE
+        WHERE LLMMapBool('Is a social media link present in this text?', AboutMe, NULL, NULL) = TRUE
         """,
         "Notes": None,
     },
@@ -1331,7 +1333,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             JOIN users u ON u.Id = c.UserId
             WHERE c.Score = 5
             AND u.DisplayName = 'Harvey Motulsky'
-        ) SELECT * FROM VALUES LLMQAList(
+        ) SELECT UNNEST(LLMQAList(
             'Rank the post IDs in order of most helpful to least helpful.',
             (
                 SELECT STRING_AGG('PostId: ' || PostId || '\n' || 'Text: ' || Text, '\n---\n') FROM harvey_comments
@@ -1340,7 +1342,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                 SELECT LIST(PostId) FROM harvey_comments
             ),
             '{3}'
-        )""",
+        ))""",
         "Notes": "Subjective - what is 'most helpful'?",
     },
     {
@@ -1362,7 +1364,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                 quantifier='{3}'
             )
         }}""",
-        "DuckDB": """SELECT * FROM VALUES LLMQAList(
+        "DuckDB": """SELECT UNNEST(LLMQAList(
             'Which 3 cities are considered the safest places to live?',
             NULL,
             (
@@ -1370,7 +1372,7 @@ ORDER BY away_team_goal DESC LIMIT 3
                 WHERE Virtual = 'F'
             ),
             '{3}'
-        )""",
+        ))""",
         "Notes": "Subjective question - 'safest place to live' by what standard?",
     },
     {
@@ -1404,12 +1406,12 @@ ORDER BY away_team_goal DESC LIMIT 3
            SELECT City FROM schools s 
            JOIN frpm f ON f.CDSCode = s.CDSCode
            ORDER BY f."Enrollment (K-12)" DESC LIMIT 5
-       ) SELECT * FROM VALUES LLMQAList(
+       ) SELECT UNNEST(LLMQAList(
            'Rank the cities, in order of most diverse to least diverse.', 
            NULL,
            (SELECT LIST(City) FROM top_schools),
            '{5}'
-       )
+       ))
        """,
         "Notes": "What does 'most diverse' mean?",
     },
@@ -1454,12 +1456,12 @@ ORDER BY away_team_goal DESC LIMIT 3
             WHERE f."Educational Option Type" = 'Continuation School'
             AND frpm_rate IS NOT NULL
             ORDER BY frpm_rate ASC LIMIT 3
-        ) SELECT * FROM VALUES LLMQAList(
+        ) SELECT UNNEST(LLMQAList(
             'Rank the schools, from least affordable city to most affordable city.',
             (SELECT STRING_AGG('City: ' || City || '\n' || 'School: ' || School, '\n---\n') FROM top_schools),
             (SELECT LIST(School) FROM top_schools),
             '{3}'
-        )""",
+        ))""",
         "Notes": "Doesn't specify whether ranking should be increasing or decreasing",
     },
     {
@@ -1488,14 +1490,12 @@ ORDER BY away_team_goal DESC LIMIT 3
             JOIN satscores ss ON s.CDSCode = ss.cds
             WHERE rate IS NOT NULL
             ORDER BY rate DESC LIMIT 3
-        ) SELECT {{
-            LLMQAStr(
+        ) SELECT LLMQAStr(
                 'Which county has the strongest academic reputation?',
                 NULL,
                 (SELECT LIST(County) FROM top_schools),
                 NULL
-            )
-        }}""",
+            )""",
         "Notes": "'Strongest academic reputations' is subjective - wouldn't Los Angeles be above Santa Clara?. Also, question asks for a ranked list, but gold answer (and written TAG program) returns the top.",
     },
     {
@@ -1528,12 +1528,12 @@ ORDER BY away_team_goal DESC LIMIT 3
             GROUP BY s.City 
             ORDER BY total_enrollment ASC 
             LIMIT 10
-        ) SELECT * FROM VALUES LLMQAList(
+        ) SELECT UNNEST(LLMQAList(
             'Which 2 California cities are the most popular to visit?',
             NULL,
             (SELECT LIST(City) FROM lowest_enrollment),
             '{2}'
-        )""",
+        ))""",
         "Notes": """'Most popular cities to visit' is subjective? But, looking at online resources, it also seems wrong. 
         Yosemite (where Wawona is) has 4 million visitors per year: https://www.nps.gov/yose/planyourvisit/traffic.htm#:~:text=Each%20year%2C%20Yosemite%20National%20Park,no%20lodging%20or%20campground%20availability.
         Shaver Lake has less information, but this resource estimates 200,000+ per year: https://www.sce.com/sites/default/files/inline-files/RecreationWorkshop.pdf
@@ -1567,7 +1567,7 @@ ORDER BY away_team_goal DESC LIMIT 3
             "Which company's logo looks the most like Secretariat?",
             NULL,
             (SELECT LIST(name) FROM top_constructors),
-            NULL,
+            NULL
         ) 
         """,
         "Notes": "'Most prestige' is subjective. Also - in `hand_written.py`, this question is different: 'Of the constructors that have been ranked 1 in 2014, whose logo looks most like Secretariat?'",
@@ -1596,12 +1596,12 @@ ORDER BY away_team_goal DESC LIMIT 3
             SELECT c.location FROM races ra 
             JOIN circuits c ON c.circuitId = ra.circuitId
             ORDER BY ra.date DESC LIMIT 5
-        ) SELECT * FROM VALUES LLMQAList(
+        ) SELECT UNNEST(LLMQAList(
             'Order the locations by distance to the equator (closest -> farthest)',
             NULL,
             (SELECT LIST(location) FROM recent_races),
             '{5}'
-        )""",
+        ))""",
         "Notes": "Question doesn't specify ascending or descending.",
     },
     {
