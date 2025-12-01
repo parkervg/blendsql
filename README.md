@@ -24,6 +24,7 @@ SELECT {{
     )
 }} AS answer
 ```
+
 <div align="center"><picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
