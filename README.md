@@ -12,7 +12,6 @@
   <img alt="blendsql" src="docs/img/logo_light.png" width=350">
 </picture>
 </div>
-
 ```sql 
 SELECT {{
     LLMQA(
@@ -24,7 +23,6 @@ SELECT {{
     )
 }} AS answer
 ```
-
 <div align="center"><picture>
 <p align="center">
     <i> SQL 🤝 LLMs </i>
