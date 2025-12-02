@@ -368,6 +368,9 @@ class SubqueryContextManager:
                 - options: Optional str default to pass to `options` argument in a QAIngredient
                     - Will have the form '{table}.{column}'
         """
+        DEFAULT_QUANTIFIER = (
+            "+"  # If we know something is a `List` type, what quantifier should we use?
+        )
         added_kwargs: dict[str, t.Any] = {}
         if isinstance(function_node.parent, exp.Select):
             # We don't want to traverse up in cases of `SELECT {{A()}} FROM table WHERE x < y`
@@ -376,7 +379,6 @@ class SubqueryContextManager:
             parent_node = function_node.parent
         predicate_literals: list[str] = []
         quantifier: QuantifierType = None
-
         # Check for instances like `{column} = {QAIngredient}`
         # where we can infer the space of possible options for QAIngredient
         if isinstance(parent_node, (exp.EQ, exp.In)):
@@ -393,7 +395,7 @@ class SubqueryContextManager:
                         f"{parent_node.args['this'].args['table'].name}.{parent_node.args['this'].args['this'].name}"
                     )
 
-        output_type = None
+        return_type = None
         # First check - is this predicate referencing an existing column with a non-TEXT datatype?
         # If so, we adopt that type as our generation
         column_in_predicate = parent_node.find(exp.Column)
@@ -408,7 +410,7 @@ class SubqueryContextManager:
                 if native_db_type in DB_TYPE_TO_STR:
                     resolved_type = DB_TYPE_TO_STR[native_db_type]
                     if resolved_type != "str":
-                        output_type = STR_TO_DATATYPE[DB_TYPE_TO_STR[native_db_type]]
+                        return_type = STR_TO_DATATYPE[DB_TYPE_TO_STR[native_db_type]]
                         logger.debug(
                             Fore.LIGHTBLACK_EX
                             + f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
@@ -420,7 +422,7 @@ class SubqueryContextManager:
                         + f"No type logic for native DB type {native_db_type}!"
                         + Fore.RESET
                     )
-        if output_type is None:
+        if return_type is None:
             if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
                 if isinstance(parent_node, (exp.Tuple, exp.Values)):
                     added_kwargs["wrap_tuple_in_parentheses"] = False
@@ -438,11 +440,14 @@ class SubqueryContextManager:
                     field_val = parent_node.args.get("field", None)
                     if field_val is not None:
                         if parent_node == field_val:
-                            quantifier = "+"
+                            quantifier = DEFAULT_QUANTIFIER
                     if isinstance(field_val, exp.BlendSQLFunction):
-                        quantifier = "+"
+                        quantifier = DEFAULT_QUANTIFIER
                 else:
-                    quantifier = "+"
+                    quantifier = DEFAULT_QUANTIFIER
+            elif isinstance(parent_node, exp.Unnest):
+                quantifier = DEFAULT_QUANTIFIER
+
             if parent_node is not None and parent_node.expression is not None:
                 # Get predicate args
                 predicate_literals = []
@@ -469,11 +474,11 @@ class SubqueryContextManager:
                     + Fore.RESET
                 )
                 if all(isinstance(x, bool) for x in predicate_literals):
-                    output_type = DataTypes.BOOL(quantifier)
+                    return_type = DataTypes.BOOL(quantifier)
                 elif all(isinstance(x, float) for x in predicate_literals):
-                    output_type = DataTypes.FLOAT(quantifier)
+                    return_type = DataTypes.FLOAT(quantifier)
                 elif all(isinstance(x, int) for x in predicate_literals):
-                    output_type = DataTypes.INT(quantifier)
+                    return_type = DataTypes.INT(quantifier)
                 else:
                     predicate_literals = [str(i) for i in predicate_literals]
                     added_kwargs["return_type"] = DataTypes.ANY(quantifier)
@@ -496,11 +501,11 @@ class SubqueryContextManager:
                     exp.Sum,
                 ),
             ):
-                output_type = DataTypes.NUMERIC(quantifier)  # `Numeric` = `int | float`
+                return_type = DataTypes.NUMERIC(quantifier)  # `Numeric` = `int | float`
             elif quantifier:
                 # Fallback to a generic list datatype
-                output_type = DataTypes.STR(quantifier)
-        added_kwargs["return_type"] = output_type
+                return_type = DataTypes.STR(quantifier)
+        added_kwargs["return_type"] = return_type
         return added_kwargs
 
     def sql(self):
