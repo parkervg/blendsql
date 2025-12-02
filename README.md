@@ -195,7 +195,9 @@ As a result, we can *Blend* together...
 - 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
 - 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
 
-At its core, BlendSQL follows a simple design principle: be lazy. This is embodied in a few different ways - [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), [only load language models into memory if we use them](https://github.com/parkervg/blendsql/blob/main/blendsql/models/model.py#L213), [only pass values to scalar LM functions in `SELECT` statements *after* applying `LIMIT` clauses](https://github.com/parkervg/blendsql/pull/27), etc.
+### Core Design Principle: Be Lazy 😴
+
+This is embodied in a few different ways - [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), [only load language models into memory if we use them](https://github.com/parkervg/blendsql/blob/main/blendsql/models/model.py#L213), [only pass values to scalar LM functions in `SELECT` statements *after* applying `LIMIT` clauses](https://github.com/parkervg/blendsql/pull/27), etc.
 
 But, at a higher level: Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data into memory that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally sync back to the native SQL dialect and execute. In this way, blendsql 'compiles to SQL'.
 
