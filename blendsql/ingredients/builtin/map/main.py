@@ -289,9 +289,10 @@ class LLMMap(MapIngredient):
         quantifier = resolved_return_type.quantifier
 
         if options is not None and list_options_in_prompt:
-            if len(options) > int(
+            max_options_in_prompt = int(
                 os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
-            ):
+            )
+            if len(options) > max_options_in_prompt:
                 logger.debug(
                     Fore.YELLOW
                     + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
