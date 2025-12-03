@@ -293,14 +293,14 @@ class LLMMap(MapIngredient):
                 if self.option_searcher is None:
                     logger.debug(
                         Fore.YELLOW
-                        + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                        + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
                         + Fore.RESET
                     )
                 else:
                     curr_options_searcher = self.option_searcher(options)
                     logger.debug(
                         Fore.YELLOW
-                        + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options)} total options..."
+                        + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
                         + Fore.RESET
                     )
 

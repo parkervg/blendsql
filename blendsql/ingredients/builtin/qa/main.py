@@ -248,7 +248,7 @@ class LLMQA(QAIngredient):
             if len(options) > max_options_in_prompt:  # type: ignore
                 logger.debug(
                     Fore.YELLOW
-                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
+                    + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
                     + Fore.RESET
                 )
                 list_options_in_prompt = False
