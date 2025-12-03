@@ -240,8 +240,8 @@ class LLMQA(QAIngredient):
             }
 
         if options is not None and list_options_in_prompt:
-            max_options_in_prompt = os.getenv(
-                MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+            max_options_in_prompt = int(
+                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
             )
             if len(options) > max_options_in_prompt:  # type: ignore
                 logger.debug(

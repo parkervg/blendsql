@@ -160,3 +160,25 @@ def test_templates(bsql, constrained_model):
             """,
         model=constrained_model,
     )
+
+
+def test_unnest(bsql, constrained_model):
+    _ = bsql.execute(
+        """
+            SELECT {{
+                LLMQA(
+                    'What do {} and {} have in common?',
+                    (
+                        SELECT * FROM People p WHERE
+                        {{LLMMap('Is a singer?', p.Name)}} = True
+                        LIMIT 1
+                    ),
+                    (
+                        SELECT 'Parker Glenn'
+                    ),
+                    max_tokens=20
+                )
+            }}
+            """,
+        model=constrained_model,
+    )
