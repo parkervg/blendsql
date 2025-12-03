@@ -81,6 +81,7 @@ class LLMMap(MapIngredient):
         model: Model | None = None,
         few_shot_examples: list[dict] | list[AnnotatedMapExample] | None = None,
         list_options_in_prompt: bool = True,
+        option_searcher: Searcher | None = None,
         batch_size: int | None = None,
         num_few_shot_examples: int | None = None,
         searcher: Searcher | None = None,
@@ -145,6 +146,7 @@ class LLMMap(MapIngredient):
                 model=model,
                 few_shot_retriever=few_shot_retriever,
                 list_options_in_prompt=list_options_in_prompt,
+                option_searcher=option_searcher,
                 batch_size=batch_size,
                 searcher=searcher,
                 enable_constrained_decoding=enable_constrained_decoding,
@@ -196,7 +198,7 @@ class LLMMap(MapIngredient):
 
         # Resolve context argument
         # If we explicitly passed `context`, this should take precedence over the vector store.
-        context_in_use: list[str] = [None] * len(values)
+        context_in_use: list[str | None] = [None] * len(values)
         context_in_use_type: ContextType = None
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
@@ -281,16 +283,24 @@ class LLMMap(MapIngredient):
         regex = regex or resolved_return_type.regex
         quantifier = resolved_return_type.quantifier
 
+        curr_options_searcher = None
         if options is not None and list_options_in_prompt:
             max_options_in_prompt = int(
                 os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
             )
             if len(options) > max_options_in_prompt:
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
-                )
                 list_options_in_prompt = False
+                if self.option_searcher is None:
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                    )
+                else:
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Calling provided options_searcher on {len(options)} passed options..."
+                    )
+                    curr_options_searcher = self.option_searcher(options)
 
         if isinstance(model, ConstrainedModel):
             import guidance
@@ -337,6 +347,7 @@ class LLMMap(MapIngredient):
             def make_prediction(
                 value: str,
                 context: str | list[str] | None,
+                local_options: list[str] | None,
                 str_output: bool,
                 gen_f: Callable,
             ) -> str:
@@ -354,14 +365,16 @@ class LLMMap(MapIngredient):
                     gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
                     json_str = json.dumps(context, ensure_ascii=False, indent=20)[:-1]
                     gen_str += (
-                        f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)})"
+                        f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)}"
                     )
                 else:
                     indented_value = value.replace("\n", f"\n{INDENT(2)}")
                     gen_str = (
-                        f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote})"""
+                        f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
                     )
-                gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if str_output else ''}"""
+                if local_options is not None:
+                    gen_str += f",\n{INDENT(2)}{local_options}"
+                gen_str += f""") == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if str_output else ''}"""
                 return gen_str
 
             example_str = ""
@@ -369,16 +382,25 @@ class LLMMap(MapIngredient):
                 for example in few_shot_examples:
                     example_str += example.to_string()
 
+            filtered_options: list[str | None] = [None] * len(values)
+            if curr_options_searcher is not None:
+                if context_in_use_type is not None:
+                    documents = [f"{v} {c}" for c, v in zip(values, context_in_use)]
+                else:
+                    documents = values
+                filtered_options = curr_options_searcher(documents)
+
             loaded_lm = False
             batch_inference_strings = []
             batch_inference_identifiers = []
             all_identifiers = []
             identifier_to_cache_key = {}
-            for c, v in zip(context_in_use, values):
-                if c is None:
-                    curr_identifier = v
-                else:
-                    curr_identifier = f"{v}_{c}"
+            for c, v, o in zip(context_in_use, values, filtered_options):
+                curr_identifier = v
+                if c is not None:
+                    curr_identifier += f"_{c}"
+                if o is not None:
+                    curr_identifier += f"_{o}"
                 all_identifiers.append(curr_identifier)
 
                 if context_in_use_type == ContextType.LOCAL:
@@ -387,6 +409,7 @@ class LLMMap(MapIngredient):
                 current_example_str = current_example.to_string(
                     list_options=list_options_in_prompt,
                     add_leading_newlines=True,
+                    use_local_options=bool(curr_options_searcher is not None),
                 )
 
                 # First check - do we need to load the model?
@@ -403,6 +426,7 @@ class LLMMap(MapIngredient):
                         kwargs.get("max_tokens", 200),
                         c,
                         v,
+                        o,
                         funcs=[make_prediction, gen_f],
                     )
                     if cached_response is not None:
@@ -426,6 +450,7 @@ class LLMMap(MapIngredient):
                         make_prediction(
                             value=v,
                             context=c,
+                            local_options=o,
                             str_output=(resolved_return_type.name == "str"),
                             gen_f=gen_f,
                         )

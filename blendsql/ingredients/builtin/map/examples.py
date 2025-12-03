@@ -40,6 +40,7 @@ class ConstrainedMapExample(MapExample):
         self,
         list_options: bool = True,
         add_leading_newlines: bool = True,
+        use_local_options: bool = False,
         *args,
         **kwargs,
     ) -> str:
@@ -61,10 +62,12 @@ class ConstrainedMapExample(MapExample):
             args_str = "Value from a column in a SQL database."
 
         # Create function signature
+        s += f"""\ndef f(s: str"""
         if self.context_type == ContextType.LOCAL:
-            s += f"""\ndef f(s: str, context: List[str])"""
-        else:
-            s += f"""\ndef f(s: str)"""
+            s += f""", context: List[str]"""
+        if use_local_options:
+            s += f""", options: List[str]"""
+        s += ")"
         s += f' -> {type_annotation}:\n{INDENT()}"""{self.question}'
         if self.context_type == ContextType.GLOBAL:
             indented_context = self.context.replace("\n", "\n" + INDENT())
@@ -76,6 +79,8 @@ class ConstrainedMapExample(MapExample):
         s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}s (str): {args_str}"""
         if self.context_type == ContextType.LOCAL:
             s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
+        if use_local_options:
+            s += f"""\n{INDENT(2)}options (List[str]): Candidate strings for use in your response."""
         s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{self.return_type.name}: Answer to the above question for each value `s`."""
         s += f"""\n\n{INDENT()}Examples:\n{INDENT(2)}```python"""
         s += (
