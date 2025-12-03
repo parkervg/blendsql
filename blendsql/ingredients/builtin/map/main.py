@@ -294,13 +294,15 @@ class LLMMap(MapIngredient):
                     logger.debug(
                         Fore.YELLOW
                         + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                        + Fore.RESET
                     )
                 else:
+                    curr_options_searcher = self.option_searcher(options)
                     logger.debug(
                         Fore.YELLOW
-                        + f"Calling provided options_searcher on {len(options)} passed options..."
+                        + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options)} total options..."
+                        + Fore.RESET
                     )
-                    curr_options_searcher = self.option_searcher(options)
 
         if isinstance(model, ConstrainedModel):
             import guidance
@@ -399,8 +401,6 @@ class LLMMap(MapIngredient):
                 curr_identifier = v
                 if c is not None:
                     curr_identifier += f"_{c}"
-                if o is not None:
-                    curr_identifier += f"_{o}"
                 all_identifiers.append(curr_identifier)
 
                 if context_in_use_type == ContextType.LOCAL:
