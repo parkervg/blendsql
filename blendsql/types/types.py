@@ -37,7 +37,7 @@ def str_to_numeric(s: str | None) -> float | int | None:
 def maybe_str_to_str_list(
     s: str | None, quantifier: QuantifierType
 ) -> list[str | None]:
-    if quantifier is None:
+    if quantifier is None or not isinstance(s, str):
         return s
     try:
         return literal_eval(s)
