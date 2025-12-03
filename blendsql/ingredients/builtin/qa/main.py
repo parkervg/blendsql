@@ -222,7 +222,9 @@ class LLMQA(QAIngredient):
             AnnotatedQAExample(**example.__dict__)
             if not isinstance(example, dict)
             else AnnotatedQAExample(**example)
-            for example in few_shot_retriever(current_example.to_string())
+            for example in few_shot_retriever(
+                current_example.to_string(context_formatter)
+            )
         ]
 
         is_list_output = resolved_return_type.quantifier is not None
