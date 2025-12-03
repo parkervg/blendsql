@@ -1,12 +1,12 @@
-import typing as t
 from ast import literal_eval
 from dataclasses import dataclass
+import re
 
 from blendsql.common.constants import DEFAULT_NAN_ANS
-from blendsql.common.typing import DataType
+from blendsql.common.typing import DataType, QuantifierType
 
 
-def str_to_bool(s: t.Union[str, None]) -> t.Union[bool, str, None]:
+def str_to_bool(s: str | None) -> bool | str | None:
     return {
         "t": True,
         "f": False,
@@ -22,7 +22,7 @@ def str_to_bool(s: t.Union[str, None]) -> t.Union[bool, str, None]:
     }.get(s.lower(), None)
 
 
-def str_to_numeric(s: t.Union[str, None]) -> t.Union[float, int, None]:
+def str_to_numeric(s: str | None) -> float | int | None:
     if not isinstance(s, str):
         return s
     s = s.replace(",", "")
@@ -34,9 +34,25 @@ def str_to_numeric(s: t.Union[str, None]) -> t.Union[float, int, None]:
     return casted_s
 
 
+def maybe_str_to_str_list(
+    s: str | None, quantifier: QuantifierType
+) -> list[str | None]:
+    if quantifier is None:
+        return s
+    try:
+        return literal_eval(s)
+    except:
+        # Sometimes we need to first escape single quotes
+        # E.g. in ['Something's wrong here']
+        s_fixed = re.sub(r"(\w)'(\w)", r"\1\\'\2", s)
+        return literal_eval(s_fixed)
+
+
 @dataclass
 class DataTypes:
-    STR = lambda quantifier=None: DataType("str", None, quantifier, lambda s: s)
+    STR = lambda quantifier=None: DataType(
+        "str", None, quantifier, lambda s: maybe_str_to_str_list(s, quantifier)
+    )
     BOOL = lambda quantifier=None: DataType(
         "bool", r"(t|f|true|false|True|False)", quantifier, str_to_bool
     )
@@ -57,7 +73,7 @@ class DataTypes:
     )
 
 
-STR_TO_DATATYPE: t.Dict[str, DataType] = {
+STR_TO_DATATYPE: dict[str, DataType] = {
     "str": DataTypes.STR(),
     "int": DataTypes.INT(),
     "float": DataTypes.FLOAT(),

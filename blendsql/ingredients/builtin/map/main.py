@@ -136,17 +136,6 @@ class LLMMap(MapIngredient):
         """
         if few_shot_examples is None:
             few_shot_examples = DEFAULT_MAP_FEW_SHOT
-        else:
-            # Sort of guessing here - the user could change the `model` type later,
-            #   or pass the model at the `BlendSQL(...)` level instead of the ingredient level.
-            if model is not None:
-                few_shot_examples = [
-                    ConstrainedAnnotatedMapExample(**d)
-                    if isinstance(d, dict)
-                    else ConstrainedAnnotatedMapExample(**d.__dict__)
-                    for d in few_shot_examples
-                ]
-
         few_shot_retriever = initialize_retriever(
             examples=few_shot_examples, num_few_shot_examples=num_few_shot_examples
         )
@@ -272,6 +261,8 @@ class LLMMap(MapIngredient):
             current_example = ConstrainedMapExample(**current_example.__dict__)
             few_shot_examples: list[ConstrainedAnnotatedMapExample] = [
                 ConstrainedAnnotatedMapExample(**example.__dict__)
+                if not isinstance(example, dict)
+                else ConstrainedAnnotatedMapExample(**example)
                 for example in few_shot_retriever(current_example.to_string())
             ]
         else:
@@ -279,6 +270,8 @@ class LLMMap(MapIngredient):
             current_example = UnconstrainedMapExample(**current_example.__dict__)
             few_shot_examples: list[UnconstrainedAnnotatedMapExample] = [
                 UnconstrainedAnnotatedMapExample(**example.__dict__)
+                if not isinstance(example, dict)
+                else UnconstrainedMapExample(**example)
                 for example in few_shot_retriever(
                     current_example.to_string(values=values)
                 )
@@ -471,11 +464,7 @@ class LLMMap(MapIngredient):
             # For each value, call the DataType's `coerce_fn()`
             if is_list_output:
                 mapped_values = [
-                    [
-                        current_example.return_type.coerce_fn(c)
-                        for c in ast.literal_eval(s)
-                    ]
-                    for s in lm_mapping
+                    current_example.return_type.coerce_fn(s) for s in lm_mapping
                 ]
             else:
                 mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
