@@ -29,7 +29,7 @@ from .examples import (
     ConstrainedAnnotatedMapExample,
     UnconstrainedMapExample,
     UnconstrainedAnnotatedMapExample,
-    ContextType,
+    FeatureType,
 )
 from blendsql.search.searcher import Searcher
 
@@ -81,7 +81,7 @@ class LLMMap(MapIngredient):
         model: Model | None = None,
         few_shot_examples: list[dict] | list[AnnotatedMapExample] | None = None,
         list_options_in_prompt: bool = True,
-        option_searcher: Searcher | None = None,
+        option_searcher: Callable[[list[str]], Searcher] | None = None,
         batch_size: int | None = None,
         num_few_shot_examples: int | None = None,
         searcher: Searcher | None = None,
@@ -94,7 +94,15 @@ class LLMMap(MapIngredient):
             few_shot_examples: A list of dictionary MapExample few-shot examples.
                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/map/default_examples.json) as default.
             list_options_in_prompt: Whether to list options in the prompt. Defaults to True.
-            batch_size: The batch size for processing. Defaults to 5.
+            option_searcher: A callable that takes in a list of options, and returns a `Searcher` object.
+                For example, ```
+                option_searcher=lambda d: HybridSearch(
+                    documents=d,
+                    model_name_or_path="intfloat/e5-base-v2",
+                    k=10,
+                )
+                ```
+            batch_size: The batch size for processing. Defaults to 1.
             num_few_shot_examples: Determines number of few-shot examples to use for each ingredient call.
                Default is None, which will use all few-shot examples on all calls.
                If specified, will initialize a haystack-based embedding retriever to filter examples.
@@ -199,19 +207,19 @@ class LLMMap(MapIngredient):
         # Resolve context argument
         # If we explicitly passed `context`, this should take precedence over the vector store.
         context_in_use: list[str | None] = [None] * len(values)
-        context_in_use_type: ContextType = None
+        context_in_use_type: FeatureType = None
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
             if unpacked_questions:  # Implies we have different context for each value
                 context_in_use = searcher(unpacked_questions)
-                context_in_use_type = ContextType.LOCAL
+                context_in_use_type = FeatureType.LOCAL
             else:
                 context_in_use = " | ".join(searcher(question)[0])
-                context_in_use_type = ContextType.GLOBAL
+                context_in_use_type = FeatureType.GLOBAL
         elif context is not None:  # If we've passed a table context
             if all([len(c) == 1 for c in context]):
                 context_in_use = " | ".join([context_formatter(c) for c in context])
-                context_in_use_type = ContextType.GLOBAL
+                context_in_use_type = FeatureType.GLOBAL
             else:
                 assert all(
                     len(x) == len(values) for x in context
@@ -220,16 +228,16 @@ class LLMMap(MapIngredient):
                     list(row)
                     for row in zip(*[df.iloc[:, 0].tolist() for df in context])
                 ]  # Kind of ugly
-                context_in_use_type = ContextType.LOCAL
+                context_in_use_type = FeatureType.LOCAL
 
         # Log what we found
-        if context_in_use_type == ContextType.GLOBAL:
+        if context_in_use_type == FeatureType.GLOBAL:
             logger.debug(
                 Fore.LIGHTBLACK_EX
                 + f"Retrieved global context '{context_in_use[:50]}...'"
                 + Fore.RESET
             )
-        elif context_in_use_type == ContextType.LOCAL:
+        elif context_in_use_type == FeatureType.LOCAL:
             logger.debug(
                 Fore.LIGHTBLACK_EX
                 + f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
@@ -248,16 +256,43 @@ class LLMMap(MapIngredient):
         resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
         )
+
+        # Prep options, if passed
+        curr_options_searcher = None
+        options_in_use_type = FeatureType.GLOBAL
+        if options is not None and list_options_in_prompt:
+            max_options_in_prompt = int(
+                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
+            )
+            if len(options) > max_options_in_prompt:
+                list_options_in_prompt = False
+                if self.option_searcher is None:
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                        + Fore.RESET
+                    )
+                else:
+                    curr_options_searcher = self.option_searcher(options)
+                    options_in_use_type = FeatureType.LOCAL
+                    # logger.debug(
+                    #     Fore.YELLOW
+                    #     + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
+                    #     + Fore.RESET
+                    # )
+
         current_example = MapExample(
             question=question,
             column_name=column_name,
             table_name=table_name,
             return_type=resolved_return_type,
             example_outputs=example_outputs,
+            options_type=options_in_use_type,
             options=options,
             context_type=context_in_use_type,
             context=context_in_use,
         )
+
         if isinstance(model, ConstrainedModel):
             batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
             current_example = ConstrainedMapExample(**current_example.__dict__)
@@ -282,27 +317,6 @@ class LLMMap(MapIngredient):
         is_list_output = resolved_return_type.quantifier is not None
         regex = regex or resolved_return_type.regex
         quantifier = resolved_return_type.quantifier
-
-        curr_options_searcher = None
-        if options is not None and list_options_in_prompt:
-            max_options_in_prompt = int(
-                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
-            )
-            if len(options) > max_options_in_prompt:
-                list_options_in_prompt = False
-                if self.option_searcher is None:
-                    logger.debug(
-                        Fore.YELLOW
-                        + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
-                        + Fore.RESET
-                    )
-                else:
-                    curr_options_searcher = self.option_searcher(options)
-                    logger.debug(
-                        Fore.YELLOW
-                        + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
-                        + Fore.RESET
-                    )
 
         if isinstance(model, ConstrainedModel):
             import guidance
@@ -403,13 +417,12 @@ class LLMMap(MapIngredient):
                     curr_identifier += f"_{c}"
                 all_identifiers.append(curr_identifier)
 
-                if context_in_use_type == ContextType.LOCAL:
+                if context_in_use_type == FeatureType.LOCAL:
                     current_example.context = c
 
                 current_example_str = current_example.to_string(
                     list_options=list_options_in_prompt,
                     add_leading_newlines=True,
-                    use_local_options=bool(curr_options_searcher is not None),
                 )
 
                 # First check - do we need to load the model?
@@ -506,7 +519,7 @@ class LLMMap(MapIngredient):
 
             messages_list: list[list[dict]] = []
             batch_sizes: list[int] = []
-            if current_example.context_type == ContextType.LOCAL:
+            if current_example.context_type == FeatureType.LOCAL:
                 if batch_size != 1:
                     logger.debug(
                         Fore.YELLOW
@@ -514,7 +527,7 @@ class LLMMap(MapIngredient):
                         + Fore.RESET
                     )
                 batch_size = 1
-                current_example.context_type = ContextType.GLOBAL
+                current_example.context_type = FeatureType.GLOBAL
                 current_example.context = None
             for i in range(0, len(sorted_values), batch_size):
                 curr_batch_values = sorted_values[i : i + batch_size]
@@ -527,7 +540,7 @@ class LLMMap(MapIngredient):
                 for example in few_shot_examples:
                     user_msg_str += example.to_string()
                 # Add the current question + context for inference
-                if current_batch_example.context_type == ContextType.GLOBAL:
+                if current_batch_example.context_type == FeatureType.GLOBAL:
                     str_context = "\n".join(curr_batch_contexts[0])
                     current_batch_example.context = str_context
                 user_msg_str += current_batch_example.to_string(

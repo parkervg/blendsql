@@ -8,7 +8,11 @@ from blendsql.common.typing import DataType
 from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
 
 
-class ContextType(Enum):
+class FeatureType(Enum):
+    """Distinguishes between features that are passed for each value (LOCAL),
+    vs. ones that can be shared and prefix-cached for an entire inference session (GLOBAL).
+    """
+
     GLOBAL = "global"
     LOCAL = "local"
 
@@ -17,16 +21,17 @@ class ContextType(Enum):
 class MapExample(Example):
     question: str = attrib(default=None)
     context: str | list[str] | None = attrib(default=None)
+    context_type: FeatureType = attrib(default=None)
     table_name: str = attrib(default=None)
     column_name: str = attrib(default=None)
     options: Collection[str] | None = attrib(default=None)
+    options_type: FeatureType = attrib(default=None)
     example_outputs: list[str] | None = attrib(default=None)
     mapping: dict[str, str] | None = attrib(default=None)
     return_type: DataType = attrib(
         converter=lambda s: STR_TO_DATATYPE[s.lower()] if isinstance(s, str) else s,
         default=DataTypes.ANY(),
     )
-    context_type: ContextType = attrib(default=None)
 
 
 @attrs(kw_only=True)
@@ -63,13 +68,13 @@ class ConstrainedMapExample(MapExample):
 
         # Create function signature
         s += f"""\ndef f(s: str"""
-        if self.context_type == ContextType.LOCAL:
+        if self.context_type == FeatureType.LOCAL:
             s += f""", context: List[str]"""
-        if use_local_options:
+        if self.options_type == FeatureType.LOCAL:
             s += f""", options: List[str]"""
         s += ")"
         s += f' -> {type_annotation}:\n{INDENT()}"""{self.question}'
-        if self.context_type == ContextType.GLOBAL:
+        if self.context_type == FeatureType.GLOBAL:
             indented_context = self.context.replace("\n", "\n" + INDENT())
             s += (
                 f"""\n{INDENT()}All function outputs are based on the following context:\n{INDENT()}"""
@@ -77,7 +82,7 @@ class ConstrainedMapExample(MapExample):
             )
 
         s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}s (str): {args_str}"""
-        if self.context_type == ContextType.LOCAL:
+        if self.context_type == FeatureType.LOCAL:
             s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
         if use_local_options:
             s += f"""\n{INDENT(2)}options (List[str]): Candidate strings for use in your response."""
@@ -126,7 +131,7 @@ class UnconstrainedMapExample(MapExample):
         if list_options:
             if self.options is not None:
                 s += f"Options: {','.join(sorted(self.options))}\n"
-        if self.context_type == ContextType.GLOBAL:
+        if self.context_type == FeatureType.GLOBAL:
             s += f"Context: {self.context}"
         s += "\nValues:\n"
         if values is None:

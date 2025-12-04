@@ -265,10 +265,11 @@ USE_LOCAL_CONSTRAINED_MODEL = True
 if USE_LOCAL_CONSTRAINED_MODEL:
     # Local models enable BlendSQL's expression-guided constrained decoding
     # https://arxiv.org/abs/2509.20208    
+    import psutil
     model = LlamaCpp(
         model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
         filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
-        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
+        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": psutil.cpu_count(logical=False)},
     ) 
 else:
     model = LiteLLM("openai/gpt-4o-mini")
