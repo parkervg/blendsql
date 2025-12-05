@@ -44,6 +44,13 @@ dependencies = [
     "bm25s",
     "diskcache"
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "rich"
+]
+
 version = "0.0.52"
 
 [project.urls]

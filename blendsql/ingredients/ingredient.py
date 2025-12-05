@@ -645,7 +645,7 @@ class QAIngredient(Ingredient):
     """
 
     ingredient_type: str = IngredientType.QA.value
-    allowed_output_types: tuple[Type] = (str | int | float | tuple,)
+    allowed_output_types: tuple[Type] = (str | int | float | tuple | bool,)
 
     def __call__(
         self,

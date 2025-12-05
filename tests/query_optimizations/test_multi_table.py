@@ -4,7 +4,6 @@ from blendsql import BlendSQL
 from blendsql.common.utils import fetch_from_hub
 from blendsql.db import DuckDB, SQLite
 from tests.utils import (
-    assert_blendsql_equals_sql,
     do_join,
     get_length,
     get_table_size,
@@ -14,6 +13,7 @@ from tests.utils import (
     select_first_sorted,
     test_starts_with,
 )
+from tests.query_optimizations.utils import TimedTestBase
 
 dummy_ingredients = {
     test_starts_with,
@@ -36,7 +36,7 @@ bsql_connections = [
 ]
 
 
-class TestBasicOperations:
+class TestBasicOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_multi_exec(self, bsql: BlendSQL):
         """Test with multiple tables.
@@ -53,7 +53,7 @@ class TestBasicOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT Symbol, "North America", "Japan" FROM geographic
@@ -82,7 +82,7 @@ class TestBasicOperations:
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_select_multi_exec(self, bsql: BlendSQL):
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
@@ -111,7 +111,7 @@ class TestBasicOperations:
         Below yields a tie in constituents.Name lengths, with 'Amgen' and 'Cisco'.
         DuckDB has different sorting behavior depending on the subset that's passed?
         """
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT Name FROM constituents
@@ -162,7 +162,7 @@ class TestBasicOperations:
             passed_to_portfolio_ingredient + passed_to_constituents_ingredient
         )
 
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT constituents.Symbol, Action FROM constituents
@@ -187,7 +187,7 @@ class TestBasicOperations:
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_qa_equals_multi_exec(self, bsql: BlendSQL):
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT Action FROM account_history
@@ -206,7 +206,7 @@ class TestBasicOperations:
 
         1a98559
         """
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT * FROM account_history
@@ -220,7 +220,7 @@ class TestBasicOperations:
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_null_negation(self, bsql: BlendSQL):
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT Name FROM constituents
@@ -239,7 +239,7 @@ class TestBasicOperations:
         )
 
 
-class TestJoinOperations:
+class TestJoinOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_join_multi_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -251,7 +251,7 @@ class TestJoinOperations:
         """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
@@ -290,7 +290,7 @@ class TestJoinOperations:
         """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT "Run Date", Account, Action, ROUND("Amount ($)", 2) AS 'Total Dividend Payout ($$)', Name
@@ -316,7 +316,7 @@ class TestJoinOperations:
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_join_ingredient_multi_exec(self, bsql: BlendSQL):
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT Account, Quantity FROM returns r
@@ -337,7 +337,7 @@ class TestJoinOperations:
         """
         af86714
         """
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT "Run Date", Action, p.Symbol FROM account_history a
@@ -360,7 +360,7 @@ class TestJoinOperations:
         )
 
 
-class TestAliasOperations:
+class TestAliasOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_table_alias_multi_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -369,7 +369,7 @@ class TestAliasOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT Symbol FROM portfolio AS w
@@ -393,7 +393,7 @@ class TestAliasOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT Symbol FROM (
@@ -413,7 +413,7 @@ class TestAliasOperations:
         )
 
 
-class TestCTEOperations:
+class TestCTEOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_cte_qa_multi_exec(self, bsql: BlendSQL):
         passed_to_map_ingredient: int = bsql.db.execute_to_list(
@@ -436,7 +436,7 @@ class TestCTEOperations:
             passed_to_qa_ingredient + passed_to_map_ingredient
         )
 
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             {{
@@ -479,7 +479,7 @@ class TestCTEOperations:
         expected_num_values_passed: int = (
             passed_to_map_ingredient + passed_to_qa_ingredient
         )
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             {{
@@ -534,7 +534,7 @@ class TestCTEOperations:
 
         f849ed3
         """
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             WITH w AS (
@@ -574,7 +574,7 @@ class TestCTEOperations:
         expected_num_values_passed: int = (
             passed_to_ingredient_1 + passed_to_ingredient_2
         )
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             WITH t AS (
@@ -598,7 +598,7 @@ class TestCTEOperations:
         )
 
 
-class TestSelectOperations:
+class TestSelectOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_ingredient_in_select_with_join_multi_exec(self, bsql: BlendSQL):
         """If the query only has an ingredient in the `SELECT` statement, and `JOIN` clause,
@@ -614,7 +614,7 @@ class TestSelectOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT {{get_length(c.Name)}}
@@ -655,7 +655,7 @@ class TestSelectOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT {{get_length(constituents.Name)}}, Action
@@ -671,7 +671,7 @@ class TestSelectOperations:
         )
 
 
-class TestSubqueryOperations:
+class TestSubqueryOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_subquery_alias_with_join_multi_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -680,7 +680,7 @@ class TestSubqueryOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
@@ -713,7 +713,7 @@ class TestSubqueryOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
