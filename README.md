@@ -653,6 +653,12 @@ bsql = BlendSQL(db, ingredients=ingredients)
 # Citation
 
 ```bibtex
+@inproceedings{glenn2025play,
+  title={Play by the Type Rules: Inferring Constraints for Small Language Models in Declarative Programs},
+  author={Glenn, Parker and Samuel, Alfy and Liu, Daben},
+  booktitle={EurIPS 2025 Workshop: AI for Tabular Data}
+}
+
 @article{glenn2024blendsql,
       title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
       author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
