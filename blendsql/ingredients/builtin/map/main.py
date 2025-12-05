@@ -85,7 +85,7 @@ class LLMMap(MapIngredient):
         option_searcher: Callable[[list[str]], Searcher] | None = None,
         batch_size: int | None = None,
         num_few_shot_examples: int | None = None,
-        searcher: Searcher | None = None,
+        context_searcher: Searcher | None = None,
         enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
@@ -157,7 +157,7 @@ class LLMMap(MapIngredient):
                 list_options_in_prompt=list_options_in_prompt,
                 option_searcher=option_searcher,
                 batch_size=batch_size,
-                searcher=searcher,
+                context_searcher=context_searcher,
                 enable_constrained_decoding=enable_constrained_decoding,
             )
         )
@@ -167,11 +167,13 @@ class LLMMap(MapIngredient):
         model: Model,
         question: str,
         values: list[str],
-        context_formatter: Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
+        context_formatter: Callable[[pd.DataFrame], str],
+        context: pd.DataFrame | None = None,
+        context_searcher: Searcher | None = None,
         unpacked_questions: list[str] = None,
-        searcher: Searcher | None = None,
         options: list[str] | None = None,
+        options_searcher: Searcher | None = None,
         few_shot_retriever: Callable[
             [str], list[ConstrainedAnnotatedMapExample]
         ] = None,
@@ -180,7 +182,6 @@ class LLMMap(MapIngredient):
         quantifier: QuantifierType = None,
         return_type: DataType | str | None = None,
         regex: str | None = None,
-        context: pd.DataFrame | None = None,
         batch_size: int = None,
         **kwargs,
     ) -> list[float | int | str | bool]:
@@ -210,12 +211,14 @@ class LLMMap(MapIngredient):
         context_in_use: list[str | None] = [None] * len(values)
         context_in_use_type: FeatureType = None
         # If we explicitly passed `context`, this should take precedence over the vector store.
-        if searcher is not None and context is None:
-            if unpacked_questions:  # Implies we have different context for each value
-                context_in_use = searcher(unpacked_questions)
+        if context_searcher is not None and context is None:
+            if (
+                unpacked_questions is not None
+            ):  # Implies we have different context for each value
+                context_in_use = context_searcher(unpacked_questions)
                 context_in_use_type = FeatureType.LOCAL
             else:
-                context_in_use = " | ".join(searcher(question)[0])
+                context_in_use = " | ".join(context_searcher(question)[0])
                 context_in_use_type = FeatureType.GLOBAL
         elif context is not None:  # If we've passed a table context
             if all([len(c) == 1 for c in context]):
@@ -276,11 +279,11 @@ class LLMMap(MapIngredient):
                 else:
                     curr_options_searcher = self.option_searcher(options)
                     options_in_use_type = FeatureType.LOCAL
-                    # logger.debug(
-                    #     Fore.YELLOW
-                    #     + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
-                    #     + Fore.RESET
-                    # )
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
+                        + Fore.RESET
+                    )
 
         current_example = MapExample(
             question=question,
