@@ -77,7 +77,8 @@ class LLMQA(QAIngredient):
         context_formatter: Callable[[pd.DataFrame], str] = DEFAULT_CONTEXT_FORMATTER,
         list_options_in_prompt: bool = True,
         num_few_shot_examples: int | None = 1,
-        searcher: Searcher | None = None,
+        context_searcher: Searcher | None = None,
+        options_searcher: Searcher | None = None,
         enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
@@ -149,7 +150,8 @@ class LLMQA(QAIngredient):
                 few_shot_retriever=few_shot_retriever,
                 context_formatter=context_formatter,
                 list_options_in_prompt=list_options_in_prompt,
-                searcher=searcher,
+                context_searcher=context_searcher,
+                options_searcher=options_searcher,
                 enable_constrained_decoding=enable_constrained_decoding,
             )
         )
@@ -161,8 +163,9 @@ class LLMQA(QAIngredient):
         context_formatter: Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
         few_shot_retriever: Callable[[str], list[AnnotatedQAExample]] | None = None,
-        searcher: Searcher | None = None,
+        context_searcher: Searcher | None = None,
         options: list[str] | None = None,
+        options_searcher: Searcher | None = None,
         quantifier: QuantifierType = None,
         return_type: DataType | str | None = None,
         regex: str | None = None,
@@ -200,8 +203,8 @@ class LLMQA(QAIngredient):
             few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT[:1]
 
         # If we explicitly passed `context`, this should take precedence over the vector store.
-        if searcher is not None and context is None:
-            docs = searcher(question)[0]
+        if context_searcher is not None and context is None:
+            docs = context_searcher(question)[0]
             context = [pd.DataFrame(docs, columns=["content"])]
             logger.debug(
                 Fore.LIGHTBLACK_EX
@@ -246,12 +249,21 @@ class LLMQA(QAIngredient):
                 os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
             )
             if len(options) > max_options_in_prompt:  # type: ignore
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
-                    + Fore.RESET
-                )
-                list_options_in_prompt = False
+                if options_searcher is None:
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
+                        + Fore.RESET
+                    )
+                    list_options_in_prompt = False
+                else:
+                    curr_options_searcher = options_searcher(options)
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options out of {len(options):,} total options..."
+                        + Fore.RESET
+                    )
+                    options = curr_options_searcher(question)[0]
 
         if isinstance(model, ConstrainedModel):
             import guidance
