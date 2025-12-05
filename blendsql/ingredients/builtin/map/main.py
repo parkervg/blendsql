@@ -1,6 +1,7 @@
 import ast
 import logging
 import os
+import re
 from typing import Callable
 from pathlib import Path
 import json
@@ -29,7 +30,7 @@ from .examples import (
     ConstrainedAnnotatedMapExample,
     UnconstrainedMapExample,
     UnconstrainedAnnotatedMapExample,
-    ContextType,
+    FeatureType,
 )
 from blendsql.search.searcher import Searcher
 
@@ -81,6 +82,7 @@ class LLMMap(MapIngredient):
         model: Model | None = None,
         few_shot_examples: list[dict] | list[AnnotatedMapExample] | None = None,
         list_options_in_prompt: bool = True,
+        option_searcher: Callable[[list[str]], Searcher] | None = None,
         batch_size: int | None = None,
         num_few_shot_examples: int | None = None,
         searcher: Searcher | None = None,
@@ -93,7 +95,15 @@ class LLMMap(MapIngredient):
             few_shot_examples: A list of dictionary MapExample few-shot examples.
                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/map/default_examples.json) as default.
             list_options_in_prompt: Whether to list options in the prompt. Defaults to True.
-            batch_size: The batch size for processing. Defaults to 5.
+            option_searcher: A callable that takes in a list of options, and returns a `Searcher` object.
+                For example, ```
+                option_searcher=lambda d: HybridSearch(
+                    documents=d,
+                    model_name_or_path="intfloat/e5-base-v2",
+                    k=10,
+                )
+                ```
+            batch_size: The batch size for processing. Defaults to 1.
             num_few_shot_examples: Determines number of few-shot examples to use for each ingredient call.
                Default is None, which will use all few-shot examples on all calls.
                If specified, will initialize a haystack-based embedding retriever to filter examples.
@@ -145,6 +155,7 @@ class LLMMap(MapIngredient):
                 model=model,
                 few_shot_retriever=few_shot_retriever,
                 list_options_in_prompt=list_options_in_prompt,
+                option_searcher=option_searcher,
                 batch_size=batch_size,
                 searcher=searcher,
                 enable_constrained_decoding=enable_constrained_decoding,
@@ -196,20 +207,20 @@ class LLMMap(MapIngredient):
 
         # Resolve context argument
         # If we explicitly passed `context`, this should take precedence over the vector store.
-        context_in_use: list[str] = [None] * len(values)
-        context_in_use_type: ContextType = None
+        context_in_use: list[str | None] = [None] * len(values)
+        context_in_use_type: FeatureType = None
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if searcher is not None and context is None:
             if unpacked_questions:  # Implies we have different context for each value
                 context_in_use = searcher(unpacked_questions)
-                context_in_use_type = ContextType.LOCAL
+                context_in_use_type = FeatureType.LOCAL
             else:
                 context_in_use = " | ".join(searcher(question)[0])
-                context_in_use_type = ContextType.GLOBAL
+                context_in_use_type = FeatureType.GLOBAL
         elif context is not None:  # If we've passed a table context
             if all([len(c) == 1 for c in context]):
                 context_in_use = " | ".join([context_formatter(c) for c in context])
-                context_in_use_type = ContextType.GLOBAL
+                context_in_use_type = FeatureType.GLOBAL
             else:
                 assert all(
                     len(x) == len(values) for x in context
@@ -218,16 +229,16 @@ class LLMMap(MapIngredient):
                     list(row)
                     for row in zip(*[df.iloc[:, 0].tolist() for df in context])
                 ]  # Kind of ugly
-                context_in_use_type = ContextType.LOCAL
+                context_in_use_type = FeatureType.LOCAL
 
         # Log what we found
-        if context_in_use_type == ContextType.GLOBAL:
+        if context_in_use_type == FeatureType.GLOBAL:
             logger.debug(
                 Fore.LIGHTBLACK_EX
                 + f"Retrieved global context '{context_in_use[:50]}...'"
                 + Fore.RESET
             )
-        elif context_in_use_type == ContextType.LOCAL:
+        elif context_in_use_type == FeatureType.LOCAL:
             logger.debug(
                 Fore.LIGHTBLACK_EX
                 + f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
@@ -246,16 +257,43 @@ class LLMMap(MapIngredient):
         resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
         )
+
+        # Prep options, if passed
+        curr_options_searcher = None
+        options_in_use_type = FeatureType.GLOBAL
+        if options is not None and list_options_in_prompt:
+            max_options_in_prompt = int(
+                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
+            )
+            if len(options) > max_options_in_prompt:
+                list_options_in_prompt = False
+                if self.option_searcher is None:
+                    logger.debug(
+                        Fore.YELLOW
+                        + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                        + Fore.RESET
+                    )
+                else:
+                    curr_options_searcher = self.option_searcher(options)
+                    options_in_use_type = FeatureType.LOCAL
+                    # logger.debug(
+                    #     Fore.YELLOW
+                    #     + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
+                    #     + Fore.RESET
+                    # )
+
         current_example = MapExample(
             question=question,
             column_name=column_name,
             table_name=table_name,
             return_type=resolved_return_type,
             example_outputs=example_outputs,
+            options_type=options_in_use_type,
             options=options,
             context_type=context_in_use_type,
             context=context_in_use,
         )
+
         if isinstance(model, ConstrainedModel):
             batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
             current_example = ConstrainedMapExample(**current_example.__dict__)
@@ -280,17 +318,6 @@ class LLMMap(MapIngredient):
         is_list_output = resolved_return_type.quantifier is not None
         regex = regex or resolved_return_type.regex
         quantifier = resolved_return_type.quantifier
-
-        if options is not None and list_options_in_prompt:
-            max_options_in_prompt = int(
-                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
-            )
-            if len(options) > max_options_in_prompt:
-                logger.debug(
-                    Fore.YELLOW
-                    + f"Number of options ({len(options)}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
-                )
-                list_options_in_prompt = False
 
         if isinstance(model, ConstrainedModel):
             import guidance
@@ -337,6 +364,7 @@ class LLMMap(MapIngredient):
             def make_prediction(
                 value: str,
                 context: str | list[str] | None,
+                local_options: list[str] | None,
                 str_output: bool,
                 gen_f: Callable,
             ) -> str:
@@ -354,14 +382,16 @@ class LLMMap(MapIngredient):
                     gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
                     json_str = json.dumps(context, ensure_ascii=False, indent=20)[:-1]
                     gen_str += (
-                        f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)})"
+                        f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)}"
                     )
                 else:
                     indented_value = value.replace("\n", f"\n{INDENT(2)}")
                     gen_str = (
-                        f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote})"""
+                        f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
                     )
-                gen_str += f""" == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if str_output else ''}"""
+                if local_options is not None:
+                    gen_str += f",\n{INDENT(2)}{local_options}"
+                gen_str += f""") == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if str_output else ''}"""
                 return gen_str
 
             example_str = ""
@@ -369,19 +399,26 @@ class LLMMap(MapIngredient):
                 for example in few_shot_examples:
                     example_str += example.to_string()
 
+            filtered_options: list[str | None] = [None] * len(values)
+            if curr_options_searcher is not None:
+                if context_in_use_type is not None:
+                    documents = [f"{v} {c}" for c, v in zip(values, context_in_use)]
+                else:
+                    documents = values
+                filtered_options = curr_options_searcher(documents)
+
             loaded_lm = False
             batch_inference_strings = []
             batch_inference_identifiers = []
             all_identifiers = []
             identifier_to_cache_key = {}
-            for c, v in zip(context_in_use, values):
-                if c is None:
-                    curr_identifier = v
-                else:
-                    curr_identifier = f"{v}_{c}"
+            for c, v, o in zip(context_in_use, values, filtered_options):
+                curr_identifier = v
+                if c is not None:
+                    curr_identifier += f"_{c}"
                 all_identifiers.append(curr_identifier)
 
-                if context_in_use_type == ContextType.LOCAL:
+                if context_in_use_type == FeatureType.LOCAL:
                     current_example.context = c
 
                 current_example_str = current_example.to_string(
@@ -403,6 +440,7 @@ class LLMMap(MapIngredient):
                         kwargs.get("max_tokens", 200),
                         c,
                         v,
+                        o,
                         funcs=[make_prediction, gen_f],
                     )
                     if cached_response is not None:
@@ -426,6 +464,7 @@ class LLMMap(MapIngredient):
                         make_prediction(
                             value=v,
                             context=c,
+                            local_options=o,
                             str_output=(resolved_return_type.name == "str"),
                             gen_f=gen_f,
                         )
@@ -464,9 +503,28 @@ class LLMMap(MapIngredient):
             model.prompt_tokens += lm._get_usage().input_tokens
             # For each value, call the DataType's `coerce_fn()`
             if is_list_output:
-                mapped_values = [
-                    current_example.return_type.coerce_fn(s) for s in lm_mapping
-                ]
+                try:
+                    mapped_values = [
+                        [
+                            current_example.return_type.coerce_fn(c)
+                            for c in ast.literal_eval(s)
+                        ]
+                        for s in lm_mapping
+                    ]
+                except Exception:
+                    # Sometimes we need to first escape single quotes
+                    # E.g. in ['Something's wrong here']
+                    if resolved_return_type.name == "str":
+                        mapped_values = [
+                            [
+                                current_example.return_type.coerce_fn(c)
+                                for c in ast.literal_eval(
+                                    re.sub(r"(\w)'(\w)", r"\1\\'\2", s)
+                                )
+                            ]
+                            for s in lm_mapping
+                        ]
+
             else:
                 mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
 
@@ -481,7 +539,7 @@ class LLMMap(MapIngredient):
 
             messages_list: list[list[dict]] = []
             batch_sizes: list[int] = []
-            if current_example.context_type == ContextType.LOCAL:
+            if current_example.context_type == FeatureType.LOCAL:
                 if batch_size != 1:
                     logger.debug(
                         Fore.YELLOW
@@ -489,7 +547,7 @@ class LLMMap(MapIngredient):
                         + Fore.RESET
                     )
                 batch_size = 1
-                current_example.context_type = ContextType.GLOBAL
+                current_example.context_type = FeatureType.GLOBAL
                 current_example.context = None
             for i in range(0, len(sorted_values), batch_size):
                 curr_batch_values = sorted_values[i : i + batch_size]
@@ -502,7 +560,7 @@ class LLMMap(MapIngredient):
                 for example in few_shot_examples:
                     user_msg_str += example.to_string()
                 # Add the current question + context for inference
-                if current_batch_example.context_type == ContextType.GLOBAL:
+                if current_batch_example.context_type == FeatureType.GLOBAL:
                     str_context = "\n".join(curr_batch_contexts[0])
                     current_batch_example.context = str_context
                 user_msg_str += current_batch_example.to_string(

@@ -174,7 +174,5 @@ class SQLAlchemyDatabase(Database):
         """A lower-level execute method that doesn't use the pandas processing logic.
         Returns results as a tuple.
         """
-        res = []
-        for row in self.con.execute(text(query)).fetchall():
-            res.append(to_type(row[0]))
-        return res
+        result = self.con.execute(text(query)).fetchall()
+        return [to_type(row[0]) for row in result]

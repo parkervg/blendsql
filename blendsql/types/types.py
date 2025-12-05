@@ -1,9 +1,8 @@
 from ast import literal_eval
 from dataclasses import dataclass
-import re
 
 from blendsql.common.constants import DEFAULT_NAN_ANS
-from blendsql.common.typing import DataType, QuantifierType
+from blendsql.common.typing import DataType
 
 
 def str_to_bool(s: str | None) -> bool | str | None:
@@ -34,25 +33,9 @@ def str_to_numeric(s: str | None) -> float | int | None:
     return casted_s
 
 
-def maybe_str_to_str_list(
-    s: str | None, quantifier: QuantifierType
-) -> list[str | None]:
-    if quantifier is None or not isinstance(s, str):
-        return s
-    try:
-        return literal_eval(s)
-    except:
-        # Sometimes we need to first escape single quotes
-        # E.g. in ['Something's wrong here']
-        s_fixed = re.sub(r"(\w)'(\w)", r"\1\\'\2", s)
-        return literal_eval(s_fixed)
-
-
 @dataclass
 class DataTypes:
-    STR = lambda quantifier=None: DataType(
-        "str", None, quantifier, lambda s: maybe_str_to_str_list(s, quantifier)
-    )
+    STR = lambda quantifier=None: DataType("str", None, quantifier, lambda s: s)
     BOOL = lambda quantifier=None: DataType(
         "bool", r"(t|f|true|false|True|False)", quantifier, str_to_bool
     )

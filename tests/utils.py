@@ -1,14 +1,50 @@
-import pandas as pd
-from typing import Iterable, List, Union, Tuple, Optional
 from collections.abc import Collection
+from typing import Iterable, List, Optional, Tuple, Union
+
+import pandas as pd
+
+from blendsql import BlendSQL
+from blendsql.db.utils import single_quote_escape
 from blendsql.ingredients import (
+    AliasIngredient,
     Ingredient,
+    JoinIngredient,
     MapIngredient,
     QAIngredient,
-    JoinIngredient,
-    AliasIngredient,
 )
-from blendsql.db.utils import single_quote_escape
+
+
+def assert_equality(smoothie, sql_df: pd.DataFrame, args: Optional[List[str]] = None):
+    blendsql_df = smoothie.df
+    if args is not None:
+        arg_overlap = blendsql_df.columns.intersection(args).tolist()
+        if len(arg_overlap) > 0:
+            blendsql_df = blendsql_df.drop(arg_overlap, axis=1)
+    # Make column names abstract
+    blendsql_df.columns = [i for i in range(len(blendsql_df.columns))]
+    sql_df.columns = [i for i in range(len(sql_df.columns))]
+    pd.testing.assert_frame_equal(
+        blendsql_df, sql_df, check_like=True, check_dtype=False
+    )
+
+
+def assert_blendsql_equals_sql(
+    bsql: BlendSQL,
+    blendsql_query: str,
+    sql_query: str,
+    args: list | None = None,
+    expected_num_values_passed: int | None = None,
+    allow_lt_num_values_compare: bool = False,
+):
+    smoothie = bsql.execute(blendsql_query)
+    sql_df = bsql.db.execute_to_df(sql_query)
+    assert_equality(smoothie=smoothie, sql_df=sql_df, args=args)
+    if expected_num_values_passed is not None:
+        if allow_lt_num_values_compare:
+            assert smoothie.meta.num_values_passed <= expected_num_values_passed
+        else:
+            assert smoothie.meta.num_values_passed == expected_num_values_passed
+    return smoothie
 
 
 class test_starts_with(MapIngredient):
@@ -110,17 +146,3 @@ class do_join(JoinIngredient):
 
     def run(self, left_values: List[str], right_values: List[str], **kwargs) -> dict:
         return {left_value: left_value for left_value in left_values}
-
-
-def assert_equality(smoothie, sql_df: pd.DataFrame, args: Optional[List[str]] = None):
-    blendsql_df = smoothie.df
-    if args is not None:
-        arg_overlap = blendsql_df.columns.intersection(args).tolist()
-        if len(arg_overlap) > 0:
-            blendsql_df = blendsql_df.drop(arg_overlap, axis=1)
-    # Make column names abstract
-    blendsql_df.columns = [i for i in range(len(blendsql_df.columns))]
-    sql_df.columns = [i for i in range(len(sql_df.columns))]
-    pd.testing.assert_frame_equal(
-        blendsql_df, sql_df, check_like=True, check_dtype=False
-    )

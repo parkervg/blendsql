@@ -11,7 +11,7 @@ from dataclasses import dataclass, field, asdict
 
 import torch
 
-from tag_queries import BLENDSQL_ANNOTATED_TAG_DATASET
+from annotated_programs import ANNOTATED_TAG_DATASET
 
 from blendsql import BlendSQL
 from blendsql.models import LlamaCpp, TransformersLLM
@@ -292,7 +292,7 @@ if __name__ == "__main__":
             )
         do_eval = False
         prediction_data = []
-        for item in BLENDSQL_ANNOTATED_TAG_DATASET:
+        for item in ANNOTATED_TAG_DATASET:
             if item["Answer"] is None:
                 continue
             curr_pred_data = item.copy()

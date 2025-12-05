@@ -173,7 +173,5 @@ class DuckDB(Database):
     def execute_to_list(
         self, query: str, to_type: Callable | None = lambda x: x
     ) -> list:
-        res = []
-        for row in self.con.sql(query).fetchall():
-            res.append(to_type(row[0]))
-        return res
+        result = self.con.sql(query).fetchall()
+        return [to_type(row[0]) for row in result]

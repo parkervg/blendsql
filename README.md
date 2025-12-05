@@ -246,7 +246,7 @@ The reason for this? DuckDB uses a generalized query optimizer, very good at man
 This highlights an important point about the value-add of BlendSQL. While you *can* just import the individual language model functions and call them on data (see [here](https://github.com/parkervg/blendsql/blob/duckdb-udf-eval/research/run-evaluate.py#L42)) - if you know the larger query context where the function output will be used, you *should* use the BlendSQL query optimizer (`bsql.execute()`), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.
 
 > [!TIP]
-> How do we know the BlendSQL optimizer is passing the minimal required data to the language model functions? Check out our extensive [test suite](./tests/) for examples.
+> How do we know the BlendSQL optimizer is passing the minimal required data to the language model functions? Check out our extensive [test suite](./tests/test_multi_table.py) for examples.
 
 # Documentation 
 
@@ -265,10 +265,11 @@ USE_LOCAL_CONSTRAINED_MODEL = True
 if USE_LOCAL_CONSTRAINED_MODEL:
     # Local models enable BlendSQL's expression-guided constrained decoding
     # https://arxiv.org/abs/2509.20208    
+    import psutil
     model = LlamaCpp(
         model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
         filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
-        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
+        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": psutil.cpu_count(logical=False)},
     ) 
 else:
     model = LiteLLM("openai/gpt-4o-mini")
