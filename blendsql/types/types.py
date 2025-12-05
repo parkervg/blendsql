@@ -42,7 +42,7 @@ def str_to_date(s: str | None, db: Database | None) -> str | None:
 
 @dataclass
 class DataTypes:
-    STR = lambda quantifier=None: DataType("str", None, quantifier, lambda s: s)
+    STR = lambda quantifier=None: DataType("str", None, quantifier, lambda s, _: s)
     BOOL = lambda quantifier=None: DataType(
         "bool", r"(t|f|true|false|True|False)", quantifier, str_to_bool
     )
@@ -62,7 +62,7 @@ class DataTypes:
         "Any",
         None,
         quantifier,
-        lambda s: f"'{single_quote_escape(response)}'",  # Let the DBMS transform, if it allows
+        lambda s, _: s,  # Let the DBMS transform, if it allows
     )
 
 
