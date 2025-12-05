@@ -407,7 +407,7 @@ class MapIngredient(Ingredient):
             options=options,
             tablename=tablename,
             colname=colname,
-            **kwargs,
+            **self.__dict__ | kwargs,
         )
         self.num_values_passed += len(mapped_values)
         df_as_dict: dict[str, list] = {colname: [], new_arg_column: []}
