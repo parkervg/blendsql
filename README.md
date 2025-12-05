@@ -547,7 +547,7 @@ print(smoothie.df)
 
 
 ## Few-Shot Prompting
-For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples and dynamically retrieve those top-`k` most relevant examples at runtime, given the current inference example.
+For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples.
 #### `LLMMap`
 - [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
 - [All possible fields](./blendsql/ingredients/builtin/map/examples.py)
@@ -574,7 +574,6 @@ ingredients = {
         "return_type": "boolean"
       }
     ],
-    num_few_shot_examples=2,
     # How many inference values to pass to model at once
     batch_size=5,
   )
@@ -608,8 +607,6 @@ ingredients = {
                 "options": ["Dog", "Gorilla", "Hamster"]
             }
         ],
-        # Will fetch `k` most relevant few-shot examples using embedding-based retriever
-        num_few_shot_examples=2,
         # Lambda to turn the pd.DataFrame to a serialized string
         context_formatter=lambda df: df.to_markdown(
             index=False
@@ -643,7 +640,6 @@ ingredients = {
         }
       }
     ],
-    num_few_shot_examples=2
   )
 }
 
