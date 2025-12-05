@@ -1,6 +1,7 @@
 import ast
 import logging
 import os
+import re
 from typing import Callable
 from pathlib import Path
 import json
@@ -502,9 +503,28 @@ class LLMMap(MapIngredient):
             model.prompt_tokens += lm._get_usage().input_tokens
             # For each value, call the DataType's `coerce_fn()`
             if is_list_output:
-                mapped_values = [
-                    current_example.return_type.coerce_fn(s) for s in lm_mapping
-                ]
+                try:
+                    mapped_values = [
+                        [
+                            current_example.return_type.coerce_fn(c)
+                            for c in ast.literal_eval(s)
+                        ]
+                        for s in lm_mapping
+                    ]
+                except Exception:
+                    # Sometimes we need to first escape single quotes
+                    # E.g. in ['Something's wrong here']
+                    if resolved_return_type.name == "str":
+                        mapped_values = [
+                            [
+                                current_example.return_type.coerce_fn(c)
+                                for c in ast.literal_eval(
+                                    re.sub(r"(\w)'(\w)", r"\1\\'\2", s)
+                                )
+                            ]
+                            for s in lm_mapping
+                        ]
+
             else:
                 mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
 
