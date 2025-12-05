@@ -660,12 +660,12 @@ bsql = BlendSQL(db, ingredients=ingredients)
 }
 
 @article{glenn2024blendsql,
-      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
-      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
-      year={2024},
-      eprint={2402.17882},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
+  title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
+  author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
+  year={2024},
+  eprint={2402.17882},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL}
 }
 ```
 
