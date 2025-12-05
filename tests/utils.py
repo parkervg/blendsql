@@ -1,9 +1,7 @@
 from collections.abc import Collection
-from typing import Iterable, List, Optional, Tuple, Union
-
+from typing import Iterable, Union
 import pandas as pd
 
-from blendsql import BlendSQL
 from blendsql.db.utils import single_quote_escape
 from blendsql.ingredients import (
     AliasIngredient,
@@ -14,41 +12,8 @@ from blendsql.ingredients import (
 )
 
 
-def assert_equality(smoothie, sql_df: pd.DataFrame, args: Optional[List[str]] = None):
-    blendsql_df = smoothie.df
-    if args is not None:
-        arg_overlap = blendsql_df.columns.intersection(args).tolist()
-        if len(arg_overlap) > 0:
-            blendsql_df = blendsql_df.drop(arg_overlap, axis=1)
-    # Make column names abstract
-    blendsql_df.columns = [i for i in range(len(blendsql_df.columns))]
-    sql_df.columns = [i for i in range(len(sql_df.columns))]
-    pd.testing.assert_frame_equal(
-        blendsql_df, sql_df, check_like=True, check_dtype=False
-    )
-
-
-def assert_blendsql_equals_sql(
-    bsql: BlendSQL,
-    blendsql_query: str,
-    sql_query: str,
-    args: list | None = None,
-    expected_num_values_passed: int | None = None,
-    allow_lt_num_values_compare: bool = False,
-):
-    smoothie = bsql.execute(blendsql_query)
-    sql_df = bsql.db.execute_to_df(sql_query)
-    assert_equality(smoothie=smoothie, sql_df=sql_df, args=args)
-    if expected_num_values_passed is not None:
-        if allow_lt_num_values_compare:
-            assert smoothie.meta.num_values_passed <= expected_num_values_passed
-        else:
-            assert smoothie.meta.num_values_passed == expected_num_values_passed
-    return smoothie
-
-
 class test_starts_with(MapIngredient):
-    def run(self, question: str, values: List[str], **kwargs) -> List[bool]:
+    def run(self, question: str, values: list[str], **kwargs) -> list[bool]:
         """Simple test function, equivalent to the following in SQL:
             `LIKE '{arg}%`
         This allows us to compare the output of a BlendSQL script with a SQL script easily.
@@ -60,13 +25,13 @@ class test_starts_with(MapIngredient):
 class get_length(MapIngredient):
     def __call__(
         self,
-        values: List[str] = None,
+        values: list[str] = None,
         *args,
         **kwargs,
     ) -> tuple:
         return super().__call__(question="length", values=values, *args, **kwargs)
 
-    def run(self, values: List[str], **kwargs) -> Iterable[int]:
+    def run(self, values: list[str], **kwargs) -> Iterable[int]:
         """Simple test function, equivalent to the following in SQL:
             `LENGTH '{arg}%`
         This allows us to compare the output of a BlendSQL script with a SQL script easily.
@@ -76,7 +41,7 @@ class get_length(MapIngredient):
 
 
 class select_first_sorted(QAIngredient):
-    def run(self, options: set, **kwargs) -> Union[str, int, float, tuple]:
+    def run(self, options: set, **kwargs) -> str:
         """Simple test function, equivalent to the following in SQL:
         `ORDER BY {colname} LIMIT 1`
         """
@@ -85,38 +50,46 @@ class select_first_sorted(QAIngredient):
 
 
 class return_aapl(QAIngredient):
-    def run(self, **kwargs) -> Union[str, int, float, tuple]:
+    def run(self, **kwargs) -> str:
         """Executes to return the string 'AAPL'"""
         return "'AAPL'"
+
+
+class return_true(QAIngredient):
+    def run(self, **kwargs) -> bool:
+        return True
+
+
+class return_true_map(MapIngredient):
+    def run(self, values: list[str], **kwargs) -> bool:
+        return [True for _ in range(len(values))]
 
 
 class get_table_size(QAIngredient):
     def __call__(
         self,
-        context: List[pd.DataFrame] = None,
+        context: list[pd.DataFrame] = None,
         **kwargs,
     ) -> tuple:
         return super().__call__(
             question="size", context=context, options=None, **kwargs
         )
 
-    def run(
-        self, context: List[pd.DataFrame], **kwargs
-    ) -> Union[str, int, float, tuple]:
+    def run(self, context: list[pd.DataFrame], **kwargs) -> int:
         """Returns the length of the context subtable passed to it."""
         return sum([len(c) for c in context])
 
 
 class select_first_option(QAIngredient):
     def run(
-        self, question: str, context: List[pd.DataFrame], options: set, **kwargs
-    ) -> Union[str, int, float, tuple]:
+        self, question: str, context: list[pd.DataFrame], options: set, **kwargs
+    ) -> str:
         """Returns the first item in the (ordered) options set"""
         return f"'{single_quote_escape(sorted(list(filter(lambda x: x, options)))[0])}'"
 
 
 class return_aapl_alias(AliasIngredient):
-    def run(self, *args, **kwargs) -> Tuple[str, Collection[Ingredient]]:
+    def run(self, *args, **kwargs) -> tuple[str, Collection[Ingredient]]:
         return (
             "{{select_first_option(options='AAPL;AMZN;TYL')}}",
             {select_first_option},
@@ -125,13 +98,13 @@ class return_aapl_alias(AliasIngredient):
 
 class return_stocks_tuple(QAIngredient):
     def run(
-        self, question: str, context: List[pd.DataFrame], options: set, **kwargs
+        self, question: str, context: list[pd.DataFrame], options: set, **kwargs
     ) -> Union[str, int, float, tuple]:
         return tuple(["AAPL", "AMZN", "TYL"])
 
 
 class return_stocks_tuple_alias(AliasIngredient):
-    def run(self, *args, **kwargs) -> Tuple[str, Collection[Ingredient]]:
+    def run(self, *args, **kwargs) -> tuple[str, Collection[Ingredient]]:
         return ("{{return_stocks_tuple()}}", {return_stocks_tuple})
 
 
@@ -144,5 +117,5 @@ class do_join(JoinIngredient):
         super().__init__(*args, **kwargs)
         self.use_skrub_joiner = False
 
-    def run(self, left_values: List[str], right_values: List[str], **kwargs) -> dict:
+    def run(self, left_values: list[str], right_values: list[str], **kwargs) -> dict:
         return {left_value: left_value for left_value in left_values}

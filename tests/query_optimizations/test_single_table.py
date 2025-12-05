@@ -4,13 +4,14 @@ from blendsql import BlendSQL
 from blendsql.common.utils import fetch_from_hub
 from blendsql.db import DuckDB, SQLite
 from tests.utils import (
-    assert_blendsql_equals_sql,
     get_length,
     get_table_size,
     select_first_option,
     select_first_sorted,
     test_starts_with,
 )
+from tests.query_optimizations.utils import TimedTestBase
+
 
 dummy_ingredients = {
     test_starts_with,
@@ -39,7 +40,7 @@ bsql_connections = [
 ]
 
 
-class TestBasicOperations:
+class TestBasicOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_exec(self, bsql: BlendSQL):
         smoothie = bsql.execute(
@@ -64,7 +65,7 @@ class TestBasicOperations:
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_ingredient_exec(self, bsql: BlendSQL):
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT * FROM transactions WHERE {{test_starts_with('Z', merchant)}} = 1;
@@ -77,7 +78,7 @@ class TestBasicOperations:
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_ingredient_exec_at_end(self, bsql: BlendSQL):
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT * FROM transactions WHERE {{test_starts_with('Z', merchant)}}
@@ -96,7 +97,7 @@ class TestBasicOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT merchant FROM transactions WHERE
@@ -134,7 +135,7 @@ class TestBasicOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT merchant, child_category FROM transactions WHERE
@@ -165,7 +166,7 @@ class TestBasicOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT merchant, child_category FROM transactions WHERE
@@ -197,7 +198,7 @@ class TestBasicOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT child_category, merchant FROM transactions WHERE
@@ -230,7 +231,7 @@ class TestBasicOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT {{get_length(merchant)}}, merchant
@@ -259,7 +260,7 @@ class TestBasicOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT MAX({{get_length(merchant)}}) as max_length, merchant
@@ -282,7 +283,7 @@ class TestBasicOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT merchant FROM transactions WHERE {{get_length(merchant)}} > (SELECT {{get_length(merchant)}} FROM transactions WHERE merchant = 'Paypal' LIMIT 1)
@@ -305,7 +306,7 @@ class TestBasicOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT
@@ -335,7 +336,7 @@ class TestBasicOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT NOT EXISTS (
@@ -375,7 +376,7 @@ class TestBasicOperations:
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_filter_by_ingredient(self, bsql: BlendSQL):
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT merchant, child_category FROM transactions WHERE
@@ -396,7 +397,7 @@ class TestBasicOperations:
             """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             WITH a AS (
@@ -416,7 +417,7 @@ class TestBasicOperations:
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_where_in_clause(self, bsql: BlendSQL):
         """Makes sure we don't ignore `{column} = TRUE` SQL clauses."""
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT merchant FROM transactions WHERE merchant IN (SELECT merchant FROM transactions WHERE {{test_starts_with('Z', merchant)}})
@@ -429,7 +430,7 @@ class TestBasicOperations:
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_null_negation(self, bsql: BlendSQL):
         """ee3b0c4"""
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT merchant FROM transactions
@@ -452,7 +453,7 @@ class TestBasicOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT merchant FROM transactions t
@@ -468,7 +469,7 @@ class TestBasicOperations:
         )
 
 
-class TestSelectOperations:
+class TestSelectOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_ingredient_in_select_stmt(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -477,7 +478,7 @@ class TestSelectOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT MAX({{get_length(merchant)}}) as l FROM transactions
@@ -496,7 +497,7 @@ class TestSelectOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT {{get_length(merchant)}} AS "LENGTH(merchant)" FROM transactions WHERE parent_category = 'Auto & Transport'
@@ -516,7 +517,7 @@ class TestSelectOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT MAX({{get_length(merchant)}}) as l FROM transactions WHERE child_category = 'Restaurants & Dining'
@@ -528,7 +529,7 @@ class TestSelectOperations:
         )
 
 
-class TestLimitOperations:
+class TestLimitOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_limit(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -537,7 +538,7 @@ class TestLimitOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT DISTINCT merchant, child_category FROM transactions WHERE
@@ -575,7 +576,7 @@ class TestLimitOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT {{get_length(merchant)}}
@@ -597,11 +598,11 @@ class TestLimitOperations:
         )
 
 
-class TestGroupByOperations:
+class TestGroupByOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_group_by_with_ingredient_alias(self, bsql: BlendSQL):
         """b28a129"""
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT SUM(amount) AS "total amount",
@@ -620,7 +621,7 @@ class TestGroupByOperations:
         )
 
 
-class TestCTEOperations:
+class TestCTEOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_cte_with_ingredient(self, bsql: BlendSQL):
         """c3ec1eb"""
@@ -639,13 +640,13 @@ class TestCTEOperations:
         )
 
 
-class TestOffsetOperations:
+class TestOffsetOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_offset(self, bsql: BlendSQL):
         """SELECT "fruits"."name" FROM fruits OFFSET 2 will break SQLite
         for some reason, DuckDB is ok with it, though.
         """
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT merchant FROM transactions t
@@ -660,7 +661,7 @@ class TestOffsetOperations:
         )
 
 
-class TestHavingOperations:
+class TestHavingOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_having(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -669,7 +670,7 @@ class TestHavingOperations:
                 """,
             to_type=int,
         )[0]
-        _ = assert_blendsql_equals_sql(
+        _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
             SELECT {{get_length(merchant)}} AS l FROM transactions t
