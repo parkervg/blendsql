@@ -3,9 +3,10 @@ from dataclasses import dataclass
 
 from blendsql.common.constants import DEFAULT_NAN_ANS
 from blendsql.common.typing import DataType
+from blendsql.db import Database
 
 
-def str_to_bool(s: str | None) -> bool | str | None:
+def str_to_bool(s: str | None, _: Database | None) -> bool | str | None:
     return {
         "t": True,
         "f": False,
@@ -21,7 +22,7 @@ def str_to_bool(s: str | None) -> bool | str | None:
     }.get(s.lower(), None)
 
 
-def str_to_numeric(s: str | None) -> float | int | None:
+def str_to_numeric(s: str | None, _: Database | None) -> float | int | None:
     if not isinstance(s, str):
         return s
     s = s.replace(",", "")
@@ -31,6 +32,12 @@ def str_to_numeric(s: str | None) -> float | int | None:
     except (ValueError, SyntaxError, AssertionError):
         return None
     return casted_s
+
+
+def str_to_date(s: str | None, db: Database | None) -> str | None:
+    if db.__class__.__name__ == "DuckDB":
+        return f"DATE '{s}'"
+    return s
 
 
 @dataclass
@@ -49,10 +56,13 @@ class DataTypes:
         "Union[int, float]", r"(\d+(\.\d+)?)", quantifier, str_to_numeric
     )
     ISO_8601_DATE = lambda quantifier=None: DataType(
-        "date", r"\d{4}-\d{2}-\d{2}", quantifier, lambda s: s
+        "date", r"\d{4}-\d{2}-\d{2}", quantifier, str_to_date
     )
     ANY = lambda quantifier=None: DataType(
-        "Any", None, quantifier, lambda s: s  # Let the DBMS transform, if it allows
+        "Any",
+        None,
+        quantifier,
+        lambda s: f"'{single_quote_escape(response)}'",  # Let the DBMS transform, if it allows
     )
 
 

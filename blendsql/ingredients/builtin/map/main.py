@@ -506,7 +506,7 @@ class LLMMap(MapIngredient):
                 try:
                     mapped_values = [
                         [
-                            current_example.return_type.coerce_fn(c)
+                            current_example.return_type.coerce_fn(c, self.db)
                             for c in ast.literal_eval(s)
                         ]
                         for s in lm_mapping
@@ -517,7 +517,7 @@ class LLMMap(MapIngredient):
                     if resolved_return_type.name == "str":
                         mapped_values = [
                             [
-                                current_example.return_type.coerce_fn(c)
+                                current_example.return_type.coerce_fn(c, self.db)
                                 for c in ast.literal_eval(
                                     re.sub(r"(\w)'(\w)", r"\1\\'\2", s)
                                 )
@@ -526,7 +526,9 @@ class LLMMap(MapIngredient):
                         ]
 
             else:
-                mapped_values = [resolved_return_type.coerce_fn(s) for s in lm_mapping]
+                mapped_values = [
+                    resolved_return_type.coerce_fn(s, self.db) for s in lm_mapping
+                ]
 
         else:
             sorted_indices = sorted(range(len(values)), key=lambda i: values[i])
@@ -599,12 +601,15 @@ class LLMMap(MapIngredient):
                             continue
                         for item in list_converted:
                             curr_converted_preds.append(
-                                current_example.return_type.coerce_fn(item)
+                                current_example.return_type.coerce_fn(item, self.db)
                             )
                     mapped_values.append(curr_converted_preds)
                 else:
                     mapped_values.extend(
-                        [current_example.return_type.coerce_fn(s) for s in predictions]
+                        [
+                            current_example.return_type.coerce_fn(s, self.db)
+                            for s in predictions
+                        ]
                     )
             mapped_values = [
                 mapped_values[sorted_indices_to_original[i]]

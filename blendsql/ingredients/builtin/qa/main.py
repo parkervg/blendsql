@@ -329,7 +329,9 @@ class LLMQA(QAIngredient):
                     lm += gen_f(question)
                 add_to_global_history(str(lm))
 
-                response: str = current_example.return_type.coerce_fn(lm["response"])
+                response: str = current_example.return_type.coerce_fn(
+                    lm["response"], self.db
+                )
                 if model.caching:
                     model.cache[key] = response  # type: ignore
 
@@ -374,7 +376,8 @@ class LLMQA(QAIngredient):
                             i.strip() for i in response.strip("[]()").split(",")
                         ]
                         response = [
-                            current_example.return_type.coerce_fn(r) for r in response
+                            current_example.return_type.coerce_fn(r, self.db)
+                            for r in response
                         ]
                         response = tuple(
                             [
@@ -386,10 +389,13 @@ class LLMQA(QAIngredient):
                         )
                 else:
                     if isinstance(response, str):
-                        response = current_example.return_type.coerce_fn(response)
+                        response = current_example.return_type.coerce_fn(
+                            response, self.db
+                        )
                     elif isinstance(response, list):
                         response = [
-                            current_example.return_type.coerce_fn(r) for r in response
+                            current_example.return_type.coerce_fn(r, self.db)
+                            for r in response
                         ]
         # Map from modified options to original, as they appear in DB
         if not isinstance(response, (list, tuple, set)):
@@ -405,7 +411,7 @@ class LLMQA(QAIngredient):
                     + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
                     + Fore.RESET
                 )
-            if isinstance(response, str):
+            if resolved_return_type.name == "str":
                 response = f"'{single_quote_escape(response)}'"  # type: ignore
         else:
             response = tuple(response)  # type: ignore

@@ -34,11 +34,11 @@ class DataType:
             return f"List[{self._name}]"
         return self._name
 
-    def coerce_fn(self, s: str | None) -> Any:
+    def coerce_fn(self, s: str | None, db: "Database | None") -> Any:
         """Language models output strings.
         We want to coerce their outputs to the DB-friendly type here.
         """
-        return self._coerce_fn(s)
+        return self._coerce_fn(s, db)
 
 
 class IngredientArgType(str):
