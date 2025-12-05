@@ -21,26 +21,26 @@ dummy_ingredients = {
 }
 
 
-@pytest.fixture(params=["sqlite", "duckdb"])
-def bsql(request):
-    db_path = fetch_from_hub("single_table.db")
-    if request.param == "sqlite":
-        db = SQLite(db_path)
-    else:
-        db = DuckDB.from_pandas(
+bsql_connections = [
+    BlendSQL(
+        SQLite(fetch_from_hub("single_table.db")),
+        ingredients=dummy_ingredients,
+    ),
+    BlendSQL(
+        DuckDB.from_pandas(
             {
                 "transactions": SQLite(fetch_from_hub("single_table.db")).execute_to_df(
                     "SELECT * FROM transactions"
                 )
             }
-        )
-
-    conn = BlendSQL(db, ingredients=dummy_ingredients)
-    yield conn
-    conn.db._reset_connection()  # cleanup
+        ),
+        ingredients=dummy_ingredients,
+    ),
+]
 
 
 class TestBasicOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_exec(self, bsql: BlendSQL):
         smoothie = bsql.execute(
             """
@@ -49,6 +49,7 @@ class TestBasicOperations:
         )
         assert not smoothie.df.empty
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_nested_exec(self, bsql: BlendSQL):
         smoothie = bsql.execute(
             """
@@ -61,6 +62,7 @@ class TestBasicOperations:
         )
         assert not smoothie.df.empty
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_ingredient_exec(self, bsql: BlendSQL):
         _ = assert_blendsql_equals_sql(
             bsql,
@@ -73,6 +75,7 @@ class TestBasicOperations:
             args=["Z"],
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_ingredient_exec_at_end(self, bsql: BlendSQL):
         _ = assert_blendsql_equals_sql(
             bsql,
@@ -85,6 +88,7 @@ class TestBasicOperations:
             args=["Z"],
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_nested_ingredient_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -114,6 +118,7 @@ class TestBasicOperations:
             args=["Z"],
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_nonexistent_column_exec(self, bsql: BlendSQL):
         """
         NOTE: Converting to CNF would break this one
@@ -152,6 +157,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_nested_and_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -183,6 +189,7 @@ class TestBasicOperations:
             args=["O"],
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_multiple_nested_ingredients(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -215,6 +222,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_length_ingredient(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -237,6 +245,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_max_length(self, bsql: BlendSQL):
         """In DuckDB, this causes
         `Binder Error: aggregate function calls cannot be nested`
@@ -265,6 +274,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_nested_duplicate_map_calls(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -283,6 +293,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_many_duplicate_map_calls(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -315,6 +326,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_exists_isolated_qa_call(self, bsql: BlendSQL):
         # commit 7a19e39
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -345,6 +357,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_query_options_arg(self, bsql: BlendSQL):
         # commit 5ffa26d
         smoothie = bsql.execute(
@@ -360,6 +373,7 @@ class TestBasicOperations:
         assert len(smoothie.df) == 1
         assert smoothie.df.values.flat[0] == "Paypal"
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_filter_by_ingredient(self, bsql: BlendSQL):
         _ = assert_blendsql_equals_sql(
             bsql,
@@ -373,6 +387,7 @@ class TestBasicOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_where_with_true(self, bsql: BlendSQL):
         """Makes sure we don't ignore `{column} = TRUE` SQL clauses."""
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -398,6 +413,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_where_in_clause(self, bsql: BlendSQL):
         """Makes sure we don't ignore `{column} = TRUE` SQL clauses."""
         _ = assert_blendsql_equals_sql(
@@ -410,6 +426,7 @@ class TestBasicOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_null_negation(self, bsql: BlendSQL):
         """ee3b0c4"""
         _ = assert_blendsql_equals_sql(
@@ -426,6 +443,7 @@ class TestBasicOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_map_in_function(self, bsql: BlendSQL):
         """6cec1a4"""
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -451,6 +469,7 @@ class TestBasicOperations:
 
 
 class TestSelectOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_ingredient_in_select_stmt(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -469,6 +488,7 @@ class TestSelectOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_ingredient_exec_in_select(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -487,6 +507,7 @@ class TestSelectOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_ingredient_in_select_stmt_with_filter(self, bsql: BlendSQL):
         # commit de4a7bc
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -508,6 +529,7 @@ class TestSelectOperations:
 
 
 class TestLimitOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_limit(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -534,6 +556,7 @@ class TestLimitOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_apply_limit(self, bsql: BlendSQL):
         # commit 335c67a
         smoothie = bsql.execute(
@@ -543,6 +566,7 @@ class TestLimitOperations:
         )
         assert smoothie.meta.num_values_passed == 1
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_apply_limit_with_predicate(self, bsql: BlendSQL):
         # commit 335c67a
         expected_num_values_passed: int = bsql.db.execute_to_list(
@@ -574,6 +598,7 @@ class TestLimitOperations:
 
 
 class TestGroupByOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_group_by_with_ingredient_alias(self, bsql: BlendSQL):
         """b28a129"""
         _ = assert_blendsql_equals_sql(
@@ -596,6 +621,7 @@ class TestGroupByOperations:
 
 
 class TestCTEOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_cte_with_ingredient(self, bsql: BlendSQL):
         """c3ec1eb"""
         _ = bsql.execute(
@@ -614,6 +640,7 @@ class TestCTEOperations:
 
 
 class TestOffsetOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_offset(self, bsql: BlendSQL):
         """SELECT "fruits"."name" FROM fruits OFFSET 2 will break SQLite
         for some reason, DuckDB is ok with it, though.
@@ -634,6 +661,7 @@ class TestOffsetOperations:
 
 
 class TestHavingOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_having(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """

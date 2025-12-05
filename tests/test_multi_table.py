@@ -27,20 +27,17 @@ dummy_ingredients = {
 }
 
 
-@pytest.fixture(params=["sqlite", "duckdb"])
-def bsql(request):
-    db_path = fetch_from_hub("multi_table.db")
-    if request.param == "sqlite":
-        db = SQLite(db_path)
-    else:
-        db = DuckDB.from_sqlite(db_path)
-
-    conn = BlendSQL(db, ingredients=dummy_ingredients)
-    yield conn
-    conn.db._reset_connection()  # cleanup
+bsql_connections = [
+    BlendSQL(SQLite(fetch_from_hub("multi_table.db")), ingredients=dummy_ingredients),
+    BlendSQL(
+        DuckDB.from_sqlite(fetch_from_hub("multi_table.db")),
+        ingredients=dummy_ingredients,
+    ),
+]
 
 
 class TestBasicOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_multi_exec(self, bsql: BlendSQL):
         """Test with multiple tables.
         Also ensures we only pass what is neccessary to the external ingredient F().
@@ -83,6 +80,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_select_multi_exec(self, bsql: BlendSQL):
         _ = assert_blendsql_equals_sql(
             bsql,
@@ -107,6 +105,7 @@ class TestBasicOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_complex_multi_exec(self, bsql: BlendSQL):
         """
         Below yields a tie in constituents.Name lengths, with 'Amgen' and 'Cisco'.
@@ -134,6 +133,7 @@ class TestBasicOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_complex_not_qualified_multi_exec(self, bsql: BlendSQL):
         """Same test as test_complex_multi_exec(), but without qualifying columns if we don't need to.
         commit fefbc0a
@@ -185,6 +185,7 @@ class TestBasicOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_qa_equals_multi_exec(self, bsql: BlendSQL):
         _ = assert_blendsql_equals_sql(
             bsql,
@@ -198,6 +199,7 @@ class TestBasicOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_infer_options_arg(self, bsql: BlendSQL):
         """The infer_gen_constraints function should extend to cases when we do a
         `column = {{QAIngredient()}}` predicate.
@@ -216,6 +218,7 @@ class TestBasicOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_null_negation(self, bsql: BlendSQL):
         _ = assert_blendsql_equals_sql(
             bsql,
@@ -237,6 +240,7 @@ class TestBasicOperations:
 
 
 class TestJoinOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_join_multi_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -271,6 +275,7 @@ class TestJoinOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_join_not_qualified_multi_exec(self, bsql: BlendSQL):
         """Same test as test_join_multi_exec(), but without qualifying columns if we don't need to.
         i.e. 'Action' and 'Sector' don't have tablename preceding them.
@@ -309,6 +314,7 @@ class TestJoinOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_join_ingredient_multi_exec(self, bsql: BlendSQL):
         _ = assert_blendsql_equals_sql(
             bsql,
@@ -326,6 +332,7 @@ class TestJoinOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_join_with_multiple_ingredients(self, bsql: BlendSQL):
         """
         af86714
@@ -354,6 +361,7 @@ class TestJoinOperations:
 
 
 class TestAliasOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_table_alias_multi_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -377,6 +385,7 @@ class TestAliasOperations:
             args=["A"],
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_subquery_alias_multi_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -405,6 +414,7 @@ class TestAliasOperations:
 
 
 class TestCTEOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_cte_qa_multi_exec(self, bsql: BlendSQL):
         passed_to_map_ingredient: int = bsql.db.execute_to_list(
             """
@@ -449,6 +459,7 @@ class TestCTEOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_cte_qa_named_multi_exec(self, bsql: BlendSQL):
         passed_to_map_ingredient: int = bsql.db.execute_to_list(
             """
@@ -491,6 +502,7 @@ class TestCTEOperations:
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_materialize_ctes_multi_exec(self, bsql: BlendSQL):
         """We shouldn't create materialized CTE tables if they aren't used in an ingredient.
 
@@ -516,6 +528,7 @@ class TestCTEOperations:
         assert not bsql.db.has_temp_table("c")
         bsql.db._reset_connection()
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_options_referencing_cte_multi_exec(self, bsql: BlendSQL):
         """You should be able to reference a CTE in a QAIngredient `options` argument.
 
@@ -539,6 +552,7 @@ class TestCTEOperations:
             """,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_not_double_executing_cte(self, bsql: BlendSQL):
         passed_to_ingredient_1 = bsql.db.execute_to_list(
             """
@@ -585,6 +599,7 @@ class TestCTEOperations:
 
 
 class TestSelectOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_ingredient_in_select_with_join_multi_exec(self, bsql: BlendSQL):
         """If the query only has an ingredient in the `SELECT` statement, and `JOIN` clause,
         we should run the `JOIN` statement first, and then call the ingredient.
@@ -624,6 +639,7 @@ class TestSelectOperations:
             """
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_ingredient_in_select_with_join_multi_select_multi_exec(
         self, bsql: BlendSQL
     ):
@@ -656,6 +672,7 @@ class TestSelectOperations:
 
 
 class TestSubqueryOperations:
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_subquery_alias_with_join_multi_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
@@ -685,6 +702,7 @@ class TestSubqueryOperations:
             args=["F"],
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
     def test_subquery_alias_with_join_multi_exec_and(self, bsql: BlendSQL):
         """Same as before, but now we use an `AND` predicate to link the `JOIN` and `LIKE` clauses.
         This will hit the `replace_join_with_ingredient_multiple_ingredient` transform.
