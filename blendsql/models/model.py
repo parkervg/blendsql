@@ -213,8 +213,11 @@ class ConstrainedModel(Model):
     def model_obj(self) -> ModelObj:
         """Allows for lazy loading of underlying model weights."""
         if "chat_template" not in self.config:
+            filename = None
+            if hasattr(self, "filename"):
+                filename = self.filename
             self.config["chat_template"] = self.infer_chat_template(
-                self.model_name_or_path
+                self.model_name_or_path or filename
             )
         return self._load_model()
 

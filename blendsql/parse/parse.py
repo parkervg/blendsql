@@ -1,11 +1,13 @@
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
-import typing as t
+from typing import Callable, Type, Generator, Any
 from ast import literal_eval
+import re
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 from colorama import Fore
+from functools import partial
 
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.typing import QuantifierType, ColumnRef
@@ -34,11 +36,11 @@ def get_reversed_subqueries(node):
 
 
 def get_scope_nodes(
-    nodetype: t.Type[exp.Expression],
+    nodetype: Type[exp.Expression],
     restrict_scope: bool = False,
     root: sqlglot.optimizer.Scope | None = None,
     node: exp.Expression | None = None,
-) -> t.Generator:
+) -> Generator:
     """Utility to get nodes of a certain type within our subquery scope.
 
     https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
@@ -158,7 +160,7 @@ class SubqueryContextManager:
 
     def abstracted_table_selects(
         self,
-    ) -> t.Generator[t.Tuple[str, bool, str], None, None]:
+    ) -> Generator[tuple[str, bool, str], None, None]:
         """For each table in a given query, generates a `SELECT *` query where all unneeded predicates
         are set to `TRUE`.
         We say `unneeded` in the sense that to minimize the data that gets passed to an ingredient,
@@ -276,7 +278,7 @@ class SubqueryContextManager:
 
     def _gather_alias_mappings(
         self,
-    ) -> t.Generator[t.Tuple[str, exp.Select], None, None]:
+    ) -> Generator[tuple[str, exp.Select], None, None]:
         """For each table in the select query, generates a new query
             selecting all columns with the given predicates (Relationships like x = y, x > 1, x >= y).
 
@@ -337,6 +339,39 @@ class SubqueryContextManager:
             }
             self.alias_to_subquery |= curr_alias_to_subquery
 
+    def get_exit_condition(self, function_node: exp.Expression) -> Callable | None:
+        if self.node.find(exp.Or):
+            # For now, don't try and get an exit condition from a query with an `OR`
+            return None
+        if len(list(self.node.find_all(exp.BlendSQLFunction))) > 1:
+            # Getting a valid exit condition from a query with more than 1 BlendSQL function takes more work.
+            # E.g. `SELECT * FROM t WHERE a() = TRUE AND b() > 3 LIMIT 5`
+            # The two functions must both be evaluated to determine when we can exit.
+            return None
+        if isinstance(function_node.parent, exp.Binary):
+            parent_node = function_node.parent
+            arg = parent_node.expression.to_py()
+            _exit_condition = lambda d, op: any(op(v) for v in d.values())
+            if arg == function_node:
+                return None
+            if isinstance(parent_node, exp.EQ):
+                return partial(_exit_condition, op=lambda v: v == arg)
+            elif isinstance(parent_node, exp.GT):
+                return partial(_exit_condition, op=lambda v: v > arg)
+            elif isinstance(parent_node, exp.GTE):
+                return partial(_exit_condition, op=lambda v: v >= arg)
+            elif isinstance(parent_node, exp.LT):
+                return partial(_exit_condition, op=lambda v: v < arg)
+            elif isinstance(parent_node, exp.LTE):
+                return partial(_exit_condition, op=lambda v: v <= arg)
+            elif isinstance(parent_node, exp.Like):
+                # First we need to convert SQL pattern to regex
+                re_pattern = arg.replace("%", ".*")
+                return partial(_exit_condition, op=lambda v: re.search(v, re_pattern))
+            elif isinstance(parent_node, exp.Is):
+                return partial(_exit_condition, op=lambda v: v is arg)
+            # TODO: add more
+
     def infer_gen_constraints(
         self, function_node: exp.Expression, schema: dict, alias_to_tablename: dict
     ) -> dict:
@@ -371,7 +406,7 @@ class SubqueryContextManager:
         DEFAULT_QUANTIFIER = (
             "+"  # If we know something is a `List` type, what quantifier should we use?
         )
-        added_kwargs: dict[str, t.Any] = {}
+        added_kwargs: dict[str, Any] = {}
         if isinstance(function_node.parent, exp.Select):
             # We don't want to traverse up in cases of `SELECT {{A()}} FROM table WHERE x < y`
             parent_node = function_node

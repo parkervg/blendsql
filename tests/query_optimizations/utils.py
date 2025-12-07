@@ -27,6 +27,7 @@ def assert_blendsql_equals_sql(
     args: list | None = None,
     expected_num_values_passed: int | None = None,
     allow_lt_num_values_compare: bool = False,
+    skip_assert_equality: bool = False,
 ):
     start = time.perf_counter()
     smoothie = bsql.execute(blendsql_query)
@@ -40,13 +41,18 @@ def assert_blendsql_equals_sql(
         timing_collector._current_test, type(bsql.db).__name__, blendsql_time, sql_time
     )
 
-    assert_equality(smoothie=smoothie, sql_df=sql_df, args=args)
+    if not skip_assert_equality:
+        assert_equality(smoothie=smoothie, sql_df=sql_df, args=args)
 
     if expected_num_values_passed is not None:
         if allow_lt_num_values_compare:
-            assert smoothie.meta.num_values_passed <= expected_num_values_passed
+            assert (
+                smoothie.meta.num_values_passed <= expected_num_values_passed
+            ), f"{smoothie.meta.num_values_passed} !<= {expected_num_values_passed}"
         else:
-            assert smoothie.meta.num_values_passed == expected_num_values_passed
+            assert (
+                smoothie.meta.num_values_passed == expected_num_values_passed
+            ), f"{smoothie.meta.num_values_passed} != {expected_num_values_passed}"
     return smoothie
 
 
@@ -65,6 +71,7 @@ class TimedTestBase:
         args: list | None = None,
         expected_num_values_passed: int | None = None,
         allow_lt_num_values_compare: bool = False,
+        skip_assert_equality: bool = False,
     ):
         """Wrapper that automatically includes timing_collector."""
         return assert_blendsql_equals_sql(
@@ -74,5 +81,6 @@ class TimedTestBase:
             args=args,
             expected_num_values_passed=expected_num_values_passed,
             allow_lt_num_values_compare=allow_lt_num_values_compare,
+            skip_assert_equality=skip_assert_equality,
             timing_collector=self.timing_collector,
         )
