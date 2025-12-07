@@ -423,7 +423,7 @@ class LLMQA(QAIngredient):
                     + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
                     + Fore.RESET
                 )
-            if resolved_return_type.name == "str":
+            if resolved_return_type.name.lower() in ["str", "any"]:
                 response = f"'{single_quote_escape(response)}'"  # type: ignore
         else:
             response = tuple(response)  # type: ignore

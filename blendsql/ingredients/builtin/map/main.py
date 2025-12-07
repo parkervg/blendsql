@@ -513,7 +513,7 @@ class LLMMap(MapIngredient):
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
-                    # batch_inference_identifiers = batch_inference_identifiers[i : i + batch_size]
+                    self.num_values_passed += batch_size
                     batch_lm_mapping = {
                         value: apply_type_conversion(
                             result_payload["value"],
@@ -531,7 +531,6 @@ class LLMMap(MapIngredient):
                         ]:
                             cache_key = identifier_to_cache_key[identifier]
                             model.cache[cache_key] = lm_mapping[identifier]
-                            self.num_values_passed += batch_size
 
                     # Check and see if early exit condition applies
                     if exit_condition is not None and exit_condition(lm_mapping):
