@@ -1,21 +1,24 @@
 import pandas as pd
+import psutil
+import os
 
+os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
 from blendsql.models import LiteLLM, LlamaCpp
 
-USE_LOCAL_CONSTRAINED_MODEL = True
+USE_LOCAL_CONSTRAINED_MODEL = False
 
 # Load model, either a local transformers model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
-    # model = TransformersLLM(
-    #     "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}, caching=False
-    # )  # Local models enable BlendSQL's predicate-guided constrained decoding
-
     model = LlamaCpp(
-        "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
-        "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-        config={"n_gpu_layers": -1, "n_ctx": 10000},
+        filename="/Users/parkerglenn/.cache/huggingface/hub/models--bartowski--SmolLM2-360M-Instruct-GGUF/snapshots/7be6f65f1db715fe5dc5a4634c0d459b4eed42ec/SmolLM2-360M-Instruct-Q6_K.gguf",
+        config={
+            "n_gpu_layers": -1,
+            "n_ctx": 8000,
+            "seed": 100,
+            "n_threads": psutil.cpu_count(logical=False),
+        },
         caching=False,
     )
 else:
@@ -72,7 +75,7 @@ smoothie = bsql.execute(
     infer_gen_constraints=True,
 )
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌───────────────────┬───────────────────────────────────────────────────────┐
 # │ Name              │ Known_For                                             │
 # ├───────────────────┼───────────────────────────────────────────────────────┤
@@ -80,7 +83,6 @@ print(smoothie.df)
 # │ John Adams │ XYZ Affair, Alien and Sedition Acts                   │
 # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
 # └───────────────────┴───────────────────────────────────────────────────────┘
-print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
@@ -97,7 +99,7 @@ smoothie = bsql.execute(
     infer_gen_constraints=True,
 )
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌───────────────────┬───────────────────────────────────────────────────────┐
 # │ Name              │ Known_For                                             │
 # ├───────────────────┼───────────────────────────────────────────────────────┤
@@ -105,7 +107,6 @@ print(smoothie.df)
 # │ John Adams        │ XYZ Affair, Alien and Sedition Acts                   │
 # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
 # └───────────────────┴───────────────────────────────────────────────────────┘
-print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
@@ -128,7 +129,7 @@ smoothie = bsql.execute(
     """,
 )
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌───────────────────────────────────────────────────────┬───────────┐
 # │ Names                                                 │ Born      │
 # ├───────────────────────────────────────────────────────┼───────────┤
@@ -136,7 +137,6 @@ print(smoothie.df)
 # │ Sabrina Carpenter, Charli XCX, Elon Musk, Michelle... │ 2000-Now  │
 # │ Elvis Presley                                         │ 1900-2000 │
 # └───────────────────────────────────────────────────────┴───────────┘
-print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
@@ -145,26 +145,24 @@ print(smoothie.summary())
 
 smoothie = bsql.execute(
     """
-    SELECT {{
-        LLMQA(
-            'Describe BlendSQL in 50 words',
-            (
-                SELECT content[0:5000] AS "README"
-                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md');
-            )
+SELECT {{
+    LLMQA(
+        'Describe BlendSQL in 50 words.',
+        context=(
+            SELECT content[0:5000] AS "README"
+            FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
         )
-    }} AS answer
+    )
+}} AS answer
 """
 )
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌─────────────────────────────────────────────────────┐
 # │ answer                                              │
 # ├─────────────────────────────────────────────────────┤
 # │ BlendSQL is a Python library that combines SQL a... │
 # └─────────────────────────────────────────────────────┘
-
-print(smoothie.summary())
 
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │

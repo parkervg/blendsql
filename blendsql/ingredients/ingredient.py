@@ -7,11 +7,10 @@ import json
 from typing import Type, Callable, Any
 from collections.abc import Collection, Iterable
 import uuid
-from colorama import Fore
 from typeguard import check_type
 
 from blendsql.common.exceptions import IngredientException
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.common import utils
 from blendsql.common.typing import IngredientType, ColumnRef
 from blendsql.db import Database
@@ -89,9 +88,9 @@ class Ingredient:
                                 variable_declaration.group().split("=")[0].strip()
                             )
                             logger.debug(
-                                Fore.MAGENTA
-                                + f"Loading custom {partial_cls.__name__} with name '{variable_name}'..."
-                                + Fore.RESET
+                                Color.model_or_data_update(
+                                    f"Loading custom {partial_cls.__name__} with name '{variable_name}'..."
+                                )
                             )
                             # Store the name in a class attribute
                             partial_cls.__name__ = variable_name
@@ -153,9 +152,9 @@ class Ingredient:
             unpacked_options = self.unpack_column_ref(options, aliases_to_tablenames)
         if len(unpacked_options) == 0:
             logger.debug(
-                Fore.LIGHTRED_EX
-                + f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
-                + Fore.RESET
+                Color.error(
+                    f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
+                )
             )
         return list(unpacked_options) if len(unpacked_options) > 0 else None
 
@@ -394,9 +393,9 @@ class MapIngredient(Ingredient):
                 # ]
 
                 logger.debug(
-                    Fore.LIGHTBLACK_EX
-                    + f"Unpacked question to '{unpacked_questions[:10]}'"
-                    + Fore.RESET
+                    Color.quiet_update(
+                        f"Unpacked question to '{unpacked_questions[:10]}'"
+                    )
                 )
 
         mapped_values: Collection[Any] = self._run(
@@ -568,13 +567,9 @@ class JoinIngredient(Ingredient):
                     res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
                 )
                 logger.debug(
-                    Fore.YELLOW
-                    + "Made the following alignment with `skrub.Joiner`:"
-                    + Fore.RESET
+                    Color.warning("Made the following alignment with `skrub.Joiner`:")
                 )
-                logger.debug(
-                    Fore.YELLOW + json.dumps(_skrub_mapping, indent=4) + Fore.RESET
-                )
+                logger.debug(Color.warning(json.dumps(_skrub_mapping, indent=4)))
                 mapping = mapping | _skrub_mapping
             # order by length is still preserved regardless of using fuzzy join, so after initial matching and possible fuzzy join matching
             # This is because the lengths of each list will decrease at the same rate, so whichever list was larger at the beginning,
@@ -708,17 +703,13 @@ class QAIngredient(Ingredient):
                     curr_values = list(subtable.values.flat)
                     if len(curr_values) > 1:
                         logger.debug(
-                            Fore.RED
-                            + f"More than 1 value found in {question}: {curr_values[:10]}\nThis could be a sign of a malformed query."
-                            + Fore.RESET
+                            Color.error(
+                                f"More than 1 value found in {question}: {curr_values[:10]}\nThis could be a sign of a malformed query."
+                            )
                         )
                     unpacked_values.append(curr_values[0])
                 question = question.format(*unpacked_values)
-                logger.debug(
-                    Fore.LIGHTBLACK_EX
-                    + f"Unpacked question to '{question}'"
-                    + Fore.RESET
-                )
+                logger.debug(Color.quiet_update(f"Unpacked question to '{question}'"))
                 # This will now override whatever context we passed
                 subtables = []
 

@@ -238,8 +238,8 @@ def get_group_stats(df: pd.DataFrame, group_on: str, metrics: list) -> pd.DataFr
 
 if __name__ == "__main__":
     CONFIG = ExperimentConfig(
-        repo_id="QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-        filename="Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
+        repo_id="bartowski/SmolLM2-360M-Instruct-GGUF",
+        filename="SmolLM2-360M-Instruct-Q6_K.gguf",
         experiment_name="current",
     )
 

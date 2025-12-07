@@ -5,11 +5,10 @@ from pathlib import Path
 from typing import Callable
 import pandas as pd
 import json
-from colorama import Fore
 from attr import attrs, attrib
 
 from blendsql.configure import add_to_global_history
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.common.constants import DEFAULT_CONTEXT_FORMATTER
 from blendsql.models.utils import user, assistant
 from blendsql.models import Model, ConstrainedModel
@@ -207,9 +206,9 @@ class LLMQA(QAIngredient):
             docs = context_searcher(question)[0]
             context = [pd.DataFrame(docs, columns=["content"])]
             logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"
-                + Fore.RESET
+                Color.quiet_update(
+                    f"Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"
+                )
             )
 
         resolved_return_type: DataType = prepare_datatype(
@@ -251,17 +250,17 @@ class LLMQA(QAIngredient):
             if len(options) > max_options_in_prompt:  # type: ignore
                 if options_searcher is None:
                     logger.debug(
-                        Fore.YELLOW
-                        + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
-                        + Fore.RESET
+                        Color.warning(
+                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
+                        )
                     )
                     list_options_in_prompt = False
                 else:
                     curr_options_searcher = options_searcher(options)
                     logger.debug(
-                        Fore.YELLOW
-                        + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options out of {len(options):,} total options..."
-                        + Fore.RESET
+                        Color.warning(
+                            f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options out of {len(options):,} total options..."
+                        )
                     )
                     options = curr_options_searcher(question)[0]
 
@@ -293,9 +292,9 @@ class LLMQA(QAIngredient):
                 else:
                     if not self.enable_constrained_decoding:
                         logger.debug(
-                            Fore.YELLOW
-                            + "Not applying constraints, since `enable_constrained_decoding==False`"
-                            + Fore.RESET
+                            Color.warning(
+                                "Not applying constraints, since `enable_constrained_decoding==False`"
+                            )
                         )
                     gen_f = lambda _: guidance.gen(
                         max_tokens=kwargs.get("max_tokens", 200),
@@ -373,6 +372,7 @@ class LLMQA(QAIngredient):
                 messages_list=[messages],
                 max_tokens=kwargs.get("max_tokens", None),
             )[0].strip()
+            model.num_generation_calls += 1
             add_to_global_history(messages)
 
             if isinstance(response, str):  # type: ignore
@@ -419,9 +419,9 @@ class LLMQA(QAIngredient):
             response = response[0]  # type: ignore
             if options and response not in options:
                 logger.debug(
-                    Fore.RED
-                    + f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
-                    + Fore.RESET
+                    Color.error(
+                        f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
+                    )
                 )
             if resolved_return_type.name.lower() in ["str", "any"]:
                 response = f"'{single_quote_escape(response)}'"  # type: ignore

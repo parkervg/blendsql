@@ -6,9 +6,7 @@ import numpy as np
 import platformdirs
 from typing import Any, TypeVar
 
-from colorama import Fore
-
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.search.searcher import Searcher
 
 ReturnObj = TypeVar("ReturnObj")
@@ -113,11 +111,11 @@ class FaissVectorStore(Searcher):
 
         if curr_index_path.is_file():
             logger.debug(
-                Fore.MAGENTA + "Loading faiss vectors from cached index..." + Fore.RESET
+                Color.model_or_data_update("Loading faiss vectors from cached index...")
             )
             self.index = faiss.read_index(str(curr_index_path))
         else:
-            logger.debug(Fore.YELLOW + "Creating faiss vectors..." + Fore.RESET)
+            logger.debug(Color.model_or_data_update("Creating faiss vectors..."))
             self.index = faiss.index_factory(
                 self.embedding_model.get_sentence_embedding_dimension(),
                 self.factory_str,

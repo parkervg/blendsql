@@ -1,6 +1,5 @@
 from typing import Callable
 import json
-from colorama import Fore
 from pathlib import Path
 from attr import attrs, attrib
 
@@ -8,7 +7,7 @@ from blendsql.configure import add_to_global_history
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.utils import user, assistant
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.ingredients.ingredient import JoinIngredient, IngredientException
 from blendsql.ingredients.utils import initialize_retriever, partialclass
 
@@ -202,7 +201,6 @@ class LLMJoin(JoinIngredient):
             if not in_cache:
                 # Load our underlying guidance model, if we need to
                 lm: guidance.models.Model = maybe_load_lm(model, lm)
-                model.num_generation_calls += 1
                 with guidance.user():
                     lm += MAIN_INSTRUCTION
                 if len(few_shot_examples) > 0:
@@ -224,6 +222,7 @@ class LLMJoin(JoinIngredient):
                         left_values=current_example.left_values,
                         right_values=current_example.right_values,
                     )  # type: ignore
+                    model.num_generation_calls += 1
                 mapping: dict = {
                     left_value: lm[left_value] for left_value in left_values
                 }
@@ -253,6 +252,7 @@ class LLMJoin(JoinIngredient):
                 .removeprefix("```json")
                 .removesuffix("```")
             )
+            model.num_generation_calls += 1
             add_to_global_history(messages)
             # Post-process language model response
             try:
@@ -260,14 +260,15 @@ class LLMJoin(JoinIngredient):
             except json.decoder.JSONDecodeError:
                 mapping = {}
                 logger.debug(
-                    Fore.RED
-                    + f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
+                    Color.error(
+                        f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
+                    )
                 )
 
         final_mapping = {k: v for k, v in mapping.items() if v != "-"}  # type: ignore
         logger.debug(
-            Fore.YELLOW
-            + f"Finished LLMJoin with values:\n{json.dumps({k: final_mapping[k] for k in list(final_mapping.keys())[:10]}, indent=4)}"
-            + Fore.RESET
+            Color.warning(
+                f"Finished LLMJoin with values:\n{json.dumps({k: final_mapping[k] for k in list(final_mapping.keys())[:10]}, indent=4)}"
+            )
         )
         return final_mapping

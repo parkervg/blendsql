@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
-from colorama import Fore
 
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.search.faiss_vector_store import FaissVectorStore
 
 
@@ -25,14 +24,14 @@ class HybridSearch(FaissVectorStore):
             )
             if curr_index_dir.is_dir():
                 logger.debug(
-                    Fore.MAGENTA
-                    + "Loading bm25 index from cached index..."
-                    + Fore.RESET
+                    Color.model_or_data_update(
+                        "Loading bm25 index from cached index..."
+                    )
                 )
                 # Load existing indices
                 self.bm25_retriever = bm25s.BM25.load(curr_index_dir)
             else:
-                logger.debug(Fore.YELLOW + "Creating bm25 index..." + Fore.RESET)
+                logger.debug(Color.model_or_data_update("Creating bm25 index..."))
                 curr_index_dir.mkdir(parents=True)
                 corpus_tokens = bm25s.tokenize(self.documents, stopwords="en")
                 self.bm25_retriever = bm25s.BM25(method=self.bm25_method)

@@ -2,13 +2,12 @@ import importlib.util
 from typing import Callable, Generator
 from collections.abc import Collection
 import pandas as pd
-from colorama import Fore
 from attr import attrs, attrib
 from pathlib import Path
 from functools import cached_property
 
 from blendsql.db.database import Database
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 
 _has_duckdb = importlib.util.find_spec("duckdb") is not None
 
@@ -161,10 +160,10 @@ class DuckDB(Database):
         create_table_stmt = (
             f'CREATE OR REPLACE TEMP TABLE "{tablename}" AS SELECT * FROM df'
         )
-        logger.debug(Fore.LIGHTBLACK_EX + create_table_stmt + Fore.RESET)
+        logger.debug(Color.quiet_sql(create_table_stmt))
         self.con.sql(create_table_stmt)
         self.temp_tables.add(tablename)
-        logger.debug(Fore.CYAN + f"Created temp table {tablename}" + Fore.RESET)
+        logger.debug(Color.update(f"Created temp table {tablename}"))
 
     def execute_to_df(self, query: str, params: dict | None = None) -> pd.DataFrame:
         """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933"""

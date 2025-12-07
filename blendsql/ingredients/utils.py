@@ -2,9 +2,8 @@ from typing import Callable
 from functools import partialmethod
 import guidance
 import re
-from colorama import Fore
 
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.common.typing import QuantifierType
 from .few_shot import Example
 
@@ -83,7 +82,5 @@ def get_quantifier_wrapper(
                 f, min_length=min_length, max_length=max_length
             )  # type: ignore
         else:
-            logger.debug(
-                Fore.RED + f"Unable to parse quantifier '{quantifier}'" + Fore.RESET
-            )
+            logger.debug(Color.error(f"Unable to parse quantifier '{quantifier}'"))
     return quantifier_wrapper  # type: ignore

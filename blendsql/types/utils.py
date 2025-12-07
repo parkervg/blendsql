@@ -1,5 +1,4 @@
 import itertools
-from colorama import Fore
 from collections.abc import Collection
 
 from blendsql.common.exceptions import IngredientException
@@ -8,7 +7,7 @@ from blendsql.types.types import (
     STR_TO_DATATYPE,
 )
 from blendsql.common.typing import QuantifierType, DataType
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 
 
 def prepare_datatype(
@@ -37,21 +36,19 @@ def prepare_datatype(
     if resolved_output_type.regex is not None:
         if options is not None:
             logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Ignoring inferred regex '{resolved_output_type.regex}' and using options '{options}' instead"
-                + Fore.RESET
+                Color.quiet_update(
+                    f"Ignoring inferred regex '{resolved_output_type.regex}' and using options '{options}' instead"
+                )
             )
             resolved_output_type.regex = None
         else:
             logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Using regex '{resolved_output_type.regex}'"
-                + Fore.RESET
+                Color.quiet_update(f"Using regex '{resolved_output_type.regex}'")
             )
     elif options:
         logger.debug(
-            Fore.LIGHTBLACK_EX
-            + f"Using options '{set(itertools.islice(options, 20))}...'"
-            + Fore.RESET
+            Color.quiet_update(
+                f"Using options '{set(itertools.islice(options, 20))}...'"
+            )
         )
     return resolved_output_type

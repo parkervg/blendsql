@@ -6,13 +6,12 @@ from ast import literal_eval
 import re
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
-from colorama import Fore
 from functools import partial
 
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.typing import QuantifierType, ColumnRef
 from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from .dialect import _parse_one
 from . import checks as check
 from . import transforms as transform
@@ -447,15 +446,15 @@ class SubqueryContextManager:
                     if resolved_type != "str":
                         return_type = STR_TO_DATATYPE[DB_TYPE_TO_STR[native_db_type]]
                         logger.debug(
-                            Fore.LIGHTBLACK_EX
-                            + f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
-                            + Fore.RESET
+                            Color.quiet_update(
+                                f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
+                            )
                         )
                 else:
                     logger.debug(
-                        Fore.YELLOW
-                        + f"No type logic for native DB type {native_db_type}!"
-                        + Fore.RESET
+                        Color.warning(
+                            f"No type logic for native DB type {native_db_type}!"
+                        )
                     )
         if return_type is None:
             if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
@@ -504,9 +503,9 @@ class SubqueryContextManager:
             # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
             if len(predicate_literals) > 0:
                 logger.debug(
-                    Fore.LIGHTBLACK_EX
-                    + f"Extracted predicate literals `{predicate_literals}`"
-                    + Fore.RESET
+                    Color.quiet_update(
+                        f"Extracted predicate literals `{predicate_literals}`"
+                    )
                 )
                 if all(isinstance(x, bool) for x in predicate_literals):
                     return_type = DataTypes.BOOL(quantifier)

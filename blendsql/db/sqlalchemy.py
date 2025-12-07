@@ -1,7 +1,6 @@
 from collections.abc import Collection
 from typing import Generator, Callable
 import pandas as pd
-from colorama import Fore
 import re
 from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
@@ -11,7 +10,7 @@ from sqlalchemy.engine import Engine, Connection, URL
 from pandas.io.sql import get_schema
 
 from .database import Database
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.db.utils import double_quote_escape, truncate_df_content, LazyTables
 
 
@@ -145,7 +144,7 @@ class SQLAlchemyDatabase(Database):
         create_table_stmt = re.sub(
             r"^CREATE TABLE", "CREATE TEMP TABLE", create_table_stmt
         )
-        logger.debug(Fore.LIGHTBLACK_EX + create_table_stmt + Fore.RESET)
+        logger.debug(Color.quiet_sql(create_table_stmt))
         self.con.execute(text(create_table_stmt))
         df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 

@@ -1,9 +1,9 @@
 import importlib.util
 from sqlalchemy.engine import make_url, URL
-from colorama import Fore
 import logging
 from functools import cached_property
 
+from blendsql.common.logger import Color
 from blendsql.db.sqlalchemy import SQLAlchemyDatabase
 
 _has_psycopg2 = importlib.util.find_spec("psycopg2") is not None
@@ -29,8 +29,9 @@ class PostgreSQL(SQLAlchemyDatabase):
         db_url: URL = make_url(f"postgresql+psycopg2://{db_path}")
         if db_url.username is None:
             logging.warning(
-                Fore.RED
-                + "Connecting to postgreSQL database without specifying user!\nIt is strongly encouraged to create a `blendsql` user with read-only permissions and temp table creation privileges."
+                Color.error(
+                    "Connecting to postgreSQL database without specifying user!\nIt is strongly encouraged to create a `blendsql` user with read-only permissions and temp table creation privileges."
+                )
             )
         super().__init__(db_url=db_url)
 

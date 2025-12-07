@@ -6,14 +6,13 @@ from typing import Callable
 from pathlib import Path
 import json
 import pandas as pd
-from colorama import Fore
 from attr import attrs, attrib
 import copy
 from itertools import islice
 from tqdm.auto import tqdm
 
 from blendsql.configure import add_to_global_history
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT, DEFAULT_CONTEXT_FORMATTER
 from blendsql.models import Model, ConstrainedModel
 from blendsql.models.utils import user
@@ -260,15 +259,15 @@ class LLMMap(MapIngredient):
         # Log what we found
         if context_in_use_type == FeatureType.GLOBAL:
             logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Retrieved global context '{context_in_use[:50]}...'"
-                + Fore.RESET
+                Color.quiet_update(
+                    f"Retrieved global context '{context_in_use[:50]}...'"
+                )
             )
         elif context_in_use_type == FeatureType.LOCAL:
             logger.debug(
-                Fore.LIGHTBLACK_EX
-                + f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
-                + Fore.RESET
+                Color.quiet_update(
+                    f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
+                )
             )
         elif context_in_use_type is not None:
             raise ValueError(
@@ -295,17 +294,17 @@ class LLMMap(MapIngredient):
                 list_options_in_prompt = False
                 if self.option_searcher is None:
                     logger.debug(
-                        Fore.YELLOW
-                        + f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
-                        + Fore.RESET
+                        Color.warning(
+                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
+                        )
                     )
                 else:
                     curr_options_searcher = self.option_searcher(options)
                     options_in_use_type = FeatureType.LOCAL
                     logger.debug(
-                        Fore.YELLOW
-                        + f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
-                        + Fore.RESET
+                        Color.warning(
+                            f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
+                        )
                     )
 
         current_example = MapExample(
@@ -373,9 +372,9 @@ class LLMMap(MapIngredient):
                 else:
                     if not self.enable_constrained_decoding:
                         logger.debug(
-                            Fore.YELLOW
-                            + "Not applying constraints, since `enable_constrained_decoding==False`"
-                            + Fore.RESET
+                            Color.warning(
+                                "Not applying constraints, since `enable_constrained_decoding==False`"
+                            )
                         )
                     gen_f = lambda _: guidance.gen(
                         max_tokens=kwargs.get("max_tokens", 200),
@@ -537,9 +536,9 @@ class LLMMap(MapIngredient):
                     # Check and see if early exit condition applies
                     if exit_condition is not None and exit_condition(lm_mapping):
                         logger.debug(
-                            Fore.CYAN
-                            + f"Exit condition satisfied. \n Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
-                            + Fore.RESET
+                            Color.update(
+                                f"Exit condition satisfied. \n Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
+                            )
                         )
                         break
 
@@ -551,9 +550,9 @@ class LLMMap(MapIngredient):
                 lm_mapping.get(identifier, None) for identifier in all_identifiers
             ]
             logger.debug(
-                Fore.YELLOW
-                + f"Finished LLMMap with values:\n{json.dumps(dict(islice(lm_mapping.items(), 10)), indent=4)}"
-                + Fore.RESET
+                Color.warning(
+                    f"Finished LLMMap with values:\n{json.dumps(dict(islice(lm_mapping.items(), 10)), indent=4)}"
+                )
             )
             return mapped_values
         else:
@@ -570,9 +569,9 @@ class LLMMap(MapIngredient):
             if current_example.context_type == FeatureType.LOCAL:
                 if batch_size != 1:
                     logger.debug(
-                        Fore.YELLOW
-                        + f"Overriding batch_size={batch_size} to 1, since UnconstrainedModels with LLMMap don't support local context for now"
-                        + Fore.RESET
+                        Color.warning(
+                            f"Overriding batch_size={batch_size} to 1, since UnconstrainedModels with LLMMap don't support local context for now"
+                        )
                     )
                 batch_size = 1
                 current_example.context_type = FeatureType.GLOBAL
@@ -622,8 +621,9 @@ class LLMMap(MapIngredient):
                             list_converted = ast.literal_eval(pred)
                         except (ValueError, SyntaxError):
                             logger.debug(
-                                Fore.RED
-                                + f"Error casting prediction '{pred}' to a list"
+                                Color.error(
+                                    f"Error casting prediction '{pred}' to a list"
+                                )
                             )
                             curr_converted_preds.append([])
                             continue
@@ -646,12 +646,13 @@ class LLMMap(MapIngredient):
 
             if total_missing_values > 0:
                 logger.debug(
-                    Fore.RED
-                    + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
+                    Color.error(
+                        f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
+                    )
                 )
             logger.debug(
-                Fore.YELLOW
-                + f"Finished LLMMap with values:\n{json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
-                + Fore.RESET
+                Color.warning(
+                    f"Finished LLMMap with values:\n{json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
+                )
             )
             return mapped_values

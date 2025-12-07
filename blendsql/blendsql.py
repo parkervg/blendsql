@@ -4,17 +4,16 @@ import time
 import uuid
 import pandas as pd
 import re
-import typing as t
+from typing import Callable, Type, Generator
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
 import sqlglot
 from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
-from colorama import Fore
 import string
 
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.common.utils import (
     get_temp_session_table,
     get_temp_subquery_table,
@@ -70,7 +69,7 @@ class Kitchen(list):
             ) from None
 
     def extend(
-        self, ingredients: Iterable[t.Type[Ingredient]], flag_duplicates: bool = True
+        self, ingredients: Iterable[Type[Ingredient]], flag_duplicates: bool = True
     ) -> None:
         """Initializes ingredients class with base attributes, for use in later operations."""
         try:
@@ -138,7 +137,7 @@ def preprocess_blendsql(
     kitchen: Kitchen,
     ingredients: Collection[Ingredient],
     default_model: Model,
-) -> t.Tuple[str, dict, set, Kitchen, t.Set[Ingredient]]:
+) -> tuple[str, dict, set, Kitchen, set[Ingredient]]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
 
@@ -302,7 +301,7 @@ def get_sorted_blendsql_nodes(
     node: exp.Expression,
     ingredient_alias_to_parsed_dict: dict,
     kitchen: Kitchen,
-) -> t.Generator[exp.Expression, None, None]:
+) -> Generator[exp.Expression, None, None]:
     """
     Yields parsed matches from grammar, according to a specified order of operations.
 
@@ -360,7 +359,10 @@ def disambiguate_and_submit_blend(
             query,
         )
     logger.debug(
-        Fore.CYAN + f"Executing `{query}` and setting to `{aliasname}`" + Fore.RESET
+        Color.update(f"Executing ")
+        + Color.sql(query)
+        + Color.update(" and setting to ")
+        + Color.light_update(f"`{aliasname}`)")
     )
     return _blend(query=query, **kwargs)
 
@@ -369,7 +371,7 @@ def _blend(
     query: str,
     db: Database,
     default_model: Model | None = None,
-    ingredients: Collection[t.Type[Ingredient]] | None = None,
+    ingredients: Collection[Type[Ingredient]] | None = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
     table_to_title: dict[str, str] | None = None,
@@ -435,11 +437,9 @@ def _blend(
                     _prev_passed_values += materialized_smoothie.meta.num_values_passed
         except Exception as e:
             logger.error(f"Error while materializing tables: {e}")
-        logger.debug(
-            Fore.YELLOW + f"No BlendSQL ingredients found in query:" + Fore.RESET
-        )
-        logger.debug(Fore.LIGHTYELLOW_EX + query + Fore.RESET)
-        logger.debug(Fore.YELLOW + f"Executing as vanilla SQL..." + Fore.RESET)
+        logger.debug(Color.warning(f"No BlendSQL ingredients found in query:"))
+        logger.debug(Color.light_warning(query))
+        logger.debug(Color.warning(f"Executing as vanilla SQL..."))
         return Smoothie(
             df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
@@ -462,11 +462,12 @@ def _blend(
                 ingredients=[],
                 query=original_query,
                 db_url=str(db.db_url),
+                db_type=db.__class__.__name__,
                 contains_ingredient=False,
             ),
         )
 
-    _get_temp_session_table: t.Callable = partial(get_temp_session_table, session_uuid)
+    _get_temp_session_table: Callable = partial(get_temp_session_table, session_uuid)
     alias_function_name_to_result: dict[str, str] = {}
     session_modified_tables = set()
     scm = None
@@ -482,9 +483,9 @@ def _blend(
             subquery = subquery.transform(transform.remove_nodetype, exp.With)
         # Only cache executed_ingredients within the same subquery
         # The same ingredient may have different results within a different subquery context
-        executed_subquery_ingredients: t.Set[str] = set()
-        prev_subquery_map_columns: t.Set[str] = set()
-        _get_temp_subquery_table: t.Callable = partial(
+        executed_subquery_ingredients: set[str] = set()
+        prev_subquery_map_columns: set[str] = set()
+        _get_temp_subquery_table: Callable = partial(
             get_temp_subquery_table, session_uuid, subquery_idx
         )
         if not isinstance(subquery, exp.Select):
@@ -501,8 +502,9 @@ def _blend(
 
             else:
                 logger.debug(
-                    Fore.YELLOW
-                    + "Encountered subquery without `SELECT`, and more than 1 table!\nCannot optimize yet, skipping this step."
+                    Color.warning(
+                        "Encountered subquery without `SELECT`, and more than 1 table!\nCannot optimize yet, skipping this step."
+                    )
                 )
                 continue
         else:
@@ -567,21 +569,16 @@ def _blend(
                     _prev_passed_values += materialized_smoothie.meta.num_values_passed
 
                 tablename_to_write = _get_temp_subquery_table(tablename)
-
                 logger.debug(
-                    Fore.CYAN
-                    + "Executing "
-                    + Fore.LIGHTCYAN_EX
-                    + f"`{abstracted_query_str}` "
-                    + Fore.CYAN
-                    + f"and setting to `{tablename_to_write}`..."
-                    + Fore.RESET
+                    Color.update("Executing ")
+                    + Color.sql(abstracted_query_str)
+                    + Color.update(f" and setting to `{tablename_to_write}`")
+                    + Color.update("...")
                 )
                 abstracted_df = db.execute_to_df(abstracted_query_str)
                 if aliased_subquery is None:
                     if postprocess_columns:
                         if isinstance(db, DuckDB):
-                            # TODO: fix this
                             # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
                             # Gives:
                             #   id  country_id                    name   id_1   name_1
@@ -667,11 +664,9 @@ def _blend(
                 kwargs_dict["exit_condition"] = scm.get_exit_condition(function_node)
 
             logger.debug(
-                Fore.CYAN
-                + "Executing "
-                + Fore.LIGHTCYAN_EX
-                + f" `{curr_function_parsed_results['raw']}`..."
-                + Fore.RESET
+                Color.update("Executing ")
+                + Color.sql(f"{curr_function_parsed_results['raw']}")
+                + Color.update("...")
             )
             if infer_gen_constraints:
                 # Latter is the winner.
@@ -794,9 +789,9 @@ def _blend(
         for tablename, ingredient_outputs in tablename_to_map_out.items():
             if len(ingredient_outputs) > 0:
                 logger.debug(
-                    Fore.CYAN
-                    + f"Combining {len(ingredient_outputs)} outputs for table `{tablename}`"
-                    + Fore.RESET
+                    Color.update(
+                        f"Combining {len(ingredient_outputs)} outputs for table `{tablename}`"
+                    )
                 )
                 # Once we finish parsing this subquery, write to our session_uuid table
                 # Below, we differ from Binder, which seems to replace the old table
@@ -830,7 +825,7 @@ def _blend(
                             )
                         except AssertionError:
                             logger.debug(
-                                Fore.RED + "pd.testing.assert_index_equal error"
+                                Color.error("pd.testing.assert_index_equal error")
                             )
                         llm_out_df[column] = llm_out_df[column].fillna(
                             base_table[column]
@@ -842,7 +837,7 @@ def _blend(
                 try:
                     pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
                 except AssertionError:
-                    logger.debug(Fore.RED + "pd.testing.assert_index_equal error")
+                    logger.debug(Color.error("pd.testing.assert_index_equal error"))
                 merged = base_table.merge(
                     llm_out_df, how="left", right_index=True, left_index=True
                 )
@@ -884,7 +879,7 @@ def _blend(
 
     query = query_context.to_string()
 
-    logger.debug(Fore.LIGHTGREEN_EX + f"Final Query:\n{query}" + Fore.RESET)
+    logger.debug(Color.success(f"Final Query:\n{query}"))
 
     df = db.execute_to_df(query)
 
@@ -913,6 +908,7 @@ def _blend(
             ingredients=ingredients,
             query=original_query,
             db_url=str(db.db_url),
+            db_type=db.__class__.__name__,
         ),
     )
 
@@ -943,9 +939,9 @@ class BlendSQL:
             descriptive titles, useful for datasets where table titles contain metadata.
     """
 
-    db: t.Union[pd.DataFrame, dict, str, Database] = field(default=None)
+    db: pd.DataFrame | dict | str | Database = field(default=None)
     model: Model | None = field(default=None)
-    ingredients: Collection[t.Type[Ingredient]] | None = field(default_factory=list)
+    ingredients: Collection[Type[Ingredient]] | None = field(default_factory=list)
 
     verbose: bool = field(default=False)
     infer_gen_constraints: bool = field(default=True)
@@ -973,7 +969,7 @@ class BlendSQL:
 
     @staticmethod
     def _merge_default_ingredients(
-        ingredients: Collection[t.Type[Ingredient]] | None,
+        ingredients: Collection[Type[Ingredient]] | None,
     ):
         from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 
@@ -1038,7 +1034,7 @@ class BlendSQL:
     def execute(
         self,
         query: str,
-        ingredients: Collection[t.Type[Ingredient]] | None = None,
+        ingredients: Collection[Type[Ingredient]] | None = None,
         model: str | None = None,
         infer_gen_constraints: bool | None = None,
         verbose: bool | None = None,
@@ -1056,7 +1052,7 @@ class BlendSQL:
                 For example, in `{{LLMMap('convert to date', 'w::listing date')}} <= '1960-12-31'`
                 We can infer the output format should look like '1960-12-31' and both:
                     1) Put this string in the `example_outputs` kwarg
-                    2) If we have a LocalModel, pass the r'\d{4}-\d{2}-\d{2}' pattern to guidance
+                    2) If we have a LocalModel, pass the date regex pattern to guidance
             table_to_title: Optional mapping from table name to title of table.
                 Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
 

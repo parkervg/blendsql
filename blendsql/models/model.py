@@ -9,7 +9,6 @@ from typing import (
 import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
-from colorama import Fore
 import time
 import threading
 from diskcache import Cache
@@ -22,7 +21,7 @@ from attr import attrs, attrib
 from functools import cached_property
 
 from ..db.utils import truncate_df_content
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 
 CONTEXT_TRUNCATION_LIMIT = 100
 ModelObj = TypeVar("ModelObj")
@@ -40,7 +39,7 @@ class TokenTimer(threading.Thread):
     def run(self):
         while True:
             time.sleep(self.refresh_interval_min * 60)
-            print(Fore.YELLOW + "Refreshing the access tokens..." + Fore.RESET)
+            print(Color.warning("Refreshing the access tokens..."))
             self.init_fn()
 
 
@@ -127,7 +126,7 @@ class Model:
         response: dict[str, str] = None  # type: ignore
         key: str = self._create_key(funcs=funcs, *args, **kwargs)
         if key in self.cache:
-            logger.debug(Fore.MAGENTA + "Using model cache..." + Fore.RESET)
+            logger.debug(Color.model_or_data_update("Using model cache..."))
             response = self.cache.get(key)  # type: ignore
         return (response, key)
 
@@ -203,9 +202,9 @@ class ConstrainedModel(Model):
 
         if chat_template is not None:
             logger.debug(
-                Fore.MAGENTA
-                + f"Loading '{model_name_or_path}' with '{chat_template.__name__}' chat template..."
-                + Fore.RESET
+                Color.model_or_data_update(
+                    f"Loading '{model_name_or_path}' with '{chat_template.__name__}' chat template..."
+                )
             )
         return chat_template
 

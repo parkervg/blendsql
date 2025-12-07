@@ -2,9 +2,8 @@ import re
 import pandas as pd
 from typing import Callable
 from attr import attrs, attrib
-from colorama import Fore
 
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 
 
 @attrs(frozen=True)
@@ -22,9 +21,7 @@ class LazyTable:
         return self.tablename
 
     def collect(self):
-        logger.debug(
-            Fore.CYAN + f"Materializing CTE `{self.tablename}`..." + Fore.RESET
-        )
+        logger.debug(Color.update(f"Materializing CTE `{self.tablename}`..."))
         return self.collect_fn()
 
 
