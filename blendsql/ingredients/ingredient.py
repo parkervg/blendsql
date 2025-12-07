@@ -409,7 +409,6 @@ class MapIngredient(Ingredient):
             colname=colname,
             **self.__dict__ | kwargs,
         )
-        self.num_values_passed += len(mapped_values)
         df_as_dict: dict[str, list] = {colname: [], new_arg_column: []}
         for value, mapped_value in zip(unpacked_values, mapped_values):
             df_as_dict[colname].append(value)

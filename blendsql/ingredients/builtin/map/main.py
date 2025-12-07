@@ -531,6 +531,7 @@ class LLMMap(MapIngredient):
                         ]:
                             cache_key = identifier_to_cache_key[identifier]
                             model.cache[cache_key] = lm_mapping[identifier]
+                            self.num_values_passed += batch_size
 
                     # Check and see if early exit condition applies
                     if exit_condition is not None and exit_condition(lm_mapping):
