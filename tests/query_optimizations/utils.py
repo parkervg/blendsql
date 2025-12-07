@@ -44,9 +44,13 @@ def assert_blendsql_equals_sql(
 
     if expected_num_values_passed is not None:
         if allow_lt_num_values_compare:
-            assert smoothie.meta.num_values_passed <= expected_num_values_passed
+            assert (
+                smoothie.meta.num_values_passed <= expected_num_values_passed
+            ), f"{smoothie.meta.num_values_passed} !<= {expected_num_values_passed}"
         else:
-            assert smoothie.meta.num_values_passed == expected_num_values_passed
+            assert (
+                smoothie.meta.num_values_passed == expected_num_values_passed
+            ), f"{smoothie.meta.num_values_passed} != {expected_num_values_passed}"
     return smoothie
 
 
