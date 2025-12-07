@@ -38,7 +38,7 @@ class Ingredient:
     few_shot_retriever: Callable[[str], list[Example]] = attrib(default=None)
     list_options_in_prompt: bool = attrib(default=True)
     context_searcher: Searcher | None = attrib(default=None)
-    option_searcher: Searcher | None = attrib(default=None)
+    options_searcher: Searcher | None = attrib(default=None)
     enable_constrained_decoding: bool = attrib(default=True)
 
     ingredient_type: str = attrib(init=False)

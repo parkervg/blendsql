@@ -104,7 +104,7 @@ class LLMMap(MapIngredient):
         model: Model | None = None,
         few_shot_examples: list[dict] | list[AnnotatedMapExample] | None = None,
         list_options_in_prompt: bool = True,
-        option_searcher: Callable[[list[str]], Searcher] | None = None,
+        options_searcher: Callable[[list[str]], Searcher] | None = None,
         batch_size: int | None = None,
         num_few_shot_examples: int | None = None,
         context_searcher: Searcher | None = None,
@@ -117,9 +117,9 @@ class LLMMap(MapIngredient):
             few_shot_examples: A list of dictionary MapExample few-shot examples.
                If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/map/default_examples.json) as default.
             list_options_in_prompt: Whether to list options in the prompt. Defaults to True.
-            option_searcher: A callable that takes in a list of options, and returns a `Searcher` object.
+            options_searcher: A callable that takes in a list of options, and returns a `Searcher` object.
                 For example, ```
-                option_searcher=lambda d: HybridSearch(
+                options_searcher=lambda d: HybridSearch(
                     documents=d,
                     model_name_or_path="intfloat/e5-base-v2",
                     k=10,
@@ -177,7 +177,7 @@ class LLMMap(MapIngredient):
                 model=model,
                 few_shot_retriever=few_shot_retriever,
                 list_options_in_prompt=list_options_in_prompt,
-                option_searcher=option_searcher,
+                options_searcher=options_searcher,
                 batch_size=batch_size,
                 context_searcher=context_searcher,
                 enable_constrained_decoding=enable_constrained_decoding,
@@ -513,7 +513,9 @@ class LLMMap(MapIngredient):
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
-                    self.num_values_passed += batch_size
+                    self.num_values_passed += len(
+                        batch_inference_strings[i : i + batch_size]
+                    )
                     batch_lm_mapping = {
                         value: apply_type_conversion(
                             result_payload["value"],
@@ -545,7 +547,15 @@ class LLMMap(MapIngredient):
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
             model.prompt_tokens += lm._get_usage().input_tokens
-
+            mapped_values = [
+                lm_mapping.get(identifier, None) for identifier in all_identifiers
+            ]
+            logger.debug(
+                Fore.YELLOW
+                + f"Finished LLMMap with values:\n{json.dumps(dict(islice(lm_mapping.items(), 10)), indent=4)}"
+                + Fore.RESET
+            )
+            return mapped_values
         else:
             sorted_indices = sorted(range(len(values)), key=lambda i: values[i])
             sorted_indices_to_original = {
@@ -570,6 +580,7 @@ class LLMMap(MapIngredient):
             for i in range(0, len(sorted_values), batch_size):
                 curr_batch_values = sorted_values[i : i + batch_size]
                 curr_batch_contexts = context_in_use[i : i + batch_size]
+                self.num_values_passed += len(curr_batch_values)
                 batch_sizes.append(len(curr_batch_values))
                 current_batch_example = copy.deepcopy(current_example)
                 user_msg_str = ""
@@ -590,6 +601,7 @@ class LLMMap(MapIngredient):
             responses: list[str] = model.generate(
                 messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
             )
+            model.num_generation_calls += len(messages_list)
 
             # Post-process language model response
             mapped_values = []
@@ -637,12 +649,9 @@ class LLMMap(MapIngredient):
                     Fore.RED
                     + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
                 )
-        mapped_values = [
-            lm_mapping.get(identifier, None) for identifier in all_identifiers
-        ]
-        logger.debug(
-            Fore.YELLOW
-            + f"Finished LLMMap with values:\n{json.dumps(dict(islice(lm_mapping.items(), 10)), indent=4)}"
-            + Fore.RESET
-        )
-        return mapped_values
+            logger.debug(
+                Fore.YELLOW
+                + f"Finished LLMMap with values:\n{json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
+                + Fore.RESET
+            )
+            return mapped_values
