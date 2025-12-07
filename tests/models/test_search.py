@@ -87,7 +87,7 @@ def bsql() -> BlendSQL:
 
 def test_faiss_search(bsql, model):
     WikipediaSearchMap = LLMMap.from_args(
-        searcher=FaissVectorStore(
+        context_searcher=FaissVectorStore(
             documents=bsql.db.execute_to_list(
                 "SELECT CONCAT(title, ' | ', content) FROM documents;"
             ),
