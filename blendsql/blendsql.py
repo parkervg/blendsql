@@ -314,15 +314,7 @@ def get_sorted_blendsql_nodes(
         kitchen: Contains inventory of ingredients (aka BlendSQL ingredients)
 
     Returns:
-        Generator containing tuple of:
-
-            - start index of grammar match
-
-            - end index of grammar match
-
-            - parsed_results_dict
-
-            - `Function` object that is matched
+        Generator yielding expression node
     """
     ooo = [
         IngredientType.STRING,
@@ -643,8 +635,6 @@ def _blend(
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(transform.maybe_set_subqueries_to_true))
 
-        # lazy_limit: Union[int, None] = scm.get_lazy_limit()
-
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
         # 2) Track when we've created a new table from a MapIngredient call
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
@@ -666,8 +656,16 @@ def _blend(
             if function_node.name in executed_subquery_ingredients:
                 # Don't execute same ingredient twice
                 continue
+
             executed_subquery_ingredients.add(function_node.name)
             kwargs_dict = curr_function_parsed_results["kwargs_dict"]
+
+            if curr_ingredient.ingredient_type == IngredientType.MAP:
+                # Fetch an exit condition, if we can extract one from the expression context
+                # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
+                # The exit conditon would be at least 5 `a()` evaluate to `TRUE`
+                kwargs_dict["exit_condition"] = scm.get_exit_condition(function_node)
+
             logger.debug(
                 Fore.CYAN
                 + "Executing "

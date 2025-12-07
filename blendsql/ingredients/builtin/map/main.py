@@ -9,6 +9,7 @@ import pandas as pd
 from colorama import Fore
 from attr import attrs, attrib
 import copy
+from itertools import islice
 from tqdm.auto import tqdm
 
 from blendsql.configure import add_to_global_history
@@ -32,6 +33,7 @@ from .examples import (
     UnconstrainedAnnotatedMapExample,
     FeatureType,
 )
+from blendsql.db import Database
 from blendsql.search.searcher import Searcher
 
 DEFAULT_MAP_FEW_SHOT: list[AnnotatedMapExample] = [
@@ -55,6 +57,26 @@ UNCONSTRAINED_MAIN_INSTRUCTION = (
     + f" Your output should be separated by '{DEFAULT_ANS_SEP}', answering for each of the values left-to-right.\n"
 )
 DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE = 5
+
+
+def apply_type_conversion(s: str, return_type: DataType, db: Database):
+    is_list_output = return_type.quantifier is not None
+    if is_list_output:
+        try:
+            return [return_type.coerce_fn(c, db) for c in ast.literal_eval(s)]
+        except Exception:
+            # Sometimes we need to first escape single quotes
+            # E.g. in ['Something's wrong here']
+            if return_type.name == "str":
+                return [
+                    [
+                        return_type.coerce_fn(c, db)
+                        for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))
+                    ]
+                ]
+
+    else:
+        return return_type.coerce_fn(s, db)
 
 
 @attrs
@@ -183,6 +205,7 @@ class LLMMap(MapIngredient):
         return_type: DataType | str | None = None,
         regex: str | None = None,
         batch_size: int = None,
+        exit_condition: Callable = None,
         **kwargs,
     ) -> list[float | int | str | bool]:
         """For each value in a given column, calls a Model and retrieves the output.
@@ -410,6 +433,7 @@ class LLMMap(MapIngredient):
                     documents = values
                 filtered_options = curr_options_searcher(documents)
 
+            lm_mapping = {}  # Where we store the final type-cast results
             loaded_lm = False
             batch_inference_strings = []
             batch_inference_identifiers = []
@@ -447,7 +471,7 @@ class LLMMap(MapIngredient):
                         funcs=[make_prediction, gen_f],
                     )
                     if cached_response is not None:
-                        lm = lm.set(curr_identifier, cached_response)
+                        lm_mapping[curr_identifier] = cached_response
                         in_cache = True
                     else:
                         identifier_to_cache_key[curr_identifier] = cache_key
@@ -476,11 +500,12 @@ class LLMMap(MapIngredient):
 
             with guidance.assistant():
                 iter = range(0, len(batch_inference_strings), batch_size)
+                total_batches = len(batch_inference_strings) // batch_size
                 if logger.level <= logging.DEBUG:
                     # Wrap with tqdm if `verbose=True`
                     iter = tqdm(
                         iter,
-                        total=len(batch_inference_strings) // batch_size,
+                        total=total_batches,
                         desc=f"LLMMap with batch_size={batch_size}",
                     )
                 for i in iter:
@@ -488,50 +513,38 @@ class LLMMap(MapIngredient):
                     batch_lm = lm + "\n".join(
                         batch_inference_strings[i : i + batch_size]
                     )
-                    lm._interpreter.state.captures.update(
-                        batch_lm._interpreter.state.captures
-                    )
+                    # batch_inference_identifiers = batch_inference_identifiers[i : i + batch_size]
+                    batch_lm_mapping = {
+                        value: apply_type_conversion(
+                            result_payload["value"],
+                            return_type=resolved_return_type,
+                            db=self.db,
+                        )
+                        for value, result_payload in batch_lm._interpreter.state.captures.items()
+                    }
+                    lm_mapping.update(batch_lm_mapping)
+
                     add_to_global_history(str(batch_lm))
                     if model.caching:
                         for identifier in batch_inference_identifiers[
                             i : i + batch_size
                         ]:
                             cache_key = identifier_to_cache_key[identifier]
-                            model.cache[cache_key] = lm.get(identifier)  # type: ignore
+                            model.cache[cache_key] = lm_mapping[identifier]
 
-            lm_mapping: list[str] = [lm[identifier] for identifier in all_identifiers]  # type: ignore
+                    # Check and see if early exit condition applies
+                    if exit_condition is not None and exit_condition(lm_mapping):
+                        logger.debug(
+                            Fore.CYAN
+                            + f"Exit condition satisfied, exiting on batch {i} out of {total_batches}."
+                            + Fore.RESET
+                        )
+                        break
+
             model.completion_tokens += sum(
                 [len(model.tokenizer.encode(v)) for v in lm_mapping]
             )
             model.prompt_tokens += lm._get_usage().input_tokens
-            # For each value, call the DataType's `coerce_fn()`
-            if is_list_output:
-                try:
-                    mapped_values = [
-                        [
-                            current_example.return_type.coerce_fn(c, self.db)
-                            for c in ast.literal_eval(s)
-                        ]
-                        for s in lm_mapping
-                    ]
-                except Exception:
-                    # Sometimes we need to first escape single quotes
-                    # E.g. in ['Something's wrong here']
-                    if resolved_return_type.name == "str":
-                        mapped_values = [
-                            [
-                                current_example.return_type.coerce_fn(c, self.db)
-                                for c in ast.literal_eval(
-                                    re.sub(r"(\w)'(\w)", r"\1\\'\2", s)
-                                )
-                            ]
-                            for s in lm_mapping
-                        ]
-
-            else:
-                mapped_values = [
-                    resolved_return_type.coerce_fn(s, self.db) for s in lm_mapping
-                ]
 
         else:
             sorted_indices = sorted(range(len(values)), key=lambda i: values[i])
@@ -624,13 +637,12 @@ class LLMMap(MapIngredient):
                     Fore.RED
                     + f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
                 )
-
+        mapped_values = [
+            lm_mapping.get(identifier, None) for identifier in all_identifiers
+        ]
         logger.debug(
             Fore.YELLOW
-            + f"Finished LLMMap with values:\n{json.dumps(dict(zip(values[:10], mapped_values[:10])), indent=4)}"
+            + f"Finished LLMMap with values:\n{json.dumps(dict(islice(lm_mapping.items(), 10)), indent=4)}"
             + Fore.RESET
         )
-        if os.getenv("BLENDSQL_ALWAYS_LOWERCASE_RESPONSE") == "1":
-            # Basic transforms not handled by SQLite type affinity
-            return [{"True": True, "False": False}.get(v, v) for v in mapped_values]
         return mapped_values
