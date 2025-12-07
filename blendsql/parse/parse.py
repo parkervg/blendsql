@@ -351,25 +351,25 @@ class SubqueryContextManager:
         if isinstance(function_node.parent, exp.Binary):
             parent_node = function_node.parent
             arg = parent_node.expression.to_py()
-            _exit_condition = lambda d, arg, op: any(op(v, arg) for v in d.values())
+            _exit_condition = lambda d, op: any(op(v) for v in d.values())
             if arg == function_node:
                 return None
             if isinstance(parent_node, exp.EQ):
-                return partial(_exit_condition, arg=arg, op=lambda v, arg: arg == v)
+                return partial(_exit_condition, op=lambda v: v == arg)
             elif isinstance(parent_node, exp.GT):
-                return partial(_exit_condition, arg=arg, op=lambda v, arg: v > arg)
+                return partial(_exit_condition, op=lambda v: v > arg)
             elif isinstance(parent_node, exp.GTE):
-                return partial(_exit_condition, arg=arg, op=lambda x, y: x >= y)
+                return partial(_exit_condition, op=lambda v: v >= arg)
             elif isinstance(parent_node, exp.LT):
-                return partial(_exit_condition, arg=arg, op=lambda x, y: x < y)
+                return partial(_exit_condition, op=lambda v: v < arg)
             elif isinstance(parent_node, exp.LTE):
-                return partial(_exit_condition, arg=arg, op=lambda x, y: x <= y)
+                return partial(_exit_condition, op=lambda v: v <= arg)
             elif isinstance(parent_node, exp.Like):
                 # First we need to convert SQL pattern to regex
                 re_pattern = arg.replace("%", ".*")
-                return partial(
-                    _exit_condition, arg=arg, op=lambda x, _: re.search(x, re_pattern)
-                )
+                return partial(_exit_condition, op=lambda v: re.search(v, re_pattern))
+            elif isinstance(parent_node, exp.Is):
+                return partial(_exit_condition, op=lambda v: v is arg)
             # TODO: add more
 
     def infer_gen_constraints(
