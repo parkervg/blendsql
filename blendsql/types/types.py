@@ -56,7 +56,7 @@ class DataTypes:
         "Union[int, float]", r"(\d+(\.\d+)?)", quantifier, str_to_numeric
     )
     ISO_8601_DATE = lambda quantifier=None: DataType(
-        "date", r"\d{4}-\d{2}-\d{2}", quantifier, str_to_date
+        "date (YYYY-MM-DD)", r"\d{4}-\d{2}-\d{2}", quantifier, str_to_date
     )
     ANY = lambda quantifier=None: DataType(
         "Any",
