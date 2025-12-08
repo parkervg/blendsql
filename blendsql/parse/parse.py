@@ -377,8 +377,8 @@ class SubqueryContextManager:
                 return partial(_exit_condition, op=lambda v: v <= arg)
             elif isinstance(parent_node, exp.Like):
                 # First we need to convert SQL pattern to regex
-                re_pattern = arg.replace("%", ".*")
-                return partial(_exit_condition, op=lambda v: re.search(v, re_pattern))
+                re_pattern = re.escape(arg).replace(r"\%", ".*")
+                return partial(_exit_condition, op=lambda v: re.search(re_pattern, v))
             elif isinstance(parent_node, exp.Is):
                 return partial(_exit_condition, op=lambda v: v is arg)
             # TODO: add more
