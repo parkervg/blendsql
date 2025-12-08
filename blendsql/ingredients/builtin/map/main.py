@@ -355,7 +355,7 @@ class LLMMap(MapIngredient):
             lm = LMString()  # type: ignore
             if is_list_output and self.enable_constrained_decoding:
                 gen_f = lambda _: gen_list(
-                    force_quotes=bool("str" in resolved_return_type.name),
+                    force_quotes=resolved_return_type.requires_quotes,
                     quantifier=quantifier,
                     options=options,
                     regex=regex,
@@ -390,7 +390,7 @@ class LLMMap(MapIngredient):
                 value: str,
                 context: str | list[str] | None,
                 local_options: list[str] | None,
-                str_output: bool,
+                force_quotes: bool,
                 gen_f: Callable,
             ) -> str:
                 """If `context` is a string, it is a serialized table subset.
@@ -416,7 +416,8 @@ class LLMMap(MapIngredient):
                     )
                 if local_options is not None:
                     gen_str += f",\n{INDENT(2)}{local_options}"
-                gen_str += f""") == {'"' if str_output else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if str_output else ''}"""
+                # TODO: could allow model to generate either single or double quotes, but then this function wouldn't be stateless
+                gen_str += f""") == {'"' if force_quotes else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if force_quotes else ''}"""
                 return gen_str
 
             example_str = ""
@@ -491,7 +492,7 @@ class LLMMap(MapIngredient):
                             value=v,
                             context=c,
                             local_options=o,
-                            str_output=(resolved_return_type.name == "str"),
+                            force_quotes=resolved_return_type.requires_quotes,
                             gen_f=gen_f,
                         )
                     )

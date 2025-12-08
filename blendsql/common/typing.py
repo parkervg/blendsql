@@ -27,6 +27,7 @@ class DataType:
     regex: str | None
     quantifier: QuantifierType | None
     _coerce_fn: Callable
+    requires_quotes: bool = False
 
     @property
     def name(self) -> str:

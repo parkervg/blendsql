@@ -42,27 +42,46 @@ def str_to_date(s: str | None, db: Database | None) -> str | None:
 
 @dataclass
 class DataTypes:
-    STR = lambda quantifier=None: DataType("str", None, quantifier, lambda s, _: s)
+    STR = lambda quantifier=None: DataType(
+        _name="str",
+        regex=None,
+        quantifier=quantifier,
+        _coerce_fn=lambda s, _: s,
+        requires_quotes=True,
+    )
     BOOL = lambda quantifier=None: DataType(
-        "bool", r"(t|f|true|false|True|False)", quantifier, str_to_bool
+        _name="bool",
+        regex=r"(t|f|true|false|True|False)",
+        quantifier=quantifier,
+        _coerce_fn=str_to_bool,
     )
     INT = lambda quantifier=None: DataType(
-        "int", r"-?(\d+)", quantifier, str_to_numeric
+        _name="int", regex=r"-?(\d+)", quantifier=quantifier, _coerce_fn=str_to_numeric
     )
     FLOAT = lambda quantifier=None: DataType(
-        "float", r"-?(\d+(\.\d+)?)", quantifier, str_to_numeric
+        _name="float",
+        regex="-?(\d+(\.\d+)?)",
+        quantifier=quantifier,
+        _coerce_fn=str_to_numeric,
     )
     NUMERIC = lambda quantifier=None: DataType(
-        "Union[int, float]", r"(\d+(\.\d+)?)", quantifier, str_to_numeric
+        _name="Union[int, float]",
+        regex=r"(\d+(\.\d+)?)",
+        quantifier=quantifier,
+        _coerce_fn=str_to_numeric,
     )
     ISO_8601_DATE = lambda quantifier=None: DataType(
-        "date (YYYY-MM-DD)", r"\d{4}-\d{2}-\d{2}", quantifier, str_to_date
+        _name="NewType(DateString_YYYY_MM_DD)",
+        regex=r"\d{4}-\d{2}-\d{2}",
+        quantifier=quantifier,
+        _coerce_fn=str_to_date,
+        requires_quotes=True,
     )
     ANY = lambda quantifier=None: DataType(
-        "Any",
-        None,
-        quantifier,
-        lambda s, _: s,  # Let the DBMS transform, if it allows
+        _name="Any",
+        regex=None,
+        quantifier=quantifier,
+        _coerce_fn=lambda s, _: s,  # Let the DBMS transform, if it allows
     )
 
 
