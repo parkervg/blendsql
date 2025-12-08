@@ -34,6 +34,9 @@ class LMString(str):
 
         return DummyOutput(len(str(self)))
 
+    def _reset_usage(self):
+        pass
+
 
 def maybe_load_lm(model: Model, lm: LMString | ModelObj) -> ModelObj:
     if isinstance(lm, LMString):

@@ -135,6 +135,9 @@ class Model:
         self.completion_tokens = 0
         self.num_generation_calls = 0
 
+    def tokenizer_encode(self, s: str):
+        return self.tokenizer.encode(s)
+
     @staticmethod
     def format_prompt(response: str, **kwargs) -> dict:
         d: dict[str, Any] = {"answer": response}

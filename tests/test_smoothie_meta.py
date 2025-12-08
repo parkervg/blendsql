@@ -3,6 +3,7 @@ import pandas as pd
 
 from blendsql.ingredients import LLMMap
 from blendsql import BlendSQL, config
+from blendsql.models import ConstrainedModel
 
 config.set_async_limit(1)
 
@@ -60,10 +61,12 @@ def test_num_values_passed_map(bsql, model):
         )
         assert smoothie.meta.num_values_passed == total_num_values_to_process
         assert smoothie.meta.num_generation_calls == total_num_values_to_process // bs
-        assert (
-            smoothie.meta.completion_tokens
-            == (max_tokens * total_num_values_to_process) // bs
-        )
+        if isinstance(
+            model, ConstrainedModel
+        ):  # Unconstrained models will add 'SEP', messing up exact token counts
+            assert smoothie.meta.completion_tokens == (
+                max_tokens * total_num_values_to_process
+            ), f"{smoothie.meta.completion_tokens=}, {(max_tokens * total_num_values_to_process)=}, {bs=}"
 
 
 def test_num_values_passed_qa(bsql, model):

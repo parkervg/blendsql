@@ -230,7 +230,7 @@ class LLMJoin(JoinIngredient):
                 if model.caching:
                     model.cache[key] = mapping  # type: ignore
             model.completion_tokens += sum(
-                [len(model.tokenizer.encode(v)) for v in mapping.values()]  # type: ignore
+                [len(model.tokenizer_encode(v)) for v in mapping.values()]  # type: ignore
             )
 
         else:

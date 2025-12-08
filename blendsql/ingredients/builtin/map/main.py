@@ -377,7 +377,7 @@ class LLMMap(MapIngredient):
                             )
                         )
                     gen_f = lambda _: guidance.gen(
-                        max_tokens=kwargs.get("max_tokens", 200),
+                        max_tokens=kwargs.get("max_tokens", None),
                         # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
                         stop=None
                         if regex is not None
@@ -524,8 +524,13 @@ class LLMMap(MapIngredient):
                         )
                         for value, result_payload in batch_lm._interpreter.state.captures.items()
                     }
+                    model.completion_tokens += sum(
+                        [
+                            len(model.tokenizer_encode(v))
+                            for v in batch_lm_mapping.values()
+                        ]
+                    )
                     lm_mapping.update(batch_lm_mapping)
-
                     add_to_global_history(str(batch_lm))
                     if model.caching:
                         for identifier in batch_inference_identifiers[
@@ -543,10 +548,9 @@ class LLMMap(MapIngredient):
                         )
                         break
 
-            model.completion_tokens += sum(
-                [len(model.tokenizer.encode(v)) for v in lm_mapping]
-            )
-            model.prompt_tokens += lm._get_usage().input_tokens
+                model.prompt_tokens += lm._get_usage().input_tokens
+                lm._reset_usage()
+
             mapped_values = [
                 lm_mapping.get(identifier, None) for identifier in all_identifiers
             ]

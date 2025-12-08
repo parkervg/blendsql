@@ -73,6 +73,10 @@ class TransformersLLM(ConstrainedModel):
             )
         return lm
 
+    def tokenizer_encode(self, s: str):
+        """Override the tokenizer.encode call to NOT add special tokens"""
+        return self.tokenizer.encode(s, add_special_tokens=False)
+
 
 class LlamaCpp(ConstrainedModel):
     """Class for LlamaCpp local Model.

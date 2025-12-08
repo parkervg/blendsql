@@ -297,7 +297,7 @@ class LLMQA(QAIngredient):
                             )
                         )
                     gen_f = lambda _: guidance.gen(
-                        max_tokens=kwargs.get("max_tokens", 200),
+                        max_tokens=kwargs.get("max_tokens", None),
                         regex=regex if self.enable_constrained_decoding else None,
                         name="response",
                     )
@@ -346,8 +346,9 @@ class LLMQA(QAIngredient):
                 if model.caching:
                     model.cache[key] = response  # type: ignore
 
-                model.completion_tokens += len(model.tokenizer.encode(str(response)))
+                model.completion_tokens += lm._get_usage().output_tokens
                 model.prompt_tokens += lm._get_usage().input_tokens
+                lm._reset_usage()
         else:
             messages = []
             intro_prompt = MAIN_INSTRUCTION
