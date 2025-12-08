@@ -340,7 +340,6 @@ class SubqueryContextManager:
 
     def get_exit_condition(self, function_node: exp.Expression) -> Callable | None:
         limit_node = self.node.find(exp.Limit)
-        offset_node = self.node.find(exp.Offset)
         if limit_node is None:
             return None
         if self.node.find((exp.Or, exp.Group, exp.Order, exp.Distinct)):
@@ -355,6 +354,7 @@ class SubqueryContextManager:
         if isinstance(function_node.parent, exp.Binary):
             # We can apply some exit_condition function
             limit_arg: int = limit_node.expression.to_py()
+            offset_node = self.node.find(exp.Offset)
             offset_arg = 0
             if offset_node:
                 offset_arg: int = offset_node.expression.to_py()
