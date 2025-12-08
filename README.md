@@ -111,7 +111,7 @@ smoothie = bsql.execute(
     infer_gen_constraints=True, # Is `True` by default
 )
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌───────────────────┬───────────────────────────────────────────────────────┐
 # │ Name              │ Known_For                                             │
 # ├───────────────────┼───────────────────────────────────────────────────────┤
@@ -119,7 +119,6 @@ print(smoothie.df)
 # │ John Adams        │ XYZ Affair, Alien and Sedition Acts                   │
 # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
 # └───────────────────┴───────────────────────────────────────────────────────┘
-print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
@@ -142,7 +141,7 @@ smoothie = bsql.execute(
     """,
 )
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌───────────────────────────────────────────────────────┬───────────┐
 # │ Names                                                 │ Born      │
 # ├───────────────────────────────────────────────────────┼───────────┤
@@ -150,7 +149,6 @@ print(smoothie.df)
 # │ Sabrina Carpenter, Charli XCX, Elon Musk, Michelle... │ 2000-Now  │
 # │ Elvis Presley                                         │ 1900-2000 │
 # └───────────────────────────────────────────────────────┴───────────┘
-print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
@@ -169,14 +167,12 @@ smoothie = bsql.execute("""
     }} AS answer
 """)
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌─────────────────────────────────────────────────────┐
 # │ answer                                              │
 # ├─────────────────────────────────────────────────────┤
 # │ BlendSQL is a Python library that combines SQL a... │
 # └─────────────────────────────────────────────────────┘
-
-print(smoothie.summary())
 
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
@@ -184,6 +180,7 @@ print(smoothie.summary())
 # │    4.07617 │                    1 │            1921 │                  50 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
 ```
+
 </details>
 
 # Summary
@@ -274,6 +271,10 @@ if USE_LOCAL_CONSTRAINED_MODEL:
 else:
     model = LiteLLM("openai/gpt-4o-mini")
 ```
+
+For all the below examples, use `smoothie.print_summary()` to get an overview of the inputs and outputs.
+
+![terminal-logging](docs/img/terminal-logging.png)
 
 ## Simple Row-Wise Classification 
 

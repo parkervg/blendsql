@@ -7,12 +7,13 @@ from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
 from blendsql.models import LiteLLM, LlamaCpp
 
-USE_LOCAL_CONSTRAINED_MODEL = False
+USE_LOCAL_CONSTRAINED_MODEL = True
 
 # Load model, either a local transformers model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
     model = LlamaCpp(
-        filename="/Users/parkerglenn/.cache/huggingface/hub/models--bartowski--SmolLM2-360M-Instruct-GGUF/snapshots/7be6f65f1db715fe5dc5a4634c0d459b4eed42ec/SmolLM2-360M-Instruct-Q6_K.gguf",
+        model_name_or_path="bartowski/Qwen2.5.1-Coder-7B-Instruct-GGUF",
+        filename="Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf",
         config={
             "n_gpu_layers": -1,
             "n_ctx": 8000,

@@ -25,9 +25,8 @@ class PrettyDataFrame(pd.DataFrame):
 
 @dataclass
 class SmoothieMeta:
-    num_values_passed: int = (
-        field()
-    )  # Number of values passed to a Map/Join/QA ingredient
+    # Number of values passed to a Map/Join/QA ingredient
+    num_values_passed: int = field()
     num_generation_calls: int = field()  # Number of generation calls made to the model
     prompt_tokens: int = field()
     completion_tokens: int = field()
@@ -73,7 +72,7 @@ class Smoothie:
         table = Table(show_header=True, header_style="bold")
         table.add_column("Time (s)")
         table.add_column("# Generation Calls")
-        table.add_column("# Map Values Passed")
+        table.add_column("# DB Values Passed")
         table.add_column("Prompt Tokens")
         table.add_column("Completion Tokens")
 
