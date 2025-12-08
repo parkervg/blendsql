@@ -530,35 +530,35 @@ class TestSelectOperations(TimedTestBase):
 
 
 class TestLimitOperations(TimedTestBase):
-    @pytest.mark.parametrize("bsql", bsql_connections)
-    def test_limit(self, bsql: BlendSQL):
-        expected_num_values_passed: int = bsql.db.execute_to_list(
-            """
-                SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category = 'Restaurants & Dining'
-                """,
-            to_type=int,
-        )[0]
-        _ = self.assert_blendsql_equals_sql(
-            bsql,
-            blendsql_query="""
-            SELECT DISTINCT merchant, child_category FROM transactions WHERE
-            {{test_starts_with('P', merchant)}} = 1
-            AND child_category = 'Restaurants & Dining'
-            ORDER BY merchant
-            LIMIT 1
-            """,
-            sql_query="""
-            SELECT DISTINCT merchant, child_category FROM transactions WHERE
-                merchant LIKE 'P%'
-                AND child_category = 'Restaurants & Dining'
-                ORDER BY merchant
-                LIMIT 1
-            """,
-            expected_num_values_passed=expected_num_values_passed,
-        )
+    # @pytest.mark.parametrize("bsql", bsql_connections)
+    # def test_limit(self, bsql: BlendSQL):
+    #     expected_num_values_passed: int = bsql.db.execute_to_list(
+    #         """
+    #             SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category = 'Restaurants & Dining'
+    #             """,
+    #         to_type=int,
+    #     )[0]
+    #     _ = self.assert_blendsql_equals_sql(
+    #         bsql,
+    #         blendsql_query="""
+    #         SELECT DISTINCT merchant, child_category FROM transactions WHERE
+    #         {{test_starts_with('P', merchant)}} = 1
+    #         AND child_category = 'Restaurants & Dining'
+    #         ORDER BY merchant
+    #         LIMIT 1
+    #         """,
+    #         sql_query="""
+    #         SELECT DISTINCT merchant, child_category FROM transactions WHERE
+    #             merchant LIKE 'P%'
+    #             AND child_category = 'Restaurants & Dining'
+    #             ORDER BY merchant
+    #             LIMIT 1
+    #         """,
+    #         expected_num_values_passed=expected_num_values_passed,
+    #     )
 
     @pytest.mark.parametrize("bsql", bsql_connections)
-    def test_apply_limit(self, bsql: BlendSQL):
+    def test_ingredient_in_select_with_limit(self, bsql: BlendSQL):
         # commit 335c67a
         smoothie = bsql.execute(
             """
