@@ -44,8 +44,7 @@ def gen_list(
             regex=regex,
             # Stop at Python list item separators
             stop_regex="""(\n|',|",|']|"])""" if not regex else None,
-            list_append=True,
-            name="response",
+            list_append=False,
         )  # type: ignore
     single_quote = "'"
     double_quote = '"'
