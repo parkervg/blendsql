@@ -36,7 +36,7 @@ SELECT {{
 
 # 💻 Installation
 ```
-pip install blendsql
+pip install uv && uv pip install blendsql
 ```
 
 <details>
