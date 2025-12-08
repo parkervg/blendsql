@@ -71,7 +71,7 @@ class DataTypes:
         _coerce_fn=str_to_numeric,
     )
     ISO_8601_DATE = lambda quantifier=None: DataType(
-        _name="NewType(DateString_YYYY_MM_DD)",
+        _name="NewType(DateString_YYYY_MM_DD, str)",
         regex=r"\d{4}-\d{2}-\d{2}",
         quantifier=quantifier,
         _coerce_fn=str_to_date,

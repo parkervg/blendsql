@@ -297,14 +297,14 @@ class LLMMap(MapIngredient):
             )
             if len(options) > max_options_in_prompt:
                 list_options_in_prompt = False
-                if self.option_searcher is None:
+                if self.options_searcher is None:
                     logger.debug(
                         Color.warning(
                             f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
                         )
                     )
                 else:
-                    curr_options_searcher = self.option_searcher(options)
+                    curr_options_searcher = self.options_searcher(options)
                     options_in_use_type = FeatureType.LOCAL
                     logger.debug(
                         Color.warning(
