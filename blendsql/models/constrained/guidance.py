@@ -1,8 +1,7 @@
 import os
 import importlib.util
-from colorama import Fore
 
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from blendsql.models.model import ConstrainedModel, ModelObj
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -68,9 +67,9 @@ class TransformersLLM(ConstrainedModel):
         # Try to infer if we're in chat mode
         if lm.engine.tokenizer._orig_tokenizer.chat_template is None:
             logger.debug(
-                Fore.YELLOW
-                + "chat_template not found in tokenizer config.\nBlendSQL currently only works with chat models"
-                + Fore.RESET
+                Color.error(
+                    "chat_template not found in tokenizer config.\nBlendSQL currently only works with chat models"
+                )
             )
         return lm
 

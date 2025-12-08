@@ -1,5 +1,4 @@
 from pathlib import Path
-from colorama import Fore
 import importlib.util
 from typing import Callable
 import pandas as pd
@@ -58,9 +57,5 @@ if __name__ == "__main__":
     df = pd.DataFrame(
         {"Task": tasks, "Average Runtime": avg_runtime, "# Unique Queries": num_queries}
     )
-    print(
-        Fore.LIGHTCYAN_EX
-        + "Please paste this markdown table into your future PR"
-        + Fore.RESET
-    )
-    print(Fore.GREEN + df.to_markdown(index=False) + Fore.RESET)
+    print("Please paste this markdown table into your future PR")
+    print(df.to_markdown(index=False))

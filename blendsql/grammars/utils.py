@@ -2,9 +2,8 @@ from pathlib import Path
 from typing import Type
 from collections.abc import Collection
 from string import Template
-from colorama import Fore
 
-from blendsql.common.logger import logger
+from blendsql.common.logger import logger, Color
 from ..ingredients import Ingredient
 from blendsql.common.typing import IngredientType
 from .minEarley.parser import EarleyParser
@@ -30,8 +29,9 @@ def load_cfg_parser(
     """
     if ingredients is None:
         logger.debug(
-            Fore.YELLOW
-            + "No ingredients passed to `load_cfg_parser()`!\nWas this on purpose?"
+            Color.warning(
+                "No ingredients passed to `load_cfg_parser()`!\nWas this on purpose?"
+            )
         )
         ingredients = set()
     with open(Path(__file__).parent / "./cfg_grammar.lark", encoding="utf-8") as f:
@@ -39,7 +39,7 @@ def load_cfg_parser(
     blendsql_join_functions: list[str] = []
     blendsql_aggregate_functions: list[str] = []
     blendsql_scalar_functions: list[str] = []
-    ingredient_type_to_function_type: t.Dict[str, list[str]] = {
+    ingredient_type_to_function_type: dict[str, list[str]] = {
         IngredientType.JOIN: blendsql_join_functions,
         IngredientType.QA: blendsql_aggregate_functions,
         IngredientType.MAP: blendsql_scalar_functions,
