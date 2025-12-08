@@ -117,7 +117,6 @@ def test_alphabet(bsql, constrained_model):
                 LLMQA(
                     'What is the first letter of the alphabet?',
                     options=(SELECT * FROM (VALUES {{LLMQA('List some greek letters', quantifier='{1,3}', options=('alpha'))}})),
-                    quantifier='{1,3}'
                 )
             }} AS 'response'
             """,

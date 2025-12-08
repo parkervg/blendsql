@@ -30,3 +30,4 @@ def test_llmmap_cache(bsql, model):
     )
 
     assert first.meta.process_time_seconds > second.meta.process_time_seconds
+    model.reset_stats()
