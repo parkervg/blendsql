@@ -342,8 +342,9 @@ class SubqueryContextManager:
         limit_node = self.node.find(exp.Limit)
         if limit_node is None:
             return None
-        if self.node.find(exp.Or):
+        if self.node.find((exp.Or, exp.Group, exp.Order)):
             # For now, don't try and get an exit condition from a query with an `OR`
+            # or, the other expressions. These change the semantics of the `LIMIT`
             return None
         if len(list(self.node.find_all(exp.BlendSQLFunction))) > 1:
             # Getting a valid exit condition from a query with more than 1 BlendSQL function takes more work.
