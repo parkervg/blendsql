@@ -361,8 +361,7 @@ def disambiguate_and_submit_blend(
     logger.debug(
         Color.update(f"Executing ")
         + Color.sql(query)
-        + Color.update(" and setting to ")
-        + Color.light_update(f"`{aliasname}`)")
+        + Color.update(f" and setting to `{aliasname}`...")
     )
     return _blend(query=query, **kwargs)
 
@@ -572,8 +571,7 @@ def _blend(
                 logger.debug(
                     Color.update("Executing ")
                     + Color.sql(abstracted_query_str)
-                    + Color.update(f" and setting to `{tablename_to_write}`")
-                    + Color.update("...")
+                    + Color.update(f" and setting to `{tablename_to_write}`...")
                 )
                 abstracted_df = db.execute_to_df(abstracted_query_str)
                 if aliased_subquery is None:
@@ -789,7 +787,7 @@ def _blend(
         for tablename, ingredient_outputs in tablename_to_map_out.items():
             if len(ingredient_outputs) > 0:
                 logger.debug(
-                    Color.update(
+                    Color.quiet_update(
                         f"Combining {len(ingredient_outputs)} outputs for table `{tablename}`"
                     )
                 )
@@ -957,15 +955,10 @@ class BlendSQL:
 
     @staticmethod
     def _toggle_verbosity(verbose_in_use: bool):
-        def set_level(l: int):
-            logger.setLevel(l)
-            for handler in logger.handlers:
-                handler.setLevel(l)
-
         if verbose_in_use:
-            set_level(logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
         else:
-            set_level(logging.ERROR)
+            logger.setLevel(logging.ERROR)
 
     @staticmethod
     def _merge_default_ingredients(
@@ -1144,7 +1137,7 @@ class BlendSQL:
             ```
         '''
         self._toggle_verbosity(verbose if verbose is not None else self.verbose)
-
+        logger.debug(Color.horizontal_line())
         start = time.time()
         model_in_use = model or self.model
         try:
@@ -1171,4 +1164,5 @@ class BlendSQL:
         # Reset model stats, so future executions don't add here
         if model_in_use is not None:
             model_in_use.reset_stats()
+        logger.debug(Color.horizontal_line())
         return smoothie

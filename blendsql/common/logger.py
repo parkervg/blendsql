@@ -1,4 +1,5 @@
 import logging
+from typing import Callable
 from rich.logging import RichHandler
 from rich.highlighter import NullHighlighter
 from rich.console import Console
@@ -26,7 +27,37 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     return logger
 
 
-logger = get_logger("blendsql", level=logging.DEBUG)
+class LazyLogger(logging.LoggerAdapter):
+    """Logger that only evaluates callables when logging is enabled"""
+
+    def __init__(self, logger: logging.Logger):
+        super().__init__(logger, {})
+
+    def log(self, level: int, msg: str | Callable, *args, **kwargs):
+        if self.isEnabledFor(level):
+            if callable(msg):
+                msg = msg()
+            super().log(level, msg, *args, **kwargs)
+
+    @property
+    def level(self):
+        """Expose level property from underlying logger"""
+        return self.logger.level
+
+    def debug(self, msg: str | Callable, *args, **kwargs):
+        self.log(logging.DEBUG, msg, *args, **kwargs)
+
+    def info(self, msg: str | Callable, *args, **kwargs):
+        self.log(logging.INFO, msg, *args, **kwargs)
+
+    def warning(self, msg: str | Callable, *args, **kwargs):
+        self.log(logging.WARNING, msg, *args, **kwargs)
+
+    def error(self, msg: str | Callable, *args, **kwargs):
+        self.log(logging.ERROR, msg, *args, **kwargs)
+
+
+logger = LazyLogger(get_logger("blendsql", level=logging.DEBUG))
 
 
 # Logging utilities
@@ -37,11 +68,11 @@ class Color:
 
     @staticmethod
     def quiet_update(s: str):
-        return f"[grey53]`{escape(s)}`[/grey53]"
+        return f"[grey53]{escape(s)}[/grey53]"
 
     @staticmethod
     def light_update(s: str):
-        return f"[light_cyan3]{escape(s)}[/light_cyan3]"
+        return f"[light_sky_blue1]{escape(s)}[/light_sky_blue1]"
 
     @staticmethod
     def warning(s: str):
@@ -69,4 +100,13 @@ class Color:
 
     @staticmethod
     def quiet_sql(s: str):
-        return f"[grey53]`{escape(s)}`[/grey53]"
+        return f"[sky_blue1]`{escape(s)}`[/sky_blue1]"
+
+    @staticmethod
+    def horizontal_line(char: str = "─", width: int = None):
+        if width is None:
+            console = Console()
+            width = console.width
+
+        line = char * width
+        return f"[black]{line}[/black]"
