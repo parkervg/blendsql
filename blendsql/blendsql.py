@@ -1160,9 +1160,9 @@ class BlendSQL:
             #   this logic allows temp tables to persist until
             #   the final base case is fulfilled.
             self.db._reset_connection()
+            # Reset model stats, so future executions don't add here
+            if model_in_use is not None:
+                model_in_use.reset_stats()
         smoothie.meta.process_time_seconds = time.time() - start
-        # Reset model stats, so future executions don't add here
-        if model_in_use is not None:
-            model_in_use.reset_stats()
         logger.debug(Color.horizontal_line())
         return smoothie
