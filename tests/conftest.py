@@ -7,7 +7,13 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from blendsql.db import Database
-from blendsql.models import TransformersLLM, LiteLLM, TransformersVisionModel, Model
+from blendsql.models import (
+    TransformersLLM,
+    LiteLLM,
+    TransformersVisionModel,
+    Model,
+    LlamaCpp,
+)
 from litellm.exceptions import APIConnectionError
 
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
@@ -41,14 +47,14 @@ CONSTRAINED_MODEL_CONFIGS = [
         "config": {"device_map": "cuda" if torch.cuda.is_available() else "cpu"},
         "requires_cuda": False,
     },
-    # {
-    #     "name": "llamacpp",
-    #     "class": LlamaCpp,
-    #     "path": "QuantFactory/SmolLM-135M-GGUF",
-    #     "filename": "SmolLM-135M.Q2_K.gguf",
-    #     "config": {"n_gpu_layers": -1},
-    #     "requires_cuda": False,
-    # },
+    {
+        "name": "llamacpp",
+        "class": LlamaCpp,
+        "path": "QuantFactory/SmolLM-135M-GGUF",
+        "filename": "SmolLM-135M.Q2_K.gguf",
+        "config": {"n_gpu_layers": -1, "n_ctx": 8000},
+        "requires_cuda": True,
+    },
 ]
 
 UNCONSTRAINED_MODEL_CONFIGS = [
