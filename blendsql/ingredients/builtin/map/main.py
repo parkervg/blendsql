@@ -21,7 +21,12 @@ from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
 from blendsql.common.typing import DataType, QuantifierType
 from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
-from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+from blendsql.configure import (
+    MAX_OPTIONS_IN_PROMPT_KEY,
+    DEFAULT_MAX_OPTIONS_IN_PROMPT,
+    MAX_TOKENS_KEY,
+    DEFAULT_MAX_TOKENS,
+)
 from blendsql.types import prepare_datatype
 from .examples import (
     MapExample,
@@ -377,7 +382,10 @@ class LLMMap(MapIngredient):
                             )
                         )
                     gen_f = lambda _: guidance.gen(
-                        max_tokens=kwargs.get("max_tokens", None),
+                        max_tokens=kwargs.get(
+                            "max_tokens",
+                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                        ),
                         # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
                         stop=None
                         if regex is not None
@@ -464,7 +472,10 @@ class LLMMap(MapIngredient):
                         regex,
                         options,
                         quantifier,
-                        kwargs.get("max_tokens", 200),
+                        kwargs.get(
+                            "max_tokens",
+                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                        ),
                         c,
                         v,
                         o,
@@ -516,6 +527,12 @@ class LLMMap(MapIngredient):
                     self.num_values_passed += len(
                         batch_inference_strings[i : i + batch_size]
                     )
+                    model.completion_tokens += sum(
+                        [
+                            len(model.tokenizer_encode(result_payload["value"]))
+                            for result_payload in batch_lm._interpreter.state.captures.values()
+                        ]
+                    )
                     batch_lm_mapping = {
                         value: apply_type_conversion(
                             result_payload["value"],
@@ -524,12 +541,6 @@ class LLMMap(MapIngredient):
                         )
                         for value, result_payload in batch_lm._interpreter.state.captures.items()
                     }
-                    model.completion_tokens += sum(
-                        [
-                            len(model.tokenizer_encode(v))
-                            for v in batch_lm_mapping.values()
-                        ]
-                    )
                     lm_mapping.update(batch_lm_mapping)
                     add_to_global_history(str(batch_lm))
                     if model.caching:
@@ -603,7 +614,10 @@ class LLMMap(MapIngredient):
                 messages_list.append([user(user_msg_str)])
             add_to_global_history(messages_list)
             responses: list[str] = model.generate(
-                messages_list=messages_list, max_tokens=kwargs.get("max_tokens", None)
+                messages_list=messages_list,
+                max_tokens=kwargs.get(
+                    "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
+                ),
             )
             model.num_generation_calls += len(messages_list)
 

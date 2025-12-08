@@ -18,7 +18,12 @@ from blendsql.db.utils import single_quote_escape
 from blendsql.common.exceptions import IngredientException
 from blendsql.common.typing import DataType, QuantifierType
 from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
-from blendsql.configure import MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT
+from blendsql.configure import (
+    MAX_OPTIONS_IN_PROMPT_KEY,
+    DEFAULT_MAX_OPTIONS_IN_PROMPT,
+    MAX_TOKENS_KEY,
+    DEFAULT_MAX_TOKENS,
+)
 from blendsql.types import prepare_datatype
 from blendsql.search.searcher import Searcher
 from .examples import QAExample, AnnotatedQAExample
@@ -297,7 +302,10 @@ class LLMQA(QAIngredient):
                             )
                         )
                     gen_f = lambda _: guidance.gen(
-                        max_tokens=kwargs.get("max_tokens", None),
+                        max_tokens=kwargs.get(
+                            "max_tokens",
+                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                        ),
                         regex=regex if self.enable_constrained_decoding else None,
                         name="response",
                     )
@@ -371,7 +379,9 @@ class LLMQA(QAIngredient):
             )
             response = model.generate(
                 messages_list=[messages],
-                max_tokens=kwargs.get("max_tokens", None),
+                max_tokens=kwargs.get(
+                    "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
+                ),
             )[0].strip()
             model.num_generation_calls += 1
             add_to_global_history(messages)
