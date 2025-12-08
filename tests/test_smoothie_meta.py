@@ -52,6 +52,9 @@ def test_num_values_passed_map(bsql, model):
     )[0]
     max_tokens = 1
     for bs in [1, 5, 10]:
+        assert model.completion_tokens == 0
+        assert model.prompt_tokens == 0
+        print(f"{bs=}")
         smoothie = bsql.execute(
             f"""
             SELECT {{{{LLMMap('Is a famous singer?', p.Name, max_tokens={max_tokens})}}}} FROM People p

@@ -97,7 +97,7 @@ def test_llmjoin_with_alias(bsql, model):
 
 def test_llmmap_with_multi_ctes(bsql, model):
     """ae65c2b"""
-    _ = bsql.execute(
+    smoothie = bsql.execute(
         """
         WITH t1 AS (
             SELECT *,
@@ -108,4 +108,10 @@ def test_llmmap_with_multi_ctes(bsql, model):
         ) SELECT * FROM t2 WHERE id > 5000
         """,
         model=model,
+    )
+    assert (
+        smoothie.meta.num_values_passed
+        == bsql.db.execute_to_list(
+            "SELECT COUNT(DISTINCT name) FROM League", to_type=int
+        )[0]
     )
