@@ -340,9 +340,10 @@ class SubqueryContextManager:
 
     def get_exit_condition(self, function_node: exp.Expression) -> Callable | None:
         limit_node = self.node.find(exp.Limit)
+        offset_node = self.node.find(exp.Offset)
         if limit_node is None:
             return None
-        if self.node.find((exp.Or, exp.Group, exp.Order)):
+        if self.node.find((exp.Or, exp.Group, exp.Order, exp.Distinct)):
             # For now, don't try and get an exit condition from a query with an `OR`
             # or, the other expressions. These change the semantics of the `LIMIT`
             return None
@@ -354,9 +355,14 @@ class SubqueryContextManager:
         if isinstance(function_node.parent, exp.Binary):
             # We can apply some exit_condition function
             limit_arg: int = limit_node.expression.to_py()
+            offset_arg = 0
+            if offset_node:
+                offset_arg: int = offset_node.expression.to_py()
             parent_node = function_node.parent
             arg = parent_node.expression.to_py()
-            _exit_condition = lambda d, op: sum(op(v) for v in d.values()) >= limit_arg
+            _exit_condition = (
+                lambda d, op: sum(op(v) for v in d.values()) >= limit_arg + offset_arg
+            )
             if arg == function_node:
                 return None
             if isinstance(parent_node, exp.EQ):
