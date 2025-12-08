@@ -105,28 +105,29 @@ class TestEarlyExitOperations(TimedTestBase):
         Since the whole 'get the first value that satisfies this condition' logic isn't deterministic, we check
         that the single returned name is in our list of viable candidates.
         """
-        smoothie = self.assert_blendsql_equals_sql(
-            bsql,
-            blendsql_query="""
-            SELECT name FROM customers c
-            JOIN orders o 
-            ON c.customer_id = o.customer_id
-            WHERE status = 'shipped'
-            AND {{get_length(country)}} = 2
-            LIMIT 1
-            """,
-            sql_query="""
-            SELECT name FROM customers c
-            JOIN orders o 
-            ON c.customer_id = o.customer_id
-            WHERE status = 'shipped'
-            AND LENGTH(country) = 2
-            LIMIT 1
-            """,
-            expected_num_values_passed=1,
-            skip_assert_equality=True,
-        )
-        assert list(smoothie.df.values.flat)[0] in ["Carol Smith", "David Kim"]
+        for limit_n in range(1, 3):
+            smoothie = self.assert_blendsql_equals_sql(
+                bsql,
+                blendsql_query=f"""
+                SELECT name FROM customers c
+                JOIN orders o 
+                ON c.customer_id = o.customer_id
+                WHERE status = 'shipped'
+                AND {{{{get_length(country)}}}} = 2
+                LIMIT {limit_n}
+                """,
+                sql_query=f"""
+                SELECT name FROM customers c
+                JOIN orders o 
+                ON c.customer_id = o.customer_id
+                WHERE status = 'shipped'
+                AND LENGTH(country) = 2
+                LIMIT {limit_n}
+                """,
+                expected_num_values_passed=limit_n,
+                skip_assert_equality=True,
+            )
+            assert list(smoothie.df.values.flat)[0] in ["Carol Smith", "David Kim"]
 
     def test_regex_search_early_exit(self, bsql):
         smoothie = self.assert_blendsql_equals_sql(
