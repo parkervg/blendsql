@@ -92,7 +92,7 @@ class Smoothie:
 
         # Create side-by-side panels for query and result
         query_panel = Panel(query_syntax, title="Query", border_style="blue")
-        result_panel = Panel(str(self.df), title="Result", border_style="blue")
+        result_panel = Panel(str(self.df.head(5)), title="Result", border_style="blue")
 
         content = Group(Columns([query_panel, result_panel], equal=True), table)
 
