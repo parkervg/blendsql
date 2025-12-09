@@ -6,6 +6,7 @@ from blendsql.types.types import (
     DataTypes,
     STR_TO_DATATYPE,
 )
+from blendsql.db import Database
 from blendsql.common.typing import QuantifierType, DataType
 from blendsql.common.logger import logger, Color
 
@@ -52,3 +53,26 @@ def prepare_datatype(
             )
         )
     return resolved_output_type
+
+
+def apply_type_conversion(s: str, return_type: DataType, db: Database):
+    import ast
+    import re
+
+    is_list_output = return_type.quantifier is not None
+    if is_list_output:
+        try:
+            return [return_type.coerce_fn(c, db) for c in ast.literal_eval(s)]
+        except Exception:
+            # Sometimes we need to first escape single quotes
+            # E.g. in ['Something's wrong here']
+            if return_type.name == "str":
+                return [
+                    [
+                        return_type.coerce_fn(c, db)
+                        for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))
+                    ]
+                ]
+
+    else:
+        return return_type.coerce_fn(s, db)
