@@ -53,6 +53,7 @@ class Smoothie:
         from rich.align import Align
         from rich.panel import Panel
         from rich.syntax import Syntax
+        from rich.markdown import Markdown
         from rich.table import Table
         from rich.columns import Columns
         from blendsql.parse.dialect import get_dialect
@@ -92,7 +93,19 @@ class Smoothie:
 
         # Create side-by-side panels for query and result
         query_panel = Panel(query_syntax, title="Query", border_style="blue")
-        result_panel = Panel(str(self.df.head(5)), title="Result", border_style="blue")
+        total_rows = len(self.df)
+        num_row_limit = 5
+        if total_rows > num_row_limit:
+            df_to_display = self.df.head(num_row_limit)
+            result_title = f"Result ({num_row_limit} out of {total_rows} Rows)"
+        else:
+            df_to_display = self.df
+            result_title = f"Result"
+        result_panel = Panel(
+            Markdown(df_to_display.to_markdown(index=False)),
+            title=result_title,
+            border_style="blue",
+        )
 
         content = Group(Columns([query_panel, result_panel], equal=True), table)
 
