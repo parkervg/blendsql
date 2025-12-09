@@ -470,7 +470,7 @@ class LLMMap(MapIngredient):
                         current_example_str,
                         question,
                         regex,
-                        sorted(options),
+                        options,
                         quantifier,
                         kwargs.get(
                             "max_tokens",

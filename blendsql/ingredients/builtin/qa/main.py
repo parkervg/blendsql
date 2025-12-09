@@ -322,7 +322,7 @@ class LLMQA(QAIngredient):
                         ]
                     ),
                     regex,
-                    sorted(options),
+                    options,
                     quantifier,
                     kwargs.get(
                         "max_tokens",
