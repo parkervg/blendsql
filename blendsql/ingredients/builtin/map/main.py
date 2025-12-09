@@ -525,7 +525,9 @@ class LLMMap(MapIngredient):
                     loaded_lm = True
                     with guidance.user():
                         lm += CONSTRAINED_MAIN_INSTRUCTION
-                        lm += example_str
+                        if example_str != "":
+                            lm += example_str
+                            lm += "\n\nNow, complete the docstring for the following example:"
                         lm += current_example_str
 
                 model.prompt_tokens += len(model.tokenizer.encode(current_example_str))

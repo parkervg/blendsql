@@ -52,6 +52,7 @@ class ConstrainedMapExample(MapExample):
         use_context = self.context_type is not None
 
         s = "\n\n" if add_leading_newlines else ""
+        s += "```python\n"
         if list_options and self.options is not None:
             type_annotation = (
                 f"t.Literal["
@@ -67,7 +68,7 @@ class ConstrainedMapExample(MapExample):
             args_str = "Value from a column in a SQL database."
 
         # Create function signature
-        s += f"""\ndef f(s: str"""
+        s += f"""def f(s: str"""
         if self.context_type == FeatureType.LOCAL:
             s += f""", context: List[str]"""
         if self.options_type == FeatureType.LOCAL:
@@ -113,7 +114,7 @@ class ConstrainedAnnotatedMapExample(ConstrainedMapExample):
             s += f'\n{INDENT(2)}f("{k}") == ' + (
                 f'"{v}"' if isinstance(v, str) else f"{v}"
             )
-        s += f'''\n{INDENT(2)}```\n{INDENT()}"""\n{INDENT()}...'''
+        s += f'''\n{INDENT(2)}```\n{INDENT()}"""\n{INDENT()}...\n```'''
         return s
 
 
