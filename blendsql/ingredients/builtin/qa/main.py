@@ -290,6 +290,7 @@ class LLMQA(QAIngredient):
                     regex=regex,
                     options=options_with_aliases,
                     quantifier=quantifier,
+                    name="response",
                 )
             else:
                 if options and self.enable_constrained_decoding:

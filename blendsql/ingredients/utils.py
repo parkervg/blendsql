@@ -35,16 +35,20 @@ def gen_list(
     quantifier=None,
     options: list[str] | None = None,
     regex: str | None = None,
+    name: str | None = None,
 ):
     if options:
-        single_item = guidance.select(options, list_append=False)
+        single_item = guidance.select(
+            options, list_append=False if name is None else True, name=name
+        )
     else:
         single_item = guidance.gen(
             max_tokens=100,
             regex=regex,
             # Stop at Python list item separators
             stop_regex="""(\n|',|",|']|"])""" if not regex else None,
-            list_append=False,
+            list_append=False if name is None else True,
+            name=name,
         )  # type: ignore
     single_quote = "'"
     double_quote = '"'
