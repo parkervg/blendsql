@@ -55,6 +55,7 @@ class Smoothie:
         from rich.syntax import Syntax
         from rich.table import Table
         from rich.columns import Columns
+        from rich.box import ROUNDED
         from blendsql.parse.dialect import get_dialect
         import sqlglot
 
@@ -92,11 +93,41 @@ class Smoothie:
 
         # Create side-by-side panels for query and result
         query_panel = Panel(query_syntax, title="Query", border_style="blue")
-        result_panel = Panel(str(self.df.head(5)), title="Result", border_style="blue")
+
+        def df_to_table(df: pd.DataFrame, title: str = "") -> Table:
+            table = Table(title=title, show_header=True, show_lines=True)
+
+            # Add columns
+            for col in df.columns:
+                table.add_column(str(col))
+
+            # Add rows
+            for _, row in df.iterrows():
+                table.add_row(*[str(v) for v in row])
+
+            return table
+
+        total_rows = len(self.df)
+        num_row_limit = 5
+        if total_rows > num_row_limit:
+            df_to_display = self.df.head(num_row_limit)
+            result_title = f"Result ({num_row_limit} out of {total_rows} Rows)"
+        else:
+            df_to_display = self.df
+            result_title = f"Result"
+        result_panel = Panel(
+            df_to_table(truncate_df_content(df_to_display, 200)),
+            title=result_title,
+            border_style="blue",
+        )
 
         content = Group(Columns([query_panel, result_panel], equal=True), table)
-
-        console.print(Align.center(content))
+        boxed = Panel(
+            content,
+            box=ROUNDED,  # box style: ROUNDED, DOUBLE, HEAVY, SIMPLE, etc.
+            padding=(1, 2),  # (vertical, horizontal) padding inside
+        )
+        console.print(Align.center(boxed))
 
     def __str__(self):
         return self.summary()

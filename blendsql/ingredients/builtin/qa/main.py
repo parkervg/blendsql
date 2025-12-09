@@ -24,7 +24,7 @@ from blendsql.configure import (
     MAX_TOKENS_KEY,
     DEFAULT_MAX_TOKENS,
 )
-from blendsql.types import prepare_datatype
+from blendsql.types import prepare_datatype, apply_type_conversion
 from blendsql.search.searcher import Searcher
 from .examples import QAExample, AnnotatedQAExample
 
@@ -248,26 +248,31 @@ class LLMQA(QAIngredient):
                 o: o for o in options
             }
 
-        if options is not None and list_options_in_prompt:
-            max_options_in_prompt = int(
-                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
-            )
-            if len(options) > max_options_in_prompt:  # type: ignore
-                if options_searcher is None:
+        if self.options_searcher is None:
+            if options is not None and list_options_in_prompt:
+                max_options_in_prompt = int(
+                    os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
+                )
+                if len(options) > max_options_in_prompt:  # type: ignore
                     logger.debug(
                         Color.warning(
-                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
+                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt:,}.\nWill run inference without explicitly listing these options in the prompt text."
                         )
                     )
                     list_options_in_prompt = False
-                else:
-                    curr_options_searcher = options_searcher(options)
-                    logger.debug(
-                        Color.warning(
-                            f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options out of {len(options):,} total options..."
-                        )
-                    )
-                    options = curr_options_searcher(question)[0]
+        else:
+            logger.debug(
+                Color.warning(
+                    f"Calling provided `options_searcher` to retrieve {self.options_searcher.k} options, out of {len(self.options_searcher.documents):,} total options..."
+                )
+            )
+            options = (
+                self.options_searcher(
+                    f"Context: {context_formatter(context)}\nQuestion: {question}"
+                )[0]
+                if context is not None
+                else self.options_searcher(question)[0]
+            )
 
         if isinstance(model, ConstrainedModel):
             import guidance
@@ -285,11 +290,13 @@ class LLMQA(QAIngredient):
             )
 
             if is_list_output and self.enable_constrained_decoding:
-                gen_f = lambda _: gen_list(
-                    force_quotes=bool("str" in resolved_return_type.name),
-                    regex=regex,
-                    options=options_with_aliases,
-                    quantifier=quantifier,
+                gen_f = lambda _: guidance.capture(
+                    gen_list(
+                        force_quotes=bool("str" in resolved_return_type.name),
+                        regex=regex,
+                        options=options_with_aliases,
+                        quantifier=quantifier,
+                    ),
                     name="response",
                 )
             else:
@@ -352,9 +359,12 @@ class LLMQA(QAIngredient):
                     lm += gen_f(question)
                 add_to_global_history(str(lm))
 
-                response: str = current_example.return_type.coerce_fn(
-                    lm["response"], self.db
+                response = apply_type_conversion(
+                    lm["response"],
+                    return_type=resolved_return_type,
+                    db=self.db,
                 )
+
                 if model.caching:
                     model.cache[key] = response  # type: ignore
 

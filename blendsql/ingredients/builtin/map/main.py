@@ -1,7 +1,6 @@
 import ast
 import logging
 import os
-import re
 from typing import Callable
 from pathlib import Path
 import json
@@ -20,14 +19,19 @@ from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
 from blendsql.common.typing import DataType, QuantifierType
-from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
+from blendsql.ingredients.utils import (
+    initialize_retriever,
+    partialclass,
+    gen_list,
+    _wrap_with_quotes,
+)
 from blendsql.configure import (
     MAX_OPTIONS_IN_PROMPT_KEY,
     DEFAULT_MAX_OPTIONS_IN_PROMPT,
     MAX_TOKENS_KEY,
     DEFAULT_MAX_TOKENS,
 )
-from blendsql.types import prepare_datatype
+from blendsql.types import prepare_datatype, apply_type_conversion
 from .examples import (
     MapExample,
     AnnotatedMapExample,
@@ -37,7 +41,6 @@ from .examples import (
     UnconstrainedAnnotatedMapExample,
     FeatureType,
 )
-from blendsql.db import Database
 from blendsql.search.searcher import Searcher
 
 DEFAULT_MAP_FEW_SHOT: list[AnnotatedMapExample] = [
@@ -61,26 +64,6 @@ UNCONSTRAINED_MAIN_INSTRUCTION = (
     + f" Your output should be separated by '{DEFAULT_ANS_SEP}', answering for each of the values left-to-right.\n"
 )
 DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE = 5
-
-
-def apply_type_conversion(s: str, return_type: DataType, db: Database):
-    is_list_output = return_type.quantifier is not None
-    if is_list_output:
-        try:
-            return [return_type.coerce_fn(c, db) for c in ast.literal_eval(s)]
-        except Exception:
-            # Sometimes we need to first escape single quotes
-            # E.g. in ['Something's wrong here']
-            if return_type.name == "str":
-                return [
-                    [
-                        return_type.coerce_fn(c, db)
-                        for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))
-                    ]
-                ]
-
-    else:
-        return return_type.coerce_fn(s, db)
 
 
 @attrs
@@ -108,7 +91,7 @@ class LLMMap(MapIngredient):
         model: Model | None = None,
         few_shot_examples: list[dict] | list[AnnotatedMapExample] | None = None,
         list_options_in_prompt: bool = True,
-        options_searcher: Callable[[list[str]], Searcher] | None = None,
+        options_searcher: Searcher | None = None,
         batch_size: int | None = None,
         num_few_shot_examples: int | None = None,
         context_searcher: Searcher | None = None,
@@ -289,28 +272,38 @@ class LLMMap(MapIngredient):
         )
 
         # Prep options, if passed
-        curr_options_searcher = None
-        options_in_use_type = FeatureType.GLOBAL
-        if options is not None and list_options_in_prompt:
-            max_options_in_prompt = int(
-                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
+        if self.options_searcher is None:
+            options_in_use_type = FeatureType.GLOBAL
+            if options is not None and list_options_in_prompt:
+                max_options_in_prompt = int(
+                    os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
+                )
+                if len(options) > max_options_in_prompt:
+                    logger.debug(
+                        Color.warning(
+                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt:,}.\nWill run inference without explicitly listing these options in the prompt text."
+                        )
+                    )
+                    list_options_in_prompt = False
+        else:
+            if not isinstance(model, ConstrainedModel):
+                raise NotImplementedError(
+                    "`options_searcher` logic not yet implemented for `UnconstrainedModel` classes.\nUse a `ConstrainedModel` class for now (`LlamaCpp` or `TransformersLLM`)."
+                )
+            logger.debug(
+                Color.warning(
+                    f"Calling provided `options_searcher` to retrieve {self.options_searcher.k} options for each of the {len(values)} unique values, out of {len(self.options_searcher.documents):,} total options..."
+                )
             )
-            if len(options) > max_options_in_prompt:
-                list_options_in_prompt = False
-                if self.options_searcher is None:
-                    logger.debug(
-                        Color.warning(
-                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT.\nWill run inference without explicitly listing these options in the prompt text."
-                        )
-                    )
-                else:
-                    curr_options_searcher = self.options_searcher(options)
-                    options_in_use_type = FeatureType.LOCAL
-                    logger.debug(
-                        Color.warning(
-                            f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options for each value, out of {len(options):,} total options..."
-                        )
-                    )
+            options_in_use_type = FeatureType.LOCAL
+
+        filtered_options: list[str | None] = [None] * len(values)
+        if self.options_searcher is not None:
+            if context_in_use_type is not None:
+                documents = [f"{v} | {c}" for c, v in zip(values, context_in_use)]
+            else:
+                documents = values
+            filtered_options = self.options_searcher(documents)
 
         current_example = MapExample(
             question=question,
@@ -357,48 +350,89 @@ class LLMMap(MapIngredient):
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
                 )
 
+            if self.options_searcher:
+                # Need to create separate gen_f for each set of filtered_options
+                gen_f = [
+                    lambda _, o=o: _wrap_with_quotes(
+                        guidance.select(options=o),
+                        has_options_or_regex=bool(o or regex),
+                        force_quotes=resolved_return_type.requires_quotes,
+                    )
+                    for o in filtered_options
+                ]
             lm = LMString()  # type: ignore
-            if is_list_output and self.enable_constrained_decoding:
-                gen_f = lambda _: gen_list(
-                    force_quotes=resolved_return_type.requires_quotes,
-                    quantifier=quantifier,
-                    options=options,
-                    regex=regex,
-                )
-            else:
-                if options is not None and self.enable_constrained_decoding:
-                    gen_f = lambda _: guidance.select(options=options)  # type: ignore
-                elif (
-                    resolved_return_type.name == "substring"
-                    and self.enable_constrained_decoding
-                ):
-                    # Special case for substring datatypes
-                    gen_f = lambda s: guidance.substring(target_string=s)
-                else:
-                    if not self.enable_constrained_decoding:
-                        logger.debug(
-                            Color.warning(
-                                "Not applying constraints, since `enable_constrained_decoding==False`"
+            # Create base gen_f function
+            gen_f = lambda _: _wrap_with_quotes(
+                guidance.gen(
+                    max_tokens=kwargs.get(
+                        "max_tokens",
+                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                    ),
+                    # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                    stop=None
+                    if regex is not None
+                    else [")", f"\n{INDENT()}"]
+                    + (['"'] if resolved_return_type.requires_quotes else []),
+                    regex=regex if self.enable_constrained_decoding else None,
+                ),
+                has_options_or_regex=bool(options or regex),
+                force_quotes=resolved_return_type.requires_quotes,
+            )
+            if self.enable_constrained_decoding:
+                if is_list_output:
+                    if self.options_searcher is not None:
+                        # Need to create separate gen_f for each set of filtered_options
+                        gen_f = [
+                            lambda _, o=o: gen_list(
+                                force_quotes=resolved_return_type.requires_quotes,
+                                quantifier=quantifier,
+                                options=o,
+                                regex=regex,
                             )
+                            for o in filtered_options
+                        ]
+                    else:
+                        gen_f = lambda _: gen_list(
+                            force_quotes=resolved_return_type.requires_quotes,
+                            quantifier=quantifier,
+                            options=options,
+                            regex=regex,
                         )
-                    gen_f = lambda _: guidance.gen(
-                        max_tokens=kwargs.get(
-                            "max_tokens",
-                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
-                        ),
-                        # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                        stop=None
-                        if regex is not None
-                        else [")", f"\n{INDENT()}"]
-                        + (['"'] if resolved_return_type.name == "str" else []),
-                        regex=regex if self.enable_constrained_decoding else None,
-                    )  # type: ignore
+                else:
+                    if self.options_searcher is not None:
+                        # Need to create separate gen_f for each set of filtered_options
+                        gen_f = [
+                            lambda _, o=o: _wrap_with_quotes(
+                                guidance.select(options=o),
+                                has_options_or_regex=bool(o or regex),
+                                force_quotes=resolved_return_type.requires_quotes,
+                            )
+                            for o in filtered_options
+                        ]
+                    elif options is not None:
+                        gen_f = lambda _: _wrap_with_quotes(
+                            guidance.select(options=options),
+                            has_options_or_regex=bool(options or regex),
+                            force_quotes=resolved_return_type.requires_quotes,
+                        )
+                    elif resolved_return_type.name == "substring":
+                        # Special case for substring datatypes
+                        gen_f = lambda s: _wrap_with_quotes(
+                            guidance.substring(target_string=s),
+                            has_options_or_regex=bool(options or regex),
+                            force_quotes=resolved_return_type.requires_quotes,
+                        )
+            else:
+                logger.debug(
+                    Color.warning(
+                        "Not applying constraints, since `enable_constrained_decoding==False`"
+                    )
+                )
 
             def make_prediction(
                 value: str,
                 context: str | list[str] | None,
                 local_options: list[str] | None,
-                force_quotes: bool,
                 gen_f: Callable,
             ) -> str:
                 """If `context` is a string, it is a serialized table subset.
@@ -413,7 +447,7 @@ class LLMMap(MapIngredient):
                     context, list
                 ):  # If it's a string, it's already been added in docstring as global context
                     gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
-                    json_str = json.dumps(context, ensure_ascii=False, indent=20)[:-1]
+                    json_str = json.dumps(context, ensure_ascii=False, indent=16)[:-1]
                     gen_str += (
                         f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)}"
                     )
@@ -424,8 +458,7 @@ class LLMMap(MapIngredient):
                     )
                 if local_options is not None:
                     gen_str += f",\n{INDENT(2)}{local_options}"
-                # TODO: could allow model to generate either single or double quotes, but then this function wouldn't be stateless
-                gen_str += f""") == {'"' if force_quotes else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if force_quotes else ''}"""
+                gen_str += f""") == {guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}"""
                 return gen_str
 
             example_str = ""
@@ -433,21 +466,15 @@ class LLMMap(MapIngredient):
                 for example in few_shot_examples:
                     example_str += example.to_string()
 
-            filtered_options: list[str | None] = [None] * len(values)
-            if curr_options_searcher is not None:
-                if context_in_use_type is not None:
-                    documents = [f"{v} {c}" for c, v in zip(values, context_in_use)]
-                else:
-                    documents = values
-                filtered_options = curr_options_searcher(documents)
-
             lm_mapping = {}  # Where we store the final type-cast results
             loaded_lm = False
             batch_inference_strings = []
             batch_inference_identifiers = []
             all_identifiers = []
             identifier_to_cache_key = {}
-            for c, v, o in zip(context_in_use, values, filtered_options):
+            for idx, (c, v, o) in enumerate(
+                zip(context_in_use, values, filtered_options)
+            ):
                 curr_identifier = v
                 if c is not None:
                     curr_identifier += f"_{c}"
@@ -479,7 +506,13 @@ class LLMMap(MapIngredient):
                         c,
                         v,
                         o,
-                        funcs=[make_prediction, gen_f],
+                        funcs=[
+                            make_prediction,
+                            gen_f[idx]
+                            if self.options_searcher is not None
+                            and self.enable_constrained_decoding
+                            else gen_f,
+                        ],
                     )
                     if cached_response is not None:
                         lm_mapping[curr_identifier] = cached_response
@@ -503,8 +536,10 @@ class LLMMap(MapIngredient):
                             value=v,
                             context=c,
                             local_options=o,
-                            force_quotes=resolved_return_type.requires_quotes,
-                            gen_f=gen_f,
+                            gen_f=gen_f[idx]
+                            if self.options_searcher is not None
+                            and self.enable_constrained_decoding
+                            else gen_f,
                         )
                     )
                     batch_inference_identifiers.append(curr_identifier)
@@ -566,7 +601,7 @@ class LLMMap(MapIngredient):
                 lm_mapping.get(identifier, None) for identifier in all_identifiers
             ]
             logger.debug(
-                Color.warning(
+                lambda: Color.warning(
                     f"Finished LLMMap with values:\n{json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4)}"
                 )
             )

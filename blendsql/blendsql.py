@@ -194,46 +194,40 @@ def preprocess_blendsql(
 
     ingredient_alias_to_parsed_dict: dict[str, dict] = {}
     function_hash_to_alias: dict[str, str] = {}
-    for idx, function_node in enumerate(node.find_all(exp.BlendSQLFunction)):
-        parsed_results_dict = {}
-        kwargs_dict = {}
+    alias_counter = 0
+    for function_node in node.find_all(exp.BlendSQLFunction):
         function_name = function_node.name
-        parsed_results_dict["function"] = function_name
-        function_args, function_kwargs = [], {}
-        function_args.extend(
-            [process_arg_value(arg_node) for arg_node in function_node.fn_args]
-        )
-        for kwarg_node in function_node.fn_kwargs:
-            function_kwargs = {
-                **function_kwargs,
-                **{kwarg_node.name.this: process_arg_value(kwarg_node.value)},
-            }
+        function_args = [process_arg_value(arg) for arg in function_node.fn_args]
+        function_kwargs = {
+            kw.name.this: process_arg_value(kw.value) for kw in function_node.fn_kwargs
+        }
         function_hash = hash(f"{function_name} {function_args} {function_kwargs}")
         if function_hash in function_hash_to_alias:
-            # If we've already processed this function, no need to do it again
             ingredient_aliasname = function_hash_to_alias[function_hash]
         else:
-            ingredient_aliasname = string.ascii_uppercase[idx]
+            ingredient_aliasname = string.ascii_uppercase[alias_counter]
             function_hash_to_alias[function_hash] = ingredient_aliasname
+            alias_counter += 1
+
+            # Bind arguments to function
+            from inspect import signature
+
+            current_ingredient = kitchen.get_from_name(function_name)
+            sig = signature(current_ingredient)
+            bound = sig.bind(*function_args, **function_kwargs)
+            # Below we track the 'raw' representation, in case we need to pass into
+            #   a recursive BlendSQL call later
+            ingredient_alias_to_parsed_dict[ingredient_aliasname] = {
+                "function": function_name,
+                "raw": function_node.sql(dialect=dialect),
+                "kwargs_dict": {
+                    "model": default_model,
+                    **bound.arguments,
+                    **bound.kwargs,
+                },
+            }
 
         substituted_ingredient_alias = format_blendsql_function(ingredient_aliasname)
-
-        kwargs_dict["model"] = default_model
-
-        # Bind arguments to function
-        from inspect import signature
-
-        current_ingredient = kitchen.get_from_name(function_name)
-        sig = signature(current_ingredient)
-        bound = sig.bind(*function_args, **function_kwargs)
-        kwargs_dict = {**kwargs_dict, **bound.arguments, **bound.kwargs}
-
-        # Below we track the 'raw' representation, in case we need to pass into
-        #   a recursive BlendSQL call later
-        ingredient_alias_to_parsed_dict[ingredient_aliasname] = parsed_results_dict | {
-            "raw": function_node.sql(dialect=dialect),
-            "kwargs_dict": kwargs_dict,
-        }
         aliased_function_node = exp.Column(
             this=exp.Identifier(this=substituted_ingredient_alias)
         )
@@ -749,7 +743,6 @@ def _blend(
                 #  But also update our underlying table, so we can execute correctly at the end
                 (new_col, tablename, colname, new_table) = function_out
                 prev_subquery_map_columns.add(new_col)
-                new_table[new_table[new_col].notnull()]
                 if tablename in tablename_to_map_out:
                     tablename_to_map_out[tablename].append(new_table)
                 else:

@@ -49,6 +49,13 @@ class DataTypes:
         _coerce_fn=lambda s, _: s,
         requires_quotes=True,
     )
+    SUBSTRING = lambda quantifier=None: DataType(
+        _name="substring",
+        regex=None,
+        quantifier=quantifier,
+        _coerce_fn=lambda s, _: s,
+        requires_quotes=True,
+    )
     BOOL = lambda quantifier=None: DataType(
         _name="bool",
         regex=r"(t|f|true|false|True|False)",
@@ -91,7 +98,7 @@ STR_TO_DATATYPE: dict[str, DataType] = {
     "float": DataTypes.FLOAT(),
     "bool": DataTypes.BOOL(),
     "date": DataTypes.ISO_8601_DATE(),
-    "substring": DataTypes.STR(),
+    "substring": DataTypes.SUBSTRING(),
     "any": DataTypes.ANY(),
     "list[Any]": DataTypes.ANY("*"),
     "list[str]": DataTypes.STR("*"),
