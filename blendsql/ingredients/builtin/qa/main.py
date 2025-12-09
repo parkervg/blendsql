@@ -322,9 +322,12 @@ class LLMQA(QAIngredient):
                         ]
                     ),
                     regex,
-                    options,
+                    sorted(options),
                     quantifier,
-                    kwargs.get("max_tokens", 200),
+                    kwargs.get(
+                        "max_tokens",
+                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                    ),
                     funcs=[gen_f],
                 )
                 if response is not None:

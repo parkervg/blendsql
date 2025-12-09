@@ -470,7 +470,7 @@ class LLMMap(MapIngredient):
                         current_example_str,
                         question,
                         regex,
-                        options,
+                        sorted(options),
                         quantifier,
                         kwargs.get(
                             "max_tokens",
@@ -567,7 +567,7 @@ class LLMMap(MapIngredient):
             ]
             logger.debug(
                 Color.warning(
-                    f"Finished LLMMap with values:\n{json.dumps(dict(islice(lm_mapping.items(), 10)), indent=4)}"
+                    f"Finished LLMMap with values:\n{json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4)}"
                 )
             )
             return mapped_values

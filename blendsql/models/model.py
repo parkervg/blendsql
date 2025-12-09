@@ -64,6 +64,7 @@ class Model:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     num_generation_calls: int = 0
+    num_cache_hits: int = 0
 
     def __attrs_post_init__(self):
         self.cache = Cache(
@@ -126,7 +127,12 @@ class Model:
         response: dict[str, str] = None  # type: ignore
         key: str = self._create_key(funcs=funcs, *args, **kwargs)
         if key in self.cache:
-            logger.debug(Color.model_or_data_update("Using model cache..."))
+            logger.debug(
+                Color.model_or_data_update(
+                    f"Using model cache ({self.num_cache_hits})..."
+                )
+            )
+            self.num_cache_hits += 1
             response = self.cache.get(key)  # type: ignore
         return (response, key)
 
@@ -134,6 +140,7 @@ class Model:
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.num_generation_calls = 0
+        self.num_cache_hits = 0
 
     def tokenizer_encode(self, s: str):
         return self.tokenizer.encode(s)
