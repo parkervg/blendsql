@@ -10,7 +10,7 @@ from functools import partial
 
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.typing import QuantifierType, ColumnRef
-from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE
+from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE, prepare_datatype
 from blendsql.common.logger import logger, Color
 from .dialect import _parse_one
 from . import checks as check
@@ -552,6 +552,17 @@ class SubqueryContextManager:
                 # Fallback to a generic list datatype
                 return_type = DataTypes.STR(quantifier)
         added_kwargs["return_type"] = return_type
+        if return_type is not None:
+            logger.debug(
+                Color.quiet_update(
+                    f"""Inferred return_type {
+                    prepare_datatype(
+                        return_type=return_type, 
+                        options=added_kwargs.get('options'), 
+                        quantifier=quantifier
+                    ).name} given expression context"""
+                )
+            )
         return added_kwargs
 
     def sql(self):
