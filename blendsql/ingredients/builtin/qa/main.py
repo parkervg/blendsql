@@ -24,7 +24,7 @@ from blendsql.configure import (
     MAX_TOKENS_KEY,
     DEFAULT_MAX_TOKENS,
 )
-from blendsql.types import prepare_datatype
+from blendsql.types import prepare_datatype, apply_type_conversion
 from blendsql.search.searcher import Searcher
 from .examples import QAExample, AnnotatedQAExample
 
@@ -285,11 +285,13 @@ class LLMQA(QAIngredient):
             )
 
             if is_list_output and self.enable_constrained_decoding:
-                gen_f = lambda _: gen_list(
-                    force_quotes=bool("str" in resolved_return_type.name),
-                    regex=regex,
-                    options=options_with_aliases,
-                    quantifier=quantifier,
+                gen_f = lambda _: guidance.capture(
+                    gen_list(
+                        force_quotes=bool("str" in resolved_return_type.name),
+                        regex=regex,
+                        options=options_with_aliases,
+                        quantifier=quantifier,
+                    ),
                     name="response",
                 )
             else:
@@ -352,9 +354,12 @@ class LLMQA(QAIngredient):
                     lm += gen_f(question)
                 add_to_global_history(str(lm))
 
-                response: str = current_example.return_type.coerce_fn(
-                    lm["response"], self.db
+                response = apply_type_conversion(
+                    lm["response"],
+                    return_type=resolved_return_type,
+                    db=self.db,
                 )
+
                 if model.caching:
                     model.cache[key] = response  # type: ignore
 

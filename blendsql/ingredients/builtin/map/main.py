@@ -1,7 +1,6 @@
 import ast
 import logging
 import os
-import re
 from typing import Callable
 from pathlib import Path
 import json
@@ -32,7 +31,7 @@ from blendsql.configure import (
     MAX_TOKENS_KEY,
     DEFAULT_MAX_TOKENS,
 )
-from blendsql.types import prepare_datatype
+from blendsql.types import prepare_datatype, apply_type_conversion
 from .examples import (
     MapExample,
     AnnotatedMapExample,
@@ -42,7 +41,6 @@ from .examples import (
     UnconstrainedAnnotatedMapExample,
     FeatureType,
 )
-from blendsql.db import Database
 from blendsql.search.searcher import Searcher
 
 DEFAULT_MAP_FEW_SHOT: list[AnnotatedMapExample] = [
@@ -66,26 +64,6 @@ UNCONSTRAINED_MAIN_INSTRUCTION = (
     + f" Your output should be separated by '{DEFAULT_ANS_SEP}', answering for each of the values left-to-right.\n"
 )
 DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE = 5
-
-
-def apply_type_conversion(s: str, return_type: DataType, db: Database):
-    is_list_output = return_type.quantifier is not None
-    if is_list_output:
-        try:
-            return [return_type.coerce_fn(c, db) for c in ast.literal_eval(s)]
-        except Exception:
-            # Sometimes we need to first escape single quotes
-            # E.g. in ['Something's wrong here']
-            if return_type.name == "str":
-                return [
-                    [
-                        return_type.coerce_fn(c, db)
-                        for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))
-                    ]
-                ]
-
-    else:
-        return return_type.coerce_fn(s, db)
 
 
 @attrs
@@ -430,7 +408,7 @@ class LLMMap(MapIngredient):
                     context, list
                 ):  # If it's a string, it's already been added in docstring as global context
                     gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
-                    json_str = json.dumps(context, ensure_ascii=False, indent=20)[:-1]
+                    json_str = json.dumps(context, ensure_ascii=False, indent=28)[:-1]
                     gen_str += (
                         f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)}"
                     )
