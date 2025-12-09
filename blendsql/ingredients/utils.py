@@ -59,7 +59,7 @@ def gen_list(
     regex: str | None = None,
 ):
     if options:
-        single_item = guidance.select(options, list_append=True, name="response")
+        single_item = guidance.select(options, list_append=False)
     else:
         single_item = guidance.gen(
             max_tokens=100,
