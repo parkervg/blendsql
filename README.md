@@ -194,7 +194,7 @@ As a result, we can *Blend* together...
 
 ### Core Design Principle: Be Lazy 😴
 
-This is embodied in a few different ways - [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), [only load language models into memory if we use them](https://github.com/parkervg/blendsql/blob/main/blendsql/models/model.py#L213), [only pass values to scalar LM functions in `SELECT` statements *after* applying `LIMIT` clauses](https://github.com/parkervg/blendsql/pull/27), etc.
+This is embodied in a few different ways - [early exit LLM functions when `LIMIT` clauses are used](https://github.com/parkervg/blendsql/pull/57), [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), [only load language models into memory if we use them](https://github.com/parkervg/blendsql/blob/main/blendsql/models/model.py#L213), etc.
 
 But, at a higher level: Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data into memory that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally sync back to the native SQL dialect and execute. In this way, BlendSQL 'compiles to SQL'.
 
@@ -215,7 +215,7 @@ For more info on query execution in BlendSQL, see Section 2.4 [here](https://arx
 - Supports many DBMS 💾
   - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
 - Supports local & remote models ✨
-  - Transformers, OpenAI, Anthropic, Ollama, and 100+ more!
+  - LlamaCpp, Transformers, OpenAI, Anthropic, Ollama, and 100+ more!
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
