@@ -360,10 +360,6 @@ def disambiguate_and_submit_blend(
     return _blend(query=query, **kwargs)
 
 
-import line_profiler
-
-
-@line_profiler.profile
 def _blend(
     query: str,
     db: Database,
