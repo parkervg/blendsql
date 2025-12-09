@@ -127,12 +127,12 @@ class Model:
         response: dict[str, str] = None  # type: ignore
         key: str = self._create_key(funcs=funcs, *args, **kwargs)
         if key in self.cache:
+            self.num_cache_hits += 1
             logger.debug(
                 Color.model_or_data_update(
                     f"Using model cache ({self.num_cache_hits})..."
                 )
             )
-            self.num_cache_hits += 1
             response = self.cache.get(key)  # type: ignore
         return (response, key)
 
