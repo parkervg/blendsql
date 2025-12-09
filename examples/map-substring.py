@@ -23,7 +23,6 @@ if __name__ == "__main__":
             config={"n_gpu_layers": -1},
         )
         if torch.cuda.is_available()
-        # else LiteLLM("openai/gpt-4o"),
         else TransformersLLM("HuggingFaceTB/SmolLM2-135M-Instruct"),
         verbose=True,
     )

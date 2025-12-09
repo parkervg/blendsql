@@ -48,7 +48,8 @@ bsql = BlendSQL(
 
 # Create embeddings for the concatenation of `title` and `content` columns
 DocumentSearch = LLMQA.from_args(
-    searcher=FaissVectorStore(
+    context_searcher=FaissVectorStore(
+        "sentence-transformers/all-mpnet-base-v2",
         documents=bsql.db.execute_to_list(
             "SELECT CONCAT(title, ' | ', content) FROM documents;"
         ),

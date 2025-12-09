@@ -65,7 +65,7 @@ if __name__ == "__main__":
     _ = bsql.model.model_obj
 
     WikipediaSearchMap = LLMMap.from_args(
-        searcher=ColbertWikipediaSearch(
+        context_searcher=ColbertWikipediaSearch(
             k=1,  # Retrieve 1 document for each scalar value on the map call
         ),
     )
