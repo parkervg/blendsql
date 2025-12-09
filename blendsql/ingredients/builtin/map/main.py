@@ -20,7 +20,12 @@ from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
 from blendsql.common.typing import DataType, QuantifierType
-from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
+from blendsql.ingredients.utils import (
+    initialize_retriever,
+    partialclass,
+    gen_list,
+    _wrap_with_quotes,
+)
 from blendsql.configure import (
     MAX_OPTIONS_IN_PROMPT_KEY,
     DEFAULT_MAX_OPTIONS_IN_PROMPT,
@@ -367,13 +372,21 @@ class LLMMap(MapIngredient):
                 )
             else:
                 if options is not None and self.enable_constrained_decoding:
-                    gen_f = lambda _: guidance.select(options=options)  # type: ignore
+                    gen_f = lambda _: _wrap_with_quotes(
+                        guidance.select(options=options),
+                        has_options_or_regex=bool(options or regex),
+                        force_quotes=resolved_return_type.requires_quotes,
+                    )
                 elif (
                     resolved_return_type.name == "substring"
                     and self.enable_constrained_decoding
                 ):
                     # Special case for substring datatypes
-                    gen_f = lambda s: guidance.substring(target_string=s)
+                    gen_f = lambda s: _wrap_with_quotes(
+                        guidance.substring(target_string=s),
+                        has_options_or_regex=bool(options or regex),
+                        force_quotes=resolved_return_type.requires_quotes,
+                    )
                 else:
                     if not self.enable_constrained_decoding:
                         logger.debug(
@@ -381,18 +394,22 @@ class LLMMap(MapIngredient):
                                 "Not applying constraints, since `enable_constrained_decoding==False`"
                             )
                         )
-                    gen_f = lambda _: guidance.gen(
-                        max_tokens=kwargs.get(
-                            "max_tokens",
-                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                    gen_f = lambda _: _wrap_with_quotes(
+                        guidance.gen(
+                            max_tokens=kwargs.get(
+                                "max_tokens",
+                                int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                            ),
+                            # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                            stop=None
+                            if regex is not None
+                            else [")", f"\n{INDENT()}"]
+                            + (['"'] if resolved_return_type.name == "str" else []),
+                            regex=regex if self.enable_constrained_decoding else None,
                         ),
-                        # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                        stop=None
-                        if regex is not None
-                        else [")", f"\n{INDENT()}"]
-                        + (['"'] if resolved_return_type.name == "str" else []),
-                        regex=regex if self.enable_constrained_decoding else None,
-                    )  # type: ignore
+                        has_options_or_regex=bool(options or regex),
+                        force_quotes=resolved_return_type.requires_quotes,
+                    )
 
             def make_prediction(
                 value: str,
@@ -424,8 +441,7 @@ class LLMMap(MapIngredient):
                     )
                 if local_options is not None:
                     gen_str += f",\n{INDENT(2)}{local_options}"
-                # TODO: could allow model to generate either single or double quotes, but then this function wouldn't be stateless
-                gen_str += f""") == {'"' if force_quotes else ''}{guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}{'"' if force_quotes else ''}"""
+                gen_str += f""") == {guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}"""
                 return gen_str
 
             example_str = ""
