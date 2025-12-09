@@ -560,7 +560,7 @@ class LLMMap(MapIngredient):
                 lm_mapping.get(identifier, None) for identifier in all_identifiers
             ]
             logger.debug(
-                Color.warning(
+                lambda: Color.warning(
                     f"Finished LLMMap with values:\n{json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4)}"
                 )
             )

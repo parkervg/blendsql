@@ -535,7 +535,7 @@ class SubqueryContextManager:
         added_kwargs["return_type"] = return_type
         if return_type is not None:
             logger.debug(
-                Color.quiet_update(
+                lambda: Color.quiet_update(
                     f"""Inferred return_type {
                     prepare_datatype(
                         return_type=return_type, 
