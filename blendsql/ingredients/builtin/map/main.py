@@ -361,6 +361,23 @@ class LLMMap(MapIngredient):
                     for o in filtered_options
                 ]
             lm = LMString()  # type: ignore
+            # Create base gen_f function
+            gen_f = lambda _: _wrap_with_quotes(
+                guidance.gen(
+                    max_tokens=kwargs.get(
+                        "max_tokens",
+                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                    ),
+                    # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                    stop=None
+                    if regex is not None
+                    else [")", f"\n{INDENT()}"]
+                    + (['"'] if resolved_return_type.requires_quotes else []),
+                    regex=regex if self.enable_constrained_decoding else None,
+                ),
+                has_options_or_regex=bool(options or regex),
+                force_quotes=resolved_return_type.requires_quotes,
+            )
             if self.enable_constrained_decoding:
                 if is_list_output:
                     if self.options_searcher is not None:
@@ -392,7 +409,7 @@ class LLMMap(MapIngredient):
                             )
                             for o in filtered_options
                         ]
-                    if options is not None:
+                    elif options is not None:
                         gen_f = lambda _: _wrap_with_quotes(
                             guidance.select(options=options),
                             has_options_or_regex=bool(options or regex),
@@ -410,22 +427,6 @@ class LLMMap(MapIngredient):
                     Color.warning(
                         "Not applying constraints, since `enable_constrained_decoding==False`"
                     )
-                )
-                gen_f = lambda _: _wrap_with_quotes(
-                    guidance.gen(
-                        max_tokens=kwargs.get(
-                            "max_tokens",
-                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
-                        ),
-                        # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                        stop=None
-                        if regex is not None
-                        else [")", f"\n{INDENT()}"]
-                        + (['"'] if resolved_return_type.name == "str" else []),
-                        regex=regex if self.enable_constrained_decoding else None,
-                    ),
-                    has_options_or_regex=bool(options or regex),
-                    force_quotes=resolved_return_type.requires_quotes,
                 )
 
             def make_prediction(

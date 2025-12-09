@@ -55,6 +55,7 @@ class Smoothie:
         from rich.syntax import Syntax
         from rich.table import Table
         from rich.columns import Columns
+        from rich.box import ROUNDED
         from blendsql.parse.dialect import get_dialect
         import sqlglot
 
@@ -121,8 +122,12 @@ class Smoothie:
         )
 
         content = Group(Columns([query_panel, result_panel], equal=True), table)
-
-        console.print(Align.center(content))
+        boxed = Panel(
+            content,
+            box=ROUNDED,  # box style: ROUNDED, DOUBLE, HEAVY, SIMPLE, etc.
+            padding=(1, 2),  # (vertical, horizontal) padding inside
+        )
+        console.print(Align.center(boxed))
 
     def __str__(self):
         return self.summary()
