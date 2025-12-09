@@ -63,33 +63,14 @@ def get_scope_nodes(
 
 @attrs
 class QueryContextManager:
-    """Handles manipulation of underlying SQL query.
-    We need to maintain two synced representations here:
-
-        1) The underlying sqlglot exp.Expression node
-
-        2) The string representation of the query
-    """
-
     dialect: sqlglot.Dialect = attrib()
-
     node: exp.Expression = attrib(default=None)
-    _query: str = attrib(default=None)
-    _last_to_string_node: exp.Expression = None
 
-    def parse(self, query, schema: dict | Schema | None = None):
-        self._query = query
+    def parse(self, query: str, schema: dict | Schema | None = None):
         self.node = _parse_one(query, dialect=self.dialect, schema=schema)
 
     def to_string(self):
-        # Only call `sql` if we need to
-        if hash(self.node) != hash(self._last_to_string_node):
-            self._query = self.node.sql(dialect=self.dialect)
-            self.last_to_string_node = self.node
-        return self._query
-
-    def __setattr__(self, name, value):
-        self.__dict__[name] = value
+        return self.node.sql(dialect=self.dialect)
 
 
 @attrs
