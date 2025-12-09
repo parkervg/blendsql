@@ -372,10 +372,11 @@ from blendsql.ingredients import LLMMap
 
 USE_TAVILY = True # This requires a `.env` file with a `TAVILY_API_KEY` variable defined
 if USE_TAVILY:
-  searcher = TavilySearch(k=3)
+  context_searcher = TavilySearch(k=3)
 else:
   # We can also define a local FAISS vector store
-  searcher = FaissVectorStore(
+  context_searcher = FaissVectorStore(
+    "sentence-transformers/all-mpnet-base-v2",
     documents=[
       "Ryan Steven Lochte (/ˈlɒkti/ LOK-tee; born August 3, 1984) is an American former[2] competition swimmer and 12-time Olympic medalist.",
       "Rebecca Soni (born March 18, 1987) is an American former competition swimmer and breaststroke specialist.",
@@ -385,7 +386,7 @@ else:
   )
 
 DocumentSearchMap = LLMMap.from_args(
-  searcher=searcher
+  context_searcher=context_searcher
 )
 
 # This line registers our new function in our `BlendSQL` connection context
@@ -517,7 +518,8 @@ bsql = BlendSQL(
 USE_SEARCH = True 
 if USE_SEARCH:
   LLMQA = LLMQA.from_args(
-    searcher=FaissVectorStore(
+    context_searcher=FaissVectorStore(
+      "sentence-transformers/all-mpnet-base-v2",
       documents=bsql.db.execute_to_list("SELECT DISTINCT title || content FROM documents"),
       k=3
     )
