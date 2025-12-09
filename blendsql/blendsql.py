@@ -437,7 +437,7 @@ def _blend(
         except Exception as e:
             logger.error(f"Error while materializing tables: {e}")
         logger.debug(Color.warning(f"No BlendSQL ingredients found in query:"))
-        logger.debug(Color.light_warning(query))
+        logger.debug(Color.quiet_sql(query))
         logger.debug(Color.warning(f"Executing as vanilla SQL..."))
         return Smoothie(
             df=db.execute_to_df(query_context.to_string()),
