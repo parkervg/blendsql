@@ -749,7 +749,6 @@ def _blend(
                 #  But also update our underlying table, so we can execute correctly at the end
                 (new_col, tablename, colname, new_table) = function_out
                 prev_subquery_map_columns.add(new_col)
-                new_table[new_table[new_col].notnull()]
                 if tablename in tablename_to_map_out:
                     tablename_to_map_out[tablename].append(new_table)
                 else:
