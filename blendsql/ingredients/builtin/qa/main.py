@@ -248,26 +248,31 @@ class LLMQA(QAIngredient):
                 o: o for o in options
             }
 
-        if options is not None and list_options_in_prompt:
-            max_options_in_prompt = int(
-                os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
-            )
-            if len(options) > max_options_in_prompt:  # type: ignore
-                if options_searcher is None:
+        if self.options_searcher is None:
+            if options is not None and list_options_in_prompt:
+                max_options_in_prompt = int(
+                    os.getenv(MAX_OPTIONS_IN_PROMPT_KEY, DEFAULT_MAX_OPTIONS_IN_PROMPT)
+                )
+                if len(options) > max_options_in_prompt:  # type: ignore
                     logger.debug(
                         Color.warning(
-                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt}.\nWill run inference without explicitly listing these options in the prompt text."
+                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt:,}.\nWill run inference without explicitly listing these options in the prompt text."
                         )
                     )
                     list_options_in_prompt = False
-                else:
-                    curr_options_searcher = options_searcher(options)
-                    logger.debug(
-                        Color.warning(
-                            f"Calling provided `options_searcher` to retrieve {curr_options_searcher.k} options out of {len(options):,} total options..."
-                        )
-                    )
-                    options = curr_options_searcher(question)[0]
+        else:
+            logger.debug(
+                Color.warning(
+                    f"Calling provided `options_searcher` to retrieve {self.options_searcher.k} options, out of {len(self.options_searcher.documents):,} total options..."
+                )
+            )
+            options = (
+                self.options_searcher(
+                    f"Context: {context_formatter(context)}\nQuestion: {question}"
+                )[0]
+                if context is not None
+                else self.options_searcher(question)[0]
+            )
 
         if isinstance(model, ConstrainedModel):
             import guidance
