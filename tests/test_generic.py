@@ -44,7 +44,7 @@ def test_error_on_delete2(bsql):
         )
 
 
-def test_error_on_duplicate_ingredient_names(bsql):
+def test_error_on_duplicate_ingredient_names(bsql, model):
     with pytest.raises(IngredientException):
         _ = bsql.execute(
             """
