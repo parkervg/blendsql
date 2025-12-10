@@ -376,7 +376,7 @@ if USE_TAVILY:
 else:
   # We can also define a local FAISS vector store
   context_searcher = FaissVectorStore(
-    "sentence-transformers/all-mpnet-base-v2",
+    model_name_or_path="sentence-transformers/all-mpnet-base-v2",
     documents=[
       "Ryan Steven Lochte (/ˈlɒkti/ LOK-tee; born August 3, 1984) is an American former[2] competition swimmer and 12-time Olympic medalist.",
       "Rebecca Soni (born March 18, 1987) is an American former competition swimmer and breaststroke specialist.",
@@ -519,7 +519,7 @@ USE_SEARCH = True
 if USE_SEARCH:
   LLMQA = LLMQA.from_args(
     context_searcher=FaissVectorStore(
-      "sentence-transformers/all-mpnet-base-v2",
+      model_name_or_path="sentence-transformers/all-mpnet-base-v2",
       documents=bsql.db.execute_to_list("SELECT DISTINCT title || content FROM documents"),
       k=3
     )
