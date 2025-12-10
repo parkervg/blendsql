@@ -206,7 +206,7 @@ For more info on query execution in BlendSQL, see Section 2.4 [here](https://arx
 - (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
 - (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
 - (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
-- (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
+- (10/26/24) New tutorial! [blendsql-by-example.ipynb](https://github.com/parkervg/blendsql/blob/main/examples/blendsql-by-example.ipynb)
 - (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
   - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
 
