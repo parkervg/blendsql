@@ -3,7 +3,7 @@ import pandas as pd
 from blendsql import BlendSQL
 from blendsql.db import Pandas
 from blendsql.common.exceptions import IngredientException, InvalidBlendSQL
-from blendsql.ingredients import LLMQA
+from blendsql.ingredients import LLMQA, LLMMap
 from tests.utils import select_first_option
 
 
