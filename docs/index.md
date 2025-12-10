@@ -425,7 +425,7 @@ print(GLOBAL_HISTORY)
 
 Notice in the above example - what if two athletes were born in the same year, but different days? 
 
-In this case, simply fetching the year of birth isn't enough for the ordering we need to do. For cases when the required datatype is unable to be inferred via expression context, you can override the inferred default via passing `return_type`. The following are valid. 
+In this case, simply fetching the year of birth isn't enough for the ordering we need to do. For cases when the required datatype is unable to be inferred via expression context, you can override the inferred default via passing `return_type`. The following are valid. All below can be wrapped in a `List[...]` type.
 
 | `return_type` Argument | Regex                                                                                                  | DB Mapping Logic                                                                                                                     |
 |------------------------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
@@ -434,7 +434,7 @@ In this case, simply fetching the year of birth isn't enough for the ordering we
 | `int`                  | `r"-?(\d+)"`                                                                                           |                                                                                                                                      |
 | `float`                | `r"-?(\d+(\.\d+)?)"`                                                                                   |                                                                                                                                      |
 | `bool`                 | `r"(t\|f\|true\|false\|True\|False)"`                                                                  |                                                                                                                                      |
-| `substring`            | complicated - see https://github.com/guidance-ai/guidance/blob/main/guidance/library/_substring.py#L11 |                                                                                                                                      |
+| `substring` (*Only valid for LLMMap)           | complicated - see https://github.com/guidance-ai/guidance/blob/main/guidance/library/_substring.py#L11 |                                                                                                                                      |
 | `date`                 | `r"\d{4}-\d{2}-\d{2}"`                                                                                 | The ISO8601 is inserted into the query as a date type. This differs for different DBMS - in DuckDB, it would be `'1992-09-20'::DATE` |
 
 ```python
