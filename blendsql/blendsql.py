@@ -57,7 +57,7 @@ class Kitchen(list):
     def __attrs_post_init__(self):
         self.name_to_ingredient = {}
 
-    def get_from_name(self, name: str, flag_duplicates: bool = True):
+    def get_from_name(self, name: str):
         try:
             return self.name_to_ingredient[name.upper()]
         except KeyError:
@@ -65,9 +65,7 @@ class Kitchen(list):
                 f"Ingredient '{name}' called, but not found in passed `ingredient` arg!"
             ) from None
 
-    def extend(
-        self, ingredients: Iterable[Type[Ingredient]], flag_duplicates: bool = True
-    ) -> None:
+    def extend(self, ingredients: Iterable[Type[Ingredient]]) -> None:
         """Initializes ingredients class with base attributes, for use in later operations."""
         try:
             if not all(issubclass(x, Ingredient) for x in ingredients):
@@ -80,12 +78,6 @@ class Kitchen(list):
             ) from None
         for ingredient in ingredients:
             name = ingredient.__name__.upper()
-            if name in self.name_to_ingredient:
-                if flag_duplicates:
-                    raise IngredientException(
-                        f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{name}"
-                    )
-                return
             # Initialize the ingredient, going from `Type[Ingredient]` to `Ingredient`
             initialized_ingredient: Ingredient = ingredient(
                 name=name,
@@ -955,13 +947,18 @@ class BlendSQL:
         from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 
         DEFAULT_INGREDIENTS = {LLMQA, LLMMap, LLMJoin}
-        ingredients = set(ingredients)
         try:
-            ingredient_names = {i.__name__ for i in ingredients}
+            _ingredient_names = [i.__name__.upper() for i in ingredients]
         except AttributeError as e:
             raise IngredientException(
                 "All arguments passed to `ingredients` should be `Ingredient` classes!"
             ) from e
+        ingredient_names = set(_ingredient_names)
+        if len(ingredient_names) != len(_ingredient_names):
+            raise IngredientException(
+                f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{_ingredient_names=}"
+            )
+        ingredients = set(ingredients)
         for default_ingredient in DEFAULT_INGREDIENTS:
             if default_ingredient.__name__ not in ingredient_names:
                 ingredients.add(default_ingredient)
