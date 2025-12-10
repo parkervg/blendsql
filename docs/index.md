@@ -240,7 +240,7 @@ The below plot adds the DuckDB UDF approach to the same benchmark we did above -
 
 The reason for this? DuckDB uses a generalized query optimizer, very good at many different optimizations. But when we introduce a UDF with an unknown cost, many values get passed to the highly expensive language model functions that could have been filtered out via vanilla SQL expressions first (`JOIN`, `WHERE`, `LIMIT`, etc.).
 
-This highlights an important point about the value-add of BlendSQL. While you *can* just import the individual language model functions and call them on data (see [here](https://github.com/parkervg/blendsql/blob/duckdb-udf-eval/research/run-evaluate.py#L42)) - if you know the larger query context where the function output will be used, you *should* use the BlendSQL query optimizer (`bsql.execute()`), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.
+This highlights an important point about the value-add of BlendSQL. While you *can* just import the individual language model functions and call them on data (see [here](https://github.com/parkervg/blendsql/blob/main/research/run-evaluate.py#L64)) - if you know the larger query context where the function output will be used, you *should* use the BlendSQL query optimizer (`bsql.execute()`), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.
 
 > [!TIP]
 > How do we know the BlendSQL optimizer is passing the minimal required data to the language model functions? Check out our extensive [test suite](./tests/query_optimizations/test_multi_table.py) for examples.
@@ -672,9 +672,9 @@ bsql = BlendSQL(db, ingredients=ingredients)
 Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
 
 - The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
-  - This paper was the primary inspiration for BlendSQL.
+      - This paper was the primary inspiration for BlendSQL.
 - The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
-  - As far as I can tell, the first publication to propose unifying model calls within SQL
-  - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
+      - As far as I can tell, the first publication to propose unifying model calls within SQL
+      - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
 - The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
 - The maintainers of the [Guidance](https://github.com/guidance-ai/guidance) library for powering the constrained decoding capabilities of BlendSQL
