@@ -756,7 +756,6 @@ def _blend(
                 ) = function_out
                 # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
                 join_node = query_context.node.find(exp.Join)
-                assert join_node is not None
                 join_node.replace(exp.BlendSQLFunction(this=function_node.name))
                 alias_function_name_to_result[function_node.name] = join_clause
             else:
@@ -797,14 +796,14 @@ def _blend(
                         column in x for x in [llm_out_df.columns, base_table.columns]
                     ):
                         # Fill nan in llm_out_df with those values in base_table
-                        try:
-                            pd.testing.assert_index_equal(
-                                base_table.index, llm_out_df.index
-                            )
-                        except AssertionError:
-                            logger.debug(
-                                Color.error("pd.testing.assert_index_equal error")
-                            )
+                        # try:
+                        #     pd.testing.assert_index_equal(
+                        #         base_table.index, llm_out_df.index
+                        #     )
+                        # except AssertionError:
+                        #     logger.debug(
+                        #         Color.error("pd.testing.assert_index_equal error")
+                        #     )
                         llm_out_df[column] = llm_out_df[column].fillna(
                             base_table[column]
                         )
@@ -812,10 +811,10 @@ def _blend(
                 llm_out_df = llm_out_df[
                     llm_out_df.columns.difference(base_table.columns)
                 ]
-                try:
-                    pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
-                except AssertionError:
-                    logger.debug(Color.error("pd.testing.assert_index_equal error"))
+                # try:
+                #     pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
+                # except AssertionError:
+                #     logger.debug(Color.error("pd.testing.assert_index_equal error"))
                 merged = base_table.merge(
                     llm_out_df, how="left", right_index=True, left_index=True
                 )
