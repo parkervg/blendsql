@@ -1116,7 +1116,7 @@ class BlendSQL:
             # │ John Quincy Adams │ XYZ Affair, Alien and Sedition Acts                   │
             # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
             # └───────────────────┴───────────────────────────────────────────────────────┘
-            print(smoothie.summary())
+            smoothie.print_summary()
             # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
             # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
             # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤

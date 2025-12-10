@@ -49,9 +49,15 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest",
-    "rich"
 ]
-
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings",
+    "mkdocs-section-index",
+    "mkdocstrings-python",
+    "mkdocs-jupyter"
+]
 
 [project.urls]
 Documentation = "https://parkervg.github.io/blendsql/"

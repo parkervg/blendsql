@@ -8,15 +8,19 @@ hide:
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.models import TransformersLLM, LiteLLM
+from blendsql.models import LlamaCpp, LiteLLM
 
 USE_LOCAL_CONSTRAINED_MODEL = False
 
-# Load model, either a local transformers model, or remote provider via LiteLLM
+# Load model, either a local LlamaCpp model, or remote provider via LiteLLM
 if USE_LOCAL_CONSTRAINED_MODEL:
-    model = TransformersLLM(
-        "meta-llama/Llama-3.2-3B-Instruct", config={"device_map": "auto"}
-    )  # Local models enable BlendSQL's predicate-guided constrained decoding
+    # Local models enable BlendSQL's expression-guided constrained decoding
+    # https://arxiv.org/abs/2509.20208    
+    model = LlamaCpp(
+        model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
+        filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
+        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
+    ) 
 else:
     model = LiteLLM("openai/gpt-4o-mini")
 
@@ -66,10 +70,10 @@ smoothie = bsql.execute(
         LLMQA('First 3 presidents of the U.S?', quantifier='{3}')
     }}
     """,
-    infer_gen_constraints=True,
+    infer_gen_constraints=True, # Is `True` by default
 )
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌───────────────────┬───────────────────────────────────────────────────────┐
 # │ Name              │ Known_For                                             │
 # ├───────────────────┼───────────────────────────────────────────────────────┤
@@ -77,7 +81,6 @@ print(smoothie.df)
 # │ John Adams        │ XYZ Affair, Alien and Sedition Acts                   │
 # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
 # └───────────────────┴───────────────────────────────────────────────────────┘
-print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
@@ -91,16 +94,16 @@ smoothie = bsql.execute(
     {{
         LLMMap(
             'In which time period was this person born?',
-            'People::Name',
-            options='Eras::Years'
+            p.Name,
+            options=Eras.Years
         )
     }} AS Born
-    FROM People
+    FROM People p
     GROUP BY Born
     """,
 )
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌───────────────────────────────────────────────────────┬───────────┐
 # │ Names                                                 │ Born      │
 # ├───────────────────────────────────────────────────────┼───────────┤
@@ -108,7 +111,6 @@ print(smoothie.df)
 # │ Sabrina Carpenter, Charli XCX, Elon Musk, Michelle... │ 2000-Now  │
 # │ Elvis Presley                                         │ 1900-2000 │
 # └───────────────────────────────────────────────────────┴───────────┘
-print(smoothie.summary())
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
@@ -118,28 +120,25 @@ print(smoothie.summary())
 smoothie = bsql.execute("""
     SELECT {{
         LLMQA(
-            'Describe BlendSQL in 50 words',
-            (
+            'Describe BlendSQL in 50 words.',
+            context=(
                 SELECT content[0:5000] AS "README"
-                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md');
+                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
             )
         )
     }} AS answer
 """)
 
-print(smoothie.df)
+smoothie.print_summary()
 # ┌─────────────────────────────────────────────────────┐
 # │ answer                                              │
 # ├─────────────────────────────────────────────────────┤
 # │ BlendSQL is a Python library that combines SQL a... │
 # └─────────────────────────────────────────────────────┘
 
-print(smoothie.summary())
-
 # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
 # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
 # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
 # │    4.07617 │                    1 │            1921 │                  50 │
 # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
-
 ```

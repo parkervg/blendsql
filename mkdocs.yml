@@ -55,9 +55,7 @@ extra_css:
   - stylesheets/extra.css
 
 nav:
-  - Home:
-      - Home: index.md
-      - FAQ: faq.md
+  - Home: index.md
   - Getting Started:
       - Quickstart: quickstart.md
       - Some Cool Things by Example: by-example.md

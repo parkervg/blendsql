@@ -1,12 +1,9 @@
----
-hide:
-  - toc
----
 <div align="right">
 <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
 <a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
 <a><img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/parkervg/e24f1214fdff3ab086b829b5f01f85a8/raw/covbadge.json"/></a>
-<a><img src="https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue"/></a>
+<a><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue"/></a>
+<a href="https://discord.gg/vCv7ak3WrU"><img src="https://img.shields.io/discord/1389219790404452462?label=Discord&logo=discord&color=5865F2"/></a>
 <br>
 </div>
 
@@ -14,25 +11,198 @@ hide:
 <picture>
   <img alt="blendsql" src="img/logo_light.png" width=350">
 </picture>
-<br>
+</center>
+
+```sql 
+SELECT {{
+    LLMQA(
+        'Describe BlendSQL in 50 words.',
+        context=(
+            SELECT content[0:5000] AS "README"
+            FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
+        )
+    )
+}} AS answer
+```
+<center>
     <i> SQL 🤝 LLMs </i>
-<br><br>
+    <b><h4>Join our <a href="https://discord.gg/vCv7ak3WrU" target="_blank">Discord server</a> for more discussion!</h4></b>
 </center>
 
 <div style="text-align: center" markdown="1">
 [Paper :simple-arxiv:](https://arxiv.org/pdf/2402.17882.pdf){ .md-button } [GitHub :simple-github:](https://github.com/parkervg/blendsql){ .md-button }
 </div>
+<br/>
 
-<center>
-<div class="index-pre-code">
-```bash
-pip install blendsql
+# 💻 Installation
 ```
-</div>
-</center>
+pip install uv && uv pip install blendsql
+```
+
+<details>
+<summary><h1>⭐ Quickstart</h1></summary>
+
+```python
+import pandas as pd
+
+from blendsql import BlendSQL
+from blendsql.models import LlamaCpp, LiteLLM
+
+USE_LOCAL_CONSTRAINED_MODEL = False
+
+# Load model, either a local LlamaCpp model, or remote provider via LiteLLM
+if USE_LOCAL_CONSTRAINED_MODEL:
+    # Local models enable BlendSQL's expression-guided constrained decoding
+    # https://arxiv.org/abs/2509.20208    
+    model = LlamaCpp(
+        model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
+        filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
+        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
+    ) 
+else:
+    model = LiteLLM("openai/gpt-4o-mini")
+
+# Prepare our BlendSQL connection
+bsql = BlendSQL(
+    {
+        "People": pd.DataFrame(
+            {
+                "Name": [
+                    "George Washington",
+                    "John Adams",
+                    "Thomas Jefferson",
+                    "James Madison",
+                    "James Monroe",
+                    "Alexander Hamilton",
+                    "Sabrina Carpenter",
+                    "Charli XCX",
+                    "Elon Musk",
+                    "Michelle Obama",
+                    "Elvis Presley",
+                ],
+                "Known_For": [
+                    "Established federal government, First U.S. President",
+                    "XYZ Affair, Alien and Sedition Acts",
+                    "Louisiana Purchase, Declaration of Independence",
+                    "War of 1812, Constitution",
+                    "Monroe Doctrine, Missouri Compromise",
+                    "Created national bank, Federalist Papers",
+                    "Nonsense, Emails I Cant Send, Mean Girls musical",
+                    "Crash, How Im Feeling Now, Boom Clap",
+                    "Tesla, SpaceX, Twitter/X acquisition",
+                    "Lets Move campaign, Becoming memoir",
+                    "14 Grammys, King of Rock n Roll",
+                ],
+            }
+        ),
+        "Eras": pd.DataFrame({"Years": ["1700-1800", "1800-1900", "1900-2000", "2000-Now"]}),
+    },
+    model=model,
+    verbose=True,
+)
+
+smoothie = bsql.execute(
+    """
+    SELECT * FROM People P
+    WHERE P.Name IN {{
+        LLMQA('First 3 presidents of the U.S?', quantifier='{3}')
+    }}
+    """,
+    infer_gen_constraints=True, # Is `True` by default
+)
+
+smoothie.print_summary()
+# ┌───────────────────┬───────────────────────────────────────────────────────┐
+# │ Name              │ Known_For                                             │
+# ├───────────────────┼───────────────────────────────────────────────────────┤
+# │ George Washington │ Established federal government, First U.S. Preside... │
+# │ John Adams        │ XYZ Affair, Alien and Sedition Acts                   │
+# │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │
+# └───────────────────┴───────────────────────────────────────────────────────┘
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    1.25158 │                    1 │             296 │                  16 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
 
 
-### ✨ News
+smoothie = bsql.execute(
+    """
+    SELECT GROUP_CONCAT(Name, ', ') AS 'Names',
+    {{
+        LLMMap(
+            'In which time period was this person born?',
+            p.Name,
+            options=Eras.Years
+        )
+    }} AS Born
+    FROM People p
+    GROUP BY Born
+    """,
+)
+
+smoothie.print_summary()
+# ┌───────────────────────────────────────────────────────┬───────────┐
+# │ Names                                                 │ Born      │
+# ├───────────────────────────────────────────────────────┼───────────┤
+# │ George Washington, John Adams, Thomas Jefferson, J... │ 1700-1800 │
+# │ Sabrina Carpenter, Charli XCX, Elon Musk, Michelle... │ 2000-Now  │
+# │ Elvis Presley                                         │ 1900-2000 │
+# └───────────────────────────────────────────────────────┴───────────┘
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    1.03858 │                    2 │             544 │                  75 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+
+smoothie = bsql.execute("""
+    SELECT {{
+        LLMQA(
+            'Describe BlendSQL in 50 words.',
+            context=(
+                SELECT content[0:5000] AS "README"
+                FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
+            )
+        )
+    }} AS answer
+""")
+
+smoothie.print_summary()
+# ┌─────────────────────────────────────────────────────┐
+# │ answer                                              │
+# ├─────────────────────────────────────────────────────┤
+# │ BlendSQL is a Python library that combines SQL a... │
+# └─────────────────────────────────────────────────────┘
+
+# ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐
+# │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │
+# ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤
+# │    4.07617 │                    1 │            1921 │                  50 │
+# └────────────┴──────────────────────┴─────────────────┴─────────────────────┘
+```
+
+</details>
+
+# Summary
+
+BlendSQL is a *superset of SQL* for problem decomposition and hybrid question-answering with LLMs.
+
+As a result, we can *Blend* together...
+
+- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
+- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
+
+### Core Design Principle: Be Lazy 😴
+
+This is embodied in a few different ways - [early exit LLM functions when `LIMIT` clauses are used](https://github.com/parkervg/blendsql/pull/57), [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), [only load language models into memory if we use them](https://github.com/parkervg/blendsql/blob/main/blendsql/models/model.py#L213), etc.
+
+But, at a higher level: Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data into memory that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally sync back to the native SQL dialect and execute. In this way, BlendSQL 'compiles to SQL'.
+
+For more info on query execution in BlendSQL, see Section 2.4 [here](https://arxiv.org/pdf/2509.20208). 
+
+# 📰 News
+- (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
+- (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
 - (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
 - (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
 - (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
@@ -40,141 +210,471 @@ pip install blendsql
 - (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
   - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
 
-### Features
+# Features
 
 - Supports many DBMS 💾
-  - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
-- Supports many models ✨
-      - Transformers, OpenAI, Anthropic, Ollama
-- Easily extendable to [multi-modal usecases](./examples/vqa-ingredient.ipynb) 🖼️
+      - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
+- Supports local & remote models ✨
+      - LlamaCpp, Transformers, OpenAI, Anthropic, Ollama, and 100+ more!
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
       - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
       - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
-BlendSQL is a *superset of SQLite* for problem decomposition and hybrid question-answering with LLMs.
+# Benchmarks 
 
-As a result, we can *Blend* together...
+On a dataset of complex questions converted to executable declarative programs (e.g. *How many test
+takers are there at the school/s in a county with population over 2 million?*), **BlendSQL is 53% faster than the pandas-based LOTUS**.
+See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208) for more details. 
 
-- 🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)
-- 🥤 ...the structured & interpretable reasoning of SQL with the generalizable reasoning of LLMs
-
-It can be viewed as an inversion of the typical text-to-SQL paradigm, where a user calls a LLM, and the LLM calls a SQL program.
-
-**Now, the user is given the control to oversee all calls (LLM + SQL) within a unified query language.**
-
-![comparison](./img/comparison.jpg)
-
-For example, imagine we have the following table titled `parks`, containing [info on national parks in the United States](https://en.wikipedia.org/wiki/List_of_national_parks_of_the_United_States).
-
-We can use BlendSQL to build a travel planning LLM chatbot to help us navigate the options below.
+![latency_analysis](./img/runtime_analysis.png)
 
 
-| **Name**        | **Image**                                                                   | **Location**       | **Area**                          | **Recreation Visitors (2022)** | **Description**                                                                                                                          |
-|-----------------|-----------------------------------------------------------------------------|--------------------|-----------------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| Death Valley    | ![death_valley.jpeg](./img/national_parks_example/death_valley.jpeg)     | California, Nevada | 3,408,395.63 acres (13,793.3 km2) | 1,128,862                      | Death Valley is the hottest, lowest, and driest place in the United States, with daytime temperatures that have exceeded 130 °F (54 °C). |
-| Everglades      | ![everglades.jpeg](./img/national_parks_example/everglades.jpeg)         | Alaska             | 7,523,897.45 acres (30,448.1 km2) | 9,457                          | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.              |
-| New River Gorge | ![new_river_gorge.jpeg](./img/national_parks_example/new_river_gorge.jpeg) | West Virgina       | 7,021 acres (28.4 km2)            | 1,593,523                      | The New River Gorge is the deepest river gorge east of the Mississippi River.                                                            |
- | Katmai          | ![katmai.jpg](./img/national_parks_example/katmai.jpg)                  | Alaska             |  3,674,529.33 acres (14,870.3 km2)                                 | 33,908 | This park on the Alaska Peninsula protects the Valley of Ten Thousand Smokes, an ash flow formed by the 1912 eruption of Novarupta.  |
+### But - why not just define UDFs? 
 
-BlendSQL allows us to ask the following questions by injecting "ingredients", which are callable functions denoted by double curly brackets (`{{`, `}}`).
+Many DBMS allow for the creation of Python user-defined functions (UDFs), like [DuckDB](https://duckdb.org/docs/stable/clients/python/function). So why not just use those to embed language model functions instead of BlendSQL?
+The below plot adds the DuckDB UDF approach to the same benchmark we did above - where DuckDB UDFs come in with at average of 133.2 seconds per query.  
 
-_Which parks don't have park facilities?_
-```sql
-SELECT "Name", "Description" FROM parks
-  WHERE {{
-      LLMMap(
-          'Does this location have park facilities?',
-          values='parks::Description'
-      )
-  }} = FALSE
+![latency_analysis_with_duckdb](./img/runtime_analysis_with_duckdb.png)
+
+The reason for this? DuckDB uses a generalized query optimizer, very good at many different optimizations. But when we introduce a UDF with an unknown cost, many values get passed to the highly expensive language model functions that could have been filtered out via vanilla SQL expressions first (`JOIN`, `WHERE`, `LIMIT`, etc.).
+
+This highlights an important point about the value-add of BlendSQL. While you *can* just import the individual language model functions and call them on data (see [here](https://github.com/parkervg/blendsql/blob/duckdb-udf-eval/research/run-evaluate.py#L42)) - if you know the larger query context where the function output will be used, you *should* use the BlendSQL query optimizer (`bsql.execute()`), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.
+
+> [!TIP]
+> How do we know the BlendSQL optimizer is passing the minimal required data to the language model functions? Check out our extensive [test suite](./tests/query_optimizations/test_multi_table.py) for examples.
+
+# Documentation 
+
+- [Simple Row-Wise Classification](#simple-row-wise-classification)
+- [Search-then-Map ](#search-then-map)
+    - [Specifying `return_type`](#specifying-return_type)
+- [Search-then-Reduce ](#search-then-map)
+- [Few-Shot Prompting](#few-shot-prompting)
+
+The below examples can use this model initialization logic to define the variable `model`:
+
+```python
+from blendsql.models import LlamaCpp, LiteLLM
+
+USE_LOCAL_CONSTRAINED_MODEL = True 
+if USE_LOCAL_CONSTRAINED_MODEL:
+    # Local models enable BlendSQL's expression-guided constrained decoding
+    # https://arxiv.org/abs/2509.20208    
+    import psutil
+    model = LlamaCpp(
+        model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
+        filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
+        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": psutil.cpu_count(logical=False)},
+    ) 
+else:
+    model = LiteLLM("openai/gpt-4o-mini")
 ```
 
-| Name            | Description                                                                                                                            |
-|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------|
-| Everglades      | The country's northernmost park protects an expanse of pure wilderness in Alaska's Brooks Range and has no park facilities.            |
+For all the below examples, use `smoothie.print_summary()` to get an overview of the inputs and outputs.
 
-<hr>
+![terminal-logging](./img/terminal-logging.png)
 
-_What does the largest park in Alaska look like?_
+## Simple Row-Wise Classification 
 
-```sql
-SELECT "Name",
-{{ImageCaption('parks::Image')}} as "Image Description",
-{{
-    LLMMap(
-        question='Size in km2?',
-        values='parks::Area'
+```python
+import pandas as pd
+from blendsql import BlendSQL
+
+if __name__ == "__main__":
+    bsql = BlendSQL(
+        {
+            "posts": pd.DataFrame(
+                {"content": ["I hate this product", "I love this product"]}
+            )
+        },
+        model=model,
+        verbose=True,
     )
-}} as "Size in km" FROM parks
-WHERE "Location" = 'Alaska'
-ORDER BY "Size in km" DESC LIMIT 1
+
+    smoothie = bsql.execute(
+        """
+        SELECT {{
+            LLMMap(
+                'What is the sentiment of this text?',
+                content,
+                options=('positive', 'negative')
+            )      
+        }} AS classification FROM posts
+        """
+    )
+    print(smoothie.df)
 ```
 
-| Name       | Image Description                                       |   Size in km |
-|:-----------|:--------------------------------------------------------|-------------:|
-| Everglades | A forest of tall trees with a sunset in the background. |      30448.1 |
+## Search-then-Map 
 
-<hr>
+Some question answering tasks require hybrid reasoning - some information is present in a given table, but some information exists only in external free text documents. 
 
-_Which state is the park in that protects an ash flow?_
+```python
+import pandas as pd 
 
-```sql
-SELECT "Location", "Name" AS "Park Protecting Ash Flow" FROM parks
-    WHERE "Name" = {{
-      LLMQA(
-        'Which park protects an ash flow?',
-        context=(SELECT "Name", "Description" FROM parks),
-        options="parks::Name"
+from blendsql import BlendSQL
+    
+bsql = BlendSQL(
+    {
+        "world_aquatic_championships": pd.DataFrame(
+            [
+                {
+                    "Medal": "Silver",
+                    "Name": "Dana Vollmer",
+                    "Sport": "Swimming",
+                    "Event": "Women's 100 m butterfly",
+                    "Time/Score": "56.87",
+                    "Date": "July 25",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Ryan Lochte",
+                    "Sport": "Swimming",
+                    "Event": "Men's 200 m freestyle",
+                    "Time/Score": "1:44.44",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Rebecca Soni",
+                    "Sport": "Swimming",
+                    "Event": "Women's 100 m breaststroke",
+                    "Time/Score": "1:05.05",
+                    "Date": "July 26",
+                },
+                {
+                    "Medal": "Gold",
+                    "Name": "Elizabeth Beisel",
+                    "Sport": "Swimming",
+                    "Event": "Women's 400 m individual medley",
+                    "Time/Score": "4:31.78",
+                    "Date": "July 31",
+                },
+            ]
+        )
+    },
+    model=model,
+    verbose=True, # Set `verbose=True` to see the query plan as it executes
+)
+
+_ = bsql.model.model_obj # Models are lazy loaded by default. Use this line if you want to pre-load models before execution.
+```
+
+We can now create a custom function that will: 
+  1) Fill in our f-string templatized question with values in the database
+  2) Batch-retrieve top `k` relevant documents for each unrolled question 
+  3) Batch-apply the provied language model to generate a type constrained output given the document contexts 
+
+```python
+from blendsql.search import TavilySearch, FaissVectorStore
+from blendsql.ingredients import LLMMap
+
+USE_TAVILY = True # This requires a `.env` file with a `TAVILY_API_KEY` variable defined
+if USE_TAVILY:
+  context_searcher = TavilySearch(k=3)
+else:
+  # We can also define a local FAISS vector store
+  context_searcher = FaissVectorStore(
+    "sentence-transformers/all-mpnet-base-v2",
+    documents=[
+      "Ryan Steven Lochte (/ˈlɒkti/ LOK-tee; born August 3, 1984) is an American former[2] competition swimmer and 12-time Olympic medalist.",
+      "Rebecca Soni (born March 18, 1987) is an American former competition swimmer and breaststroke specialist.",
+      "Elizabeth Lyon Beisel (/ˈbaɪzəl/; born August 18, 1992) is an American competition swimmer who specializes in backstroke and individual medley events."
+    ],
+    k=3
+  )
+
+DocumentSearchMap = LLMMap.from_args(
+  context_searcher=context_searcher
+)
+
+# This line registers our new function in our `BlendSQL` connection context
+# Replacement scans allow us to now reference the function by the variable name we initialized it to (`DocumentSearchMap`)
+bsql.ingredients = {DocumentSearchMap} 
+
+# Define a blendsql program to answer: 'What is the name of the oldest person who won gold?'
+smoothie = bsql.execute(
+    """
+    SELECT Name FROM world_aquatic_championships w
+    WHERE Medal = 'Gold'
+    /* By default, blendsql infers type constraints given expression context. */ 
+    /* So below, the return_type will be constrained to an integer (`\d+`) */ 
+    ORDER BY {{DocumentSearchMap('What year was {} born?', w.Name)}} ASC LIMIT 1
+    """
+)
+
+print(smoothie.df)
+# ┌─────────────┐
+# │ Name        │
+# ├─────────────┤
+# │ Ryan Lochte │
+# └─────────────┘
+```
+
+To analyze the prompts we sent to the model, we can access `GLOBAL_HISTORY`. 
+
+```python
+from blendsql import GLOBAL_HISTORY
+
+# This is a list
+print(GLOBAL_HISTORY)
+```
+
+## Specifying `return_type`
+
+Notice in the above example - what if two athletes were born in the same year, but different days? 
+
+In this case, simply fetching the year of birth isn't enough for the ordering we need to do. For cases when the required datatype is unable to be inferred via expression context, you can override the inferred default via passing `return_type`. The following are valid. 
+
+| `return_type` Argument | Regex                                                                                                  | DB Mapping Logic                                                                                                                     |
+|------------------------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `any`                  | N.A.                                                                                                   | N.A. The DB implicitly casts the type, if type affinity is supported (e.g. SQLite does this).                                        |
+| `str`                  | N.A.                                                                                                   | N.A. Same behavior as `any`, but the language model is prompted with the cue that the return type should look like a string.         |
+| `int`                  | `r"-?(\d+)"`                                                                                           |                                                                                                                                      |
+| `float`                | `r"-?(\d+(\.\d+)?)"`                                                                                   |                                                                                                                                      |
+| `bool`                 | `r"(t\|f\|true\|false\|True\|False)"`                                                                  |                                                                                                                                      |
+| `substring`            | complicated - see https://github.com/guidance-ai/guidance/blob/main/guidance/library/_substring.py#L11 |                                                                                                                                      |
+| `date`                 | `r"\d{4}-\d{2}-\d{2}"`                                                                                 | The ISO8601 is inserted into the query as a date type. This differs for different DBMS - in DuckDB, it would be `'1992-09-20'::DATE` |
+
+```python
+smoothie = bsql.execute(
+    """
+    SELECT Name FROM world_aquatic_championships w
+    WHERE Medal = 'Gold'
+    /* Defining `return_type = 'date'` will constrain generation to a date format, and handle type conversion to the respective database context for you. */  
+    /* For example, DuckDB and SQLite stores dates as a ISO8601 string */
+    ORDER BY {{DocumentSearchMap('When was {} born?', w.Name, return_type='date')}} ASC LIMIT 1
+    """
+)
+```
+
+## Search-then-Reduce  
+
+Below we use the scalar `LLMQA` function to do a search over our documents with the question formatted with a value from the structured `european_countries` table.
+
+```python 
+import pandas as pd 
+
+from blendsql import BlendSQL
+from blendsql.search import FaissVectorStore
+from blendsql.ingredients import LLMQA
+
+bsql = BlendSQL(
+    {
+        "documents": pd.DataFrame(
+            [
+                {
+                    "title": "Steve Nash",
+                    "content": "Steve Nash played college basketball at Santa Clara University",
+                },
+                {
+                    "title": "E.F. Codd",
+                    "content": 'Edgar Frank "Ted" Codd (19 August 1923 – 18 April 2003) was a British computer scientist who, while working for IBM, invented the relational model for database management, the theoretical basis for relational databases and relational database management systems.',
+                },
+                {
+                    "title": "George Washington (February 22, 1732 – December 14, 1799) was a Founding Father and the first president of the United States, serving from 1789 to 1797."
+                },
+                {
+                    "title": "Thomas Jefferson",
+                    "content": "Thomas Jefferson (April 13, 1743 – July 4, 1826) was an American Founding Father and the third president of the United States from 1801 to 1809.",
+                },
+                {
+                    "title": "John Adams",
+                    "content": "John Adams (October 30, 1735 – July 4, 1826) was an American Founding Father who was the second president of the United States from 1797 to 1801.",
+                },
+            ]
+        ),
+        "european_countries": pd.DataFrame(
+            [
+                {
+                    "Country": "Portugal",
+                    "Area (km²)": 91568,
+                    "Population (As of 2011)": 10555853,
+                    "Population density (per km²)": 115.2,
+                    "Capital": "Lisbon",
+                },
+                {
+                    "Country": "Sweden",
+                    "Area (km²)": 449964,
+                    "Population (As of 2011)": 9088728,
+                    "Population density (per km²)": 20.1,
+                    "Capital": "Stockholm",
+                },
+                {
+                    "Country": "United Kingdom",
+                    "Area (km²)": 244820,
+                    "Population (As of 2011)": 62300000,
+                    "Population density (per km²)": 254.4,
+                    "Capital": "London",
+                },
+            ]
+        ),
+    },
+    model=model,
+    verbose=True,
+)
+
+USE_SEARCH = True 
+if USE_SEARCH:
+  LLMQA = LLMQA.from_args(
+    context_searcher=FaissVectorStore(
+      "sentence-transformers/all-mpnet-base-v2",
+      documents=bsql.db.execute_to_list("SELECT DISTINCT title || content FROM documents"),
+      k=3
+    )
+  )
+  bsql.ingredients = {LLMQA}
+
+smoothie = bsql.execute(
+"""
+SELECT {{
+    LLMQA(
+      'Who is from {}?', 
+      /* The below subquery gets executed, and the result is inserted into the below `{}`. */
+      (
+        SELECT Country FROM european_countries c
+        WHERE Capital = 'London'
       )
-  }}
+    )
+}} AS answer
+"""
+)
+print(smoothie.df)
+# ┌────────────┐
+# │ answer     │
+# ├────────────┤
+# │ E.F. Codd  │
+# └────────────┘
 ```
 
-| Location   | Park Protecting Ash Flow   |
-|:-----------|:---------------------------|
-| Alaska     | Katmai                     |
 
-<hr>
+## Few-Shot Prompting
+For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples.
+#### `LLMMap`
+- [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/map/examples.py)
 
-_How many parks are located in more than 1 state?_
+```python
+from blendsql import BlendSQL
+from blendsql.ingredients.builtin import LLMMap, DEFAULT_MAP_FEW_SHOT
 
-```sql
-SELECT COUNT(*) FROM parks
-    WHERE {{LLMMap('How many states?', 'parks::Location')}} > 1
+ingredients = {
+  LLMMap.from_args(
+    few_shot_examples=[
+      *DEFAULT_MAP_FEW_SHOT,
+      {
+        "question": "Is this a sport?",
+        "mapping": {
+          "Soccer": True,
+          "Chair": False,
+          "Banana": False,
+          "Golf": True
+        },
+        # Below are optional
+        "column_name": "Items",
+        "table_name": "Table",
+        "return_type": "boolean"
+      }
+    ],
+    # How many inference values to pass to model at once
+    batch_size=5,
+  )
+}
+
+bsql = BlendSQL(db, ingredients=ingredients)
 ```
 
-|   Count |
-|--------:|
-|       1 |
+#### `LLMQA`
+- [Default examples](./blendsql/ingredients/builtin/qa/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/qa/examples.py)
 
-<hr>
-Now, we have an intermediate representation for our LLM to use that is explainable, debuggable, and [very effective at hybrid question-answering tasks](https://arxiv.org/abs/2402.17882).
+```python
+from blendsql import BlendSQL
+from blendsql.ingredients.builtin import LLMQA, DEFAULT_QA_FEW_SHOT
 
-For in-depth descriptions of the above queries, check out our [documentation](https://parkervg.github.io/blendsql/).
+ingredients = {
+    LLMQA.from_args(
+        few_shot_examples=[
+            *DEFAULT_QA_FEW_SHOT,
+            {
+                "question": "Which weighs the most?",
+                "context": {
+                    {
+                        "Animal": ["Dog", "Gorilla", "Hamster"],
+                        "Weight": ["20 pounds", "350 lbs", "100 grams"]
+                    }
+                },
+                "answer": "Gorilla",
+                # Below are optional
+                "options": ["Dog", "Gorilla", "Hamster"]
+            }
+        ],
+        # Lambda to turn the pd.DataFrame to a serialized string
+        context_formatter=lambda df: df.to_markdown(
+            index=False
+        )
+    )
+}
 
-<hr>
+bsql = BlendSQL(db, ingredients=ingredients)
+```
 
-### Citation
+#### `LLMJoin`
+- [Default examples](./blendsql/ingredients/builtin/join/default_examples.json)
+- [All possible fields](./blendsql/ingredients/builtin/join/examples.py)
+
+```python
+from blendsql import BlendSQL
+from blendsql.ingredients.builtin import LLMJoin, DEFAULT_JOIN_FEW_SHOT
+
+ingredients = {
+  LLMJoin.from_args(
+    few_shot_examples=[
+      *DEFAULT_JOIN_FEW_SHOT,
+      {
+        "join_criteria": "Join the state to its capital.",
+        "left_values": ["California", "Massachusetts", "North Carolina"],
+        "right_values": ["Sacramento", "Boston", "Chicago"],
+        "mapping": {
+          "California": "Sacramento",
+          "Massachusetts": "Boston",
+          "North Carolina": "-"
+        }
+      }
+    ],
+  )
+}
+
+bsql = BlendSQL(db, ingredients=ingredients)
+```
+
+# Citation
 
 ```bibtex
+@inproceedings{glenn2025play,
+  title={Play by the Type Rules: Inferring Constraints for Small Language Models in Declarative Programs},
+  author={Glenn, Parker and Samuel, Alfy and Liu, Daben},
+  booktitle={EurIPS 2025 Workshop: AI for Tabular Data}
+}
+
 @article{glenn2024blendsql,
-      title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
-      author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
-      year={2024},
-      eprint={2402.17882},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
+  title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
+  author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
+  year={2024},
+  eprint={2402.17882},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL}
 }
 ```
 
-### Acknowledgements
+# Acknowledgements
 Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
 
 - The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
-    - This paper was the primary inspiration for BlendSQL.
+  - This paper was the primary inspiration for BlendSQL.
 - The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
-    - As far as I can tell, the first publication to propose unifying model calls within SQL
-    - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
+  - As far as I can tell, the first publication to propose unifying model calls within SQL
+  - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
 - The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
 - The maintainers of the [Guidance](https://github.com/guidance-ai/guidance) library for powering the constrained decoding capabilities of BlendSQL
