@@ -960,7 +960,7 @@ class BlendSQL:
             )
         ingredients = set(ingredients)
         for default_ingredient in DEFAULT_INGREDIENTS:
-            if default_ingredient.__name__ not in ingredient_names:
+            if default_ingredient.__name__.upper() not in ingredient_names:
                 ingredients.add(default_ingredient)
         return ingredients
 
