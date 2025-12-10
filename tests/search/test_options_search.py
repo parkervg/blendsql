@@ -64,7 +64,9 @@ def bsql() -> BlendSQL:
             }
         ],
         options_searcher=FaissVectorStore(
-            documents=unique_reactions, model_name_or_path="intfloat/e5-base-v2", k=5
+            documents=unique_reactions,
+            model_name_or_path="sentence-transformers/all-mpnet-base-v2",
+            k=5,
         ),
     )
     return BlendSQL(

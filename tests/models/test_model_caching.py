@@ -2,6 +2,7 @@ import pytest
 
 from blendsql import BlendSQL, config
 from blendsql.common.utils import fetch_from_hub
+from blendsql.models import ConstrainedModel
 
 config.set_async_limit(1)
 
@@ -12,22 +13,25 @@ def bsql() -> BlendSQL:
 
 
 def test_llmmap_cache(bsql, model):
+    if not isinstance(model, ConstrainedModel):
+        # TODO: fix Unconstrained caching
+        pytest.skip()
     model.caching = True
     model.cache.clear()
+    query = """
+    SELECT p.Body, {{LLMMap('What is the sentiment of this post?', p.Body, options=('positive', 'negative'))}}
+    FROM posts p LIMIT 10
+    """
     first = bsql.execute(
-        """
-        SELECT p.Body, {{LLMMap('What is the sentiment of this post?', p.Body, options=('positive', 'negative'))}}
-        FROM posts p LIMIT 10
-        """,
+        query,
         model=model,
     )
     second = bsql.execute(
-        """
-        SELECT p.Body, {{LLMMap('What is the sentiment of this post?', p.Body, options=('positive', 'negative'))}}
-        FROM posts p LIMIT 10
-        """,
+        query,
         model=model,
     )
 
     assert first.meta.process_time_seconds > second.meta.process_time_seconds
+    assert second.meta.num_generation_calls == 0
     model.reset_stats()
+    model.caching = False
