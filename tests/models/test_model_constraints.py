@@ -1,9 +1,7 @@
 import pytest
 import pandas as pd
 
-from blendsql import BlendSQL, config
-
-config.set_async_limit(1)
+from blendsql import BlendSQL
 
 
 @pytest.fixture(scope="module")
