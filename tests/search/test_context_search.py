@@ -1,5 +1,6 @@
 import pytest
 import pandas as pd
+import sys
 
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap
@@ -85,6 +86,7 @@ def bsql() -> BlendSQL:
     )
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="faiss tests skipped on MacOS")
 def test_faiss_context_search(bsql, model):
     WikipediaSearchMap = LLMMap.from_args(
         context_searcher=FaissVectorStore(

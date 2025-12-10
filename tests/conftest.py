@@ -18,7 +18,9 @@ from litellm.exceptions import APIConnectionError
 
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
+from blendsql.configure import set_default_max_tokens
 
+set_default_max_tokens(20)
 load_dotenv()
 
 
@@ -37,7 +39,10 @@ CONSTRAINED_MODEL_CONFIGS = [
         "name": "llama",
         "class": TransformersLLM,
         "path": "meta-llama/Llama-3.2-1B-Instruct",
-        "config": {"device_map": "cuda", "torch_dtype": "bfloat16"},
+        "config": {
+            "device_map": "cuda",
+            # "torch_dtype": "bfloat16"
+        },
         "requires_cuda": True,
     },
     {
@@ -46,6 +51,7 @@ CONSTRAINED_MODEL_CONFIGS = [
         "path": "HuggingFaceTB/SmolLM2-135M-Instruct",
         "config": {
             "device_map": "cuda" if torch.cuda.is_available() else "cpu",
+            # "torch_dtype": "bfloat16"
         },
         "requires_cuda": False,
     },
