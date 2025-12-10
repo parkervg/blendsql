@@ -44,6 +44,25 @@ def test_error_on_delete2(bsql):
         )
 
 
+def test_error_on_duplicate_ingredient_names(bsql):
+    with pytest.raises(IngredientException):
+        _ = bsql.execute(
+            """
+            SELECT {{LLMMap('Will this fail with the duplicate ingredient names?', c.Title)}} AS "answer" FROM classes c LIMIT 1
+            """,
+            model=model,
+            ingredients=[LLMMap, LLMMap],
+        )
+
+
+def test_vanilla_sql_no_ingredients(bsql):
+    _ = bsql.execute(
+        """
+        SELECT * FROM w
+        """
+    )
+
+
 def test_error_on_invalid_ingredient(bsql):
     with pytest.raises(IngredientException):
         _ = bsql.execute(
@@ -144,4 +163,14 @@ def test_llmmap_on_int(bsql, model):
         SELECT {{LLMMap('Is this number greater than 20?', Age)}} FROM w;
         """,
         model=model,
+    )
+
+
+def test_verbose_on(bsql, model):
+    _ = bsql.execute(
+        """
+        SELECT {{LLMMap('Is this number greater than 20?', Age)}} FROM w;
+        """,
+        model=model,
+        verbose=True,
     )

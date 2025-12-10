@@ -57,9 +57,6 @@ class Kitchen(list):
     def __attrs_post_init__(self):
         self.name_to_ingredient = {}
 
-    def names(self):
-        return [i.name for i in self]
-
     def get_from_name(self, name: str, flag_duplicates: bool = True):
         try:
             return self.name_to_ingredient[name.upper()]
@@ -385,8 +382,6 @@ def _blend(
     )
 
     session_uuid = str(uuid.uuid4())[:4]
-    if ingredients is None:
-        ingredients = []
 
     # Create our Kitchen
     kitchen = Kitchen(db=db, session_uuid=session_uuid)
@@ -956,7 +951,7 @@ class BlendSQL:
     @staticmethod
     def _merge_default_ingredients(
         ingredients: Collection[Type[Ingredient]] | None,
-    ):
+    ) -> set[Type[Ingredient]]:
         from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 
         DEFAULT_INGREDIENTS = {LLMQA, LLMMap, LLMJoin}
@@ -1020,7 +1015,7 @@ class BlendSQL:
     def execute(
         self,
         query: str,
-        ingredients: Collection[Type[Ingredient]] | None = None,
+        ingredients: Collection[Type[Ingredient]],
         model: str | None = None,
         infer_gen_constraints: bool | None = None,
         verbose: bool | None = None,
