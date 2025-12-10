@@ -98,6 +98,7 @@ def test_llmqa_question_f_strings(bsql, model):
         model=model,
     )
     assert list(res.df.values.flat)[0].startswith("Danny")
+    res.print_summary()
 
 
 def test_llmqa_question_f_string_literals(bsql, model):
