@@ -9,10 +9,10 @@ import pandas as pd
 from blendsql.db import Database
 from blendsql.models import (
     TransformersLLM,
-    LiteLLM,
     TransformersVisionModel,
     Model,
     LlamaCpp,
+    LiteLLM,
 )
 from litellm.exceptions import APIConnectionError
 
@@ -46,7 +46,6 @@ CONSTRAINED_MODEL_CONFIGS = [
         "path": "HuggingFaceTB/SmolLM2-135M-Instruct",
         "config": {
             "device_map": "cuda" if torch.cuda.is_available() else "cpu",
-            "torch_dtype": "bfloat16",
         },
         "requires_cuda": False,
     },
