@@ -360,8 +360,8 @@ def disambiguate_and_submit_blend(
 def _blend(
     query: str,
     db: Database,
+    ingredients: Collection[Type[Ingredient]],
     default_model: Model | None = None,
-    ingredients: Collection[Type[Ingredient]] | None = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
     table_to_title: dict[str, str] | None = None,
@@ -1015,7 +1015,7 @@ class BlendSQL:
     def execute(
         self,
         query: str,
-        ingredients: Collection[Type[Ingredient]],
+        ingredients: Collection[Type[Ingredient]] | None = None,
         model: str | None = None,
         infer_gen_constraints: bool | None = None,
         verbose: bool | None = None,
