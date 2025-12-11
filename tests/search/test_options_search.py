@@ -1,5 +1,6 @@
 import pytest
 from datasets import load_dataset
+import sys
 
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMMap
@@ -77,6 +78,7 @@ def bsql() -> BlendSQL:
     )
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="faiss tests skipped on MacOS")
 def test_faiss_options_search(bsql, constrained_model):
     _ = bsql.execute(
         f"""
