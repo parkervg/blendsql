@@ -1,10 +1,11 @@
 import importlib.util
 from typing import Callable, Generator
 from collections.abc import Collection
-import pandas as pd
 from attr import attrs, attrib
 from pathlib import Path
 from functools import cached_property
+import polars as pl
+import pandas as pd
 
 from blendsql.db.database import Database
 from blendsql.common.logger import logger, Color
@@ -165,9 +166,11 @@ class DuckDB(Database):
         self.temp_tables.add(tablename)
         logger.debug(Color.update(f"Created temp table {tablename}"))
 
-    def execute_to_df(self, query: str, params: dict | None = None) -> pd.DataFrame:
+    def execute_to_df(
+        self, query: str, params: dict | None = None, pl=False
+    ) -> pl.DataFrame:
         """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933"""
-        return self.con.sql(query).df()
+        return self.con.sql(query).pl().lazy()
 
     def execute_to_list(
         self, query: str, to_type: Callable | None = lambda x: x

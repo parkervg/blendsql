@@ -2,6 +2,7 @@ from collections.abc import Collection
 from typing import Generator, Callable
 import pandas as pd
 import re
+import polars as pl
 from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_engine, inspect, MetaData
@@ -167,7 +168,9 @@ class SQLAlchemyDatabase(Database):
             db.execute_query("SELECT * FROM t WHERE c = :v", {"v": "value"})
             ```
         """
-        return pd.read_sql(text(query), self.con, params=params)
+        return pl.read_database(
+            "SELECT * FROM temp_data", connection=self.con, params=params
+        )
 
     def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.

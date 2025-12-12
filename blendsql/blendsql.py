@@ -12,6 +12,7 @@ from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
 import string
+import polars as pl
 
 from blendsql.common.logger import logger, Color
 from blendsql.common.utils import (
@@ -762,6 +763,7 @@ def _blend(
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                 )
+
         # Combine all the retrieved ingredient outputs
         for tablename, ingredient_outputs in tablename_to_map_out.items():
             if len(ingredient_outputs) > 0:
@@ -775,53 +777,107 @@ def _blend(
                 # On their left join merge command: https://github.com/HKUNLP/Binder/blob/9eede69186ef3f621d2a50572e1696bc418c0e77/nsql/database.py#L196
                 # We create a new temp table to avoid a potentially self-destructive operation
                 base_tablename = tablename
-                _base_table: pd.DataFrame = db.execute_to_df(
+                _base_table: pl.LazyFrame = db.execute_to_df(
                     select_all_from_table_query(base_tablename)
                 )
                 base_table = _base_table
                 if db.has_temp_table(_get_temp_session_table(tablename)):
                     base_tablename = _get_temp_session_table(tablename)
-                    base_table: pd.DataFrame = db.execute_to_df(
+                    base_table: pl.LazyFrame = db.execute_to_df(
                         select_all_from_table_query(base_tablename)
                     )
-                previously_added_columns = base_table.columns.difference(
-                    _base_table.columns
-                )
-                assert len(set([len(x) for x in ingredient_outputs])) == 1
-                llm_out_df = pd.concat(ingredient_outputs, axis=1)
-                llm_out_df = llm_out_df.loc[:, ~llm_out_df.columns.duplicated()]
+                previously_added_columns = set(
+                    base_table.collect_schema().names()
+                ) - set(_base_table.collect_schema().names())
+
+                # Concatenate horizontally
+                llm_out_df = pl.concat(ingredient_outputs, how="horizontal")
+
+                base_table_col_names: list[str] = base_table.collect_schema().names()
+                llm_out_df_col_names: list[str] = llm_out_df.collect_schema().names()
+
+                # Remove duplicate columns (keep first occurrence)
+                seen_columns = set()
+                columns_to_keep = []
+                for col in llm_out_df_col_names:
+                    if col not in seen_columns:
+                        seen_columns.add(col)
+                        columns_to_keep.append(col)
+                llm_out_df = llm_out_df.select(columns_to_keep)
+
                 # Handle duplicate columns, e.g. in test_nested_duplicate_ingredient_calls()
                 for column in previously_added_columns:
-                    if all(
-                        column in x for x in [llm_out_df.columns, base_table.columns]
+                    if (
+                        column in llm_out_df_col_names
+                        and column in base_table_col_names
                     ):
-                        # Fill nan in llm_out_df with those values in base_table
-                        # try:
-                        #     pd.testing.assert_index_equal(
-                        #         base_table.index, llm_out_df.index
-                        #     )
-                        # except AssertionError:
-                        #     logger.debug(
-                        #         Color.error("pd.testing.assert_index_equal error")
-                        #     )
-                        llm_out_df[column] = llm_out_df[column].fillna(
-                            base_table[column]
+                        # For LazyFrames, we need to join to fill nulls from another frame
+                        # Add a temporary index for the join
+                        llm_out_df = llm_out_df.with_row_index("__temp_idx__")
+                        base_table = base_table.with_row_index("__temp_idx__")
+
+                        # Join to get the base_table column for fill_null
+                        llm_out_df = (
+                            llm_out_df.join(
+                                base_table.select(
+                                    [
+                                        "__temp_idx__",
+                                        pl.col(column).alias(f"__{column}_fill__"),
+                                    ]
+                                ),
+                                on="__temp_idx__",
+                                how="left",
+                            )
+                            .with_columns(
+                                pl.col(column)
+                                .fill_null(pl.col(f"__{column}_fill__"))
+                                .alias(column)
+                            )
+                            .drop(f"__{column}_fill__", "__temp_idx__")
                         )
-                        base_table = base_table.drop(columns=column)
-                llm_out_df = llm_out_df[
-                    llm_out_df.columns.difference(base_table.columns)
+
+                        # Remove the temp index from base_table and drop the column
+                        base_table = base_table.drop("__temp_idx__", column)
+
+                # Keep only columns not in base_table
+                columns_to_keep = [
+                    col
+                    for col in llm_out_df_col_names
+                    if col not in base_table_col_names
                 ]
-                # try:
-                #     pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
-                # except AssertionError:
-                #     logger.debug(Color.error("pd.testing.assert_index_equal error"))
-                merged = base_table.merge(
-                    llm_out_df, how="left", right_index=True, left_index=True
-                )
+
+                if columns_to_keep:
+                    llm_out_df = llm_out_df.select(columns_to_keep)
+                else:
+                    # Create an empty LazyFrame with no columns but same row count
+                    # We need at least the index for the join to work
+                    llm_out_df = llm_out_df.select(
+                        pl.lit(None).alias("__placeholder__")
+                    )
+
+                # Add row index for merging
+                base_table = base_table.with_row_index("__merge_idx__")
+                llm_out_df = llm_out_df.with_row_index("__merge_idx__")
+
+                # base_table = base_table.collect().lazy()
+                # llm_out_df = llm_out_df.collect().lazy()
+
+                # Left join on index
+                merged = base_table.join(llm_out_df, on="__merge_idx__", how="left")
+
+                # print(merged.collect()) # ONLY THIS breaks
+
+                # Drop merge index and placeholder if it exists
+                cols_to_drop = ["__merge_idx__"]
+                if "__placeholder__" in merged.collect_schema().names():
+                    cols_to_drop.append("__placeholder__")
+                merged = merged.drop(cols_to_drop)
+
                 db.to_temp_table(
-                    df=merged, tablename=_get_temp_session_table(tablename)
+                    df=merged.collect(), tablename=_get_temp_session_table(tablename)
                 )
                 session_modified_tables.add(tablename)
+
     # Now insert the function outputs to the original query
     # We need to re-sync if we did some operation on the underlying query,
     #   like with a JoinIngredient
@@ -858,7 +914,7 @@ def _blend(
 
     logger.debug(Color.success(f"Final Query:\n{query}"))
 
-    df = db.execute_to_df(query)
+    df = db.execute_to_df(query).collect()
 
     return Smoothie(
         df=df,

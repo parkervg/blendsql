@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Iterable, Type
 import pandas as pd
+import polars as pl
 
 from blendsql.ingredients import Ingredient
 from blendsql.common.utils import tabulate
@@ -42,11 +43,11 @@ class SmoothieMeta:
 
 @dataclass
 class Smoothie:
-    df: pd.DataFrame = field()
+    df: pl.DataFrame = field()
     meta: SmoothieMeta = field()
 
-    def __post_init__(self):
-        self.df = PrettyDataFrame(self.df)
+    # def __post_init__(self):
+    #     self.df = PrettyDataFrame(self.df)
 
     def print_summary(self):
         from rich.console import Console, Group
@@ -102,7 +103,7 @@ class Smoothie:
                 table.add_column(str(col))
 
             # Add rows
-            for _, row in df.iterrows():
+            for row in df.iter_rows():
                 table.add_row(*[str(v) for v in row])
 
             return table
@@ -130,4 +131,4 @@ class Smoothie:
         console.print(Align.center(boxed))
 
     def __str__(self):
-        return self.summary()
+        self.print_summary()

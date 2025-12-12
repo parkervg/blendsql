@@ -8,6 +8,7 @@ from typing import Type, Callable, Any
 from collections.abc import Collection, Iterable
 import uuid
 from typeguard import check_type
+import polars as pl
 
 from blendsql.common.exceptions import IngredientException
 from blendsql.common.logger import logger, Color
@@ -121,7 +122,7 @@ class Ingredient:
             materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
             self.num_values_passed += materialized_smoothie.meta.num_values_passed
             unpacked_values = [
-                str(i) for i in materialized_smoothie.df[colname].unique()
+                str(i) for i in materialized_smoothie.df.get_column(colname).unique()
             ]
         else:
             unpacked_values: list = [
@@ -259,7 +260,7 @@ class MapIngredient(Ingredient):
         *context: str | pd.DataFrame,
         options: ColumnRef | list | None = None,
         **kwargs,
-    ) -> tuple:
+    ) -> tuple[str, str, str, pl.LazyFrame]:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
         # Unpack kwargs
         # Extract single `context` from kwargs if provided
@@ -377,20 +378,9 @@ class MapIngredient(Ingredient):
         if question is not None:
             num_braces = question.count("{}")
             if num_braces > 0:
-                # # Pop off 'context' into question, if there are > 1 '{}'
-                # lists_to_zip = []
-                # for i in range(num_braces - 1):
-                #     lists_to_zip.append(context_subtables[i].values.flatten().tolist())
-                # extra_values_to_insert = list(zip(*lists_to_zip))
-
                 unpacked_questions = [
                     question.format(value) for value in unpacked_values
                 ]
-
-                # unpacked_questions = [
-                #     question.format(value, *extra_values) for value, extra_values in
-                #     zip(unpacked_values, extra_values_to_insert)
-                # ]
 
                 logger.debug(
                     Color.quiet_update(
@@ -412,27 +402,32 @@ class MapIngredient(Ingredient):
         for value, mapped_value in zip(unpacked_values, mapped_values):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
-        mapped_subtable = pd.DataFrame(df_as_dict)
+        mapped_subtable = pl.LazyFrame(df_as_dict)
         if all(
             isinstance(x, (int, type(None))) and not isinstance(x, bool)
             for x in mapped_values
         ):
-            mapped_subtable[new_arg_column] = mapped_subtable[new_arg_column].astype(
-                "Int64"
+            mapped_subtable = mapped_subtable.with_columns(
+                pl.col(new_arg_column).cast(pl.Int64)
             )
         # Add new_table to original table
         if context_was_passed:
-            _mapped_subtable = distinct_values
-            _mapped_subtable[new_arg_column] = mapped_subtable[new_arg_column]
-            new_table = original_table.merge(
+            _mapped_subtable = distinct_values.with_columns(
+                mapped_subtable[new_arg_column]
+            )
+            new_table = original_table.join(
                 _mapped_subtable, how="left", on=[colname] + all_context_colnames
             )
         else:
-            new_table = original_table.merge(mapped_subtable, how="left", on=colname)
-        if new_table.shape[0] != original_table.shape[0]:
-            raise IngredientException(
-                f"subtable from MapIngredient.run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
-            )
+            new_table = original_table.join(mapped_subtable, how="left", on=colname)
+
+        # new_table = new_table.collect()
+        # original_table = original_table.collect()
+
+        # if new_table.shape[0] != original_table.shape[0]:
+        #     raise IngredientException(
+        #         f"subtable from MapIngredient.run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
+        #     )
         # Now, new table has original columns + column with the name of the question we answered
         return (new_arg_column, tablename, colname, new_table)
 
@@ -671,7 +666,7 @@ class QAIngredient(Ingredient):
                         materialized_smoothie.meta.num_values_passed
                     )
                     subtable: pd.DataFrame = pd.DataFrame(
-                        materialized_smoothie.df[colname]
+                        materialized_smoothie.df.select([colname])
                     )
                 else:
                     subtable: pd.DataFrame = self.db.execute_to_df(
