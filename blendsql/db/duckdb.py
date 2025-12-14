@@ -170,12 +170,14 @@ class DuckDB(Database):
         logger.debug(Color.update(f"Created temp table {tablename}"))
 
     def execute_to_df(
-        self, query: str, params: dict | None = None, lazy=True
+        self, query: str, params: dict | None = None, lazy=True, close_conn=True
     ) -> pl.DataFrame:
         """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933"""
-
-        res = self.con.sql(query).pl()
-        return res.lazy() if lazy else res
+        if close_conn:
+            res = self.con.sql(query).pl()
+            return res.lazy() if lazy else res
+        else:
+            return self.con.sql(query).pl(lazy=lazy)
 
     def execute_to_list(
         self, query: str, to_type: Callable | None = lambda x: x

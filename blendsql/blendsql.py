@@ -782,7 +782,9 @@ def _blend(
 
             temp_name = _get_temp_session_table(tablename)
             source = temp_name if db.has_temp_table(temp_name) else tablename
-            base = db.execute_to_df(select_all_from_table_query(source))
+            base = db.execute_to_df(
+                select_all_from_table_query(source), close_conn=False
+            )
             base_cols = set(base.collect_schema().names())
 
             # Combine all outputs
