@@ -40,9 +40,9 @@ class SQLite(SQLAlchemyDatabase):
             for row in (
                 self.execute_to_df(
                     f"""
-                SELECT name, type FROM pragma_table_info(?)
+                SELECT name, type FROM pragma_table_info(:t)
                 """,
-                    [tablename],
+                    {"t": tablename},
                 )
                 .collect()
                 .iter_rows(named=True)
