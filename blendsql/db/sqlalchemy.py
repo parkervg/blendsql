@@ -158,8 +158,8 @@ class SQLAlchemyDatabase(Database):
         pd_df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
     def execute_to_df(
-        self, query: str, params: dict | None = None, lazy: bool = True
-    ) -> pd.DataFrame:
+        self, query: str, params: dict | None = None, lazy: bool = True, **_
+    ) -> pl.DataFrame:
         """
         Execute the given query and return results as dataframe.
 
