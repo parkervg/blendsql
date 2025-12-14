@@ -90,7 +90,7 @@ class DuckDB(Database):
         return cls(con=con, db_url=db_url)
 
     @classmethod
-    def from_sqlite(cls, db_url: str):
+    def from_sqlite(cls, db_url: str, additional_cmds: list[str] | None = None):
         """TODO: any point in this if we already have dedicated SQLite databse class
         and it's faster?
         """
@@ -104,6 +104,9 @@ class DuckDB(Database):
         db_url = str(Path(db_url).resolve())
         con.sql("INSTALL sqlite;")
         con.sql("LOAD sqlite;")
+        if additional_cmds is not None:
+            for cmd in additional_cmds:
+                con.sql(cmd)
         con.sql(f"ATTACH '{db_url}' AS sqlite_db (TYPE sqlite);")
         con.sql("USE sqlite_db")
         return cls(con=con, db_url=db_url)

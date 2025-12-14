@@ -571,11 +571,19 @@ def _blend(
                             set_of_column_names = set(db.sqlglot_schema[tablename])
                             # In case of a join, duckdb formats columns with 'column_1'
                             # But some columns (e.g. 'parent_category') just have underscores in them already
-                            abstracted_df = abstracted_df.rename(
-                                columns=lambda x: re.sub(r"_\d$", "", x)
-                                if x not in set_of_column_names  # noqa: B023
-                                else x
-                            )
+                            current_columns = abstracted_df.collect_schema().names()
+
+                            # Build rename mapping
+                            rename_mapping = {
+                                col: re.sub(r"_\d$", "", col)
+                                for col in current_columns
+                                if col not in set_of_column_names
+                                and re.search(r"_\d$", col)
+                            }
+
+                            # Apply renaming
+                            abstracted_df = abstracted_df.rename(rename_mapping)
+
                         # In case of a join, we could have duplicate column names in our pandas dataframe
                         # This will throw an error when we try to write to the database
                         abstracted_df = abstracted_df.select(pl.all().name.keep())
@@ -648,6 +656,7 @@ def _blend(
                 + Color.update("...")
             )
             if infer_gen_constraints:
+                # if all(kwargs_dict.get(n, None) is None for n in ["return_type"]):
                 # Latter is the winner.
                 # So if we already define something in kwargs_dict,
                 #   It's not overriden here
@@ -656,6 +665,7 @@ def _blend(
                         function_node=function_node,
                         schema=db.sqlglot_schema,
                         alias_to_tablename=scm.alias_to_tablename,
+                        has_user_regex=bool(kwargs_dict.get("regex", None) is not None),
                     )
                     | kwargs_dict
                 )
@@ -766,118 +776,40 @@ def _blend(
                 )
 
         # Combine all the retrieved ingredient outputs
-        for tablename, ingredient_outputs in tablename_to_map_out.items():
-            if len(ingredient_outputs) > 0:
-                logger.debug(
-                    Color.quiet_update(
-                        f"Combining {len(ingredient_outputs)} outputs for table `{tablename}`"
-                    )
-                )
-                # Once we finish parsing this subquery, write to our session_uuid table
-                # Below, we differ from Binder, which seems to replace the old table
-                # On their left join merge command: https://github.com/HKUNLP/Binder/blob/9eede69186ef3f621d2a50572e1696bc418c0e77/nsql/database.py#L196
-                # We create a new temp table to avoid a potentially self-destructive operation
-                base_tablename = tablename
-                _base_table: pl.LazyFrame = db.execute_to_df(
-                    select_all_from_table_query(base_tablename)
-                )
-                base_table = _base_table
-                if db.has_temp_table(_get_temp_session_table(tablename)):
-                    base_tablename = _get_temp_session_table(tablename)
-                    base_table: pl.LazyFrame = db.execute_to_df(
-                        select_all_from_table_query(base_tablename)
-                    )
-                previously_added_columns = set(
-                    base_table.collect_schema().names()
-                ) - set(_base_table.collect_schema().names())
+        for tablename, outputs in tablename_to_map_out.items():
+            if not outputs:
+                continue
 
-                # Concatenate horizontally
-                llm_out_df = pl.concat(ingredient_outputs, how="horizontal")
+            temp_name = _get_temp_session_table(tablename)
+            source = temp_name if db.has_temp_table(temp_name) else tablename
+            base = db.execute_to_df(select_all_from_table_query(source))
+            base_cols = set(base.collect_schema().names())
 
-                base_table_col_names: list[str] = base_table.collect_schema().names()
-                llm_out_df_col_names: list[str] = llm_out_df.collect_schema().names()
+            # Combine all outputs
+            new_data = pl.concat(outputs, how="horizontal")
+            new_cols = new_data.collect_schema().names()
 
-                # Remove duplicate columns (keep first occurrence)
-                seen_columns = set()
-                columns_to_keep = []
-                for col in llm_out_df_col_names:
-                    if col not in seen_columns:
-                        seen_columns.add(col)
-                        columns_to_keep.append(col)
-                llm_out_df = llm_out_df.select(columns_to_keep)
+            # Separate into: columns to add vs columns to coalesce
+            to_add = [c for c in dict.fromkeys(new_cols) if c not in base_cols]
+            to_coalesce = [c for c in dict.fromkeys(new_cols) if c in base_cols]
 
-                # Handle duplicate columns, e.g. in test_nested_duplicate_ingredient_calls()
-                for column in previously_added_columns:
-                    if (
-                        column in llm_out_df_col_names
-                        and column in base_table_col_names
-                    ):
-                        # For LazyFrames, we need to join to fill nulls from another frame
-                        # Add a temporary index for the join
-                        llm_out_df = llm_out_df.with_row_index("__temp_idx__")
-                        base_table = base_table.with_row_index("__temp_idx__")
-
-                        # Join to get the base_table column for fill_null
-                        llm_out_df = (
-                            llm_out_df.join(
-                                base_table.select(
-                                    [
-                                        "__temp_idx__",
-                                        pl.col(column).alias(f"__{column}_fill__"),
-                                    ]
-                                ),
-                                on="__temp_idx__",
-                                how="left",
-                            )
-                            .with_columns(
-                                pl.col(column)
-                                .fill_null(pl.col(f"__{column}_fill__"))
-                                .alias(column)
-                            )
-                            .drop(f"__{column}_fill__", "__temp_idx__")
-                        )
-
-                        # Remove the temp index from base_table and drop the column
-                        base_table = base_table.drop("__temp_idx__", column)
-
-                # Keep only columns not in base_table
-                columns_to_keep = [
-                    col
-                    for col in llm_out_df_col_names
-                    if col not in base_table_col_names
+            # Build result with coalesce for overlapping columns
+            if to_coalesce:
+                # For overlapping cols: use new value if not null, else keep base
+                coalesce_exprs = [
+                    pl.coalesce(
+                        new_data.select(c).collect().to_series(), pl.col(c)
+                    ).alias(c)
+                    for c in to_coalesce
                 ]
+                base = base.with_columns(coalesce_exprs)
 
-                if columns_to_keep:
-                    llm_out_df = llm_out_df.select(columns_to_keep)
-                else:
-                    # Create an empty LazyFrame with no columns but same row count
-                    # We need at least the index for the join to work
-                    llm_out_df = llm_out_df.select(
-                        pl.lit(None).alias("__placeholder__")
-                    )
+            if to_add:
+                # hstack the genuinely new columns
+                base = base.collect().hstack(new_data.select(to_add).collect()).lazy()
 
-                # Add row index for merging
-                base_table = base_table.with_row_index("__merge_idx__")
-                llm_out_df = llm_out_df.with_row_index("__merge_idx__")
-
-                # base_table = base_table.collect().lazy()
-                # llm_out_df = llm_out_df.collect().lazy()
-
-                # Left join on index
-                merged = base_table.join(llm_out_df, on="__merge_idx__", how="left")
-
-                # print(merged.collect()) # ONLY THIS breaks
-
-                # Drop merge index and placeholder if it exists
-                cols_to_drop = ["__merge_idx__"]
-                if "__placeholder__" in merged.collect_schema().names():
-                    cols_to_drop.append("__placeholder__")
-                merged = merged.drop(cols_to_drop)
-
-                db.to_temp_table(
-                    df=merged.collect(), tablename=_get_temp_session_table(tablename)
-                )
-                session_modified_tables.add(tablename)
+            db.to_temp_table(df=base.collect(), tablename=temp_name)
+            session_modified_tables.add(tablename)
 
     # Now insert the function outputs to the original query
     # We need to re-sync if we did some operation on the underlying query,

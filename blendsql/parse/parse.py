@@ -365,7 +365,11 @@ class SubqueryContextManager:
             # TODO: add more
 
     def infer_gen_constraints(
-        self, function_node: exp.Expression, schema: dict, alias_to_tablename: dict
+        self,
+        function_node: exp.Expression,
+        schema: dict,
+        alias_to_tablename: dict,
+        has_user_regex: bool,
     ) -> dict:
         """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
             downstream Model generations.
@@ -438,11 +442,12 @@ class SubqueryContextManager:
                     resolved_type = DB_TYPE_TO_STR[native_db_type]
                     if resolved_type != "str":
                         return_type = STR_TO_DATATYPE[DB_TYPE_TO_STR[native_db_type]]
-                        logger.debug(
-                            Color.quiet_update(
-                                f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
+                        if not has_user_regex:
+                            logger.debug(
+                                Color.quiet_update(
+                                    f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
+                                )
                             )
-                        )
                 else:
                     logger.debug(
                         Color.warning(

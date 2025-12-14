@@ -141,10 +141,10 @@ class SQLAlchemyDatabase(Database):
         if isinstance(df, pl.LazyFrame):
             df = df.collect()
 
-        pd_df = df.to_pandas()
+        pd_df = df.to_pandas(use_pyarrow_extension_array=True)
 
-        if self.has_temp_table(tablename):
-            self.con.execute(text(f'DROP TABLE "{tablename}"'))
+        self.con.execute(text(f'DROP TABLE IF EXISTS "{tablename}"'))
+
         create_table_stmt = get_schema(pd_df, name=tablename, con=self.con).strip()
         # Insert 'TEMP' keyword
         create_table_stmt = re.sub(
@@ -152,12 +152,10 @@ class SQLAlchemyDatabase(Database):
         )
         logger.debug(Color.quiet_sql(create_table_stmt))
         self.con.execute(text(create_table_stmt))
-        # df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
-        df.write_database(
-            table_name=tablename,
-            connection=self.con,
-            if_table_exists="append",
-        )
+        # Polars today just uses `pd.to_sql` if we pass a sqlalchemy connection
+        # https://docs.pola.rs/api/python/stable/reference/api/polars.DataFrame.write_database.html
+        # So, `polars.DataFrame.write_database` isn't any faster
+        pd_df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
     def execute_to_df(
         self, query: str, params: dict | None = None, lazy: bool = True
@@ -181,12 +179,6 @@ class SQLAlchemyDatabase(Database):
             ```
         """
         res = pl.DataFrame(pd.read_sql(text(query), self.con, params=params))
-        # res = pl.read_database(
-        #     query,
-        #     connection=self.con,
-        #     execute_options={"parameters": params},
-        #     infer_schema_length=500,
-        # )
         return res.lazy() if lazy else res
 
     def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
