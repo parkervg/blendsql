@@ -46,8 +46,9 @@ class Smoothie:
     df: pl.DataFrame = field()
     meta: SmoothieMeta = field()
 
-    # def __post_init__(self):
-    #     self.df = PrettyDataFrame(self.df)
+    def __post_init__(self):
+        if isinstance(self.df, pl.LazyFrame):
+            self.df = self.df.collect()
 
     def print_summary(self):
         from rich.console import Console, Group

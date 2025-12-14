@@ -294,7 +294,7 @@ class MapIngredient(Ingredient):
         if tablename in self.db.lazy_tables:
             materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
             self.num_values_passed += materialized_smoothie.meta.num_values_passed
-            original_table = materialized_smoothie.df
+            original_table = materialized_smoothie.df.lazy()
         else:
             original_table = self.db.execute_to_df(
                 select_all_from_table_query(tablename)
@@ -355,7 +355,7 @@ class MapIngredient(Ingredient):
         if context_was_passed:
             unpacked_values: list = distinct_values[colname].tolist()
             context_subtables = [
-                pd.DataFrame(distinct_values[c])
+                pl.DataFrame(distinct_values[c])
                 for c in distinct_values.columns
                 if c != colname
             ]
@@ -654,7 +654,7 @@ class QAIngredient(Ingredient):
                 context = context + (context_kwarg,)
         aliases_to_tablenames: dict[str, str] = kwargs["aliases_to_tablenames"]
 
-        subtables: list[pd.DataFrame] = []
+        subtables: list[pl.DataFrame] = []
         for _context in context:
             if isinstance(_context, ColumnRef):
                 tablename, colname = utils.get_tablename_colname(_context)
@@ -665,18 +665,18 @@ class QAIngredient(Ingredient):
                     self.num_values_passed += (
                         materialized_smoothie.meta.num_values_passed
                     )
-                    subtable: pd.DataFrame = pd.DataFrame(
+                    subtable: pl.DataFrame = pl.DataFrame(
                         materialized_smoothie.df.select([colname])
                     )
                 else:
-                    subtable: pd.DataFrame = self.db.execute_to_df(
+                    subtable: pl.DataFrame = self.db.execute_to_df(
                         f'SELECT "{colname}" FROM "{tablename}"'
                     )
             elif isinstance(_context, pd.DataFrame):
-                subtable: pd.DataFrame = _context
+                subtable: pl.DataFrame = _context
             else:
-                subtable = pd.DataFrame([{"_col": _context}])
-            if subtable.empty:
+                subtable = pl.DataFrame({"_col": _context})
+            if subtable.is_empty():
                 raise IngredientException("Empty subtable passed to QAIngredient!")
             self.num_values_passed += len(subtable)
             subtables.append(subtable)

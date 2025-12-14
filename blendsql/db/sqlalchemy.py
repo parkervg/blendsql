@@ -1,14 +1,12 @@
 from collections.abc import Collection
 from typing import Generator, Callable
 import pandas as pd
-import re
 import polars as pl
 from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_engine, inspect, MetaData
 from sqlalchemy.sql import text
 from sqlalchemy.engine import Engine, Connection, URL
-from pandas.io.sql import get_schema
 
 from .database import Database
 from blendsql.common.logger import logger, Color
@@ -137,19 +135,63 @@ class SQLAlchemyDatabase(Database):
                     )
         return "\n".join(serialized_db).strip()
 
-    def to_temp_table(self, df: pd.DataFrame, tablename: str):
+    def to_temp_table(self, df: pl.DataFrame, tablename: str):
         if self.has_temp_table(tablename):
             self.con.execute(text(f'DROP TABLE "{tablename}"'))
-        create_table_stmt = get_schema(df, name=tablename, con=self.con).strip()
-        # Insert 'TEMP' keyword
-        create_table_stmt = re.sub(
-            r"^CREATE TABLE", "CREATE TEMP TABLE", create_table_stmt
-        )
+
+        if isinstance(df, pl.LazyFrame):
+            df = df.collect()
+
+        # Build CREATE TEMP TABLE statement from polars schema
+        # TODO: can we copy schema from existing table?
+        col_defs = []
+        for col_name, dtype in df.schema.items():
+            sql_type = self._polars_dtype_to_sql(dtype)
+            col_defs.append(f'"{col_name}" {sql_type}')
+
+        create_table_stmt = f'CREATE TEMP TABLE "{tablename}" ({", ".join(col_defs)})'
         logger.debug(Color.quiet_sql(create_table_stmt))
         self.con.execute(text(create_table_stmt))
-        df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
-    def execute_to_df(self, query: str, params: dict | None = None) -> pd.DataFrame:
+        # Insert data
+        df.write_database(
+            table_name=tablename,
+            connection=self.con,
+            if_table_exists="append",
+        )
+
+    def _polars_dtype_to_sql(self, dtype: pl.DataType) -> str:
+        """Map Polars dtypes to SQL types."""
+        if (
+            dtype == pl.Int64
+            or dtype == pl.Int32
+            or dtype == pl.Int16
+            or dtype == pl.Int8
+        ):
+            return "INTEGER"
+        elif (
+            dtype == pl.UInt64
+            or dtype == pl.UInt32
+            or dtype == pl.UInt16
+            or dtype == pl.UInt8
+        ):
+            return "INTEGER"
+        elif dtype == pl.Float64 or dtype == pl.Float32:
+            return "REAL"
+        elif dtype == pl.Boolean:
+            return "BOOLEAN"
+        elif dtype == pl.Date:
+            return "DATE"
+        elif dtype == pl.Datetime or dtype == pl.Time:
+            return "TIMESTAMP"
+        elif dtype == pl.Utf8 or dtype == pl.String:
+            return "TEXT"
+        else:
+            return "TEXT"
+
+    def execute_to_df(
+        self, query: str, params: dict | None = None, lazy: bool = True
+    ) -> pd.DataFrame:
         """
         Execute the given query and return results as dataframe.
 
@@ -168,9 +210,13 @@ class SQLAlchemyDatabase(Database):
             db.execute_query("SELECT * FROM t WHERE c = :v", {"v": "value"})
             ```
         """
-        return pl.read_database(
-            "SELECT * FROM temp_data", connection=self.con, params=params
+        res = pl.read_database(
+            query,
+            connection=self.con,
+            execute_options={"parameters": params},
+            schema_overrides=self.sqlglot_schema,
         )
+        return res.lazy() if lazy else res
 
     def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.

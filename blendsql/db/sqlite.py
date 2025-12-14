@@ -37,11 +37,15 @@ class SQLite(SQLAlchemyDatabase):
         schema: dict[str, dict] = {}
         for tablename in self.tables():
             schema[tablename] = {}
-            for _, row in self.execute_to_df(
-                f"""
-            SELECT name, type FROM pragma_table_info(:t)
-            """,
-                {"t": tablename},
-            ).iterrows():
+            for row in (
+                self.execute_to_df(
+                    f"""
+                SELECT name, type FROM pragma_table_info(?)
+                """,
+                    [tablename],
+                )
+                .collect()
+                .iter_rows(named=True)
+            ):
                 schema[tablename][row["name"]] = row["type"]
         return schema

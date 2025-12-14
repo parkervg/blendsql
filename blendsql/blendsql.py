@@ -578,9 +578,8 @@ def _blend(
                             )
                         # In case of a join, we could have duplicate column names in our pandas dataframe
                         # This will throw an error when we try to write to the database
-                        abstracted_df = abstracted_df.loc[
-                            :, ~abstracted_df.columns.duplicated()
-                        ]
+                        abstracted_df = abstracted_df.select(pl.all().name.keep())
+
                 db.to_temp_table(
                     df=abstracted_df,
                     tablename=tablename_to_write,
@@ -695,7 +694,9 @@ def _blend(
                         if unpack_kwarg == "options":
                             if len(subtable.columns) == 1 or len(subtable) == 1:
                                 # Here, we need to format as a flat set
-                                kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
+                                kwargs_dict[unpack_kwarg] = list(
+                                    subtable.to_numpy().flatten()
+                                )
                             else:
                                 raise InvalidBlendSQL(
                                     f"Invalid subquery passed to `options`!\nNeeds to return exactly one column or row, got {len(subtable.columns)} columns and {len(subtable)} rows instead"
