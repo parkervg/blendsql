@@ -214,7 +214,7 @@ class SQLAlchemyDatabase(Database):
             query,
             connection=self.con,
             execute_options={"parameters": params},
-            schema_overrides=self.sqlglot_schema,
+            infer_schema_length=500,
         )
         return res.lazy() if lazy else res
 
