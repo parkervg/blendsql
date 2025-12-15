@@ -646,7 +646,7 @@ def _blend(
             if curr_ingredient.ingredient_type == IngredientType.MAP:
                 # Fetch an exit condition, if we can extract one from the expression context
                 # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
-                # The exit conditon would be at least 5 `a()` evaluate to `TRUE`
+                # The exit condition would be at least 5 `a()` evaluate to `TRUE`
                 kwargs_dict["exit_condition"] = scm.get_exit_condition(function_node)
 
             logger.debug(
@@ -655,10 +655,9 @@ def _blend(
                 + Color.update("...")
             )
             if infer_gen_constraints:
-                # if all(kwargs_dict.get(n, None) is None for n in ["return_type"]):
                 # Latter is the winner.
                 # So if we already define something in kwargs_dict,
-                #   It's not overriden here
+                #   It's not overridden here.
                 kwargs_dict = (
                     scm.infer_gen_constraints(
                         function_node=function_node,
@@ -673,7 +672,7 @@ def _blend(
                 kwargs_dict["table_to_title"] = table_to_title
 
             # Optionally, recursively call blend() again to get subtable from args
-            # This applies to `context` and `options`
+            # This applies to `context` and `options`, since they can be `Subquery` types.
             for _i, unpack_kwarg in enumerate(["context", "options"]):
                 unpack_value = kwargs_dict.get(unpack_kwarg, None)
                 if unpack_value is None:
@@ -723,9 +722,9 @@ def _blend(
 
             if getattr(curr_ingredient, "model", None) is not None:
                 kwargs_dict["model"] = curr_ingredient.model
+
             # Execute our ingredient function
             function_out = curr_ingredient(
-                # *parsed_results_dict["args"],
                 **kwargs_dict
                 | {
                     "get_temp_subquery_table": _get_temp_subquery_table,
@@ -774,7 +773,7 @@ def _blend(
                     f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                 )
 
-        # Combine all the retrieved ingredient outputs
+        # Combine all the retrieved map outputs
         # The below assumes the `mapped_dfs` are in the same row-order!
         # Which is the case for LLMMap, since it does a left-join to make sure
         # the return order is consistent with the input order.
@@ -857,7 +856,7 @@ def _blend(
 
     query = query_context.to_string()
 
-    logger.debug(Color.success(f"Final Query:\n{query}"))
+    logger.debug(Color.success(f"Final Query:\n") + Color.sql(query))
 
     df = db.execute_to_df(query).collect()
 
