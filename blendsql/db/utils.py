@@ -43,11 +43,11 @@ class LazyTables(dict):
 
 
 def single_quote_escape(s):
-    return re.sub(r"(?<=[^'])'(?=[^'])", "''", s)
+    return re.sub(r"(?<!')'(?!')", "''", s)
 
 
 def double_quote_escape(s):
-    return re.sub(r'(?<=[^"])"(?=[^"])', '""', s)
+    return re.sub(r'(?<!")"(?!")', '""', s)
 
 
 def escape(s):
