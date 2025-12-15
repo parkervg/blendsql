@@ -15,7 +15,7 @@ from blendsql.common.logger import logger, Color
 from blendsql.common import utils
 from blendsql.common.typing import IngredientType, ColumnRef
 from blendsql.db import Database
-from blendsql.db.utils import select_all_from_table_query, format_tuple
+from blendsql.db.utils import format_tuple, double_quote_escape
 from blendsql.common.utils import get_tablename_colname
 from blendsql.search.searcher import Searcher
 from blendsql.ingredients.few_shot import Example
@@ -332,11 +332,11 @@ class MapIngredient(Ingredient):
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
             temp_session_table = self.db.execute_to_df(
-                select_all_from_table_query(temp_session_tablename)
+                f'SELECT * FROM "{double_quote_escape(temp_session_tablename)}" LIMIT 1'
             )
             # We don't need to run this function on everything,
             #   if a previous subquery already got to certain values
-            if new_arg_column in temp_session_table.columns:
+            if new_arg_column in temp_session_table.collect_schema().names():
                 distinct_values = select_distinct_fn(
                     f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
                 )
