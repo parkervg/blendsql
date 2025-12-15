@@ -545,7 +545,8 @@ class SubqueryContextManager:
                     prepare_datatype(
                         return_type=return_type, 
                         options=added_kwargs.get('options'), 
-                        quantifier=quantifier
+                        quantifier=quantifier,
+                        log=False
                     ).name} given expression context"""
                 )
             )

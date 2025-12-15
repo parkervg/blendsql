@@ -15,6 +15,7 @@ def prepare_datatype(
     options: Collection[str] | None,
     return_type: str | DataType | None = None,
     quantifier: QuantifierType | None = None,
+    log: bool = True,
 ) -> DataType:
     if return_type is None:
         resolved_output_type = DataTypes.ANY()
@@ -36,22 +37,25 @@ def prepare_datatype(
         resolved_output_type.quantifier = quantifier
     if resolved_output_type.regex is not None:
         if options is not None:
-            logger.debug(
-                Color.quiet_update(
-                    f"Ignoring inferred regex '{resolved_output_type.regex}' and using options '{options}' instead"
+            if log:
+                logger.debug(
+                    Color.quiet_update(
+                        f"Ignoring inferred regex '{resolved_output_type.regex}' and using options '{options}' instead"
+                    )
                 )
-            )
             resolved_output_type.regex = None
         else:
-            logger.debug(
-                Color.quiet_update(f"Using regex '{resolved_output_type.regex}'")
-            )
+            if log:
+                logger.debug(
+                    Color.quiet_update(f"Using regex '{resolved_output_type.regex}'")
+                )
     elif options:
-        logger.debug(
-            Color.quiet_update(
-                f"Using options '{set(itertools.islice(options, 20))}...'"
+        if log:
+            logger.debug(
+                Color.quiet_update(
+                    f"Using options '{set(itertools.islice(options, 20))}...'"
+                )
             )
-        )
     return resolved_output_type
 
 
