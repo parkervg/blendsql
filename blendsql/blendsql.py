@@ -785,13 +785,18 @@ def _blend(
             temp_name = _get_temp_session_table(tablename)
             source = temp_name if db.has_temp_table(temp_name) else tablename
 
+            # Fetch the base table to modify with our new columns.
+            # This ensures parity with the existing database once we
+            #   swap in our reference to the new temporary table.
             base = db.execute_to_df(
                 select_all_from_table_query(source), close_conn=False
             )
             base_cols = set(base.collect_schema().names())
             mapped_dfs, new_cols = map(list, zip(*outputs))
 
-            # Select only the unique column from each frame
+            # The data in `mapped_dfs` will have the new column (in `new_cols`), along with
+            #   any native columns passed to the Map function.
+            # These would be things like the `value` column, any `context`, etc.
             frames = [df.select(col) for df, col in zip(mapped_dfs, new_cols)]
             new_data = pl.concat(frames, how="horizontal").collect()  # Collect once
 
@@ -815,22 +820,29 @@ def _blend(
     # We need to re-sync if we did some operation on the underlying query,
     #   like with a JoinIngredient
     query = query_context.to_string()
-    for alias, res in alias_function_name_to_result.items():
-        query = re.sub(
-            re.escape(format_blendsql_function(alias)),
-            f" {str(res)} ",
-            query,
-        )
-    query_context.parse(query)
+    if alias_function_name_to_result:
+        # Process regex replacements in a batch
+        replacements = {
+            format_blendsql_function(alias): f" {str(res)} "
+            for alias, res in alias_function_name_to_result.items()
+        }
+        pattern = re.compile("|".join(map(re.escape, replacements.keys())))
+        query = pattern.sub(lambda m: replacements[m.group(0)], query)
+
+    query_context.parse(
+        query
+    )  # Sync query to string, after replacing aliases with function outputs
+
+    temp_table_cache = {t: _get_temp_session_table(t) for t in session_modified_tables}
     for t in session_modified_tables:
         query_context.node = query_context.node.transform(
-            transform.replace_tablename, t, _get_temp_session_table(t)
+            transform.replace_tablename, t, temp_table_cache[t]
         )
     if scm is not None:
         for a, t in scm.alias_to_tablename.items():
             if t in session_modified_tables:
                 query_context.node = query_context.node.transform(
-                    transform.replace_tablename, a, _get_temp_session_table(t)
+                    transform.replace_tablename, a, temp_table_cache[t]
                 )
 
     # Finally, iter through tables in query and see if we need to collect LazyTable
