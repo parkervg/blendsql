@@ -71,6 +71,7 @@ class Ingredient:
         # Get the name from the caller's frame
         import inspect
 
+        frame = None
         try:
             frame = inspect.currentframe()
             if frame and frame.f_back.f_back:
@@ -121,9 +122,12 @@ class Ingredient:
         if tablename in self.db.lazy_tables:
             materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
             self.num_values_passed += materialized_smoothie.meta.num_values_passed
-            unpacked_values = [
-                str(i) for i in materialized_smoothie.pl.get_column(colname).unique()
-            ]
+            unpacked_values = (
+                materialized_smoothie.pl.get_column(colname)
+                .unique()
+                .cast(pl.Utf8)
+                .to_list()
+            )
         else:
             unpacked_values: list = [
                 str(i)
@@ -131,7 +135,7 @@ class Ingredient:
                     f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
                 )
             ]
-        return list(set(unpacked_values))
+        return unpacked_values
 
     def maybe_get_temp_table(
         self, temp_table_func: Callable, tablename: str
@@ -151,13 +155,17 @@ class Ingredient:
         unpacked_options = options
         if isinstance(options, ColumnRef):
             unpacked_options = self.unpack_column_ref(options, aliases_to_tablenames)
-        if len(unpacked_options) == 0:
+        else:
+            unpacked_options = options
+
+        if not unpacked_options:
             logger.debug(
                 Color.error(
                     f"Tried to unpack options '{options}', but got an empty list\nThis may be a bug. Please report it."
                 )
             )
-        return list(unpacked_options) if len(unpacked_options) > 0 else None
+            return None
+        return list(unpacked_options)
 
 
 @attrs
@@ -272,7 +280,7 @@ class MapIngredient(Ingredient):
             else:
                 context = context + (context_kwarg,)
 
-        context_was_passed = len(context) > 0
+        context_was_passed = bool(context)
         aliases_to_tablenames: dict[str, str] = kwargs["aliases_to_tablenames"]
         get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
@@ -290,8 +298,8 @@ class MapIngredient(Ingredient):
             temp_table_func=get_temp_session_table, tablename=tablename
         )
 
+        all_context_colnames = []
         if context_was_passed:
-            all_context_colnames = []
             for _context in context:
                 if isinstance(_context, ColumnRef):
                     _, context_colname = utils.get_tablename_colname(_context)
@@ -300,15 +308,13 @@ class MapIngredient(Ingredient):
                     raise ValueError(
                         f"Not sure what to do with context arg passed to MapIngredient: {_context}"
                     )
-            select_distinct_fn = lambda q: self.db.execute_to_df(q)
-            select_distinct_arg = (
-                f'"{colname}"'
-                + ", "
-                + ", ".join([f'"{c}"' for c in all_context_colnames])
+            select_distinct_arg = f'"{colname}", ' + ", ".join(
+                f'"{c}"' for c in all_context_colnames
             )
+            select_distinct_fn = lambda q: self.db.execute_to_df(q)
         else:
-            select_distinct_fn = lambda q: self.db.execute_to_list(q)
             select_distinct_arg = f'"{colname}"'
+            select_distinct_fn = lambda q: self.db.execute_to_list(q)
 
         # Optionally materialize a CTE
         if tablename in self.db.lazy_tables:
@@ -321,7 +327,7 @@ class MapIngredient(Ingredient):
             )
 
         # Need to be sure the new column doesn't already exist here
-        new_arg_column = question or str(uuid.uuid4())[:4]
+        new_arg_column = question or uuid.uuid4().hex[:4]
         while (
             new_arg_column in set(self.db.iter_columns(tablename))
             or new_arg_column in prev_subquery_map_columns
@@ -360,7 +366,7 @@ class MapIngredient(Ingredient):
             unpacked_values: list = distinct_values
 
         # No need to run ingredient if we have no values to map onto
-        if len(unpacked_values) == 0:
+        if not unpacked_values:
             original_table = original_table.with_columns(
                 pl.lit(None).alias(new_arg_column)
             )
@@ -374,18 +380,12 @@ class MapIngredient(Ingredient):
             )
 
         unpacked_questions = None
-        if question is not None:
-            num_braces = question.count("{}")
-            if num_braces > 0:
-                unpacked_questions = [
-                    question.format(value) for value in unpacked_values
-                ]
+        if question is not None and "{}" in question:
+            unpacked_questions = [question.format(value) for value in unpacked_values]
 
-                logger.debug(
-                    Color.quiet_update(
-                        f"Unpacked question to '{unpacked_questions[:10]}'"
-                    )
-                )
+            logger.debug(
+                Color.quiet_update(f"Unpacked question to '{unpacked_questions[:10]}'")
+            )
 
         mapped_values: Collection[Any] = self._run(
             question=question,
@@ -397,20 +397,14 @@ class MapIngredient(Ingredient):
             colname=colname,
             **self.__dict__ | kwargs,
         )
-        df_as_dict: dict[str, list] = {colname: [], new_arg_column: []}
-        for value, mapped_value in zip(unpacked_values, mapped_values):
-            df_as_dict[colname].append(value)
-            df_as_dict[new_arg_column].append(mapped_value)
+        df_as_dict = {
+            colname: list(unpacked_values),
+            new_arg_column: list(mapped_values),
+        }
         mapped_subtable = pl.LazyFrame(
             df_as_dict, strict=False
         )  # strict=False allows mixed types
-        if all(
-            isinstance(x, (int, type(None))) and not isinstance(x, bool)
-            for x in mapped_values
-        ):
-            mapped_subtable = mapped_subtable.with_columns(
-                pl.col(new_arg_column).cast(pl.Int64)
-            )
+
         # Add new_table to original table
         if context_was_passed:
             # _mapped_subtable = distinct_values.collect()
@@ -423,14 +417,6 @@ class MapIngredient(Ingredient):
             )
         else:
             new_table = original_table.join(mapped_subtable, how="left", on=colname)
-
-        # new_table = new_table.collect()
-        # original_table = original_table.collect()
-
-        # if new_table.shape[0] != original_table.shape[0]:
-        #     raise IngredientException(
-        #         f"subtable from MapIngredient.run() needs same length as # rows from original\nOriginal has {original_table.shape[0]}, new_table has {new_table.shape[0]}"
-        #     )
         # Now, new table has original columns + column with the name of the question we answered
         return (new_arg_column, tablename, colname, new_table)
 
@@ -611,16 +597,20 @@ class JoinIngredient(Ingredient):
             }
         )
         self.db.to_temp_table(df=joined_values_df, tablename=temp_join_tablename)
+
         if right_tablename in aliases_to_tablenames:
-            join_right_clause = f"""JOIN "{aliases_to_tablenames[right_tablename]}" AS "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right"""
+            right_table_ref = (
+                f'"{aliases_to_tablenames[right_tablename]}" AS "{right_tablename}"'
+            )
         else:
-            join_right_clause = f"""JOIN "{right_tablename}" ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right"""
-        return (
-            left_tablename,
-            right_tablename,
-            f"""JOIN "{temp_join_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left\n{join_right_clause}""",
-            temp_join_tablename,
+            right_table_ref = f'"{right_tablename}"'
+
+        join_clause = (
+            f'JOIN "{temp_join_tablename}" ON "{left_tablename}"."{left_colname}" = "{temp_join_tablename}".left\n'
+            f'JOIN {right_table_ref} ON "{right_tablename}"."{right_colname}" = "{temp_join_tablename}".right'
         )
+
+        return (left_tablename, right_tablename, join_clause, temp_join_tablename)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> dict:
@@ -668,9 +658,9 @@ class QAIngredient(Ingredient):
                     self.num_values_passed += (
                         materialized_smoothie.meta.num_values_passed
                     )
-                    subtable: pl.DataFrame = pl.DataFrame(
-                        materialized_smoothie.pl.select([colname])
-                    )
+                    subtable = materialized_smoothie.pl.select([colname])
+                    if isinstance(subtable, pl.LazyFrame):
+                        subtable = subtable.collect()
                 else:
                     subtable: pl.DataFrame = self.db.execute_to_df(
                         f'SELECT "{colname}" FROM "{tablename}"', lazy=False
@@ -690,30 +680,33 @@ class QAIngredient(Ingredient):
                 aliases_to_tablenames=aliases_to_tablenames,
             )
 
-        if question is not None:
-            if "{}" in question:
-                if len(subtables) == 0:
-                    raise IngredientException(
-                        f"Passed question with string template '{question}', but no context was passed to fill!"
-                    )
-                unpacked_values = []
-                for subtable in subtables:
-                    curr_values = list(subtable.to_pandas().values.flat)
-                    if len(curr_values) > 1:
-                        logger.debug(
-                            Color.error(
-                                f"More than 1 value found in {question}: {curr_values[:10]}\nThis could be a sign of a malformed query."
-                            )
+        if question is not None and "{}" in question:
+            if len(subtables) == 0:
+                raise IngredientException(
+                    f"Passed question with string template '{question}', but no context was passed to fill!"
+                )
+            unpacked_values = []
+            for subtable in subtables:
+                curr_values = (
+                    subtable.to_series().to_list()
+                    if subtable.width == 1
+                    else list(subtable.to_pandas().values.flat)
+                )
+                if len(curr_values) > 1:
+                    logger.debug(
+                        Color.error(
+                            f"More than 1 value found in {question}: {curr_values[:10]}\nThis could be a sign of a malformed query."
                         )
-                    unpacked_values.append(curr_values[0])
-                question = question.format(*unpacked_values)
-                logger.debug(Color.quiet_update(f"Unpacked question to '{question}'"))
-                # This will now override whatever context we passed
-                subtables = []
+                    )
+                unpacked_values.append(curr_values[0])
+            question = question.format(*unpacked_values)
+            logger.debug(Color.quiet_update(f"Unpacked question to '{question}'"))
+            # This will now override whatever context we passed
+            subtables = []
 
         response: [str | int | float | tuple] = self._run(
             question=question,
-            context=subtables if len(subtables) > 0 else None,
+            context=subtables if subtables else None,
             options=options,
             **self.__dict__ | kwargs,
         )
