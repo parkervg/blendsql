@@ -420,6 +420,9 @@ class MapIngredient(Ingredient):
                 _mapped_subtable, how="left", on=[colname] + all_context_colnames
             )
         else:
+            print(f"{original_table.collect()=}")
+            print(f"{mapped_subtable.collect()=}")
+            print(colname)
             new_table = original_table.join(mapped_subtable, how="left", on=colname)
 
         # new_table = new_table.collect()

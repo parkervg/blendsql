@@ -775,6 +775,7 @@ def _blend(
                 )
 
         # Combine all the retrieved ingredient outputs
+        # TODO: can we simplify this?
         for tablename, outputs in tablename_to_map_out.items():
             if not outputs:
                 continue
@@ -791,29 +792,32 @@ def _blend(
             new_data = pl.concat(outputs, how="align_full")
             new_cols = new_data.collect_schema().names()
 
-            # Separate into: columns to add vs columns to coalesce
+            new_data.collect().to_pandas()
+            # print(f"{new_data_df[new_data_df['Does this post mention academic papers?'] == True]=}")
             to_add = [c for c in dict.fromkeys(new_cols) if c not in base_cols]
+            # print(f"{to_add=}")
             to_coalesce = [c for c in dict.fromkeys(new_cols) if c in base_cols]
-            # print(f"{base.collect()=}")
-            # print(f"{new_data.collect()=}")
+
             # Build result with coalesce for overlapping columns
-            # if to_coalesce:
-            #     # For overlapping cols: use new value if not null, else keep base
-            #     coalesce_exprs = [
-            #         pl.coalesce(
-            #             new_data.select(c).collect(), pl.col(c)
-            #         ).alias(c)
-            #         for c in to_coalesce
-            #     ]
-            #     base = base.with_columns(coalesce_exprs)
+            if to_coalesce:
+                # For overlapping cols: use new value if not null, else keep base
+                coalesce_exprs = [
+                    pl.coalesce(
+                        new_data.select(c).collect().to_series(), pl.col(c)
+                    ).alias(c)
+                    for c in to_coalesce
+                ]
+                base = base.with_columns(coalesce_exprs)
 
             if to_add:
-                base = (
-                    pl.concat([base, new_data], how="align_left")
-                    .group_by(to_coalesce, maintain_order=True)
-                    .agg([pl.col(c).drop_nulls().first().alias(c) for c in to_add])
-                )
+                # hstack the genuinely new columns
+                base = base.collect().hstack(new_data.select(to_add).collect()).lazy()
 
+            base_df = base.collect().to_pandas()
+            print(
+                f"{base_df[base_df['Does this post mention academic papers?'] == True][['OwnerUserId']]=}"
+            )
+            print(db.execute_to_df("SELECT * FROM users WHERE Id = 5739.0").collect())
             db.to_temp_table(df=base.collect(), tablename=temp_name)
             session_modified_tables.add(tablename)
 

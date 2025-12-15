@@ -1,3 +1,7 @@
+import polars as pl
+
+pl.Config.set_engine_affinity("gpu")
+
 import time
 from pathlib import Path
 from typing import Iterable
@@ -23,8 +27,6 @@ from blendsql.ingredients import Ingredient
 CURR_DIR = Path(__file__).resolve().parent
 NUM_VALUES_PASSED = 0
 NUM_ITERS = 5
-
-# pl.Config.set_engine_affinity("gpu")
 
 
 @dataclass
@@ -252,7 +254,7 @@ if __name__ == "__main__":
         LLMQA.from_args(
             num_few_shot_examples=0,
         ),
-        LLMMap,
+        LLMMap.from_args(num_few_shot_examples=0, batch_size=3),
         LLMJoin,
     }
 
@@ -296,7 +298,7 @@ if __name__ == "__main__":
                     DuckDB.from_sqlite(path, additional_cmds=additional_cmds),
                     model=model,
                     ingredients=ingredients,
-                    verbose=False,  # toggle this off for actual runtime test
+                    verbose=True,  # toggle this off for actual runtime test
                 )
             do_eval = False
             prediction_data = []
@@ -307,11 +309,16 @@ if __name__ == "__main__":
                 if exp_type == "BlendSQL":
                     if item["BlendSQL"] is None:
                         continue
+                    if item["Query ID"] != 6:
+                        continue
                     additional_cmds = None
                     if item["DB used"] == "european_football_2":
                         additional_cmds = ["SET sqlite_all_varchar=true"]
                     bsql = load_bsql(load_tag_db_path(item["DB used"]), additional_cmds)
                     smoothie = bsql.execute(item["BlendSQL"])
+                    smoothie.print_summary()
+                    time.sleep(3)
+                    exit()
                     curr_pred_data["latency"] = smoothie.meta.process_time_seconds
                     curr_pred_data[
                         "completion_tokens"
