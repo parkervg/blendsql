@@ -4,6 +4,7 @@ import os
 from typing import Callable
 from pathlib import Path
 import json
+import polars as pl
 import pandas as pd
 from attr import attrs, attrib
 import copy
@@ -80,7 +81,7 @@ class LLMMap(MapIngredient):
     few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = attrib(
         default=None
     )
-    context_formatter: Callable[[pd.DataFrame], str] = attrib(
+    context_formatter: Callable[[pl.DataFrame], str] = attrib(
         default=DEFAULT_CONTEXT_FORMATTER,
     )
     batch_size: int = attrib(default=None)
@@ -177,8 +178,8 @@ class LLMMap(MapIngredient):
         question: str,
         values: list[str],
         list_options_in_prompt: bool,
-        context_formatter: Callable[[pd.DataFrame], str],
-        context: pd.DataFrame | None = None,
+        context_formatter: Callable[[pl.DataFrame], str],
+        context: pl.DataFrame | None = None,
         context_searcher: Searcher | None = None,
         unpacked_questions: list[str] = None,
         options: list[str] | None = None,
@@ -239,11 +240,9 @@ class LLMMap(MapIngredient):
                     len(x) == len(values) for x in context
                 ), "Length of scalars passed in LLMMap `context` doesn't match number of values!"
                 context_in_use = [
-                    list(row)
-                    for row in zip(*[df.iloc[:, 0].tolist() for df in context])
-                ]  # Kind of ugly
+                    list(row) for row in pl.concat(context, how="horizontal").rows()
+                ]
                 context_in_use_type = FeatureType.LOCAL
-
         # Log what we found
         if context_in_use_type == FeatureType.GLOBAL:
             logger.debug(

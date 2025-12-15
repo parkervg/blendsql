@@ -1,5 +1,5 @@
 import re
-import pandas as pd
+import polars as pl
 from typing import Callable
 from attr import attrs, attrib
 
@@ -14,7 +14,7 @@ class LazyTable:
     """
 
     tablename: str = attrib()
-    collect_fn: Callable[..., pd.DataFrame] = attrib()
+    collect_fn: Callable[..., pl.DataFrame] = attrib()
     has_blendsql_function: bool = attrib()
 
     def __str__(self):
@@ -43,11 +43,11 @@ class LazyTables(dict):
 
 
 def single_quote_escape(s):
-    return re.sub(r"(?<=[^'])'(?=[^'])", "''", s)
+    return re.sub(r"(?<!')'(?!')", "''", s)
 
 
 def double_quote_escape(s):
-    return re.sub(r'(?<=[^"])"(?=[^"])', '""', s)
+    return re.sub(r'(?<!")"(?!")', '""', s)
 
 
 def escape(s):
@@ -65,12 +65,14 @@ def select_all_from_table_query(tablename: str) -> str:
     return f'SELECT * FROM "{double_quote_escape(tablename)}";'
 
 
-def truncate_df_content(df: pd.DataFrame, truncation_limit: int) -> pd.DataFrame:
+def truncate_df_content(df: pl.DataFrame, truncation_limit: int) -> pl.DataFrame:
     # Truncate long strings
-    return df.map(
-        lambda x: (
-            f"{str(x)[:truncation_limit]}..."
-            if isinstance(x, str) and len(str(x)) > truncation_limit
-            else x
-        )
+    return df.with_columns(
+        [
+            pl.when(pl.col(col).str.len_chars() > truncation_limit)
+            .then(pl.col(col).str.slice(0, truncation_limit) + "...")
+            .otherwise(pl.col(col))
+            .alias(col)
+            for col in df.select(pl.col(pl.Utf8)).columns
+        ]
     )

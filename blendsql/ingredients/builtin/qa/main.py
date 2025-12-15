@@ -4,6 +4,7 @@ from ast import literal_eval
 from pathlib import Path
 from typing import Callable
 import pandas as pd
+import polars as pl
 import json
 from attr import attrs, attrib
 
@@ -209,7 +210,7 @@ class LLMQA(QAIngredient):
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if context_searcher is not None and context is None:
             docs = context_searcher(question)[0]
-            context = [pd.DataFrame(docs, columns=["content"])]
+            context = [pl.DataFrame(docs, columns=["content"])]
             logger.debug(
                 Color.quiet_update(
                     f"Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"

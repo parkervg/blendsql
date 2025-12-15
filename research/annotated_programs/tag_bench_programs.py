@@ -410,13 +410,12 @@ ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "left",
         "BlendSQL": """SELECT preferred_foot
-                       FROM Player p
-                                JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
+                       FROM Player p JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
                        WHERE player_name = {{
                            LLMQA(
-                           "Which player has the most Ballon d'Or awards?"
+                               "Which player has the most Ballon d'Or awards?"
                            )
-                           }} LIMIT 1""",
+                       }} LIMIT 1""",
         "DuckDB": """SELECT preferred_foot
                      FROM Player p
                               JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
@@ -598,7 +597,7 @@ ANNOTATED_TAG_DATASET = [
         "Query type": "Match",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "2013",
-        "BlendSQL": """SELECT ym.Date / 100 AS "year"
+        "BlendSQL": """SELECT ROUND(CAST(ym.Date AS INT) / 100)::INT AS "year"
                        FROM customers c
                                 JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
                        WHERE c.Currency = {{LLMQA('Which currency is the higher value?')}}
@@ -817,7 +816,7 @@ ANNOTATED_TAG_DATASET = [
         "Query type": "Comparison",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "453",
-        "BlendSQL": """SELECT CAST(ROUND(AVG(t.Price)) AS INT)
+        "BlendSQL": """SELECT ROUND(AVG(t.Price))::INT
                        FROM transactions_1k t
                                 JOIN gasstations g ON g.GasStationID = t.GasStationID
                        WHERE g.Country IN {{LLMQA('What are abbreviations for the country historically known as Bohemia? If there are multiple possible abbreviations list them as a python list with quotes around each abbreviation.')}}
@@ -903,15 +902,15 @@ ANNOTATED_TAG_DATASET = [
         "Query type": "Comparison",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "402524570",
-        "BlendSQL": """WITH gas_consumption AS (SELECT ym.Consumption, c.Currency
-                                                FROM customers c
-                                                         JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
-                                                WHERE ym.Date / 100 = 2012)
-                       SELECT CAST(ROUND((SELECT SUM(Consumption)
-                                          FROM gas_consumption g
-                                          WHERE g.Currency = {{LLMQA('Currency code of Czech Republic?')}}) - 
+        "BlendSQL": """
+        WITH gas_consumption AS (
+            SELECT ym.Consumption, c.Currency
+            FROM customers c
+            JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
+            WHERE CAST(ym.Date AS INT) / 100 = 2012
+        ) SELECT CAST(ROUND((SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = {{LLMQA('Currency code of Czech Republic?')}}) - 
         (SELECT SUM(Consumption) FROM gas_consumption g WHERE g.Currency = {{LLMQA('Currency code of European Union?')}})) AS INT)
-                    """,
+        """,
         "DuckDB": """WITH gas_consumption AS (SELECT ym.Consumption, c.Currency
                                               FROM customers c
                                                        JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
@@ -1056,10 +1055,9 @@ ANNOTATED_TAG_DATASET = [
         "Answer": "27",
         "BlendSQL": """SELECT COUNT(DISTINCT d.driverId)
                        FROM drivers d
-                                JOIN results r ON d.driverId = r.driverId
+                       JOIN results r ON d.driverId = r.driverId
                        WHERE r.rank = 2
-                         AND CAST(SUBSTR(d.dob, 1, 4) AS NUMERIC) > {{LLMQA('What year did the Vietnam war end?'
-                           , regex='\d{4}')}}
+                       AND CAST(SUBSTR(CAST(d.dob AS STRING), 1, 4) AS NUMERIC) > {{LLMQA('What year did the Vietnam war end?', return_type='int', regex='\d{4}')}}
                     """,
         "DuckDB": """SELECT COUNT(DISTINCT d.driverId)
                      FROM drivers d
@@ -1102,9 +1100,10 @@ ANNOTATED_TAG_DATASET = [
                                          (SELECT COUNT(*) FROM gp_races WHERE {{LLMMap('Does the Bundesliga happen here?', country)}} = TRUE) / 
         (SELECT COUNT(*) FROM gp_races) * 100) AS INT)
                     """,
-        "DuckDB": """WITH gp_races AS (SELECT country
+        "DuckDB": """WITH gp_races AS (
+        SELECT country
                                        FROM races r
-                                                JOIN circuits c ON c.circuitId = r.circuitId
+                                        JOIN circuits c ON c.circuitId = r.circuitId
                                        WHERE r.name = 'European Grand Prix')
                      SELECT CAST(ROUND(1.0 *
                                        (SELECT COUNT(*)
@@ -1145,15 +1144,12 @@ ANNOTATED_TAG_DATASET = [
         "Query type": "Comparison",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "69",
-        "BlendSQL": """SELECT CAST(ROUND(AVG(pa.overall_rating)) AS INT)
+        "BlendSQL": """SELECT ROUND(AVG(pa.overall_rating::FLOAT))::INT
                        FROM Player_Attributes pa
-                                JOIN Player p ON p.player_api_id = pa.player_api_id
-                       WHERE p.height > 170
-                         AND p.height < {{LLMQA('How tall was Michael Jordan in cm? Give your best guess.')}}
-                         AND CAST (SUBSTR(pa.date
-                           , 1
-                           , 4) AS NUMERIC) BETWEEN 2010
-                         AND 2015
+                       JOIN Player p ON p.player_api_id = pa.player_api_id
+                       WHERE CAST(p.height AS FLOAT) > 170
+                         AND CAST(p.height AS FLOAT) < {{LLMQA('How tall was Michael Jordan in cm? Give your best guess.')}}
+                         AND CAST (SUBSTR(pa.date, 1, 4) AS NUMERIC) BETWEEN 2010 AND 2015
                     """,
         "DuckDB": """SELECT CAST(ROUND(AVG(pa.overall_rating)) AS INT)
                      FROM Player_Attributes pa
@@ -1297,16 +1293,16 @@ ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT COUNT(DISTINCT p.player_api_id)
                        FROM Player p
                                 JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
-                       WHERE p.height >= 180
-                         AND pa.volleys > 70
-                         AND p.height > {{LLMQA('How tall is Bill Clinton in centimeters?')}}
+                       WHERE CAST(p.height AS FLOAT) >= 180
+                         AND CAST(pa.volleys AS INT) > 70
+                         AND CAST(p.height AS FLOAT) > {{LLMQA('How tall is Bill Clinton in centimeters?')}}
                     """,
         "DuckDB": """SELECT COUNT(DISTINCT p.player_api_id)
                      FROM Player p
                               JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
-                     WHERE p.height >= 180
-                       AND pa.volleys > 70
-                       AND p.height > LLMQAInt('How tall is Bill Clinton in centimeters?', NULL, NULL, NULL)
+                     WHERE CAST(p.height AS FLOAT) >= 180
+                       AND CAST(pa.volleys AS INT) > 70
+                       AND CAST(p.height AS FLOAT) > LLMQAInt('How tall is Bill Clinton in centimeters?', NULL, NULL, NULL)
                   """,
         "LOTUS": """
         def f():
@@ -1447,7 +1443,7 @@ ANNOTATED_TAG_DATASET = [
         "order_insensitive_answer": True,
         "BlendSQL": """SELECT DISTINCT p.player_name
                        FROM Player p
-                       WHERE p.height > {{LLMQA('What is 6 foot 8 in centimeters?')}}
+                       WHERE CAST(p.height AS FLOAT) > {{LLMQA('What is 6 foot 8 in centimeters?')}}
                     """,
         "DuckDB": """SELECT DISTINCT p.player_name
                      FROM Player p
@@ -1477,7 +1473,7 @@ ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT COUNT(*)
                        FROM Player p
                        WHERE p.player_name LIKE 'Adam%'
-                         AND p.weight > {{LLMQA('What is 77.1kg in pounds?')}}
+                         AND CAST(p.weight AS FLOAT) > {{LLMQA('What is 77.1kg in pounds?')}}
                     """,
         "DuckDB": """SELECT COUNT(*)
                      FROM Player p
@@ -1510,7 +1506,7 @@ ANNOTATED_TAG_DATASET = [
         "order_insensitive_answer": False,
         "BlendSQL": """SELECT player_name
                        FROM Player p
-                       WHERE p.height > {{LLMQA('What is 5 foot 11 in centimeters?')}}
+                       WHERE CAST(p.height AS FLOAT) > {{LLMQA('What is 5 foot 11 in centimeters?')}}
                        ORDER BY player_name LIMIT 3
                     """,
         "DuckDB": """SELECT player_name
@@ -1760,7 +1756,7 @@ ANNOTATED_TAG_DATASET = [
         "BlendSQL": """SELECT p.Id
                        FROM posts p
                                 JOIN comments c ON p.Id = c.PostId
-                       WHERE c.CreationDate LIKE '2014-09-14%'
+                       WHERE CAST(c.CreationDate AS STRING) LIKE '2014-09-14%'
                          AND {{LLMMap("Is the sentiment on this comment grateful?"
                            , c.Text)}} = TRUE
                        GROUP BY p.Id
@@ -2092,13 +2088,12 @@ ANNOTATED_TAG_DATASET = [
         "Knowledge/Reasoning Type": "Reasoning",
         "Answer": ["Naldo", "Per Mertesacker", "Didier Drogba"],
         "order_insensitive_answer": True,
-        "BlendSQL": """WITH top_players AS (SELECT p.player_name, AVG(pa.heading_accuracy) AS avg_heading_accuracy
-                                            FROM Player p
-                                                     JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
-                                            WHERE p.height > 180
-                                            GROUP BY p.player_api_id
-                                            ORDER BY avg_heading_accuracy DESC
-                           LIMIT 10
+        "BlendSQL": """WITH top_players AS (SELECT p.player_name, AVG(CAST(pa.heading_accuracy AS INT)) AS avg_heading_accuracy
+                                            FROM Player p JOIN Player_Attributes pa ON p.player_api_id = pa.player_api_id
+                                            WHERE CAST(p.height AS FLOAT) > 180
+                                            GROUP BY p.player_api_id, p.player_name
+                                            ORDER BY CAST(avg_heading_accuracy AS INT) DESC
+                                            LIMIT 10
                            )
         SELECT *
         FROM VALUES {{

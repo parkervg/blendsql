@@ -12,6 +12,7 @@ from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
 import string
+import polars as pl
 
 from blendsql.common.logger import logger, Color
 from blendsql.common.utils import (
@@ -252,9 +253,8 @@ def materialize_cte(
         aliasname=aliasname,
         **kwargs,
     )
-    materialized_cte_df = materialized_smoothie.df
     db.to_temp_table(
-        df=materialized_cte_df,
+        df=materialized_smoothie.pl,
         tablename=aliasname,
     )
     # Now, we need to remove subquery and instead insert direct reference to aliasname
@@ -421,7 +421,7 @@ def _blend(
         logger.debug(Color.quiet_sql(query))
         logger.debug(Color.warning(f"Executing as vanilla SQL..."))
         return Smoothie(
-            df=db.execute_to_df(query_context.to_string()),
+            _df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
                 num_values_passed=0,
                 num_generation_calls=(
@@ -570,16 +570,23 @@ def _blend(
                             set_of_column_names = set(db.sqlglot_schema[tablename])
                             # In case of a join, duckdb formats columns with 'column_1'
                             # But some columns (e.g. 'parent_category') just have underscores in them already
-                            abstracted_df = abstracted_df.rename(
-                                columns=lambda x: re.sub(r"_\d$", "", x)
-                                if x not in set_of_column_names  # noqa: B023
-                                else x
-                            )
+                            current_columns = abstracted_df.collect_schema().names()
+
+                            # Build rename mapping
+                            rename_mapping = {
+                                col: re.sub(r"_\d$", "", col)
+                                for col in current_columns
+                                if col not in set_of_column_names
+                                and re.search(r"_\d$", col)
+                            }
+
+                            # Apply renaming
+                            abstracted_df = abstracted_df.rename(rename_mapping)
+
                         # In case of a join, we could have duplicate column names in our pandas dataframe
                         # This will throw an error when we try to write to the database
-                        abstracted_df = abstracted_df.loc[
-                            :, ~abstracted_df.columns.duplicated()
-                        ]
+                        abstracted_df = abstracted_df.select(pl.all().name.keep())
+
                 db.to_temp_table(
                     df=abstracted_df,
                     tablename=tablename_to_write,
@@ -614,7 +621,7 @@ def _blend(
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
         # 2) Track when we've created a new table from a MapIngredient call
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
-        tablename_to_map_out: dict[str, list[pd.DataFrame]] = {}
+        tablename_to_map_out: dict[str, tuple[pd.DataFrame, str]] = {}
         for function_node in get_sorted_blendsql_nodes(
             node=scm.node,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -639,7 +646,7 @@ def _blend(
             if curr_ingredient.ingredient_type == IngredientType.MAP:
                 # Fetch an exit condition, if we can extract one from the expression context
                 # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
-                # The exit conditon would be at least 5 `a()` evaluate to `TRUE`
+                # The exit condition would be at least 5 `a()` evaluate to `TRUE`
                 kwargs_dict["exit_condition"] = scm.get_exit_condition(function_node)
 
             logger.debug(
@@ -650,12 +657,13 @@ def _blend(
             if infer_gen_constraints:
                 # Latter is the winner.
                 # So if we already define something in kwargs_dict,
-                #   It's not overriden here
+                #   It's not overridden here.
                 kwargs_dict = (
                     scm.infer_gen_constraints(
                         function_node=function_node,
                         schema=db.sqlglot_schema,
                         alias_to_tablename=scm.alias_to_tablename,
+                        has_user_regex=bool(kwargs_dict.get("regex", None) is not None),
                     )
                     | kwargs_dict
                 )
@@ -664,7 +672,7 @@ def _blend(
                 kwargs_dict["table_to_title"] = table_to_title
 
             # Optionally, recursively call blend() again to get subtable from args
-            # This applies to `context` and `options`
+            # This applies to `context` and `options`, since they can be `Subquery` types.
             for _i, unpack_kwarg in enumerate(["context", "options"]):
                 unpack_value = kwargs_dict.get(unpack_kwarg, None)
                 if unpack_value is None:
@@ -694,7 +702,9 @@ def _blend(
                         if unpack_kwarg == "options":
                             if len(subtable.columns) == 1 or len(subtable) == 1:
                                 # Here, we need to format as a flat set
-                                kwargs_dict[unpack_kwarg] = list(subtable.values.flat)
+                                kwargs_dict[unpack_kwarg] = list(
+                                    subtable.to_numpy().flatten()
+                                )
                             else:
                                 raise InvalidBlendSQL(
                                     f"Invalid subquery passed to `options`!\nNeeds to return exactly one column or row, got {len(subtable.columns)} columns and {len(subtable)} rows instead"
@@ -712,9 +722,9 @@ def _blend(
 
             if getattr(curr_ingredient, "model", None) is not None:
                 kwargs_dict["model"] = curr_ingredient.model
+
             # Execute our ingredient function
             function_out = curr_ingredient(
-                # *parsed_results_dict["args"],
                 **kwargs_dict
                 | {
                     "get_temp_subquery_table": _get_temp_subquery_table,
@@ -731,9 +741,9 @@ def _blend(
                 (new_col, tablename, colname, new_table) = function_out
                 prev_subquery_map_columns.add(new_col)
                 if tablename in tablename_to_map_out:
-                    tablename_to_map_out[tablename].append(new_table)
+                    tablename_to_map_out[tablename].append((new_table, new_col))
                 else:
-                    tablename_to_map_out[tablename] = [new_table]
+                    tablename_to_map_out[tablename] = [(new_table, new_col)]
                 session_modified_tables.add(tablename)
                 alias_function_name_to_result[
                     function_node.name
@@ -762,86 +772,76 @@ def _blend(
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                 )
-        # Combine all the retrieved ingredient outputs
-        for tablename, ingredient_outputs in tablename_to_map_out.items():
-            if len(ingredient_outputs) > 0:
-                logger.debug(
-                    Color.quiet_update(
-                        f"Combining {len(ingredient_outputs)} outputs for table `{tablename}`"
-                    )
-                )
-                # Once we finish parsing this subquery, write to our session_uuid table
-                # Below, we differ from Binder, which seems to replace the old table
-                # On their left join merge command: https://github.com/HKUNLP/Binder/blob/9eede69186ef3f621d2a50572e1696bc418c0e77/nsql/database.py#L196
-                # We create a new temp table to avoid a potentially self-destructive operation
-                base_tablename = tablename
-                _base_table: pd.DataFrame = db.execute_to_df(
-                    select_all_from_table_query(base_tablename)
-                )
-                base_table = _base_table
-                if db.has_temp_table(_get_temp_session_table(tablename)):
-                    base_tablename = _get_temp_session_table(tablename)
-                    base_table: pd.DataFrame = db.execute_to_df(
-                        select_all_from_table_query(base_tablename)
-                    )
-                previously_added_columns = base_table.columns.difference(
-                    _base_table.columns
-                )
-                assert len(set([len(x) for x in ingredient_outputs])) == 1
-                llm_out_df = pd.concat(ingredient_outputs, axis=1)
-                llm_out_df = llm_out_df.loc[:, ~llm_out_df.columns.duplicated()]
-                # Handle duplicate columns, e.g. in test_nested_duplicate_ingredient_calls()
-                for column in previously_added_columns:
-                    if all(
-                        column in x for x in [llm_out_df.columns, base_table.columns]
-                    ):
-                        # Fill nan in llm_out_df with those values in base_table
-                        # try:
-                        #     pd.testing.assert_index_equal(
-                        #         base_table.index, llm_out_df.index
-                        #     )
-                        # except AssertionError:
-                        #     logger.debug(
-                        #         Color.error("pd.testing.assert_index_equal error")
-                        #     )
-                        llm_out_df[column] = llm_out_df[column].fillna(
-                            base_table[column]
-                        )
-                        base_table = base_table.drop(columns=column)
-                llm_out_df = llm_out_df[
-                    llm_out_df.columns.difference(base_table.columns)
+
+        # Combine all the retrieved map outputs
+        # The below assumes the `mapped_dfs` are in the same row-order!
+        # Which is the case for LLMMap, since it does a left-join to make sure
+        # the return order is consistent with the input order.
+        for tablename, outputs in tablename_to_map_out.items():
+            if not outputs:
+                continue
+
+            temp_name = _get_temp_session_table(tablename)
+            source = temp_name if db.has_temp_table(temp_name) else tablename
+
+            # Fetch the base table to modify with our new columns.
+            # This ensures parity with the existing database once we
+            #   swap in our reference to the new temporary table.
+            base = db.execute_to_df(
+                select_all_from_table_query(source), close_conn=False
+            )
+            base_cols = set(base.collect_schema().names())
+            mapped_dfs, new_cols = map(list, zip(*outputs))
+
+            # The data in `mapped_dfs` will have the new column (in `new_cols`), along with
+            #   any native columns passed to the Map function.
+            # These would be things like the `value` column, any `context`, etc.
+            frames = [df.select(col) for df, col in zip(mapped_dfs, new_cols)]
+            new_data = pl.concat(frames, how="horizontal").collect()  # Collect once
+
+            to_add = [c for c in new_cols if c not in base_cols]
+            to_coalesce = [c for c in new_cols if c in base_cols]
+
+            # Build result with coalesce for overlapping columns
+            if to_coalesce:
+                coalesce_exprs = [
+                    pl.coalesce(new_data[c], pl.col(c)).alias(c) for c in to_coalesce
                 ]
-                # try:
-                #     pd.testing.assert_index_equal(base_table.index, llm_out_df.index)
-                # except AssertionError:
-                #     logger.debug(Color.error("pd.testing.assert_index_equal error"))
-                merged = base_table.merge(
-                    llm_out_df, how="left", right_index=True, left_index=True
-                )
-                db.to_temp_table(
-                    df=merged, tablename=_get_temp_session_table(tablename)
-                )
-                session_modified_tables.add(tablename)
+                base = base.with_columns(coalesce_exprs)
+
+            if to_add:
+                base = base.with_columns(new_data.select(to_add))
+
+            db.to_temp_table(df=base.collect(), tablename=temp_name)
+            session_modified_tables.add(tablename)
+
     # Now insert the function outputs to the original query
     # We need to re-sync if we did some operation on the underlying query,
     #   like with a JoinIngredient
     query = query_context.to_string()
-    for alias, res in alias_function_name_to_result.items():
-        query = re.sub(
-            re.escape(format_blendsql_function(alias)),
-            f" {str(res)} ",
-            query,
-        )
-    query_context.parse(query)
+    if alias_function_name_to_result:
+        # Process regex replacements in a batch
+        replacements = {
+            format_blendsql_function(alias): f" {str(res)} "
+            for alias, res in alias_function_name_to_result.items()
+        }
+        pattern = re.compile("|".join(map(re.escape, replacements.keys())))
+        query = pattern.sub(lambda m: replacements[m.group(0)], query)
+
+    query_context.parse(
+        query
+    )  # Sync query to string, after replacing aliases with function outputs
+
+    temp_table_cache = {t: _get_temp_session_table(t) for t in session_modified_tables}
     for t in session_modified_tables:
         query_context.node = query_context.node.transform(
-            transform.replace_tablename, t, _get_temp_session_table(t)
+            transform.replace_tablename, t, temp_table_cache[t]
         )
     if scm is not None:
         for a, t in scm.alias_to_tablename.items():
             if t in session_modified_tables:
                 query_context.node = query_context.node.transform(
-                    transform.replace_tablename, a, _get_temp_session_table(t)
+                    transform.replace_tablename, a, temp_table_cache[t]
                 )
 
     # Finally, iter through tables in query and see if we need to collect LazyTable
@@ -856,12 +856,12 @@ def _blend(
 
     query = query_context.to_string()
 
-    logger.debug(Color.success(f"Final Query:\n{query}"))
+    logger.debug(Color.success(f"Final Query:\n") + Color.sql(query))
 
-    df = db.execute_to_df(query)
+    df = db.execute_to_df(query).collect()
 
     return Smoothie(
-        df=df,
+        _df=df,
         meta=SmoothieMeta(
             num_values_passed=sum(
                 [

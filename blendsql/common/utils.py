@@ -1,12 +1,6 @@
-from tabulate import tabulate
-from functools import partial
-
 from blendsql.common.constants import HF_REPO_ID
 from blendsql.common.typing import ColumnRef
 
-tabulate = partial(
-    tabulate, headers="keys", showindex="never", tablefmt="simple_outline"
-)
 newline_dedent = lambda x: "\n".join([m.lstrip() for m in x.split("\n")])
 
 

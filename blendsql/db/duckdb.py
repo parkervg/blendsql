@@ -1,10 +1,11 @@
 import importlib.util
 from typing import Callable, Generator
 from collections.abc import Collection
-import pandas as pd
 from attr import attrs, attrib
 from pathlib import Path
 from functools import cached_property
+import polars as pl
+import pandas as pd
 
 from blendsql.db.database import Database
 from blendsql.common.logger import logger, Color
@@ -89,10 +90,7 @@ class DuckDB(Database):
         return cls(con=con, db_url=db_url)
 
     @classmethod
-    def from_sqlite(cls, db_url: str):
-        """TODO: any point in this if we already have dedicated SQLite databse class
-        and it's faster?
-        """
+    def from_sqlite(cls, db_url: str, additional_cmds: list[str] | None = None):
         if not _has_duckdb:
             raise ImportError(
                 "Please install duckdb with `pip install duckdb<1`!"
@@ -103,6 +101,9 @@ class DuckDB(Database):
         db_url = str(Path(db_url).resolve())
         con.sql("INSTALL sqlite;")
         con.sql("LOAD sqlite;")
+        if additional_cmds is not None:
+            for cmd in additional_cmds:
+                con.sql(cmd)
         con.sql(f"ATTACH '{db_url}' AS sqlite_db (TYPE sqlite);")
         con.sql("USE sqlite_db")
         return cls(con=con, db_url=db_url)
@@ -165,9 +166,20 @@ class DuckDB(Database):
         self.temp_tables.add(tablename)
         logger.debug(Color.update(f"Created temp table {tablename}"))
 
-    def execute_to_df(self, query: str, params: dict | None = None) -> pd.DataFrame:
-        """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933"""
-        return self.con.sql(query).df()
+    def execute_to_df(
+        self, query: str, lazy=True, close_conn=True, **_
+    ) -> pl.LazyFrame:
+        """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933
+
+        If `close_conn==True` and `lazy=True`, we can't call `self.con.sql(query).pl(lazy=True)`,
+            since this leaves an open connection that blocks future queries.
+            Instead, we create a pl.DataFrame and call `.lazy()` on it.
+        """
+        if close_conn:
+            res = self.con.sql(query).pl()
+            return res.lazy() if lazy else res
+        else:
+            return self.con.sql(query).pl(lazy=lazy)
 
     def execute_to_list(
         self, query: str, to_type: Callable | None = lambda x: x

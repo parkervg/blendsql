@@ -1,5 +1,5 @@
 from typing import Generator, Callable
-import pandas as pd
+import polars as pl
 from attr import attrib
 from sqlalchemy.engine import URL
 from abc import abstractmethod, ABC
@@ -61,18 +61,21 @@ class Database(ABC):
         """Converts the database to a series of 'CREATE TABLE' statements."""
 
     @abstractmethod
-    def to_temp_table(self, df: pd.DataFrame, tablename: str):
+    def to_temp_table(self, df: pl.DataFrame, tablename: str):
         """Write the given pandas dataframe as a temp table 'tablename'."""
         ...
 
     @abstractmethod
-    def execute_to_df(self, query: str, params: dict | None = None) -> pd.DataFrame:
+    def execute_to_df(
+        self, query: str, lazy: bool, **kwargs
+    ) -> pl.DataFrame | pl.LazyFrame:
         """
         Execute the given query and return results as dataframe.
 
         Args:
             query: The SQL query to execute. Can use `named` paramstyle from PEP 249
                 https://peps.python.org/pep-0249/#paramstyle
+            lazy: Whether to return a pl.LazyFrame.
             params: Dict containing mapping from name to value.
 
         Returns:

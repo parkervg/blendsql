@@ -1,13 +1,14 @@
 from collections.abc import Collection
 from typing import Generator, Callable
 import pandas as pd
-import re
+import polars as pl
 from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_engine, inspect, MetaData
 from sqlalchemy.sql import text
 from sqlalchemy.engine import Engine, Connection, URL
 from pandas.io.sql import get_schema
+import re
 
 from .database import Database
 from blendsql.common.logger import logger, Color
@@ -136,19 +137,29 @@ class SQLAlchemyDatabase(Database):
                     )
         return "\n".join(serialized_db).strip()
 
-    def to_temp_table(self, df: pd.DataFrame, tablename: str):
-        if self.has_temp_table(tablename):
-            self.con.execute(text(f'DROP TABLE "{tablename}"'))
-        create_table_stmt = get_schema(df, name=tablename, con=self.con).strip()
+    def to_temp_table(self, df: pl.DataFrame, tablename: str):
+        if isinstance(df, pl.LazyFrame):
+            df = df.collect()
+
+        pd_df = df.to_pandas(use_pyarrow_extension_array=True)
+
+        self.con.execute(text(f'DROP TABLE IF EXISTS "{tablename}"'))
+
+        create_table_stmt = get_schema(pd_df, name=tablename, con=self.con).strip()
         # Insert 'TEMP' keyword
         create_table_stmt = re.sub(
             r"^CREATE TABLE", "CREATE TEMP TABLE", create_table_stmt
         )
         logger.debug(Color.quiet_sql(create_table_stmt))
         self.con.execute(text(create_table_stmt))
-        df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
+        # Polars today just uses `pd.to_sql` if we pass a sqlalchemy connection
+        # https://docs.pola.rs/api/python/stable/reference/api/polars.DataFrame.write_database.html
+        # So, `polars.DataFrame.write_database` isn't any faster
+        pd_df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
-    def execute_to_df(self, query: str, params: dict | None = None) -> pd.DataFrame:
+    def execute_to_df(
+        self, query: str, params: dict | None = None, lazy: bool = True, **_
+    ) -> pl.DataFrame:
         """
         Execute the given query and return results as dataframe.
 
@@ -167,7 +178,8 @@ class SQLAlchemyDatabase(Database):
             db.execute_query("SELECT * FROM t WHERE c = :v", {"v": "value"})
             ```
         """
-        return pd.read_sql(text(query), self.con, params=params)
+        res = pl.DataFrame(pd.read_sql(text(query), self.con, params=params))
+        return res.lazy() if lazy else res
 
     def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.

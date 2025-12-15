@@ -1,26 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Iterable, Type
-import pandas as pd
+import polars as pl
+from functools import cached_property
 
 from blendsql.ingredients import Ingredient
-from blendsql.common.utils import tabulate
 from blendsql.db.utils import truncate_df_content
-
-
-class PrettyDataFrame(pd.DataFrame):
-    def __str__(self):
-        truncated = truncate_df_content(self, 50)
-        try:
-            return tabulate(truncated)
-        except:
-            return str(truncated)
-
-    def __repr__(self):
-        truncated = truncate_df_content(self, 50)
-        try:
-            return tabulate(truncated)
-        except:
-            return str(truncated)
 
 
 @dataclass
@@ -42,11 +26,20 @@ class SmoothieMeta:
 
 @dataclass
 class Smoothie:
-    df: pd.DataFrame = field()
+    _df: pl.DataFrame = field()
     meta: SmoothieMeta = field()
 
     def __post_init__(self):
-        self.df = PrettyDataFrame(self.df)
+        if isinstance(self._df, pl.LazyFrame):
+            self._df = self._df.collect()
+
+    @cached_property
+    def df(self):
+        return self._df.to_pandas()
+
+    @cached_property
+    def pl(self):
+        return self._df
 
     def print_summary(self):
         from rich.console import Console, Group
@@ -94,7 +87,7 @@ class Smoothie:
         # Create side-by-side panels for query and result
         query_panel = Panel(query_syntax, title="Query", border_style="blue")
 
-        def df_to_table(df: pd.DataFrame, title: str = "") -> Table:
+        def df_to_table(df: pl.DataFrame, title: str = "") -> Table:
             table = Table(title=title, show_header=True, show_lines=True)
 
             # Add columns
@@ -102,18 +95,18 @@ class Smoothie:
                 table.add_column(str(col))
 
             # Add rows
-            for _, row in df.iterrows():
+            for row in df.iter_rows():
                 table.add_row(*[str(v) for v in row])
 
             return table
 
-        total_rows = len(self.df)
+        total_rows = len(self.pl)
         num_row_limit = 5
         if total_rows > num_row_limit:
-            df_to_display = self.df.head(num_row_limit)
+            df_to_display = self.pl.head(num_row_limit)
             result_title = f"Result ({num_row_limit} out of {total_rows} Rows)"
         else:
-            df_to_display = self.df
+            df_to_display = self.pl
             result_title = f"Result"
         result_panel = Panel(
             df_to_table(truncate_df_content(df_to_display, 200)),
@@ -130,4 +123,4 @@ class Smoothie:
         console.print(Align.center(boxed))
 
     def __str__(self):
-        return self.summary()
+        self.print_summary()

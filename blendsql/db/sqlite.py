@@ -7,7 +7,7 @@ from blendsql.db.sqlalchemy import SQLAlchemyDatabase
 
 class SQLite(SQLAlchemyDatabase):
     """A SQLite database connection.
-    Can be initialized via a path to the database file.
+    Can be initialized viae a path to the database file.
 
     Examples:
         ```python
@@ -37,11 +37,15 @@ class SQLite(SQLAlchemyDatabase):
         schema: dict[str, dict] = {}
         for tablename in self.tables():
             schema[tablename] = {}
-            for _, row in self.execute_to_df(
-                f"""
-            SELECT name, type FROM pragma_table_info(:t)
-            """,
-                {"t": tablename},
-            ).iterrows():
+            for row in (
+                self.execute_to_df(
+                    f"""
+                SELECT name, type FROM pragma_table_info(:t)
+                """,
+                    {"t": tablename},
+                )
+                .collect()
+                .iter_rows(named=True)
+            ):
                 schema[tablename][row["name"]] = row["type"]
         return schema
