@@ -34,7 +34,7 @@ def assert_blendsql_equals_sql(
     blendsql_time = time.perf_counter() - start
 
     start = time.perf_counter()
-    sql_df = bsql.db.execute_to_df(sql_query)
+    sql_df = bsql.db.execute_to_df(sql_query, lazy=False).to_pandas()
     sql_time = time.perf_counter() - start
 
     timing_collector.add(

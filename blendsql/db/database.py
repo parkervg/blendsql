@@ -1,5 +1,6 @@
 from typing import Generator, Callable
 import pandas as pd
+import polars as pl
 from attr import attrib
 from sqlalchemy.engine import URL
 from abc import abstractmethod, ABC
@@ -61,7 +62,7 @@ class Database(ABC):
         """Converts the database to a series of 'CREATE TABLE' statements."""
 
     @abstractmethod
-    def to_temp_table(self, df: pd.DataFrame, tablename: str):
+    def to_temp_table(self, df: pl.DataFrame, tablename: str):
         """Write the given pandas dataframe as a temp table 'tablename'."""
         ...
 

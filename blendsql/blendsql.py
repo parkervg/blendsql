@@ -253,9 +253,8 @@ def materialize_cte(
         aliasname=aliasname,
         **kwargs,
     )
-    materialized_cte_df = materialized_smoothie.df
     db.to_temp_table(
-        df=materialized_cte_df,
+        df=materialized_smoothie.pl,
         tablename=aliasname,
     )
     # Now, we need to remove subquery and instead insert direct reference to aliasname
@@ -422,7 +421,7 @@ def _blend(
         logger.debug(Color.quiet_sql(query))
         logger.debug(Color.warning(f"Executing as vanilla SQL..."))
         return Smoothie(
-            df=db.execute_to_df(query_context.to_string()),
+            _df=db.execute_to_df(query_context.to_string()),
             meta=SmoothieMeta(
                 num_values_passed=0,
                 num_generation_calls=(
@@ -782,33 +781,38 @@ def _blend(
 
             temp_name = _get_temp_session_table(tablename)
             source = temp_name if db.has_temp_table(temp_name) else tablename
+
             base = db.execute_to_df(
                 select_all_from_table_query(source), close_conn=False
             )
             base_cols = set(base.collect_schema().names())
 
             # Combine all outputs
-            new_data = pl.concat(outputs, how="horizontal")
+            new_data = pl.concat(outputs, how="align_full")
             new_cols = new_data.collect_schema().names()
 
             # Separate into: columns to add vs columns to coalesce
             to_add = [c for c in dict.fromkeys(new_cols) if c not in base_cols]
             to_coalesce = [c for c in dict.fromkeys(new_cols) if c in base_cols]
-
+            # print(f"{base.collect()=}")
+            # print(f"{new_data.collect()=}")
             # Build result with coalesce for overlapping columns
-            if to_coalesce:
-                # For overlapping cols: use new value if not null, else keep base
-                coalesce_exprs = [
-                    pl.coalesce(
-                        new_data.select(c).collect().to_series(), pl.col(c)
-                    ).alias(c)
-                    for c in to_coalesce
-                ]
-                base = base.with_columns(coalesce_exprs)
+            # if to_coalesce:
+            #     # For overlapping cols: use new value if not null, else keep base
+            #     coalesce_exprs = [
+            #         pl.coalesce(
+            #             new_data.select(c).collect(), pl.col(c)
+            #         ).alias(c)
+            #         for c in to_coalesce
+            #     ]
+            #     base = base.with_columns(coalesce_exprs)
 
             if to_add:
-                # hstack the genuinely new columns
-                base = base.collect().hstack(new_data.select(to_add).collect()).lazy()
+                base = (
+                    pl.concat([base, new_data], how="align_left")
+                    .group_by(to_coalesce, maintain_order=True)
+                    .agg([pl.col(c).drop_nulls().first().alias(c) for c in to_add])
+                )
 
             db.to_temp_table(df=base.collect(), tablename=temp_name)
             session_modified_tables.add(tablename)
@@ -852,7 +856,7 @@ def _blend(
     df = db.execute_to_df(query).collect()
 
     return Smoothie(
-        df=df,
+        _df=df,
         meta=SmoothieMeta(
             num_values_passed=sum(
                 [

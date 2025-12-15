@@ -24,6 +24,8 @@ CURR_DIR = Path(__file__).resolve().parent
 NUM_VALUES_PASSED = 0
 NUM_ITERS = 5
 
+# pl.Config.set_engine_affinity("gpu")
+
 
 @dataclass
 class ExperimentConfig:
@@ -318,10 +320,7 @@ if __name__ == "__main__":
                     curr_pred_data[
                         "num_values_passed"
                     ] = smoothie.meta.num_values_passed
-                    flattened_preds = [
-                        str(i) for i in smoothie.df.to_pandas().values.flat
-                    ]
-                    # flattened_preds = [str(i) for i in smoothie.df.values.flat]
+                    flattened_preds = [str(i) for i in smoothie.df.values.flat]
                 elif exp_type == "DuckDB":
                     # if not do_eval:
                     #     if item["Query ID"] == 29:

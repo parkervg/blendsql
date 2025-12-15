@@ -122,7 +122,7 @@ class Ingredient:
             materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
             self.num_values_passed += materialized_smoothie.meta.num_values_passed
             unpacked_values = [
-                str(i) for i in materialized_smoothie.df.get_column(colname).unique()
+                str(i) for i in materialized_smoothie.pl.get_column(colname).unique()
             ]
         else:
             unpacked_values: list = [
@@ -294,7 +294,7 @@ class MapIngredient(Ingredient):
         if tablename in self.db.lazy_tables:
             materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
             self.num_values_passed += materialized_smoothie.meta.num_values_passed
-            original_table = materialized_smoothie.df.lazy()
+            original_table = materialized_smoothie.pl.lazy()
         else:
             original_table = self.db.execute_to_df(
                 select_all_from_table_query(tablename)
@@ -353,18 +353,17 @@ class MapIngredient(Ingredient):
 
         context_subtables = []
         if context_was_passed:
-            unpacked_values: list = distinct_values[colname].tolist()
-            context_subtables = [
-                pl.DataFrame(distinct_values[c])
-                for c in distinct_values.columns
-                if c != colname
-            ]
+            df = distinct_values.collect()
+            unpacked_values = df[colname].to_list()
+            context_subtables = [df.select(c) for c in df.columns if c != colname]
         else:
             unpacked_values: list = distinct_values
 
         # No need to run ingredient if we have no values to map onto
         if len(unpacked_values) == 0:
-            original_table[new_arg_column] = None
+            original_table = original_table.with_columns(
+                pl.lit(None).alias(new_arg_column)
+            )
             return (new_arg_column, tablename, colname, original_table)
 
         if options is not None:
@@ -412,8 +411,10 @@ class MapIngredient(Ingredient):
             )
         # Add new_table to original table
         if context_was_passed:
-            _mapped_subtable = distinct_values.with_columns(
-                mapped_subtable[new_arg_column]
+            # _mapped_subtable = distinct_values.collect()
+            _mapped_subtable = pl.concat(
+                [distinct_values, mapped_subtable.select(new_arg_column)],
+                how="horizontal",
             )
             new_table = original_table.join(
                 _mapped_subtable, how="left", on=[colname] + all_context_colnames
@@ -601,7 +602,7 @@ class JoinIngredient(Ingredient):
         temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
         # Below, we check to see if 'swapped' is True
         # If so, we need to inverse what is 'left', and what is 'right'
-        joined_values_df = pd.DataFrame(
+        joined_values_df = pl.DataFrame(
             data={
                 "left" if not swapped else "right": mapping.keys(),
                 "right" if not swapped else "left": mapping.values(),
@@ -666,13 +667,13 @@ class QAIngredient(Ingredient):
                         materialized_smoothie.meta.num_values_passed
                     )
                     subtable: pl.DataFrame = pl.DataFrame(
-                        materialized_smoothie.df.select([colname])
+                        materialized_smoothie.pl.select([colname])
                     )
                 else:
                     subtable: pl.DataFrame = self.db.execute_to_df(
-                        f'SELECT "{colname}" FROM "{tablename}"'
+                        f'SELECT "{colname}" FROM "{tablename}"', lazy=False
                     )
-            elif isinstance(_context, pd.DataFrame):
+            elif isinstance(_context, pl.DataFrame):
                 subtable: pl.DataFrame = _context
             else:
                 subtable = pl.DataFrame({"_col": _context})
@@ -695,7 +696,7 @@ class QAIngredient(Ingredient):
                     )
                 unpacked_values = []
                 for subtable in subtables:
-                    curr_values = list(subtable.values.flat)
+                    curr_values = list(subtable.to_pandas().values.flat)
                     if len(curr_values) > 1:
                         logger.debug(
                             Color.error(

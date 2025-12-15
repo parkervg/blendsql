@@ -7,7 +7,7 @@ from blendsql.db.sqlalchemy import SQLAlchemyDatabase
 
 class SQLite(SQLAlchemyDatabase):
     """A SQLite database connection.
-    Can be initialized via a path to the database file.
+    Can be initialized viae a path to the database file.
 
     Examples:
         ```python
