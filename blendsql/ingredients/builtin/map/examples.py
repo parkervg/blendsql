@@ -55,8 +55,13 @@ class ConstrainedMapExample(MapExample):
         s += "```python\n"
         if list_options and self.options is not None:
             type_annotation = (
-                f"t.Literal["
-                + ", ".join([f'"{option}"' for option in self.options])
+                f"Literal["
+                + ", ".join(
+                    [
+                        f'"{option}"' if self.return_type.requires_quotes else option
+                        for option in self.options
+                    ]
+                )
                 + "]"
             )
         else:
@@ -90,7 +95,7 @@ class ConstrainedMapExample(MapExample):
         s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{self.return_type.name}: Answer to the above question for each value `s`."""
         s += f"""\n\n{INDENT()}Examples:\n{INDENT(2)}```python"""
         s += (
-            f"\n{INDENT(2)}# f() returns the output to the question '{self.question}'"
+            f'\n{INDENT(2)}# f() returns the output to the question "{self.question}"'
             + ("" if not use_context else f" given the supplied context")
         )
         return s
