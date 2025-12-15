@@ -401,7 +401,9 @@ class MapIngredient(Ingredient):
         for value, mapped_value in zip(unpacked_values, mapped_values):
             df_as_dict[colname].append(value)
             df_as_dict[new_arg_column].append(mapped_value)
-        mapped_subtable = pl.LazyFrame(df_as_dict)
+        mapped_subtable = pl.LazyFrame(
+            df_as_dict, strict=False
+        )  # strict=False allows mixed types
         if all(
             isinstance(x, (int, type(None))) and not isinstance(x, bool)
             for x in mapped_values

@@ -621,7 +621,7 @@ def _blend(
         # Now, 1) Find all ingredients to execute (e.g. '{{f(a, b, c)}}')
         # 2) Track when we've created a new table from a MapIngredient call
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
-        tablename_to_map_out: dict[str, list[pd.DataFrame]] = {}
+        tablename_to_map_out: dict[str, tuple[pd.DataFrame, str]] = {}
         for function_node in get_sorted_blendsql_nodes(
             node=scm.node,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -742,9 +742,9 @@ def _blend(
                 (new_col, tablename, colname, new_table) = function_out
                 prev_subquery_map_columns.add(new_col)
                 if tablename in tablename_to_map_out:
-                    tablename_to_map_out[tablename].append(new_table)
+                    tablename_to_map_out[tablename].append((new_table, new_col))
                 else:
-                    tablename_to_map_out[tablename] = [new_table]
+                    tablename_to_map_out[tablename] = [(new_table, new_col)]
                 session_modified_tables.add(tablename)
                 alias_function_name_to_result[
                     function_node.name
@@ -787,9 +787,11 @@ def _blend(
                 select_all_from_table_query(source), close_conn=False
             )
             base_cols = set(base.collect_schema().names())
-
-            # Combine all outputs
-            new_data = pl.concat(outputs, how="align_full")
+            mapped_dfs, new_cols = map(list, zip(*outputs))
+            frames = [mapped_dfs[0]] + [
+                df.select(col) for df, col in zip(mapped_dfs[1:], new_cols[1:])
+            ]
+            new_data = pl.concat(frames, how="horizontal")
             new_cols = new_data.collect_schema().names()
 
             to_add = [c for c in dict.fromkeys(new_cols) if c not in base_cols]
