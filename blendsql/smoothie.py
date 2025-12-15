@@ -1,28 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Iterable, Type
-import pandas as pd
 import polars as pl
 from functools import cached_property
 
 from blendsql.ingredients import Ingredient
-from blendsql.common.utils import tabulate
 from blendsql.db.utils import truncate_df_content
-
-
-class PrettyDataFrame(pd.DataFrame):
-    def __str__(self):
-        truncated = truncate_df_content(self, 50)
-        try:
-            return tabulate(truncated)
-        except:
-            return str(truncated)
-
-    def __repr__(self):
-        truncated = truncate_df_content(self, 50)
-        try:
-            return tabulate(truncated)
-        except:
-            return str(truncated)
 
 
 @dataclass

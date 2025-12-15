@@ -91,9 +91,6 @@ class DuckDB(Database):
 
     @classmethod
     def from_sqlite(cls, db_url: str, additional_cmds: list[str] | None = None):
-        """TODO: any point in this if we already have dedicated SQLite databse class
-        and it's faster?
-        """
         if not _has_duckdb:
             raise ImportError(
                 "Please install duckdb with `pip install duckdb<1`!"
@@ -170,9 +167,14 @@ class DuckDB(Database):
         logger.debug(Color.update(f"Created temp table {tablename}"))
 
     def execute_to_df(
-        self, query: str, params: dict | None = None, lazy=True, close_conn=True, **_
-    ) -> pl.DataFrame:
-        """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933"""
+        self, query: str, lazy=True, close_conn=True, **_
+    ) -> pl.LazyFrame:
+        """On params with duckdb: https://github.com/duckdb/duckdb/issues/9853#issuecomment-1832732933
+
+        If `close_conn==True` and `lazy=True`, we can't call `self.con.sql(query).pl(lazy=True)`,
+            since this leaves an open connection that blocks future queries.
+            Instead, we create a pl.DataFrame and call `.lazy()` on it.
+        """
         if close_conn:
             res = self.con.sql(query).pl()
             return res.lazy() if lazy else res

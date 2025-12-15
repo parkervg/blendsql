@@ -1,5 +1,4 @@
 from typing import Generator, Callable
-import pandas as pd
 import polars as pl
 from attr import attrib
 from sqlalchemy.engine import URL
@@ -67,13 +66,16 @@ class Database(ABC):
         ...
 
     @abstractmethod
-    def execute_to_df(self, query: str, params: dict | None = None) -> pd.DataFrame:
+    def execute_to_df(
+        self, query: str, lazy: bool, **kwargs
+    ) -> pl.DataFrame | pl.LazyFrame:
         """
         Execute the given query and return results as dataframe.
 
         Args:
             query: The SQL query to execute. Can use `named` paramstyle from PEP 249
                 https://peps.python.org/pep-0249/#paramstyle
+            lazy: Whether to return a pl.LazyFrame.
             params: Dict containing mapping from name to value.
 
         Returns:
