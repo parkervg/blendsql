@@ -290,24 +290,6 @@ class MapIngredient(Ingredient):
             temp_table_func=get_temp_session_table, tablename=tablename
         )
 
-        # Optionally materialize a CTE
-        if tablename in self.db.lazy_tables:
-            materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
-            self.num_values_passed += materialized_smoothie.meta.num_values_passed
-            original_table = materialized_smoothie.pl.lazy()
-        else:
-            original_table = self.db.execute_to_df(
-                select_all_from_table_query(tablename)
-            )
-
-        # Need to be sure the new column doesn't already exist here
-        new_arg_column = question or str(uuid.uuid4())[:4]
-        while (
-            new_arg_column in set(self.db.iter_columns(tablename))
-            or new_arg_column in prev_subquery_map_columns
-        ):
-            new_arg_column = "_" + new_arg_column
-
         if context_was_passed:
             all_context_colnames = []
             for _context in context:
@@ -327,6 +309,24 @@ class MapIngredient(Ingredient):
         else:
             select_distinct_fn = lambda q: self.db.execute_to_list(q)
             select_distinct_arg = f'"{colname}"'
+
+        # Optionally materialize a CTE
+        if tablename in self.db.lazy_tables:
+            materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+            self.num_values_passed += materialized_smoothie.meta.num_values_passed
+            original_table = materialized_smoothie.pl.lazy()
+        else:
+            original_table = self.db.execute_to_df(
+                f"""SELECT {select_distinct_arg} FROM "{tablename}" """
+            )
+
+        # Need to be sure the new column doesn't already exist here
+        new_arg_column = question or str(uuid.uuid4())[:4]
+        while (
+            new_arg_column in set(self.db.iter_columns(tablename))
+            or new_arg_column in prev_subquery_map_columns
+        ):
+            new_arg_column = "_" + new_arg_column
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table

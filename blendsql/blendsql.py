@@ -775,7 +775,9 @@ def _blend(
                 )
 
         # Combine all the retrieved ingredient outputs
-        # TODO: can we simplify this?
+        # The below assumes the `mapped_dfs` are in the same row-order!
+        # Which is the case for LLMMap, since it does a left-join to make sure
+        # the return order is consistent with the input order.
         for tablename, outputs in tablename_to_map_out.items():
             if not outputs:
                 continue
@@ -788,29 +790,23 @@ def _blend(
             )
             base_cols = set(base.collect_schema().names())
             mapped_dfs, new_cols = map(list, zip(*outputs))
-            frames = [mapped_dfs[0]] + [
-                df.select(col) for df, col in zip(mapped_dfs[1:], new_cols[1:])
-            ]
-            new_data = pl.concat(frames, how="horizontal")
-            new_cols = new_data.collect_schema().names()
 
-            to_add = [c for c in dict.fromkeys(new_cols) if c not in base_cols]
-            to_coalesce = [c for c in dict.fromkeys(new_cols) if c in base_cols]
+            # Select only the unique column from each frame
+            frames = [df.select(col) for df, col in zip(mapped_dfs, new_cols)]
+            new_data = pl.concat(frames, how="horizontal").collect()  # Collect once
+
+            to_add = [c for c in new_cols if c not in base_cols]
+            to_coalesce = [c for c in new_cols if c in base_cols]
 
             # Build result with coalesce for overlapping columns
             if to_coalesce:
-                # For overlapping cols: use new value if not null, else keep base
                 coalesce_exprs = [
-                    pl.coalesce(
-                        new_data.select(c).collect().to_series(), pl.col(c)
-                    ).alias(c)
-                    for c in to_coalesce
+                    pl.coalesce(new_data[c], pl.col(c)).alias(c) for c in to_coalesce
                 ]
                 base = base.with_columns(coalesce_exprs)
 
             if to_add:
-                # hstack the genuinely new columns
-                base = base.collect().hstack(new_data.select(to_add).collect()).lazy()
+                base = base.with_columns(new_data.select(to_add))
 
             db.to_temp_table(df=base.collect(), tablename=temp_name)
             session_modified_tables.add(tablename)
