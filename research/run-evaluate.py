@@ -1,6 +1,6 @@
-import polars as pl
-
-pl.Config.set_engine_affinity("gpu")
+# For some reason, we get weird results with gpu
+# import polars as pl
+# pl.Config.set_engine_affinity("gpu")
 
 import time
 from pathlib import Path
@@ -298,7 +298,7 @@ if __name__ == "__main__":
                     DuckDB.from_sqlite(path, additional_cmds=additional_cmds),
                     model=model,
                     ingredients=ingredients,
-                    verbose=True,  # toggle this off for actual runtime test
+                    verbose=False,  # toggle this off for actual runtime test
                 )
             do_eval = False
             prediction_data = []
@@ -309,16 +309,14 @@ if __name__ == "__main__":
                 if exp_type == "BlendSQL":
                     if item["BlendSQL"] is None:
                         continue
-                    if item["Query ID"] != 6:
-                        continue
                     additional_cmds = None
                     if item["DB used"] == "european_football_2":
                         additional_cmds = ["SET sqlite_all_varchar=true"]
                     bsql = load_bsql(load_tag_db_path(item["DB used"]), additional_cmds)
                     smoothie = bsql.execute(item["BlendSQL"])
-                    smoothie.print_summary()
-                    time.sleep(3)
-                    exit()
+                    # smoothie.print_summary()
+                    # print(f"{item['Answer']=}")
+                    # time.sleep(3)
                     curr_pred_data["latency"] = smoothie.meta.process_time_seconds
                     curr_pred_data[
                         "completion_tokens"

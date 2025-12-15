@@ -792,10 +792,7 @@ def _blend(
             new_data = pl.concat(outputs, how="align_full")
             new_cols = new_data.collect_schema().names()
 
-            new_data.collect().to_pandas()
-            # print(f"{new_data_df[new_data_df['Does this post mention academic papers?'] == True]=}")
             to_add = [c for c in dict.fromkeys(new_cols) if c not in base_cols]
-            # print(f"{to_add=}")
             to_coalesce = [c for c in dict.fromkeys(new_cols) if c in base_cols]
 
             # Build result with coalesce for overlapping columns
@@ -813,11 +810,6 @@ def _blend(
                 # hstack the genuinely new columns
                 base = base.collect().hstack(new_data.select(to_add).collect()).lazy()
 
-            base_df = base.collect().to_pandas()
-            print(
-                f"{base_df[base_df['Does this post mention academic papers?'] == True][['OwnerUserId']]=}"
-            )
-            print(db.execute_to_df("SELECT * FROM users WHERE Id = 5739.0").collect())
             db.to_temp_table(df=base.collect(), tablename=temp_name)
             session_modified_tables.add(tablename)
 

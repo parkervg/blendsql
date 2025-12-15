@@ -597,7 +597,7 @@ ANNOTATED_TAG_DATASET = [
         "Query type": "Match",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "2013",
-        "BlendSQL": """SELECT CAST(ym.Date AS INT) / 100 AS "year"
+        "BlendSQL": """SELECT ROUND(CAST(ym.Date AS INT) / 100)::INT AS "year"
                        FROM customers c
                                 JOIN yearmonth ym ON c.CustomerID = ym.CustomerID
                        WHERE c.Currency = {{LLMQA('Which currency is the higher value?')}}
@@ -816,7 +816,7 @@ ANNOTATED_TAG_DATASET = [
         "Query type": "Comparison",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "453",
-        "BlendSQL": """SELECT CAST(ROUND(AVG(t.Price)) AS INT)
+        "BlendSQL": """SELECT ROUND(AVG(t.Price))::INT
                        FROM transactions_1k t
                                 JOIN gasstations g ON g.GasStationID = t.GasStationID
                        WHERE g.Country IN {{LLMQA('What are abbreviations for the country historically known as Bohemia? If there are multiple possible abbreviations list them as a python list with quotes around each abbreviation.')}}
@@ -1144,7 +1144,7 @@ ANNOTATED_TAG_DATASET = [
         "Query type": "Comparison",
         "Knowledge/Reasoning Type": "Knowledge",
         "Answer": "69",
-        "BlendSQL": """SELECT AVG(CAST(pa.overall_rating AS INT))
+        "BlendSQL": """SELECT ROUND(AVG(pa.overall_rating::FLOAT))::INT
                        FROM Player_Attributes pa
                        JOIN Player p ON p.player_api_id = pa.player_api_id
                        WHERE CAST(p.height AS FLOAT) > 170
