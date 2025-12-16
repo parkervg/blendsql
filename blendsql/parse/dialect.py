@@ -2,15 +2,8 @@ import sqlglot.dialects
 from sqlglot.dialects import SQLite, Postgres
 from sqlglot.schema import MappingSchema
 from sqlglot import parse_one
-from sqlglot.dialects.dialect import Dialect, DialectType
-from sqlglot.optimizer.isolate_table_selects import isolate_table_selects
-from sqlglot.optimizer.qualify_columns import (
-    pushdown_cte_alias_columns as pushdown_cte_alias_columns_func,
-    qualify_columns as qualify_columns_func,
-    quote_identifiers as quote_identifiers_func,
-    validate_qualify_columns as validate_qualify_columns_func,
-)
-from sqlglot.schema import Schema, ensure_schema
+from sqlglot.optimizer.qualify_columns import qualify_columns
+from sqlglot.schema import Schema
 
 import sqlglot
 from sqlglot import TokenType
@@ -201,97 +194,6 @@ def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
         raise ValueError(f"Unknown db_type {db_type}")
 
 
-def qualify(
-    expression: exp.Expression,
-    dialect: DialectType = None,
-    db: str | None = None,
-    catalog: str | None = None,
-    schema: dict | Schema = None,
-    expand_alias_refs: bool = True,
-    expand_stars: bool = True,
-    infer_schema: bool | None = None,
-    isolate_tables: bool = False,
-    qualify_columns: bool = True,
-    allow_partial_qualification: bool = False,
-    validate_qualify_columns: bool = True,
-    quote_identifiers: bool = True,
-    identify: bool = True,
-    infer_csv_schemas: bool = False,
-) -> exp.Expression:
-    """
-    Rewrite sqlglot AST to have normalized and qualified tables and columns.
-
-    This step is necessary for all further SQLGlot optimizations.
-
-    Example:
-        >>> import sqlglot
-        >>> schema = {"tbl": {"col": "INT"}}
-        >>> expression = sqlglot.parse_one("SELECT col FROM tbl")
-        >>> qualify(expression, schema=schema).sql()
-        'SELECT "tbl"."col" AS "col" FROM "tbl" AS "tbl"'
-
-    Args:
-        expression: Expression to qualify.
-        db: Default database name for tables.
-        catalog: Default catalog name for tables.
-        schema: Schema to infer column names and types.
-        expand_alias_refs: Whether to expand references to aliases.
-        expand_stars: Whether to expand star queries. This is a necessary step
-            for most of the optimizer's rules to work; do not set to False unless you
-            know what you're doing!
-        infer_schema: Whether to infer the schema if missing.
-        isolate_tables: Whether to isolate table selects.
-        qualify_columns: Whether to qualify columns.
-        allow_partial_qualification: Whether to allow partial qualification.
-        validate_qualify_columns: Whether to validate columns.
-        quote_identifiers: Whether to run the quote_identifiers step.
-            This step is necessary to ensure correctness for case sensitive queries.
-            But this flag is provided in case this step is performed at a later time.
-        identify: If True, quote all identifiers, else only necessary ones.
-        infer_csv_schemas: Whether to scan READ_CSV calls in order to infer the CSVs' schemas.
-
-    Returns:
-        The qualified expression.
-    """
-    schema = ensure_schema(schema, dialect=dialect)
-    # COMMENTED OUT THE TWO LINES BELOW
-    # expression = qualify_tables(
-    #     expression,
-    #     db=db,
-    #     catalog=catalog,
-    #     schema=schema,
-    #     dialect=dialect,
-    #     infer_csv_schemas=infer_csv_schemas,
-    # )
-    # expression = normalize_identifiers(expression, dialect=dialect)
-
-    if isolate_tables:
-        expression = isolate_table_selects(expression, schema=schema)
-
-    if Dialect.get_or_raise(dialect).PREFER_CTE_ALIAS_COLUMN:
-        expression = pushdown_cte_alias_columns_func(expression)
-
-    if qualify_columns:
-        expression = qualify_columns_func(
-            expression,
-            schema,
-            expand_alias_refs=expand_alias_refs,
-            expand_stars=expand_stars,
-            infer_schema=infer_schema,
-            allow_partial_qualification=allow_partial_qualification,
-        )
-
-    if quote_identifiers:
-        expression = quote_identifiers_func(
-            expression, dialect=dialect, identify=identify
-        )
-
-    if validate_qualify_columns:
-        validate_qualify_columns_func(expression)
-
-    return expression
-
-
 def _parse_one(
     sql: str | exp.Expression,
     dialect: sqlglot.Dialect,
@@ -303,14 +205,12 @@ def _parse_one(
     if isinstance(sql, str):
         node = parse_one(sql, dialect=dialect)
     if schema is not None:
-        node = qualify(
+        node = qualify_columns(
             expression=node,
-            dialect=dialect,
             schema=MappingSchema(schema, dialect=dialect, normalize=False),
-            expand_alias_refs=False,
+            expand_alias_refs=True,
             expand_stars=False,
-            quote_identifiers=False,
             allow_partial_qualification=True,
-            validate_qualify_columns=False,
+            infer_schema=True,
         )
     return node
