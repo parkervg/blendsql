@@ -590,7 +590,7 @@ class LLMMap(MapIngredient):
                     if exit_condition is not None and exit_condition(lm_mapping):
                         logger.debug(
                             Color.update(
-                                f"Exit condition satisfied. \n Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
+                                f"🚪Exit condition satisfied. \n Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
                             )
                         )
                         break

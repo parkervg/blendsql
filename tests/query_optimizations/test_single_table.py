@@ -474,7 +474,14 @@ class TestBasicOperations(TimedTestBase):
         expected_num_values_passed: int = (
             bsql.db.execute_to_list(
                 """
-                SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category LIKE 'P%'
+                SELECT (
+                    SELECT COUNT(DISTINCT merchant) FROM transactions 
+                    WHERE child_category LIKE 'P%'
+                ) + (
+                    SELECT COUNT(DISTINCT merchant) FROM transactions 
+                    WHERE child_category LIKE 'P%'
+                    AND LENGTH(merchant || ' ' || child_category) > 50
+                )
                 """,
                 to_type=int,
             )[0]

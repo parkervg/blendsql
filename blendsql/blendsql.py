@@ -802,9 +802,22 @@ def _blend(
                             )
                         return node
 
-                    cascade_filter = new_table.sql(
-                        f"SELECT * FROM self WHERE {function_node.parent.transform(t, new_col=new_col).sql()}"
-                    ).select(pl.exclude(new_col))
+                    binary_pred = function_node.parent
+                    while not isinstance(binary_pred, exp.Binary):
+                        binary_pred = binary_pred.parent
+                        if binary_pred is None:
+                            break
+
+                    if binary_pred is not None:
+                        cascade_filter_sql = f"SELECT * FROM self WHERE {binary_pred.transform(t, new_col=new_col).sql()}"
+                        logger.debug(
+                            Color.update("Executing ")
+                            + Color.sql(cascade_filter_sql)
+                            + Color.update(" to get cascade filter...")
+                        )
+                        cascade_filter = new_table.sql(cascade_filter_sql).select(
+                            pl.exclude(new_col)
+                        )
 
             elif curr_ingredient.ingredient_type in (
                 IngredientType.STRING,

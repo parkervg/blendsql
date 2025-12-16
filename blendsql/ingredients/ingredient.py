@@ -425,27 +425,31 @@ class MapIngredient(Ingredient):
             distinct_values = select_distinct_fn(
                 f'SELECT DISTINCT {select_distinct_arg} FROM "{value_source_tablename}"',
             )
-            if cascade_filter is not None:
-                # cascade_filters is a pl.LazyFrame containing some additional filters to apply to our distinct values
-                # For example:
-                # cascade_filters.collect() ==
-                # ┌───────────────────┬─────────────────────────────────┐
-                # │ Name              ┆ Known_For                       │
-                # │ ---               ┆ ---                             │
-                # │ str               ┆ str                             │
-                # ╞═══════════════════╪═════════════════════════════════╡
-                # │ Sabrina Carpenter ┆ Nonsense, Emails I Cant Send, … │
-                # │ Charli XCX        ┆ Crash, How Im Feeling Now, Boo… │
-                # │ Elvis Presley     ┆ 14 Grammys, King of Rock n Rol… │
-                # └───────────────────┴─────────────────────────────────┘
-                # ...means we only take values where `Name`, `Known_For` columns are present in the above.
-                distinct_values = distinct_values.join(
-                    cascade_filter, on=cascade_filter_colnames, how="semi"
-                )
-                # Remove columns, if they were only needed for the cascade_filter
-                distinct_values = distinct_values.select(
-                    set([colname]) | all_context_colnames
-                )
+
+        if cascade_filter is not None:
+            # cascade_filters is a pl.LazyFrame containing some additional filters to apply to our distinct values
+            # For example:
+            # cascade_filters.collect() ==
+            # ┌───────────────────┬─────────────────────────────────┐
+            # │ Name              ┆ Known_For                       │
+            # │ ---               ┆ ---                             │
+            # │ str               ┆ str                             │
+            # ╞═══════════════════╪═════════════════════════════════╡
+            # │ Sabrina Carpenter ┆ Nonsense, Emails I Cant Send, … │
+            # │ Charli XCX        ┆ Crash, How Im Feeling Now, Boo… │
+            # │ Elvis Presley     ┆ 14 Grammys, King of Rock n Rol… │
+            # └───────────────────┴─────────────────────────────────┘
+            # ...means we only take values where `Name`, `Known_For` columns are present in the above.
+            logger.debug(Color.update(f"🌊Applying cascade filter..."))
+            print(f"{distinct_values.collect()=}")
+            print(f"{cascade_filter.collect()=}")
+            distinct_values = distinct_values.join(
+                cascade_filter, on=cascade_filter_colnames, how="semi"
+            )
+            # Remove columns, if they were only needed for the cascade_filter
+            distinct_values = distinct_values.select(
+                set([colname]) | all_context_colnames
+            )
 
         context_subtables = []
         if context_was_passed or cascade_filter is not None:
