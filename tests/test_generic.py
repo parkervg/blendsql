@@ -174,3 +174,42 @@ def test_verbose_on(bsql, model):
         model=model,
         verbose=True,
     )
+
+
+def test_llmmap_concatenation_pipes(bsql, model):
+    """
+    a055026
+    """
+    _ = bsql.execute(
+        """
+        SELECT {{LLMMap('How old are they?', 'Name: ' || Name  || 'Age: ' || Age)}} FROM w;
+        """,
+        model=model,
+    )
+
+
+def test_llmmap_concatenation_concat(bsql, model):
+    """
+    a055026
+    """
+    _ = bsql.execute(
+        """
+        SELECT {{LLMMap('How old are they?', CONCAT('Name: ', Name, 'Age: ', Age))}} FROM w;
+        """,
+        model=model,
+    )
+
+
+def test_llmmap_concatenation_pipes_with_alias(bsql, model):
+    """
+    a055026
+    """
+    _ = bsql.execute(
+        """
+        WITH t AS (
+            SELECT * FROM w
+        )
+        SELECT {{LLMMap('How old are they?', 'Name: ' || Name  || 'Age: ' || Age)}} FROM t;
+        """,
+        model=model,
+    )
