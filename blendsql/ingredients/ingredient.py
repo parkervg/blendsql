@@ -288,16 +288,18 @@ class MapIngredient(Ingredient):
 
         if isinstance(values, StringConcatenation):
             # original_tablenames could be aliases
-            original_tablenames, _ = zip(
+            _original_tablenames, _ = zip(
                 *[utils.get_tablename_colname(c) for c in values]
             )
-            original_tablenames = set(original_tablenames)
-            assert (
-                len(original_tablenames) == 1
-            ), "Can only concatenate two columns from the same table for now!"
-            original_tablename = original_tablenames.pop()
+            _original_tablenames = set(_original_tablenames)
+            if len(_original_tablenames) > 1:
+                raise IngredientException(
+                    "Can only concatenate two columns from the same table for now!"
+                )
+
+            original_tablename = _original_tablenames.pop()
             tablename = aliases_to_tablenames.get(
-                original_tablename, original_tablenames
+                original_tablename, original_tablename
             )
             colname = "__concat__"
             value_source_tablename, _ = self.maybe_get_temp_table(
