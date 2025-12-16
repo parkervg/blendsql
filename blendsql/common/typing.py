@@ -42,14 +42,30 @@ class DataType:
         return self._coerce_fn(s, db)
 
 
-class IngredientArgType(str):
+class IngredientArgType:
     pass
 
 
-class Subquery(IngredientArgType):
+class Subquery(IngredientArgType, str):
     pass
 
 
-class ColumnRef(IngredientArgType):
+class ColumnRef(IngredientArgType, str):
     # '{table}.{column}' syntax
     pass
+
+
+class StringConcatenation(IngredientArgType, list):
+    # Some type of `column1 || ' ' || column2` expression
+
+    def __init__(self, columns: list[ColumnRef], raw_expr: str):
+        self.raw_expr = raw_expr
+        super().__init__(columns)
+
+    def __hash__(self):
+        return hash(tuple(self))
+
+    def __eq__(self, other):
+        if isinstance(other, StringConcatenation):
+            return list.__eq__(self, other)
+        return NotImplemented

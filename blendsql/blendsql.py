@@ -40,7 +40,12 @@ from blendsql.parse import (
 from blendsql.parse.constants import MODIFIERS
 from blendsql.ingredients.ingredient import Ingredient, IngredientException
 from blendsql.smoothie import Smoothie, SmoothieMeta
-from blendsql.common.typing import IngredientType, Subquery, ColumnRef
+from blendsql.common.typing import (
+    IngredientType,
+    Subquery,
+    ColumnRef,
+    StringConcatenation,
+)
 from blendsql.models.model import Model
 
 format_blendsql_function = lambda name: "{{" + name + "()}}"
@@ -180,7 +185,39 @@ def preprocess_blendsql(
             return ColumnRef(n.sql(dialect=dialect).strip('"'))
         elif isinstance(n, exp.Subquery):
             return Subquery(n.sql(dialect=dialect).removesuffix(")").removeprefix("("))
-        raise ValueError(f"Not sure what to do with {type(n.expression)} here")
+        elif isinstance(n, exp.DPipe):
+            # Some concatenation, e.g. `People.Name || ' ' || People.Known_For`
+            # These get parsed kind of weird in sqlglot
+            def flatten_dpipe(node: exp.DPipe) -> list[exp.Expression]:
+                args = []
+                current = node
+
+                while isinstance(current, exp.DPipe):
+                    args.append(current.expression)  # Collect right side
+                    current = current.this  # Move left
+
+                args.append(current)  # Don't forget the leftmost element
+                return args[::-1]  # Reverse to restore left-to-right order
+
+            parts = flatten_dpipe(n)
+            return StringConcatenation(
+                [
+                    ColumnRef(part.sql(dialect=dialect).strip('"'))
+                    for part in parts
+                    if isinstance(part, exp.Column)
+                ],
+                raw_expr=n.sql(),
+            )
+        elif isinstance(n, exp.Concat):
+            return StringConcatenation(
+                [
+                    ColumnRef(part.sql(dialect=dialect).strip('"'))
+                    for part in n.expressions
+                    if isinstance(part, exp.Column)
+                ],
+                raw_expr=n.sql(),
+            )
+        raise ValueError(f"Not sure what to do with {type(n)} here")
 
     ingredient_alias_to_parsed_dict: dict[str, dict] = {}
     function_hash_to_alias: dict[str, str] = {}
@@ -373,7 +410,7 @@ def _blend(
         query, schema=db.sqlglot_schema if len(db.sqlglot_schema) > 0 else None
     )
 
-    session_uuid = str(uuid.uuid4())[:4]
+    session_uuid = uuid.uuid4().hex[:4]
 
     # Create our Kitchen
     kitchen = Kitchen(db=db, session_uuid=session_uuid)

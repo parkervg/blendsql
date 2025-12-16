@@ -13,7 +13,7 @@ import polars as pl
 from blendsql.common.exceptions import IngredientException
 from blendsql.common.logger import logger, Color
 from blendsql.common import utils
-from blendsql.common.typing import IngredientType, ColumnRef
+from blendsql.common.typing import IngredientType, ColumnRef, StringConcatenation
 from blendsql.db import Database
 from blendsql.db.utils import format_tuple, double_quote_escape
 from blendsql.common.utils import get_tablename_colname
@@ -286,9 +286,30 @@ class MapIngredient(Ingredient):
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
         prev_subquery_map_columns: set[str] = kwargs["prev_subquery_map_columns"]
 
-        # TODO: make sure we support all types of ValueArray references here
-        tablename, colname = utils.get_tablename_colname(values)
-        tablename = aliases_to_tablenames.get(tablename, tablename)
+        if isinstance(values, StringConcatenation):
+            tablenames = [utils.get_tablename_colname(c)[0] for c in values]
+            tablenames = set(
+                [
+                    aliases_to_tablenames.get(tablename, tablename)
+                    for tablename in tablenames
+                ]
+            )
+            assert (
+                len(tablenames) == 1
+            ), "Can only concatenate two columns from the same table for now!"
+            tablename = tablenames.pop()
+            colname = "__concat__"
+            original_table = self.db.execute_to_df(
+                f"""
+                SELECT {values.raw_expr} AS __concat__ FROM {tablename}
+                """
+            )
+            self.db.to_temp_table(original_table, get_temp_subquery_table(tablename))
+        else:
+            original_table = None
+            # TODO: make sure we support all types of ValueArray references here
+            tablename, colname = utils.get_tablename_colname(values)
+            tablename = aliases_to_tablenames.get(tablename, tablename)
 
         # Check for previously created temporary tables
         value_source_tablename, _ = self.maybe_get_temp_table(
@@ -316,15 +337,19 @@ class MapIngredient(Ingredient):
             select_distinct_arg = f'"{colname}"'
             select_distinct_fn = lambda q: self.db.execute_to_list(q)
 
-        # Optionally materialize a CTE
-        if tablename in self.db.lazy_tables:
-            materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
-            self.num_values_passed += materialized_smoothie.meta.num_values_passed
-            original_table = materialized_smoothie.pl.lazy()
-        else:
-            original_table = self.db.execute_to_df(
-                f"""SELECT {select_distinct_arg} FROM "{tablename}" """
-            )
+        # TODO: is the `if original_table is None` condition safe?
+        if (
+            original_table is None
+        ):  # i.e, if we didn't create a string concatenation table
+            # Optionally materialize a CTE
+            if tablename in self.db.lazy_tables:
+                materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+                self.num_values_passed += materialized_smoothie.meta.num_values_passed
+                original_table = materialized_smoothie.pl.lazy()
+            else:
+                original_table = self.db.execute_to_df(
+                    f"""SELECT {select_distinct_arg} FROM "{tablename}" """
+                )
 
         # Need to be sure the new column doesn't already exist here
         new_arg_column = question or uuid.uuid4().hex[:4]
@@ -587,7 +612,7 @@ class JoinIngredient(Ingredient):
             )
             mapping = mapping | _predicted_mapping
         # Using mapped left/right values, create intermediary mapping table
-        temp_join_tablename = get_temp_session_table(str(uuid.uuid4())[:4])
+        temp_join_tablename = get_temp_session_table(uuid.uuid4().hex[:4])
         # Below, we check to see if 'swapped' is True
         # If so, we need to inverse what is 'left', and what is 'right'
         joined_values_df = pl.DataFrame(

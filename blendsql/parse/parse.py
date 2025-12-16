@@ -9,7 +9,7 @@ from attr import attrs, attrib
 from functools import partial
 
 from blendsql.common.utils import get_tablename_colname
-from blendsql.common.typing import QuantifierType, ColumnRef
+from blendsql.common.typing import QuantifierType, ColumnRef, StringConcatenation
 from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE, prepare_datatype
 from blendsql.common.logger import logger, Color
 from .dialect import _parse_one
@@ -108,9 +108,15 @@ class SubqueryContextManager:
     def get_columns_referenced_by_ingredients(
         self, ingredient_alias_to_parsed_dict: dict
     ):
-        # TODO: call infer_gen_constraints() first, to populate `options`
         columns_referenced_by_ingredients = {}
         ingredient_aliases = [i.name for i in check.get_ingredient_nodes(self.node)]
+
+        def _process_single(arg: ColumnRef):
+            tablename, columnname = get_tablename_colname(arg)
+            if tablename not in columns_referenced_by_ingredients:
+                columns_referenced_by_ingredients[tablename] = set()
+            columns_referenced_by_ingredients[tablename].add(columnname)
+
         for ingredient_alias in ingredient_aliases:
             kwargs_dict = ingredient_alias_to_parsed_dict[ingredient_alias][
                 "kwargs_dict"
@@ -130,12 +136,12 @@ class SubqueryContextManager:
                 for arg in args:
                     if arg is None:
                         continue
-                    # If `context` is a subquery, this gets executed on its own later.
-                    if isinstance(arg, ColumnRef):
-                        tablename, columnname = get_tablename_colname(arg)
-                        if tablename not in columns_referenced_by_ingredients:
-                            columns_referenced_by_ingredients[tablename] = set()
-                        columns_referenced_by_ingredients[tablename].add(columnname)
+                    if isinstance(arg, StringConcatenation):
+                        for column in arg:
+                            _process_single(column)
+                    elif isinstance(arg, ColumnRef):
+                        _process_single(arg)
+                    # If `context` is a subquery, this gets executed on its own later, so we don't handle it here.
         return columns_referenced_by_ingredients
 
     def abstracted_table_selects(
