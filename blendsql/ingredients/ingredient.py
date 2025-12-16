@@ -287,24 +287,54 @@ class MapIngredient(Ingredient):
         prev_subquery_map_columns: set[str] = kwargs["prev_subquery_map_columns"]
 
         if isinstance(values, StringConcatenation):
-            tablenames = [utils.get_tablename_colname(c)[0] for c in values]
-            tablenames = set(
-                [
-                    aliases_to_tablenames.get(tablename, tablename)
-                    for tablename in tablenames
-                ]
+            # original_tablenames could be aliases
+            original_tablenames, _ = zip(
+                *[utils.get_tablename_colname(c) for c in values]
             )
+            original_tablenames = set(original_tablenames)
             assert (
-                len(tablenames) == 1
+                len(original_tablenames) == 1
             ), "Can only concatenate two columns from the same table for now!"
-            tablename = tablenames.pop()
+            original_tablename = original_tablenames.pop()
+            tablename = aliases_to_tablenames.get(
+                original_tablename, original_tablenames
+            )
             colname = "__concat__"
+            value_source_tablename, _ = self.maybe_get_temp_table(
+                temp_table_func=get_temp_subquery_table, tablename=tablename
+            )
+            concat_expr = re.sub(
+                rf"{re.escape(original_tablename)}\.", "", values.raw_expr
+            )
+            logger.debug(
+                Color.update("Prepping string concatenations for Map ingredient...")
+            )
+            # Add a '__concat__' column to our existing temp subquery table
+            self.db.to_temp_table(
+                self.db.execute_to_df(
+                    f"""
+                SELECT *, {concat_expr} AS __concat__ FROM "{double_quote_escape(value_source_tablename)}"
+                """
+                ),
+                value_source_tablename,
+            )
+
+            # Also add a placeholder column to the main table
+            # TODO: we don't really need to concat over ALL columns, since we only need the subset
+            #   we processed above. But, in order for the final map aggregation to work,
+            #   we join on the '__concat__' column.
+            (
+                temp_session_tablename,
+                temp_session_table_exists,
+            ) = self.maybe_get_temp_table(
+                temp_table_func=get_temp_session_table, tablename=tablename
+            )
             original_table = self.db.execute_to_df(
                 f"""
-                SELECT {values.raw_expr} AS __concat__ FROM {tablename}
+                SELECT *, {concat_expr} AS __concat__ FROM "{double_quote_escape(tablename)}"
                 """
             )
-            self.db.to_temp_table(original_table, get_temp_subquery_table(tablename))
+            self.db.to_temp_table(original_table, temp_session_tablename)
         else:
             original_table = None
             # TODO: make sure we support all types of ValueArray references here
@@ -337,11 +367,9 @@ class MapIngredient(Ingredient):
             select_distinct_arg = f'"{colname}"'
             select_distinct_fn = lambda q: self.db.execute_to_list(q)
 
-        # TODO: is the `if original_table is None` condition safe?
-        if (
-            original_table is None
-        ):  # i.e, if we didn't create a string concatenation table
-            # Optionally materialize a CTE
+        # i.e, if we didn't create a string concatenation table
+        # Optionally materialize a CTE
+        if original_table is None:
             if tablename in self.db.lazy_tables:
                 materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
                 self.num_values_passed += materialized_smoothie.meta.num_values_passed
