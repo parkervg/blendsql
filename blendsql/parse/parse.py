@@ -394,6 +394,12 @@ class SubqueryContextManager:
                     return True
             return False
 
+        if len(set(list(self.node.find_all(exp.Table)))) > 1:
+            logger.debug(
+                Color.error(f"Can't apply filter cascade on multi-table queries yet ):")
+            )
+            return False
+
         where_node = self.node.find(exp.Where)
         if where_node is None:
             return False

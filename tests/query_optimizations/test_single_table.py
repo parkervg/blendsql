@@ -192,9 +192,17 @@ class TestBasicOperations(TimedTestBase):
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_multiple_nested_ingredients(self, bsql: BlendSQL):
+        """This one benefits from cascade filtering"""
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
-                SELECT COUNT(DISTINCT merchant) + COUNT(DISTINCT child_category) FROM transactions WHERE parent_category = 'Food'
+                SELECT (
+                    SELECT COUNT(DISTINCT merchant) FROM transactions
+                    WHERE parent_category = 'Food'
+                ) + (
+                    SELECT COUNT(DISTINCT child_category) FROM transactions
+                    WHERE parent_category = 'Food' 
+                    AND merchant LIKE 'A%'
+                )
                 """,
             to_type=int,
         )[0]
@@ -470,23 +478,24 @@ class TestBasicOperations(TimedTestBase):
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_concat_in_map(self, bsql: BlendSQL):
-        """dcc87bb"""
-        expected_num_values_passed: int = (
-            bsql.db.execute_to_list(
-                """
+        """dcc87bb
+
+        After adding cascade filtering, this query only passes 137 values to ingredients,
+            as opposed to 274.
+        """
+        expected_num_values_passed: int = bsql.db.execute_to_list(
+            """
                 SELECT (
                     SELECT COUNT(DISTINCT merchant) FROM transactions 
                     WHERE child_category LIKE 'P%'
                 ) + (
                     SELECT COUNT(DISTINCT merchant) FROM transactions 
-                    WHERE child_category LIKE 'P%'
-                    AND LENGTH(merchant || ' ' || child_category) > 50
+                    WHERE LENGTH(merchant || ' ' || child_category) > 50
+                    AND child_category LIKE 'P%'
                 )
                 """,
-                to_type=int,
-            )[0]
-            * 2
-        )
+            to_type=int,
+        )[0]
         # TODO: for now we multiple by two, to account for the two ingredient calls we make.
         #   In the future, we should check to see if the first ingredient filter is true, before
         #   passing values to the second.
@@ -495,7 +504,7 @@ class TestBasicOperations(TimedTestBase):
             blendsql_query="""
                 SELECT merchant FROM transactions t
                 WHERE {{get_length(t.merchant || ' ' || t.child_category)}} > 50
-                AND {{test_starts_with('C', t.merchant)}}
+                AND {{test_starts_with('C', t.merchant)}} = TRUE
                 AND t.child_category LIKE 'P%'
                 """,
             sql_query="""

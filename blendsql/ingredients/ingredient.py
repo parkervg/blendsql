@@ -344,13 +344,16 @@ class MapIngredient(Ingredient):
             tablename, colname = utils.get_tablename_colname(values)
             tablename = aliases_to_tablenames.get(tablename, tablename)
 
-        # Check for previously created temporary tables
-        value_source_tablename, _ = self.maybe_get_temp_table(
-            temp_table_func=get_temp_subquery_table, tablename=tablename
-        )
-        temp_session_tablename, temp_session_table_exists = self.maybe_get_temp_table(
-            temp_table_func=get_temp_session_table, tablename=tablename
-        )
+            # Check for previously created temporary tables
+            value_source_tablename, _ = self.maybe_get_temp_table(
+                temp_table_func=get_temp_subquery_table, tablename=tablename
+            )
+            (
+                temp_session_tablename,
+                temp_session_table_exists,
+            ) = self.maybe_get_temp_table(
+                temp_table_func=get_temp_session_table, tablename=tablename
+            )
 
         cascade_filter_colnames = set()
         if cascade_filter is not None:
@@ -366,7 +369,7 @@ class MapIngredient(Ingredient):
                         f"Not sure what to do with context arg passed to MapIngredient: {_context}"
                     )
             select_distinct_arg = ", ".join(
-                f'"{c}"'
+                f'"{double_quote_escape(c)}"'
                 for c in set(
                     set([colname]) | all_context_colnames | cascade_filter_colnames
                 )
@@ -375,12 +378,13 @@ class MapIngredient(Ingredient):
         else:
             if cascade_filter_colnames:
                 select_distinct_arg = ", ".join(
-                    f'"{c}"' for c in set(set([colname]) | cascade_filter_colnames)
+                    f'"{double_quote_escape(c)}"'
+                    for c in set(set([colname]) | cascade_filter_colnames)
                 )
                 select_distinct_fn = lambda q: self.db.execute_to_df(q)
             else:
                 # Simplest case
-                select_distinct_arg = f'"{colname}"'
+                select_distinct_arg = f'"{double_quote_escape(colname)}"'
                 select_distinct_fn = lambda q: self.db.execute_to_list(q)
 
         # i.e, if we didn't create a string concatenation table
@@ -441,8 +445,6 @@ class MapIngredient(Ingredient):
             # └───────────────────┴─────────────────────────────────┘
             # ...means we only take values where `Name`, `Known_For` columns are present in the above.
             logger.debug(Color.update(f"🌊Applying cascade filter..."))
-            print(f"{distinct_values.collect()=}")
-            print(f"{cascade_filter.collect()=}")
             distinct_values = distinct_values.join(
                 cascade_filter, on=cascade_filter_colnames, how="semi"
             )
@@ -455,6 +457,8 @@ class MapIngredient(Ingredient):
         if context_was_passed or cascade_filter is not None:
             df = distinct_values.collect()
             unpacked_values = df[colname].to_list()
+            if cascade_filter is not None:
+                unpacked_values = list(set(unpacked_values))
             context_subtables = [df.select(c) for c in df.columns if c != colname]
         else:
             unpacked_values: list = distinct_values
