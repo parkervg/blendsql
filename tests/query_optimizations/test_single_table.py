@@ -468,6 +468,38 @@ class TestBasicOperations(TimedTestBase):
             expected_num_values_passed=expected_num_values_passed,
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
+    def test_concat_in_map(self, bsql: BlendSQL):
+        """dcc87bb"""
+        expected_num_values_passed: int = (
+            bsql.db.execute_to_list(
+                """
+                SELECT COUNT(DISTINCT merchant) FROM transactions WHERE child_category LIKE 'P%'
+                """,
+                to_type=int,
+            )[0]
+            * 2
+        )
+        # TODO: for now we multiple by two, to account for the two ingredient calls we make.
+        #   In the future, we should check to see if the first ingredient filter is true, before
+        #   passing values to the second.
+        _ = self.assert_blendsql_equals_sql(
+            bsql,
+            blendsql_query="""
+                SELECT merchant FROM transactions t
+                WHERE {{get_length(t.merchant || ' ' || t.child_category)}} > 50
+                AND {{test_starts_with('C', t.merchant)}}
+                AND t.child_category LIKE 'P%'
+                """,
+            sql_query="""
+                SELECT DISTINCT merchant FROM transactions t 
+                WHERE LENGTH(t.merchant || ' ' || t.child_category) > 50 
+                AND t.merchant LIKE 'C%' 
+                AND t.child_category LIKE 'P%'
+                """,
+            expected_num_values_passed=expected_num_values_passed,
+        )
+
 
 class TestSelectOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
