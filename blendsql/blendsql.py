@@ -659,6 +659,7 @@ def _blend(
         # 2) Track when we've created a new table from a MapIngredient call
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
         tablename_to_map_out: dict[str, tuple[pd.DataFrame, str]] = {}
+        cascade_filter: pl.LazyFrame = None
         for function_node in get_sorted_blendsql_nodes(
             node=scm.node,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -768,6 +769,7 @@ def _blend(
                     "get_temp_session_table": _get_temp_session_table,
                     "aliases_to_tablenames": scm.alias_to_tablename,
                     "prev_subquery_map_columns": prev_subquery_map_columns,
+                    "cascade_filter": cascade_filter,
                 },
             )
             # Check how to handle output, depending on ingredient type
@@ -785,6 +787,25 @@ def _blend(
                 alias_function_name_to_result[
                     function_node.name
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
+
+                if scm.is_eligible_for_cascade_filter():
+                    # Add a cascade filter
+                    # Something like `'"Is this a singer?" = TRUE'`
+                    # This will get applied to the value_source_table on the next ingredient execution to further filter
+                    #   the subset of data that gets passed to the LLM function.
+                    def t(node, new_col):
+                        if isinstance(node, exp.BlendSQLFunction):
+                            return exp.Column(
+                                this=exp.Identifier(
+                                    this=double_quote_escape(new_col), quoted=True
+                                )
+                            )
+                        return node
+
+                    cascade_filter = new_table.sql(
+                        f"SELECT * FROM self WHERE {function_node.parent.transform(t, new_col=new_col).sql()}"
+                    ).select(pl.exclude(new_col))
+
             elif curr_ingredient.ingredient_type in (
                 IngredientType.STRING,
                 IngredientType.QA,

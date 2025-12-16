@@ -370,6 +370,35 @@ class SubqueryContextManager:
                 return partial(_exit_condition, op=lambda v: v is arg)
             # TODO: add more
 
+    def is_eligible_for_cascade_filter(self) -> bool:
+        def has_or_with_blendsql(node):
+            """Check if node is/contains OR with BlendSQL functions in different branches"""
+            if node is None:
+                return False
+            if isinstance(node, exp.Or):
+                # Check if both sides of OR contain BlendSQL functions
+                left_has_blendsql = any(
+                    isinstance(n, exp.BlendSQLFunction) for n in node.left.walk()
+                )
+                right_has_blendsql = any(
+                    isinstance(n, exp.BlendSQLFunction) for n in node.right.walk()
+                )
+
+                # If BlendSQL functions exist in the OR, cascading is unsafe
+                if left_has_blendsql or right_has_blendsql:
+                    return True
+
+            # Recursively check children
+            for child in node.iter_expressions():
+                if has_or_with_blendsql(child):
+                    return True
+            return False
+
+        where_node = self.node.find(exp.Where)
+        if where_node is None:
+            return False
+        return not has_or_with_blendsql(where_node)
+
     def infer_gen_constraints(
         self,
         function_node: exp.Expression,
