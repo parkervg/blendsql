@@ -30,7 +30,7 @@ dependencies = [
     "sqlglot[rs]==28.1.0",
     "sqlalchemy>=2.0.0",
     "skrub",
-    "duckdb>=1.0.0",
+    "duckdb>=1.4.1",
     "rapidfuzz",
     "sentence_transformers",
     "huggingface_hub",
