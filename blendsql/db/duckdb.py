@@ -8,6 +8,7 @@ import polars as pl
 import pandas as pd
 
 from blendsql.db.database import Database
+from blendsql.db.utils import double_quote_escape
 from blendsql.common.logger import logger, Color
 
 _has_duckdb = importlib.util.find_spec("duckdb") is not None
@@ -82,7 +83,9 @@ class DuckDB(Database):
             db_url = f"Local pandas tables {', '.join(data.keys())}"
             for tablename, _df in data.items():
                 # Note: duckdb.sql connects to the default in-memory database connection
-                con.sql(f"CREATE TABLE {tablename} AS SELECT * FROM _df")
+                con.sql(
+                    f'CREATE TABLE "{double_quote_escape(tablename)}" AS SELECT * FROM _df'
+                )
         else:
             raise ValueError(
                 "Unknown datatype passed to `Pandas`!\nWe expect either a single dataframe, or a dictionary mapping many tables from {tablename: df}"
@@ -132,7 +135,7 @@ class DuckDB(Database):
         for tablename in self.tables():
             schema[tablename] = {}
             for column_name, column_type in self.con.sql(
-                f"SELECT column_name, column_type FROM (DESCRIBE {tablename})"
+                f'SELECT column_name, column_type FROM (DESCRIBE "{double_quote_escape(tablename)}")'
             ).fetchall():
                 schema[tablename][column_name] = column_type
         return schema
@@ -142,7 +145,7 @@ class DuckDB(Database):
 
     def iter_columns(self, tablename: str) -> Generator[str, None, None]:
         for row in self.con.sql(
-            f"SELECT column_name FROM (DESCRIBE {tablename})"
+            f'SELECT column_name FROM (DESCRIBE "{double_quote_escape(tablename)}")'
         ).fetchall():
             yield row[0]
 
