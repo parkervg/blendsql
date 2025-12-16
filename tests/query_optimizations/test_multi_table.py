@@ -513,7 +513,7 @@ class TestCTEOperations(TimedTestBase):
             SELECT * FROM portfolio WHERE Quantity > 200
         ), b AS (SELECT Symbol FROM portfolio AS w WHERE w.Symbol LIKE 'A%'),
         c AS (SELECT * FROM geographic)
-        SELECT * FROM a WHERE {{test_starts_with('F', a.Symbol)}} = TRUE
+        SELECT * FROM a WHERE {{test_starts_with('F', Symbol)}} = TRUE
         """
         # Need to get the lower level function so we can see what tables got created
         from blendsql.blendsql import _blend
@@ -541,7 +541,7 @@ class TestCTEOperations(TimedTestBase):
                 SELECT *
                 FROM account_history
                 WHERE Symbol IS NOT NULL
-            ) SELECT {{select_first_sorted(options=w.Symbol)}} FROM w LIMIT 1
+            ) SELECT {{select_first_sorted(options=Symbol)}} FROM w LIMIT 1
             """,
             sql_query="""
             WITH w AS (
@@ -582,8 +582,8 @@ class TestCTEOperations(TimedTestBase):
                 WHERE {{test_starts_with('F', a.Account)}} = TRUE
                 AND a.Account IS NOT NULL
             ) SELECT COUNT(*) FROM t
-            WHERE t.Symbol IS NOT NULL
-            AND {{get_length(t.Symbol)}} > 3
+            WHERE Symbol IS NOT NULL
+            AND {{get_length(Symbol)}} > 3
             """,
             sql_query="""
             WITH t AS (

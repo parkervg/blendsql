@@ -209,7 +209,7 @@ def test_llmmap_concatenation_pipes_with_alias(bsql, model):
         WITH t AS (
             SELECT * FROM w
         )
-        SELECT {{LLMMap('How old are they?', 'Name: ' || t.Name  || 'Age: ' || t.Age)}} FROM t;
+        SELECT {{LLMMap('How old are they?', 'Name: ' || Name  || 'Age: ' || Age)}} FROM t;
         """,
         model=model,
     )
