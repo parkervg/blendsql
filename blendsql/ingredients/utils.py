@@ -81,9 +81,6 @@ def gen_list(
         list_contents = quoted_item + subsequent_items
     elif quantifier and re.match(r"{\d+(,\d*)?}", quantifier):
         # Specific count - use the quantifier wrapper but adjust for separator
-        # NOTE: This is trickier because guidance.sequence expects a single element
-        # You may need to handle this differently based on guidance's capabilities
-        # For now, falling back to the simpler approach with optional trailing comma
         item_with_sep = quoted_item + guidance.optional(", ")
         list_contents = quantifier_fn(item_with_sep)
     else:

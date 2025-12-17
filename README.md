@@ -194,7 +194,7 @@ As a result, we can *Blend* together...
 
 ### Core Design Principle: Be Lazy 😴
 
-This is embodied in a few different ways - [early exit LLM functions when `LIMIT` clauses are used](https://github.com/parkervg/blendsql/pull/57), [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), [only load language models into memory if we use them](https://github.com/parkervg/blendsql/blob/main/blendsql/models/model.py#L213), etc.
+This is embodied in a few different ways - [early exit LLM functions when `LIMIT` clauses are used](https://github.com/parkervg/blendsql/pull/57), [use the outputs of previous LLM functions to filter the input of future LLM functions](https://github.com/parkervg/blendsql/pull/61), [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), etc.
 
 But, at a higher level: Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data into memory that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally sync back to the native SQL dialect and execute. In this way, BlendSQL 'compiles to SQL'.
 
@@ -548,6 +548,82 @@ print(smoothie.df)
 # └────────────┘
 ```
 
+
+## Extreme Multi-Label Classification
+
+```python
+from blendsql import BlendSQL 
+from blendsql.search import HybridSearch
+from blendsql.ingredients import LLMMap
+
+MultiLabelMap = LLMMap.from_args(
+    few_shot_examples=[
+        {
+            "question": "What medical conditions does the patient have?",
+            "mapping": {
+                "Patient experienced severe nausea and vomiting after taking the prescribed medication. The symptoms started within 2 hours of administration and persisted for 24 hours.": [
+                    "nausea",
+                    "vomiting",
+                    "gastrointestinal distress",
+                ],
+                "Subject reported persistent headache and dizziness following drug treatment. These symptoms interfered with daily activities and lasted for several days.": [
+                    "headache",
+                    "dizziness",
+                    "neurological symptoms",
+                ],
+            },
+            "column_name": "patient_description",
+            "table_name": "w",
+            "return_type": "list[str]",
+        }
+    ],
+    # Below, `a_long_list_of_unique_reactions` is a list[str] containing all 24k possible labels
+    options_searcher=HybridSearch(
+        documents=a_long_list_of_unique_reactions, model_name_or_path="intfloat/e5-base-v2", k=5
+    ),
+)
+
+bsql = BlendSQL(
+    {
+        "w": {
+          "patient_description": [
+            "Patient complained of severe stomach pain and diarrhea after taking the medication. The gastrointestinal symptoms were debilitating and required medical attention."
+            "Subject experienced extreme fatigue and muscle weakness following medication administration. Energy levels remained critically low for 48-72 hours post-treatment."
+        },
+    },
+    model=model,
+    verbose=True,
+    ingredients=[MultiLabelMap],
+)
+```
+
+Since we've configured our `MultiLabelMap` function with an `options_searcher`, for each new input to the function, it will:
+1) Fetch the `k` most similar options according to our similarity criteria (in this case, Hybrid BM25 + vector search). 
+2) Restrict LLM generation for each value to the `k` value-level retrieved options.
+
+Combining this with the `return_type` and `quantifier` argument, we have a powerful multi-label predictor. 
+
+```python
+smoothie = bsql.execute(
+    """
+    SELECT patient_description, 
+    {{
+        MultiLabelMap(
+            'What medical conditions does the patient have?',
+            patient_description,
+            return_type='list[str]',
+            quantifier='{5}'
+        )
+    }} AS prediction
+    FROM w 
+    """
+)
+```
+
+> [!NOTE]
+> You may be asking - "In the above query, why do *we* need to specify the `return_type`? I thought the whole thing with BlendSQL was that it would infer constraints for me?"
+> While that's true, type inference has a limit. If a query is just selecting the output of some generic LLM function, the expression context doesn't give us any hints as to what return type the user wants - a string? list? integer?
+> In cases like these, it's important to set the `return_type` to explicitly define the output space for the model. 
 
 ## Few-Shot Prompting
 For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples.

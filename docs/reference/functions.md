@@ -27,18 +27,32 @@ SELECT {{
 }}, content AS classification FROM posts LIMIT 10
 ```
 
-# **Functions**
-## LLMQA
-
-The `LLMQA` is an aggregate function that returns a single scalar value.
-
 ### `Quantifier`
 
-An optional `quantifier` argument can be passed, which will be used to modify the regular expression pattern powering the constrained decoding. The following [greedy quantifiers](https://learn.microsoft.com/en-us/dotnet/standard/base-types/quantifiers-in-regular-expressions) are valid:
+An optional `quantifier` argument can be passed to `LLMQA` and `LLMMap`, which will be used to modify the regular expression pattern powering the constrained decoding. For example:
+
+```sql
+SELECT {{
+    LLMMap(
+        'What are their interests?',
+        context_column,
+        quantifier='+'
+    )
+}} FROM People
+```
+
+Since we're asking for 'one-or-more' via the quantifier arg and the default `return_type` (as of v0.0.61) is `str`, BlendSQL casts the `return_type` to a `List[str]`. 
+
+The following [greedy quantifiers](https://learn.microsoft.com/en-us/dotnet/standard/base-types/quantifiers-in-regular-expressions) are valid:
 
 - `'*'`, meaning 'zero-or-more'
 - `'+`', meaning 'one-or-more'
 - Any string matching the pattern `{\d(,\d)?}` (e.g. `{1,2}`)
+- 
+# **Functions**
+## LLMQA
+
+The `LLMQA` is an aggregate function that returns a single scalar value.
 
 ```python
 def LLMQA(

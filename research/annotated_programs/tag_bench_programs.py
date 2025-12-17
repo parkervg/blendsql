@@ -2100,7 +2100,7 @@ ANNOTATED_TAG_DATASET = [
         LLMQA(
             "Which 3 of these names could be said to be the 'most unique'?", 
             options=top_players.player_name, 
-            quantifier="{3}"
+            quantifier='{3}'
             )
         }}
                     """,

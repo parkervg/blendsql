@@ -213,3 +213,23 @@ def test_llmmap_concatenation_pipes_with_alias(bsql, model):
         """,
         model=model,
     )
+
+
+def test_prompt_type_annotation(bsql, constrained_model):
+    from blendsql import GLOBAL_HISTORY
+
+    _ = bsql.execute(
+        """
+        SELECT {{LLMMap('Is a famous singer?', Name, options=('yes', 'no'))}} FROM w LIMIT 1
+        """,
+        model=constrained_model,
+    )
+    assert 'Literal["yes", "no"]' in GLOBAL_HISTORY[-1]
+
+    _ = bsql.execute(
+        """
+        SELECT {{LLMMap('How old are they, probably', Name, options=(21, 14, 12))}} FROM w LIMIT 1
+        """,
+        model=constrained_model,
+    )
+    assert "Literal[21, 14, 12]" in GLOBAL_HISTORY[-1]

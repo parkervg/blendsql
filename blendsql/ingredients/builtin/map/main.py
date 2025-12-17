@@ -10,6 +10,7 @@ from attr import attrs, attrib
 import copy
 from itertools import islice
 from tqdm.auto import tqdm
+from textwrap import indent
 
 from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger, Color
@@ -55,7 +56,7 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     CONSTRAINED_MAIN_INSTRUCTION
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
-DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 1
+DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 3
 
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     "Given a set of values from a database, answer the question for each value. "
@@ -215,7 +216,7 @@ class LLMMap(MapIngredient):
                 "LLMMap requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
         if few_shot_retriever is None:
-            few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
+            few_shot_retriever = lambda *_: []
 
         # Resolve context argument
         # If we explicitly passed `context`, this should take precedence over the vector store.
@@ -553,7 +554,8 @@ class LLMMap(MapIngredient):
                     iter = tqdm(
                         iter,
                         total=total_batches,
-                        desc=f"LLMMap with batch_size={batch_size}",
+                        desc=(Color.prefix if Color.in_block else "")
+                        + f"LLMMap with `{batch_size=}` and `{len(few_shot_examples)=}`",
                     )
                 for i in iter:
                     model.num_generation_calls += 1
@@ -563,9 +565,21 @@ class LLMMap(MapIngredient):
                     self.num_values_passed += len(
                         batch_inference_strings[i : i + batch_size]
                     )
+
+                    def unquote(s):
+                        for quote in ['"', "'"]:
+                            s = s.removeprefix(quote).removesuffix(quote)
+                        return s
+
                     model.completion_tokens += sum(
                         [
-                            len(model.tokenizer_encode(result_payload["value"]))
+                            len(
+                                model.tokenizer_encode(
+                                    unquote(result_payload["value"])
+                                    if resolved_return_type.requires_quotes
+                                    else result_payload["value"]
+                                )
+                            )
                             for result_payload in batch_lm._interpreter.state.captures.values()
                         ]
                     )
@@ -589,8 +603,8 @@ class LLMMap(MapIngredient):
                     # Check and see if early exit condition applies
                     if exit_condition is not None and exit_condition(lm_mapping):
                         logger.debug(
-                            Color.update(
-                                f"Exit condition satisfied. \n Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
+                            Color.optimization(
+                                f"[ 🚪] Exit condition satisfied. \n Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
                             )
                         )
                         break
@@ -603,7 +617,7 @@ class LLMMap(MapIngredient):
             ]
             logger.debug(
                 lambda: Color.warning(
-                    f"Finished LLMMap with values:\n{json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4)}"
+                    f"Finished LLMMap with {len(lm_mapping)} total values{' (10 shown)' if len(lm_mapping) > 10 else ''}:\n{indent(json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
                 )
             )
             return mapped_values
@@ -706,8 +720,8 @@ class LLMMap(MapIngredient):
                     )
                 )
             logger.debug(
-                Color.warning(
-                    f"Finished LLMMap with values:\n{json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
+                lambda: Color.warning(
+                    f"Finished LLMMap with {len(mapped_values)} values{' (10 shown)' if len(mapped_values) > 10 else ''}:\n{json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
                 )
             )
             return mapped_values

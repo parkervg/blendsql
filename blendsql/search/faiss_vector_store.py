@@ -44,12 +44,15 @@ def dependable_faiss_import(no_avx2: bool | None = None) -> Any:
 @dataclass(kw_only=True)
 class FaissVectorStore(Searcher):
     documents: list[str] = field()
+    model_name_or_path: str = field(default="sentence-transformers/all-mpnet-base-v2")
     # https://github.com/facebookresearch/faiss/wiki/The-index-factory
     factory_str: str = field(default="Flat")
-    model_name_or_path: str = field(default="sentence-transformers/all-mpnet-base-v2")
     index_dir: Path = field(
         default=Path(platformdirs.user_cache_dir("blendsql")) / "faiss_vectors"
     )
+    st_model: "SentenceTransformer" = field(
+        default=None
+    )  # Allows us to pass a pre-loaded model to use
     return_objs: list[ReturnObj] = field(default=None)
     st_encode_kwargs: dict[str, Any] | None = field(default=None)
     batch_size: int | None = field(default=32)
@@ -82,11 +85,15 @@ class FaissVectorStore(Searcher):
             self.documents = sorted(self.documents)
             self.idx_to_return_obj = {i: doc for i, doc in enumerate(self.documents)}
 
-        # Load SentenceTransformer and any kwargs we need to pass on encode
-        self.embedding_model = SentenceTransformer(
-            self.model_name_or_path,
-            device="cuda" if torch.cuda.is_available() else "cpu",
-        )
+        if self.st_model is None:
+            # Load SentenceTransformer and any kwargs we need to pass on encode
+            self.embedding_model = SentenceTransformer(
+                self.model_name_or_path,
+                device="cuda" if torch.cuda.is_available() else "cpu",
+            )
+        else:
+            self.embedding_model = self.st_model
+
         if self.st_encode_kwargs is None:
             self.st_encode_kwargs = {}
 

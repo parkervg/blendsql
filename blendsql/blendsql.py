@@ -174,11 +174,11 @@ def preprocess_blendsql(
 
     def process_arg_value(n: exp.Expression):
         if isinstance(n, exp.Tuple):
-            return [i.name for i in n.find_all(exp.Literal)]
+            return [i.to_py() for i in n.find_all(exp.Literal)]
         elif isinstance(n, exp.Paren):
             # This happens when we try to define a tuple with a single item
             # e.g. `options=('something')`
-            return [n.this.name]
+            return [n.this.to_py()]
         elif isinstance(n, (exp.Literal, exp.Boolean)):
             return n.to_py()
         elif isinstance(n, exp.Column):
@@ -317,6 +317,72 @@ def materialize_cte(
     return materialized_smoothie
 
 
+def get_cascade_filter(
+    function_node: exp.Exp,
+    tablename: str,
+    new_col: str,
+    new_table: pl.LazyFrame,
+    scm: SubqueryContextManager,
+) -> pl.LazyFrame | None:
+    """
+    Add a cascade filter.
+    Something like `'"Is this a singer?" = TRUE'`
+    This will get applied to the value_source_table on the next ingredient execution to further filter
+      the subset of data that gets passed to the LLM function.
+    """
+    try:
+
+        def t(node, new_col):
+            if isinstance(node, exp.BlendSQLFunction):
+                return exp.Column(
+                    this=exp.Identifier(this=double_quote_escape(new_col), quoted=True)
+                )
+            return node
+
+        binary_expr = None
+        if isinstance(function_node.parent.this, exp.Binary):
+            binary_expr = function_node.parent.this
+        elif isinstance(function_node.parent, exp.Binary):
+            if len(list(function_node.parent.find_all(exp.BlendSQLFunction))) == 1:
+                binary_expr = function_node.parent
+
+        if (
+            binary_expr is not None
+            and binary_expr.find(exp.BlendSQLFunction) == function_node
+        ):
+            # Second condition is for when we get a little lost in the AST trying to find the right binary node
+            cascade_filter_sql = f"SELECT * FROM self AS {tablename} WHERE {binary_expr.transform(t, new_col=new_col).sql()}"
+            logger.debug(
+                Color.update("Executing ")
+                + Color.sql(cascade_filter_sql, ignore_prefix=True)
+                + Color.update(" to get cascade filter...", ignore_prefix=True)
+            )
+            # TODO: below is kind of ugly, any way to clean up?
+            colnames_to_select = scm.columns_referenced_by_ingredients[
+                scm.tablename_to_alias.get(tablename, tablename)
+            ]
+            return new_table.sql(cascade_filter_sql).select(
+                [
+                    pl.col(col)
+                    for col in colnames_to_select
+                    if col in new_table.collect_schema().names()
+                ]
+            )
+        else:
+            logger.debug(
+                Color.warning(f"Can't find filter cascade condition for context ")
+                + Color.light_warning(
+                    "`" + function_node.parent.sql(dialect=scm.dialect) + "`"
+                )
+            )
+    except Exception as e:
+        logger.debug(
+            Color.warning(f"Cascade filter logic failed with error: ")
+            + Color.error(str(e))
+        )
+    return None
+
+
 def get_sorted_blendsql_nodes(
     node: exp.Expression,
     ingredient_alias_to_parsed_dict: dict,
@@ -341,6 +407,8 @@ def get_sorted_blendsql_nodes(
         IngredientType.QA,
         IngredientType.JOIN,
     ]
+    # TODO: since we have cascade filtering now, we can do some cost estimation here
+    #   to yield the less expensive functions first (e.g. those without context, no searcher, etc.)
     parse_results = list(node.find_all(exp.BlendSQLFunction))
     while len(parse_results) > 0:
         curr_ingredient_target = ooo.pop(0)
@@ -380,8 +448,8 @@ def disambiguate_and_submit_blend(
         )
     logger.debug(
         Color.update(f"Executing ")
-        + Color.sql(query)
-        + Color.update(f" and setting to `{aliasname}`...")
+        + Color.sql(query, ignore_prefix=True)
+        + Color.update(f" and setting to `{aliasname}`...", ignore_prefix=True)
     )
     return _blend(query=query, **kwargs)
 
@@ -588,8 +656,10 @@ def _blend(
                 tablename_to_write = _get_temp_subquery_table(tablename)
                 logger.debug(
                     Color.update("Executing ")
-                    + Color.sql(abstracted_query_str)
-                    + Color.update(f" and setting to `{tablename_to_write}`...")
+                    + Color.sql(abstracted_query_str, ignore_prefix=True)
+                    + Color.update(
+                        f" and setting to `{tablename_to_write}`...", ignore_prefix=True
+                    )
                 )
                 abstracted_df = db.execute_to_df(abstracted_query_str)
                 if aliased_subquery is None:
@@ -659,6 +729,7 @@ def _blend(
         # 2) Track when we've created a new table from a MapIngredient call
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
         tablename_to_map_out: dict[str, tuple[pd.DataFrame, str]] = {}
+        cascade_filter: pl.LazyFrame = None
         for function_node in get_sorted_blendsql_nodes(
             node=scm.node,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -687,10 +758,14 @@ def _blend(
                 kwargs_dict["exit_condition"] = scm.get_exit_condition(function_node)
 
             logger.debug(
-                Color.update("Executing ")
-                + Color.sql(f"{curr_function_parsed_results['raw']}")
-                + Color.update("...")
+                Color.update("\nExecuting ")
+                + Color.sql(
+                    f"{curr_function_parsed_results['raw']}", ignore_prefix=True
+                )
+                + Color.update("...", ignore_prefix=True)
             )
+            Color.in_block = True
+
             if infer_gen_constraints:
                 # Latter is the winner.
                 # So if we already define something in kwargs_dict,
@@ -768,6 +843,7 @@ def _blend(
                     "get_temp_session_table": _get_temp_session_table,
                     "aliases_to_tablenames": scm.alias_to_tablename,
                     "prev_subquery_map_columns": prev_subquery_map_columns,
+                    "cascade_filter": cascade_filter,
                 },
             )
             # Check how to handle output, depending on ingredient type
@@ -785,6 +861,19 @@ def _blend(
                 alias_function_name_to_result[
                     function_node.name
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
+
+                if scm.is_eligible_for_cascade_filter():
+                    cascade_filter = LazyTable(
+                        collect_fn=partial(
+                            get_cascade_filter,
+                            function_node=function_node,
+                            tablename=tablename,
+                            new_table=new_table,
+                            new_col=new_col,
+                            scm=scm,
+                        ),
+                        has_blendsql_function=True,
+                    )
             elif curr_ingredient.ingredient_type in (
                 IngredientType.STRING,
                 IngredientType.QA,
@@ -809,6 +898,7 @@ def _blend(
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                 )
+            Color.in_block = False
 
         # Combine all the retrieved map outputs
         # The below assumes the `mapped_dfs` are in the same row-order!
@@ -893,7 +983,9 @@ def _blend(
 
     query = query_context.to_string()
 
-    logger.debug(Color.success(f"Final Query:\n") + Color.sql(query))
+    logger.debug(
+        Color.success(f"Final Query:\n") + Color.sql(query, ignore_prefix=True)
+    )
 
     df = db.execute_to_df(query).collect()
 

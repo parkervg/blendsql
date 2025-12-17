@@ -15,7 +15,7 @@ from blendsql.common.logger import logger, Color
 from blendsql.common import utils
 from blendsql.common.typing import IngredientType, ColumnRef, StringConcatenation
 from blendsql.db import Database
-from blendsql.db.utils import format_tuple, double_quote_escape
+from blendsql.db.utils import format_tuple, double_quote_escape, LazyTable
 from blendsql.common.utils import get_tablename_colname
 from blendsql.search.searcher import Searcher
 from blendsql.ingredients.few_shot import Example
@@ -285,6 +285,7 @@ class MapIngredient(Ingredient):
         get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
         prev_subquery_map_columns: set[str] = kwargs["prev_subquery_map_columns"]
+        cascade_filter: LazyTable | None = kwargs["cascade_filter"]
 
         if isinstance(values, StringConcatenation):
             # original_tablenames could be aliases
@@ -343,31 +344,51 @@ class MapIngredient(Ingredient):
             tablename, colname = utils.get_tablename_colname(values)
             tablename = aliases_to_tablenames.get(tablename, tablename)
 
-        # Check for previously created temporary tables
-        value_source_tablename, _ = self.maybe_get_temp_table(
-            temp_table_func=get_temp_subquery_table, tablename=tablename
-        )
-        temp_session_tablename, temp_session_table_exists = self.maybe_get_temp_table(
-            temp_table_func=get_temp_session_table, tablename=tablename
-        )
+            # Check for previously created temporary tables
+            value_source_tablename, _ = self.maybe_get_temp_table(
+                temp_table_func=get_temp_subquery_table, tablename=tablename
+            )
+            (
+                temp_session_tablename,
+                temp_session_table_exists,
+            ) = self.maybe_get_temp_table(
+                temp_table_func=get_temp_session_table, tablename=tablename
+            )
 
-        all_context_colnames = []
+        cascade_filter_colnames = set()
+        if cascade_filter is not None:
+            cascade_filter: pl.LazyFrame | None = cascade_filter.collect()
+            if cascade_filter is not None:
+                cascade_filter_colnames = set(cascade_filter.collect_schema().names())
+
+        all_context_colnames = set()
         if context_was_passed:
             for _context in context:
                 if isinstance(_context, ColumnRef):
                     _, context_colname = utils.get_tablename_colname(_context)
-                    all_context_colnames.append(context_colname)
+                    all_context_colnames.add(context_colname)
                 else:
                     raise ValueError(
                         f"Not sure what to do with context arg passed to MapIngredient: {_context}"
                     )
-            select_distinct_arg = f'"{colname}", ' + ", ".join(
-                f'"{c}"' for c in all_context_colnames
+            select_distinct_arg = ", ".join(
+                f'"{double_quote_escape(c)}"'
+                for c in set(
+                    set([colname]) | all_context_colnames | cascade_filter_colnames
+                )
             )
             select_distinct_fn = lambda q: self.db.execute_to_df(q)
         else:
-            select_distinct_arg = f'"{colname}"'
-            select_distinct_fn = lambda q: self.db.execute_to_list(q)
+            if cascade_filter_colnames:
+                select_distinct_arg = ", ".join(
+                    f'"{double_quote_escape(c)}"'
+                    for c in set(set([colname]) | cascade_filter_colnames)
+                )
+                select_distinct_fn = lambda q: self.db.execute_to_df(q)
+            else:
+                # Simplest case
+                select_distinct_arg = f'"{double_quote_escape(colname)}"'
+                select_distinct_fn = lambda q: self.db.execute_to_list(q)
 
         # i.e, if we didn't create a string concatenation table
         # Optionally materialize a CTE
@@ -412,10 +433,39 @@ class MapIngredient(Ingredient):
                 f'SELECT DISTINCT {select_distinct_arg} FROM "{value_source_tablename}"',
             )
 
+        if cascade_filter is not None:
+            # cascade_filters is a pl.LazyFrame containing some additional filters to apply to our distinct values
+            # For example:
+            # cascade_filters.collect() ==
+            # ┌───────────────────┬─────────────────────────────────┐
+            # │ Name              ┆ Known_For                       │
+            # │ ---               ┆ ---                             │
+            # │ str               ┆ str                             │
+            # ╞═══════════════════╪═════════════════════════════════╡
+            # │ Sabrina Carpenter ┆ Nonsense, Emails I Cant Send, … │
+            # │ Charli XCX        ┆ Crash, How Im Feeling Now, Boo… │
+            # │ Elvis Presley     ┆ 14 Grammys, King of Rock n Rol… │
+            # └───────────────────┴─────────────────────────────────┘
+            # ...means we only take values where `Name`, `Known_For` columns are present in the above.
+            logger.debug(
+                Color.optimization(
+                    f"[ 🌊 ] Applying cascade filter from previous map function..."
+                )
+            )
+            distinct_values = distinct_values.join(
+                cascade_filter, on=cascade_filter_colnames, how="semi"
+            )
+            # Remove columns, if they were only needed for the cascade_filter
+            distinct_values = distinct_values.select(
+                set([colname]) | all_context_colnames
+            )
+
         context_subtables = []
-        if context_was_passed:
+        if context_was_passed or cascade_filter is not None:
             df = distinct_values.collect()
             unpacked_values = df[colname].to_list()
+            if cascade_filter is not None:
+                unpacked_values = list(set(unpacked_values))
             context_subtables = [df.select(c) for c in df.columns if c != colname]
         else:
             unpacked_values: list = distinct_values
@@ -468,7 +518,9 @@ class MapIngredient(Ingredient):
                 how="horizontal",
             )
             new_table = original_table.join(
-                _mapped_subtable, how="left", on=[colname] + all_context_colnames
+                _mapped_subtable,
+                how="left",
+                on=set([colname]) | all_context_colnames | cascade_filter_colnames,
             )
         else:
             new_table = original_table.join(mapped_subtable, how="left", on=colname)

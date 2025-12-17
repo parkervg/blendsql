@@ -11,6 +11,7 @@ from functools import partial
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.typing import QuantifierType, ColumnRef, StringConcatenation
 from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE, prepare_datatype
+from blendsql.types.utils import try_infer_datatype_from_collection
 from blendsql.common.logger import logger, Color
 from .dialect import _parse_one
 from . import checks as check
@@ -370,6 +371,77 @@ class SubqueryContextManager:
                 return partial(_exit_condition, op=lambda v: v is arg)
             # TODO: add more
 
+    def is_eligible_for_cascade_filter(self) -> bool:
+        """
+        A query is eligible for cascade filtering if:
+        1. It's a single-table query
+        2. It has 2+ BlendSQL functions in the WHERE clause
+        3. Those functions are not separated by OR operators
+        4. There are no BlendSQL functions outside the WHERE clause (not yet supported)
+        """
+
+        def has_or_with_blendsql(node):
+            """Check if node is/contains OR with BlendSQL functions in different branches"""
+            if node is None:
+                return False
+            if isinstance(node, exp.Or):
+                # Check if both sides of OR contain BlendSQL functions
+                left_has_blendsql = any(
+                    isinstance(n, exp.BlendSQLFunction) for n in node.left.walk()
+                )
+                right_has_blendsql = any(
+                    isinstance(n, exp.BlendSQLFunction) for n in node.right.walk()
+                )
+
+                # If BlendSQL functions exist in the OR, cascading is unsafe
+                if left_has_blendsql or right_has_blendsql:
+                    return True
+
+            # Recursively check children
+            for child in node.iter_expressions():
+                if has_or_with_blendsql(child):
+                    return True
+            return False
+
+        where_node = self.node.find(exp.Where)
+        if where_node is None:
+            return False
+
+        # Count BlendSQL functions in WHERE clause
+        blendsql_functions_in_where = [
+            n for n in where_node.walk() if isinstance(n, exp.BlendSQLFunction)
+        ]
+
+        # Need at least 2 functions to cascade
+        if len(blendsql_functions_in_where) < 2:
+            return False
+
+        # Check if there's an OR that makes cascading unsafe
+        if has_or_with_blendsql(where_node):
+            return False
+
+        # Check for BlendSQL functions outside WHERE clause
+        all_blendsql_functions = [
+            n for n in self.node.walk() if isinstance(n, exp.BlendSQLFunction)
+        ]
+
+        if len(set(list(self.node.find_all(exp.Table)))) > 1:
+            logger.debug(
+                Color.error(f"Can't apply filter cascade on multi-table queries yet ):")
+            )
+            return False
+
+        if len(all_blendsql_functions) > len(blendsql_functions_in_where):
+            logger.debug(
+                Color.error(
+                    "Cascade filtering optimization is not yet supported for queries with "
+                    "BlendSQL functions outside the WHERE clause (e.g., in SELECT, ORDER BY, HAVING, etc.)"
+                )
+            )
+            return False
+
+        return True
+
     def infer_gen_constraints(
         self,
         function_node: exp.Expression,
@@ -511,12 +583,10 @@ class SubqueryContextManager:
                         f"Extracted predicate literals `{predicate_literals}`"
                     )
                 )
-                if all(isinstance(x, bool) for x in predicate_literals):
-                    return_type = DataTypes.BOOL(quantifier)
-                elif all(isinstance(x, float) for x in predicate_literals):
-                    return_type = DataTypes.FLOAT(quantifier)
-                elif all(isinstance(x, int) for x in predicate_literals):
-                    return_type = DataTypes.INT(quantifier)
+                _return_type = try_infer_datatype_from_collection(predicate_literals)
+                if _return_type is not None:
+                    return_type = _return_type
+                    return_type.quantifier = quantifier
                 else:
                     predicate_literals = [str(i) for i in predicate_literals]
                     added_kwargs["return_type"] = DataTypes.ANY(quantifier)
@@ -547,13 +617,13 @@ class SubqueryContextManager:
         if return_type is not None:
             logger.debug(
                 lambda: Color.quiet_update(
-                    f"""Inferred return_type {
+                    f"""Inferred return_type='{
                     prepare_datatype(
                         return_type=return_type, 
                         options=added_kwargs.get('options'), 
                         quantifier=quantifier,
                         log=False
-                    ).name} given expression context"""
+                    ).name}' given expression context"""
                 )
             )
         return added_kwargs

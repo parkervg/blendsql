@@ -135,7 +135,8 @@ class LLMJoin(JoinIngredient):
         if join_criteria is None:
             join_criteria = "Join to same topics."
         if few_shot_retriever is None:
-            few_shot_retriever = lambda *_: DEFAULT_JOIN_FEW_SHOT
+            # Default to 1 few-shot example in LLMJoin
+            few_shot_retriever = lambda *_: DEFAULT_JOIN_FEW_SHOT[:1]
 
         current_example = JoinExample(
             **{
@@ -164,7 +165,8 @@ class LLMJoin(JoinIngredient):
                         + guidance.capture(gen_f, name=value)
                         + '"'
                         + ("," if idx + 1 != len(left_values) else "")
-                    )
+                    )  # Default to 1 few-shot example in LLMJoin
+
                 lm += "\n}\n```"
                 return lm
 

@@ -58,7 +58,9 @@ class ConstrainedMapExample(MapExample):
                 f"Literal["
                 + ", ".join(
                     [
-                        f'"{option}"' if self.return_type.requires_quotes else option
+                        f'"{option}"'
+                        if self.return_type.requires_quotes
+                        else str(option)
                         for option in self.options
                     ]
                 )

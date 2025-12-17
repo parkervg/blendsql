@@ -204,8 +204,7 @@ class LLMQA(QAIngredient):
                 "LLMQA requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
         if few_shot_retriever is None:
-            # Default to no few-shot examples in LLMQA
-            few_shot_retriever = lambda *_: DEFAULT_QA_FEW_SHOT[:1]
+            few_shot_retriever = lambda *_: []
 
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if context_searcher is not None and context is None:
