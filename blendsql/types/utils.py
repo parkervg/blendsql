@@ -40,20 +40,22 @@ def prepare_datatype(
             if log:
                 logger.debug(
                     Color.quiet_update(
-                        f"Ignoring inferred regex '{resolved_output_type.regex}' and using options '{options}' instead"
+                        f"    Ignoring inferred regex '{resolved_output_type.regex}' and using options '{options}' instead"
                     )
                 )
             resolved_output_type.regex = None
         else:
             if log:
                 logger.debug(
-                    Color.quiet_update(f"Using regex '{resolved_output_type.regex}'")
+                    Color.quiet_update(
+                        f"    Using regex '{resolved_output_type.regex}'"
+                    )
                 )
     elif options:
         if log:
             logger.debug(
                 Color.quiet_update(
-                    f"Using options '{set(itertools.islice(options, 20))}...'"
+                    f"    Using options '{set(itertools.islice(options, 20))}...'"
                 )
             )
     return resolved_output_type

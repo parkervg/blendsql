@@ -353,7 +353,7 @@ def get_cascade_filter(
             # Second condition is for when we get a little lost in the AST trying to find the right binary node
             cascade_filter_sql = f"SELECT * FROM self AS {tablename} WHERE {binary_expr.transform(t, new_col=new_col).sql()}"
             logger.debug(
-                Color.update("Executing ")
+                Color.update("    Executing ")
                 + Color.sql(cascade_filter_sql)
                 + Color.update(" to get cascade filter...")
             )
@@ -756,7 +756,7 @@ def _blend(
                 kwargs_dict["exit_condition"] = scm.get_exit_condition(function_node)
 
             logger.debug(
-                Color.update("Executing ")
+                Color.update("\nExecuting ")
                 + Color.sql(f"{curr_function_parsed_results['raw']}")
                 + Color.update("...")
             )

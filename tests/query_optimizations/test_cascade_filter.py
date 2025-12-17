@@ -2,7 +2,13 @@ import pytest
 import pandas as pd
 from blendsql import BlendSQL
 from blendsql.parse import SubqueryContextManager
-from blendsql.parse.dialect import _parse_one, BlendSQLDuckDB
+from blendsql.parse.dialect import (
+    _parse_one,
+    BlendSQLDuckDB,
+    BlendSQLSQLite,
+    BlendSQLPostgres,
+    BlendSQLDialect,
+)
 from tests.query_optimizations.utils import TimedTestBase
 from tests.utils import (
     do_join,
@@ -163,21 +169,41 @@ class TestCascadeFilter(TimedTestBase):
         )
 
     def test_eligible_for_cascade_filter(self):
-        dialect = BlendSQLDuckDB
-        scm = SubqueryContextManager(
-            dialect=dialect,
-            node=_parse_one(
-                """
-                SELECT merchant FROM transactions t
-                  WHERE {{test_starts_with('Z', merchant)}} = TRUE
-                  ORDER BY {{get_length(t.merchant)}} LIMIT 1 OFFSET 2
-                """,
+        def get_scm(query: str, dialect: BlendSQLDialect) -> SubqueryContextManager:
+            return SubqueryContextManager(
                 dialect=dialect,
-            ),
-            prev_subquery_has_ingredient=False,
-            ingredient_alias_to_parsed_dict={
-                "test_starts_with": {"kwargs_dict": {}},
-                "get_length": {"kwargs_dict": {}},
-            },
-        )
-        assert not scm.is_eligible_for_cascade_filter()
+                node=_parse_one(
+                    query,
+                    dialect=dialect,
+                ),
+                prev_subquery_has_ingredient=False,
+                ingredient_alias_to_parsed_dict={
+                    "LLMMap": {"kwargs_dict": {}},
+                },
+            )
+
+        for dialect in [BlendSQLDuckDB, BlendSQLSQLite, BlendSQLPostgres]:
+            assert (
+                get_scm(
+                    """
+                SELECT merchant FROM transactions t
+                  WHERE {{LLMMap('This is a question', merchant)}} = TRUE
+                  ORDER BY {{LLMMap('This is another question', merchant)}} LIMIT 1 OFFSET 2
+                """,
+                    dialect=dialect,
+                ).is_eligible_for_cascade_filter()
+                == False
+            )
+
+            assert (
+                get_scm(
+                    """
+                SELECT merchant FROM transactions t
+                  WHERE {{LLMMap('This is a question', merchant)}} = TRUE
+                  AND {{LLMMap('This is another question', merchant)}} = FALSE
+                  ORDER BY a_different_column LIMIT 1 OFFSET 2
+                """,
+                    dialect=dialect,
+                ).is_eligible_for_cascade_filter()
+                == True
+            )
