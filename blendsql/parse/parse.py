@@ -11,6 +11,7 @@ from functools import partial
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.typing import QuantifierType, ColumnRef, StringConcatenation
 from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE, prepare_datatype
+from blendsql.types.utils import try_infer_datatype_from_collection
 from blendsql.common.logger import logger, Color
 from .dialect import _parse_one
 from . import checks as check
@@ -582,12 +583,10 @@ class SubqueryContextManager:
                         f"Extracted predicate literals `{predicate_literals}`"
                     )
                 )
-                if all(isinstance(x, bool) for x in predicate_literals):
-                    return_type = DataTypes.BOOL(quantifier)
-                elif all(isinstance(x, float) for x in predicate_literals):
-                    return_type = DataTypes.FLOAT(quantifier)
-                elif all(isinstance(x, int) for x in predicate_literals):
-                    return_type = DataTypes.INT(quantifier)
+                _return_type = try_infer_datatype_from_collection(predicate_literals)
+                if _return_type is not None:
+                    return_type = _return_type
+                    return_type.quantifier = quantifier
                 else:
                     predicate_literals = [str(i) for i in predicate_literals]
                     added_kwargs["return_type"] = DataTypes.ANY(quantifier)

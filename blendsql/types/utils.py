@@ -11,14 +11,40 @@ from blendsql.common.typing import QuantifierType, DataType
 from blendsql.common.logger import logger, Color
 
 
+def try_infer_datatype_from_collection(collection: Collection) -> DataType:
+    if all(isinstance(x, str) for x in collection):
+        return DataTypes.STR()
+    elif all(isinstance(x, bool) for x in collection):
+        return DataTypes.BOOL()
+    elif all(isinstance(x, float) for x in collection):
+        return DataTypes.FLOAT()
+    elif all(isinstance(x, int) for x in collection):
+        return DataTypes.INT()
+    return None
+
+
 def prepare_datatype(
     options: Collection[str] | None,
     return_type: str | DataType | None = None,
     quantifier: QuantifierType | None = None,
     log: bool = True,
 ) -> DataType:
+    resolved_output_type = None
     if return_type is None:
-        resolved_output_type = DataTypes.STR()
+        if options is not None:
+            # We can still infer a return_type from the options we got
+            resolved_output_type: DataType | None = try_infer_datatype_from_collection(
+                options
+            )
+            if resolved_output_type is not None and log:
+                logger.debug(
+                    Color.quiet_update(
+                        f"All passed `options` are the same type, so inferring a return type of `{resolved_output_type.name}`'"
+                    )
+                )
+        if resolved_output_type is None:
+            # Use default base of `DataTypes.STR`
+            resolved_output_type = DataTypes.STR()
     elif isinstance(return_type, str):
         # The user has passed us an output type in the BlendSQL query
         # That should take precedence
@@ -32,9 +58,11 @@ def prepare_datatype(
             resolved_output_type.quantifier = quantifier
     elif isinstance(return_type, DataType):
         resolved_output_type = return_type
+
     if quantifier:
         # The user has passed us a quantifier that should take precedence
         resolved_output_type.quantifier = quantifier
+
     if resolved_output_type.regex is not None:
         if options is not None:
             if log:

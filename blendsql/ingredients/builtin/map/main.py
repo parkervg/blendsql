@@ -565,9 +565,21 @@ class LLMMap(MapIngredient):
                     self.num_values_passed += len(
                         batch_inference_strings[i : i + batch_size]
                     )
+
+                    def unquote(s):
+                        for quote in ['"', "'"]:
+                            s = s.removeprefix(quote).removesuffix(quote)
+                        return s
+
                     model.completion_tokens += sum(
                         [
-                            len(model.tokenizer_encode(result_payload["value"]))
+                            len(
+                                model.tokenizer_encode(
+                                    unquote(result_payload["value"])
+                                    if resolved_return_type.requires_quotes
+                                    else result_payload["value"]
+                                )
+                            )
                             for result_payload in batch_lm._interpreter.state.captures.values()
                         ]
                     )
