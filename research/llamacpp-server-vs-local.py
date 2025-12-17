@@ -5,8 +5,8 @@ import sys
 import signal
 import os
 from pathlib import Path
+import requests
 
-import litellm
 from llama_cpp import Llama
 from transformers import AutoTokenizer
 
@@ -41,11 +41,6 @@ RUNS = 10
 
 def tokens_per_second(token_count: int, elapsed: float) -> float:
     return token_count / elapsed
-
-
-def wait_for_server(seconds: int = 5):
-    print(f"Waiting {seconds}s for server to be ready...")
-    time.sleep(seconds)
 
 
 def benchmark_local_llama_cpp():
@@ -84,35 +79,80 @@ def benchmark_local_llama_cpp():
     print(f"Average: {statistics.mean(speeds):.2f} tok/s")
 
 
-def benchmark_hosted_via_litellm():
-    print("\n=== Hosted llama-cpp-python via LiteLLM ===")
+def start_llama_cpp_server():
+    print("\nStarting llama-cpp server...")
 
-    litellm.api_base = SERVER_URL
-    litellm.api_key = "EMPTY"
-    litellm.drop_params = True
+    cmd = [
+        sys.executable,
+        "-m",
+        "llama_cpp.server",
+        "--model",
+        MODEL_PATH,
+        "--n_ctx",
+        "8000",
+        "--seed",
+        "100",
+        "--n_threads",
+        "6",
+        "--n_gpu_layers",
+        "-1",
+        "--port",
+        "8000",
+        "--chat_format",
+        CHAT_FORMAT,
+    ]
 
-    speeds = []
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,  # Line buffered
+    )
 
-    for i in range(RUNS):
-        start = time.perf_counter()
+    # Stream output in background threads
+    def stream_output(pipe, prefix):
+        for line in iter(pipe.readline, ""):
+            if line:
+                print(f"{prefix}: {line.rstrip()}")
+        pipe.close()
 
-        response = litellm.completion(
-            model=LITELLM_MODEL_PATH,
-            messages=[{"role": "user", "content": PROMPT}],
-            max_tokens=MAX_TOKENS,
-            temperature=0.7,
-        )
+    stdout_thread = threading.Thread(
+        target=stream_output, args=(process.stdout, "SERVER")
+    )
+    stderr_thread = threading.Thread(
+        target=stream_output, args=(process.stderr, "SERVER")
+    )
+    stdout_thread.daemon = True
+    stderr_thread.daemon = True
+    stdout_thread.start()
+    stderr_thread.start()
 
-        elapsed = time.perf_counter() - start
-        text = response.choices[0].message["content"]
-        token_count = len(tokenizer.encode(text))
+    # Wait for server to be ready
+    print("Waiting for server to be ready...")
+    max_wait = 60  # Maximum wait time in seconds
+    start_time = time.time()
 
-        speed = tokens_per_second(token_count, elapsed)
-        speeds.append(speed)
+    while time.time() - start_time < max_wait:
+        try:
+            response = requests.get("http://localhost:8000/v1/models", timeout=1)
+            if response.status_code == 200:
+                print("✓ Server is ready!")
+                return process
+        except (requests.ConnectionError, requests.Timeout):
+            pass
 
-        print(f"Run {i+1}: {token_count} tokens in {elapsed:.2f}s → {speed:.2f} tok/s")
+        # Check if process has died
+        if process.poll() is not None:
+            raise RuntimeError("Server process terminated unexpectedly")
 
-    print(f"Average: {statistics.mean(speeds):.2f} tok/s")
+        time.sleep(0.5)
+
+    # Timeout reached
+    process.terminate()
+    raise TimeoutError(f"Server failed to start within {max_wait} seconds")
+
+    return process
 
 
 def start_llama_cpp_server():
