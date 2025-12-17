@@ -579,7 +579,7 @@ class SubqueryContextManager:
             if len(predicate_literals) > 0:
                 logger.debug(
                     Color.quiet_update(
-                        f"    Extracted predicate literals `{predicate_literals}`"
+                        f"Extracted predicate literals `{predicate_literals}`"
                     )
                 )
                 if all(isinstance(x, bool) for x in predicate_literals):
@@ -618,7 +618,7 @@ class SubqueryContextManager:
         if return_type is not None:
             logger.debug(
                 lambda: Color.quiet_update(
-                    f"""    Inferred return_type='{
+                    f"""Inferred return_type='{
                     prepare_datatype(
                         return_type=return_type, 
                         options=added_kwargs.get('options'), 

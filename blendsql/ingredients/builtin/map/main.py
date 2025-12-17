@@ -554,7 +554,9 @@ class LLMMap(MapIngredient):
                     iter = tqdm(
                         iter,
                         total=total_batches,
-                        desc=f"    LLMMap with batch_size={batch_size}",
+                        desc=Color.prefix
+                        if Color.in_block
+                        else "" + f"LLMMap with batch_size={batch_size}",
                     )
                 for i in iter:
                     model.num_generation_calls += 1
@@ -591,7 +593,7 @@ class LLMMap(MapIngredient):
                     if exit_condition is not None and exit_condition(lm_mapping):
                         logger.debug(
                             Color.optimization(
-                                f"    [ 🚪] Exit condition satisfied. \n Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
+                                f"[ 🚪] Exit condition satisfied. \n Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
                             )
                         )
                         break
@@ -604,7 +606,7 @@ class LLMMap(MapIngredient):
             ]
             logger.debug(
                 lambda: Color.warning(
-                    f"    Finished LLMMap with values:\n{indent(json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4), '    ')}"
+                    f"Finished LLMMap with values:\n{indent(json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
                 )
             )
             return mapped_values
@@ -623,7 +625,7 @@ class LLMMap(MapIngredient):
                 if batch_size != 1:
                     logger.debug(
                         Color.warning(
-                            f"    Overriding batch_size={batch_size} to 1, since UnconstrainedModels with LLMMap don't support local context for now"
+                            f"Overriding batch_size={batch_size} to 1, since UnconstrainedModels with LLMMap don't support local context for now"
                         )
                     )
                 batch_size = 1
@@ -678,7 +680,7 @@ class LLMMap(MapIngredient):
                         except (ValueError, SyntaxError):
                             logger.debug(
                                 Color.error(
-                                    f"    Error casting prediction '{pred}' to a list"
+                                    f"Error casting prediction '{pred}' to a list"
                                 )
                             )
                             curr_converted_preds.append([])
@@ -703,12 +705,12 @@ class LLMMap(MapIngredient):
             if total_missing_values > 0:
                 logger.debug(
                     Color.error(
-                        f"    LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
+                        f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
                     )
                 )
             logger.debug(
                 Color.warning(
-                    f"    Finished LLMMap with values:\n    {json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
+                    f"Finished LLMMap with values:\n    {json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
                 )
             )
             return mapped_values

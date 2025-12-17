@@ -353,9 +353,9 @@ def get_cascade_filter(
             # Second condition is for when we get a little lost in the AST trying to find the right binary node
             cascade_filter_sql = f"SELECT * FROM self AS {tablename} WHERE {binary_expr.transform(t, new_col=new_col).sql()}"
             logger.debug(
-                Color.update("    Executing ")
-                + Color.sql(cascade_filter_sql)
-                + Color.update(" to get cascade filter...")
+                Color.update("Executing ")
+                + Color.sql(cascade_filter_sql, ignore_prefix=True)
+                + Color.update(" to get cascade filter...", ignore_prefix=True)
             )
             # TODO: below is kind of ugly, any way to clean up?
             colnames_to_select = scm.columns_referenced_by_ingredients[
@@ -448,8 +448,8 @@ def disambiguate_and_submit_blend(
         )
     logger.debug(
         Color.update(f"Executing ")
-        + Color.sql(query)
-        + Color.update(f" and setting to `{aliasname}`...")
+        + Color.sql(query, ignore_prefix=True)
+        + Color.update(f" and setting to `{aliasname}`...", ignore_prefix=True)
     )
     return _blend(query=query, **kwargs)
 
@@ -656,8 +656,10 @@ def _blend(
                 tablename_to_write = _get_temp_subquery_table(tablename)
                 logger.debug(
                     Color.update("Executing ")
-                    + Color.sql(abstracted_query_str)
-                    + Color.update(f" and setting to `{tablename_to_write}`...")
+                    + Color.sql(abstracted_query_str, ignore_prefix=True)
+                    + Color.update(
+                        f" and setting to `{tablename_to_write}`...", ignore_prefix=True
+                    )
                 )
                 abstracted_df = db.execute_to_df(abstracted_query_str)
                 if aliased_subquery is None:
@@ -757,9 +759,13 @@ def _blend(
 
             logger.debug(
                 Color.update("\nExecuting ")
-                + Color.sql(f"{curr_function_parsed_results['raw']}")
-                + Color.update("...")
+                + Color.sql(
+                    f"{curr_function_parsed_results['raw']}", ignore_prefix=True
+                )
+                + Color.update("...", ignore_prefix=True)
             )
+            Color.in_block = True
+
             if infer_gen_constraints:
                 # Latter is the winner.
                 # So if we already define something in kwargs_dict,
@@ -892,6 +898,7 @@ def _blend(
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                 )
+            Color.in_block = False
 
         # Combine all the retrieved map outputs
         # The below assumes the `mapped_dfs` are in the same row-order!
@@ -976,7 +983,9 @@ def _blend(
 
     query = query_context.to_string()
 
-    logger.debug(Color.success(f"Final Query:\n") + Color.sql(query))
+    logger.debug(
+        Color.success(f"Final Query:\n") + Color.sql(query, ignore_prefix=True)
+    )
 
     df = db.execute_to_df(query).collect()
 

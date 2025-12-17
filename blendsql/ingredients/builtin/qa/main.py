@@ -213,7 +213,7 @@ class LLMQA(QAIngredient):
             context = [pl.DataFrame(docs, columns=["content"])]
             logger.debug(
                 Color.quiet_update(
-                    f"    Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"
+                    f"Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"
                 )
             )
 
@@ -257,14 +257,14 @@ class LLMQA(QAIngredient):
                 if len(options) > max_options_in_prompt:  # type: ignore
                     logger.debug(
                         Color.warning(
-                            f"    Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt:,}.\nWill run inference without explicitly listing these options in the prompt text."
+                            f"Number of options ({len(options):,}) is greater than the configured MAX_OPTIONS_IN_PROMPT={max_options_in_prompt:,}.\nWill run inference without explicitly listing these options in the prompt text."
                         )
                     )
                     list_options_in_prompt = False
         else:
             logger.debug(
                 Color.warning(
-                    f"    Calling provided `options_searcher` to retrieve {self.options_searcher.k} options, out of {len(self.options_searcher.documents):,} total options..."
+                    f"Calling provided `options_searcher` to retrieve {self.options_searcher.k} options, out of {len(self.options_searcher.documents):,} total options..."
                 )
             )
             options = (
@@ -307,7 +307,7 @@ class LLMQA(QAIngredient):
                     if not self.enable_constrained_decoding:
                         logger.debug(
                             Color.warning(
-                                "    Not applying constraints, since `enable_constrained_decoding==False`"
+                                "Not applying constraints, since `enable_constrained_decoding==False`"
                             )
                         )
                     gen_f = lambda _: guidance.gen(
@@ -446,7 +446,7 @@ class LLMQA(QAIngredient):
             if options and response not in options:
                 logger.debug(
                     Color.error(
-                        f"    Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
+                        f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
                     )
                 )
             if resolved_return_type.name.lower() in ["str", "any"]:

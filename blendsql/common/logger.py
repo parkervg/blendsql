@@ -62,49 +62,69 @@ logger = LazyLogger(get_logger("blendsql", level=logging.DEBUG))
 
 # Logging utilities
 class Color:
-    @staticmethod
-    def update(s: str):
-        return f"[cyan]{s}[/cyan]"
+    in_block = False
+    prefix = "    "
+
+    @classmethod
+    def _apply_prefix(cls, s: str, ignore_prefix=False):
+        if cls.in_block:
+            return cls.prefix + s
+        return s
 
     @staticmethod
-    def optimization(s: str):
-        return f"[deep_pink3]{s}[/deep_pink3]"
+    def update(s: str, ignore_prefix=False):
+        formatted = f"[cyan]{s}[/cyan]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def quiet_update(s: str):
-        return f"[grey53]{escape(s)}[/grey53]"
+    def optimization(s: str, ignore_prefix=False):
+        formatted = f"[deep_pink3]{s}[/deep_pink3]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def light_update(s: str):
-        return f"[light_sky_blue1]{escape(s)}[/light_sky_blue1]"
+    def quiet_update(s: str, ignore_prefix=False):
+        formatted = f"[grey53]{escape(s)}[/grey53]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def warning(s: str):
-        return f"[yellow]{escape(s)}[/yellow]"
+    def light_update(s: str, ignore_prefix=False):
+        formatted = f"[light_sky_blue1]{escape(s)}[/light_sky_blue1]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def light_warning(s: str):
-        return f"[light_yellow3]{escape(s)}[/light_yellow3]"
+    def warning(s: str, ignore_prefix=False):
+        formatted = f"[yellow]{escape(s)}[/yellow]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def error(s: str):
-        return f"[red]{escape(s)}[/red]"
+    def light_warning(s: str, ignore_prefix=False):
+        formatted = f"[light_yellow3]{escape(s)}[/light_yellow3]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def success(s: str):
-        return f"[green]{escape(s)}[/green]"
+    def error(s: str, ignore_prefix=False):
+        formatted = f"[red]{escape(s)}[/red]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def model_or_data_update(s: str):
-        return f"[magenta]{escape(s)}[/magenta]"
+    def success(s: str, ignore_prefix=False):
+        formatted = f"[green]{escape(s)}[/green]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def sql(s: str):
-        return f"[cornflower_blue]`{escape(s)}`[/cornflower_blue]"
+    def model_or_data_update(s: str, ignore_prefix=False):
+        formatted = f"[magenta]{escape(s)}[/magenta]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
-    def quiet_sql(s: str):
-        return f"[sky_blue1]`{escape(s)}`[/sky_blue1]"
+    def sql(s: str, ignore_prefix=False):
+        formatted = f"[cornflower_blue]`{escape(s)}`[/cornflower_blue]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
+
+    @staticmethod
+    def quiet_sql(s: str, ignore_prefix=False):
+        formatted = f"[sky_blue1]`{escape(s)}`[/sky_blue1]"
+        return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
     def horizontal_line(char: str = "─", width: int = None):
