@@ -130,3 +130,32 @@ class TestCascadeFilter(TimedTestBase):
             """,
             expected_num_values_passed=expected_num_values_passed,
         )
+
+    def test_do_not_cascade_filter(self, bsql):
+        """If a BlendSQL function is impacted by an OR, do not apply cascade filter."""
+        expected_num_values_passed: int = bsql.db.execute_to_list(
+            """
+            SELECT (
+                SELECT COUNT(DISTINCT name) FROM customers
+            ) + (
+                SELECT COUNT(DISTINCT country) FROM customers
+            )
+            """,
+            to_type=int,
+        )[0]
+        _ = self.assert_blendsql_equals_sql(
+            bsql,
+            blendsql_query="""
+            SELECT country FROM customers
+            WHERE customer_id > 2
+            AND {{test_starts_with('C', name)}} = TRUE
+            OR {{get_length(country)}} = 2
+            """,
+            sql_query="""
+            SELECT country FROM customers
+            WHERE customer_id > 2
+            AND name LIKE 'C%'
+            OR LENGTH(country) = 2
+            """,
+            expected_num_values_passed=expected_num_values_passed,
+        )
