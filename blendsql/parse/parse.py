@@ -371,6 +371,14 @@ class SubqueryContextManager:
             # TODO: add more
 
     def is_eligible_for_cascade_filter(self) -> bool:
+        """
+        A query is eligible for cascade filtering if:
+        1. It's a single-table query
+        2. It has 2+ BlendSQL functions in the WHERE clause
+        3. Those functions are not separated by OR operators
+        4. There are no BlendSQL functions outside the WHERE clause (not yet supported)
+        """
+
         def has_or_with_blendsql(node):
             """Check if node is/contains OR with BlendSQL functions in different branches"""
             if node is None:
@@ -403,7 +411,35 @@ class SubqueryContextManager:
         where_node = self.node.find(exp.Where)
         if where_node is None:
             return False
-        return not has_or_with_blendsql(where_node)
+
+        # Count BlendSQL functions in WHERE clause
+        blendsql_functions_in_where = [
+            n for n in where_node.walk() if isinstance(n, exp.BlendSQLFunction)
+        ]
+
+        # Need at least 2 functions to cascade
+        if len(blendsql_functions_in_where) < 2:
+            return False
+
+        # Check if there's an OR that makes cascading unsafe
+        if has_or_with_blendsql(where_node):
+            return False
+
+        # Check for BlendSQL functions outside WHERE clause
+        all_blendsql_functions = [
+            n for n in self.node.walk() if isinstance(n, exp.BlendSQLFunction)
+        ]
+
+        if len(all_blendsql_functions) > len(blendsql_functions_in_where):
+            logger.debug(
+                Color.error(
+                    "Cascade filtering optimization is not yet supported for queries with "
+                    "BlendSQL functions outside the WHERE clause (e.g., in SELECT, ORDER BY, HAVING, etc.)"
+                )
+            )
+            return False
+
+        return True
 
     def infer_gen_constraints(
         self,
