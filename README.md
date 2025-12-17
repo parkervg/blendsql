@@ -194,7 +194,7 @@ As a result, we can *Blend* together...
 
 ### Core Design Principle: Be Lazy 😴
 
-This is embodied in a few different ways - [early exit LLM functions when `LIMIT` clauses are used](https://github.com/parkervg/blendsql/pull/57), [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), [only load language models into memory if we use them](https://github.com/parkervg/blendsql/blob/main/blendsql/models/model.py#L213), etc.
+This is embodied in a few different ways - [early exit LLM functions when `LIMIT` clauses are used](https://github.com/parkervg/blendsql/pull/57), [use the outputs of previous LLM functions to filter the input of future LLM functions](https://github.com/parkervg/blendsql/pull/61), [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), etc.
 
 But, at a higher level: Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data into memory that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally sync back to the native SQL dialect and execute. In this way, BlendSQL 'compiles to SQL'.
 
