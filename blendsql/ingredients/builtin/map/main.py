@@ -56,7 +56,7 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     CONSTRAINED_MAIN_INSTRUCTION
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
-DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 1
+DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 3
 
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     "Given a set of values from a database, answer the question for each value. "
@@ -216,7 +216,7 @@ class LLMMap(MapIngredient):
                 "LLMMap requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
         if few_shot_retriever is None:
-            few_shot_retriever = lambda *_: DEFAULT_MAP_FEW_SHOT
+            few_shot_retriever = lambda *_: []
 
         # Resolve context argument
         # If we explicitly passed `context`, this should take precedence over the vector store.
@@ -554,9 +554,8 @@ class LLMMap(MapIngredient):
                     iter = tqdm(
                         iter,
                         total=total_batches,
-                        desc=Color.prefix
-                        if Color.in_block
-                        else "" + f"LLMMap with batch_size={batch_size}",
+                        desc=(Color.prefix if Color.in_block else "")
+                        + f"LLMMap with `{batch_size=}` and `{len(few_shot_examples)=}`",
                     )
                 for i in iter:
                     model.num_generation_calls += 1
@@ -606,7 +605,7 @@ class LLMMap(MapIngredient):
             ]
             logger.debug(
                 lambda: Color.warning(
-                    f"Finished LLMMap with values:\n{indent(json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
+                    f"Finished LLMMap with {len(lm_mapping)} total values{' (10 shown)' if len(lm_mapping) > 10 else ''}:\n{indent(json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
                 )
             )
             return mapped_values
@@ -709,8 +708,8 @@ class LLMMap(MapIngredient):
                     )
                 )
             logger.debug(
-                Color.warning(
-                    f"Finished LLMMap with values:\n    {json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
+                lambda: Color.warning(
+                    f"Finished LLMMap with {len(mapped_values)} values{' (10 shown)' if len(mapped_values) > 10 else ''}:\n{json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
                 )
             )
             return mapped_values

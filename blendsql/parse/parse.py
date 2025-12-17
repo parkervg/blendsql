@@ -402,12 +402,6 @@ class SubqueryContextManager:
                     return True
             return False
 
-        if len(set(list(self.node.find_all(exp.Table)))) > 1:
-            logger.debug(
-                Color.error(f"Can't apply filter cascade on multi-table queries yet ):")
-            )
-            return False
-
         where_node = self.node.find(exp.Where)
         if where_node is None:
             return False
@@ -429,6 +423,12 @@ class SubqueryContextManager:
         all_blendsql_functions = [
             n for n in self.node.walk() if isinstance(n, exp.BlendSQLFunction)
         ]
+
+        if len(set(list(self.node.find_all(exp.Table)))) > 1:
+            logger.debug(
+                Color.error(f"Can't apply filter cascade on multi-table queries yet ):")
+            )
+            return False
 
         if len(all_blendsql_functions) > len(blendsql_functions_in_where):
             logger.debug(
