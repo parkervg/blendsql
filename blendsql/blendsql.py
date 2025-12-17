@@ -407,6 +407,8 @@ def get_sorted_blendsql_nodes(
         IngredientType.QA,
         IngredientType.JOIN,
     ]
+    # TODO: since we have cascade filtering now, we can do some cost estimation here
+    #   to yield the less expensive functions first (e.g. those without context, no searcher, etc.)
     parse_results = list(node.find_all(exp.BlendSQLFunction))
     while len(parse_results) > 0:
         curr_ingredient_target = ooo.pop(0)

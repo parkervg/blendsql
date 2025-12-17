@@ -486,7 +486,7 @@ class TestBasicOperations(TimedTestBase):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
                 SELECT (
-                    SELECT COUNT(DISTINCT merchant) FROM transactions 
+                    SELECT COUNT(DISTINCT CONCAT(merchant, ' ', child_category)) FROM transactions 
                     WHERE child_category LIKE 'P%'
                 ) + (
                     SELECT COUNT(DISTINCT merchant) FROM transactions 
@@ -496,9 +496,6 @@ class TestBasicOperations(TimedTestBase):
                 """,
             to_type=int,
         )[0]
-        # TODO: for now we multiple by two, to account for the two ingredient calls we make.
-        #   In the future, we should check to see if the first ingredient filter is true, before
-        #   passing values to the second.
         _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
