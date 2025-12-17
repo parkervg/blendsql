@@ -37,12 +37,11 @@ SELECT {{
         'What are their interests?',
         context_column,
         quantifier='+'
-        return_type='str'
     )
 }} FROM People
 ```
 
-Since we're asking for 'one-or-more' str via the quantifier arg, BlendSQL casts the return type as a `List[str]`. 
+Since we're asking for 'one-or-more' via the quantifier arg and the default `return_type` (as of v0.0.61) is `str`, BlendSQL casts the `return_type` to a `List[str]`. 
 
 The following [greedy quantifiers](https://learn.microsoft.com/en-us/dotnet/standard/base-types/quantifiers-in-regular-expressions) are valid:
 
