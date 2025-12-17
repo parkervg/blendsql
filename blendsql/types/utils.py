@@ -18,7 +18,7 @@ def prepare_datatype(
     log: bool = True,
 ) -> DataType:
     if return_type is None:
-        resolved_output_type = DataTypes.ANY()
+        resolved_output_type = DataTypes.STR()
     elif isinstance(return_type, str):
         # The user has passed us an output type in the BlendSQL query
         # That should take precedence
