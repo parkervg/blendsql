@@ -13,15 +13,16 @@ class LazyTable:
     until we actually interact with that table.
     """
 
-    tablename: str = attrib()
-    collect_fn: Callable[..., pl.DataFrame] = attrib()
+    collect_fn: Callable[..., pl.DataFrame | pl.LazyFrame] = attrib()
     has_blendsql_function: bool = attrib()
+    tablename: str | None = attrib(default=None)
 
     def __str__(self):
-        return self.tablename
+        return self.tablename or "N.A."
 
     def collect(self):
-        logger.debug(Color.update(f"Materializing CTE `{self.tablename}`..."))
+        if self.tablename is not None:
+            logger.debug(Color.update(f"Materializing CTE `{self.tablename}`..."))
         return self.collect_fn()
 
 

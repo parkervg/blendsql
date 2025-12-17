@@ -67,6 +67,10 @@ class Color:
         return f"[cyan]{s}[/cyan]"
 
     @staticmethod
+    def optimization(s: str):
+        return f"[deep_pink3]{s}[/deep_pink3]"
+
+    @staticmethod
     def quiet_update(s: str):
         return f"[grey53]{escape(s)}[/grey53]"
 

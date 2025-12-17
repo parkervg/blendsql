@@ -15,7 +15,7 @@ from blendsql.common.logger import logger, Color
 from blendsql.common import utils
 from blendsql.common.typing import IngredientType, ColumnRef, StringConcatenation
 from blendsql.db import Database
-from blendsql.db.utils import format_tuple, double_quote_escape
+from blendsql.db.utils import format_tuple, double_quote_escape, LazyTable
 from blendsql.common.utils import get_tablename_colname
 from blendsql.search.searcher import Searcher
 from blendsql.ingredients.few_shot import Example
@@ -285,7 +285,7 @@ class MapIngredient(Ingredient):
         get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
         prev_subquery_map_columns: set[str] = kwargs["prev_subquery_map_columns"]
-        cascade_filter: pl.LazyFrame = kwargs["cascade_filter"]
+        cascade_filter: LazyTable | None = kwargs["cascade_filter"]
 
         if isinstance(values, StringConcatenation):
             # original_tablenames could be aliases
@@ -357,7 +357,10 @@ class MapIngredient(Ingredient):
 
         cascade_filter_colnames = set()
         if cascade_filter is not None:
-            cascade_filter_colnames = set(cascade_filter.collect_schema().names())
+            cascade_filter: pl.LazyFrame | None = cascade_filter.collect()
+            if cascade_filter is not None:
+                cascade_filter_colnames = set(cascade_filter.collect_schema().names())
+
         all_context_colnames = set()
         if context_was_passed:
             for _context in context:
@@ -444,7 +447,11 @@ class MapIngredient(Ingredient):
             # │ Elvis Presley     ┆ 14 Grammys, King of Rock n Rol… │
             # └───────────────────┴─────────────────────────────────┘
             # ...means we only take values where `Name`, `Known_For` columns are present in the above.
-            logger.debug(Color.update(f"🌊Applying cascade filter..."))
+            logger.debug(
+                Color.optimization(
+                    f"[ 🌊 ] Applying cascade filter from previous map function..."
+                )
+            )
             distinct_values = distinct_values.join(
                 cascade_filter, on=cascade_filter_colnames, how="semi"
             )
