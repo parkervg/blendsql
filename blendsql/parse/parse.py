@@ -4,6 +4,7 @@ from sqlglot.optimizer.scope import build_scope
 from typing import Callable, Type, Generator, Any
 from ast import literal_eval
 import re
+from collections import Counter
 from sqlglot.optimizer.scope import find_all_in_scope
 from attr import attrs, attrib
 from functools import partial
@@ -89,8 +90,9 @@ class SubqueryContextManager:
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
 
     def __attrs_post_init__(self):
-        self.alias_to_tablename = {}
-        self.tablename_to_alias = {}
+        self.alias_to_tablename = dict()
+        self.tablename_to_alias = dict()
+        self.self_join_tablenames = set()
         # https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
         self.root = build_scope(self.node)
         self.columns_referenced_by_ingredients = (
@@ -207,15 +209,20 @@ class SubqueryContextManager:
             and not check.ingredient_alias_in_query_body(self.node)
         ):
             for (
-                tablename,
+                tablename_or_aliasname,
                 columnnames,
             ) in self.columns_referenced_by_ingredients.items():
+                resolved_tablename = self.alias_to_tablename.get(
+                    tablename_or_aliasname, tablename_or_aliasname
+                )
                 yield (
-                    self.alias_to_tablename.get(tablename, tablename),
+                    resolved_tablename,
                     self.node.find(exp.Join) is not None,
-                    set_select_to(abstracted_query, tablename, columnnames).sql(
-                        dialect=self.dialect
-                    ),
+                    set_select_to(
+                        abstracted_query,
+                        [tablename_or_aliasname for _ in columnnames],
+                        columnnames,
+                    ).sql(dialect=self.dialect),
                 )
             return
 
@@ -252,15 +259,49 @@ class SubqueryContextManager:
                 return
         elif where_node is None and not ignore_join:
             return
-        for tablename, columnnames in self.columns_referenced_by_ingredients.items():
-            # TODO: execute query once, and then separate out the results to their respective tables
-            yield (
-                self.alias_to_tablename.get(tablename, tablename),
-                self.node.find(exp.Join) is not None,
-                set_select_to(abstracted_query, tablename, columnnames).sql(
-                    dialect=self.dialect
-                ),
+
+        self_join_table_to_data = dict()
+        for (
+            tablename_or_aliasname,
+            columnnames,
+        ) in self.columns_referenced_by_ingredients.items():
+            resolved_tablename = self.alias_to_tablename.get(
+                tablename_or_aliasname, tablename_or_aliasname
             )
+            if resolved_tablename in self.self_join_tablenames:
+                if resolved_tablename not in self_join_table_to_data:
+                    self_join_table_to_data[resolved_tablename] = {}
+                self_join_table_to_data[resolved_tablename] |= {
+                    tablename_or_aliasname: columnnames
+                }
+                continue
+            yield (
+                resolved_tablename,
+                self.node.find(exp.Join) is not None,
+                set_select_to(
+                    abstracted_query,
+                    [tablename_or_aliasname for _ in columnnames],
+                    columnnames,
+                ).sql(dialect=self.dialect),
+            )
+        for _, _ in self_join_table_to_data.items():
+            raise NotImplementedError(
+                "BlendSQL doesn't support self-joins yet\nDefine the self-joined table in a CTE, and then perform some BlendSQL operation on it instead"
+            )
+            # data = [
+            #     (aliasname, column, f"{aliasname}_{column}")
+            #     for aliasname, columns in aliasname_to_columns.items()
+            #     for column in columns
+            # ]
+            # tablenames, columnnames, aliasnames = zip(*data)
+            #
+            # yield (
+            #     resolved_tablename,
+            #     self.node.find(exp.Join) is not None,
+            #     set_select_to(
+            #         abstracted_query, tablenames, columnnames, aliasnames=aliasnames
+            #     ).sql(dialect=self.dialect),
+            # )
         return
 
     def _gather_alias_mappings(
@@ -324,7 +365,15 @@ class SubqueryContextManager:
             self.tablename_to_alias |= {
                 v: k for k, v in curr_alias_to_tablename.items()
             }
+
             self.alias_to_subquery |= curr_alias_to_subquery
+        self.self_join_tablenames.update(
+            [
+                table
+                for table, count in Counter(self.alias_to_tablename.values()).items()
+                if count > 1
+            ]
+        )
 
     def get_exit_condition(self, function_node: exp.Expression) -> Callable | None:
         limit_node = self.node.find(exp.Limit)

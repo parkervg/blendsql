@@ -309,16 +309,28 @@ class MapIngredient(Ingredient):
             concat_expr = re.sub(
                 rf"{re.escape(original_tablename)}\.", "", values.raw_expr
             )
+
             logger.debug(
                 Color.update("Prepping string concatenations for Map ingredient...")
             )
             # Add a '__concat__' column to our existing temp subquery table
+            if value_source_tablename in self.db.lazy_tables:
+                materialized_smoothie = self.db.lazy_tables.pop(
+                    value_source_tablename
+                ).collect()
+                self.num_values_passed += materialized_smoothie.meta.num_values_passed
+
+            _query = f"""SELECT *, {concat_expr} AS __concat__ FROM "{double_quote_escape(value_source_tablename)}" """
+            logger.debug(
+                Color.quiet_update("Executing ")
+                + Color.quiet_sql(_query, ignore_prefix=True)
+                + Color.quiet_update(
+                    f" and setting to {value_source_tablename}...", ignore_prefix=True
+                )
+            )
+            table_with_concat_column = self.db.execute_to_df(_query)
             self.db.to_temp_table(
-                self.db.execute_to_df(
-                    f"""
-                SELECT *, {concat_expr} AS __concat__ FROM "{double_quote_escape(value_source_tablename)}"
-                """
-                ),
+                table_with_concat_column,
                 value_source_tablename,
             )
 
@@ -334,26 +346,29 @@ class MapIngredient(Ingredient):
             )
             original_table = self.db.execute_to_df(
                 f"""
-                SELECT *, {concat_expr} AS __concat__ FROM "{double_quote_escape(tablename)}"
-                """
+               SELECT *, {concat_expr} AS __concat__ FROM "{double_quote_escape(tablename)}"
+               """
             )
             self.db.to_temp_table(original_table, temp_session_tablename)
+
         else:
             original_table = None
             # TODO: make sure we support all types of ValueArray references here
-            tablename, colname = utils.get_tablename_colname(values)
-            tablename = aliases_to_tablenames.get(tablename, tablename)
+            tablename_or_aliasname, colname = utils.get_tablename_colname(values)
+            tablename = aliases_to_tablenames.get(
+                tablename_or_aliasname, tablename_or_aliasname
+            )
 
-            # Check for previously created temporary tables
-            value_source_tablename, _ = self.maybe_get_temp_table(
-                temp_table_func=get_temp_subquery_table, tablename=tablename
-            )
-            (
-                temp_session_tablename,
-                temp_session_table_exists,
-            ) = self.maybe_get_temp_table(
-                temp_table_func=get_temp_session_table, tablename=tablename
-            )
+        # Check for previously created temporary tables
+        value_source_tablename, _ = self.maybe_get_temp_table(
+            temp_table_func=get_temp_subquery_table, tablename=tablename
+        )
+        (
+            temp_session_tablename,
+            temp_session_table_exists,
+        ) = self.maybe_get_temp_table(
+            temp_table_func=get_temp_session_table, tablename=tablename
+        )
 
         cascade_filter_colnames = set()
         if cascade_filter is not None:
@@ -365,7 +380,12 @@ class MapIngredient(Ingredient):
         if context_was_passed:
             for _context in context:
                 if isinstance(_context, ColumnRef):
-                    _, context_colname = utils.get_tablename_colname(_context)
+                    (
+                        context_tablename_or_alias,
+                        context_colname,
+                    ) = utils.get_tablename_colname(_context)
+                    # Otherwise - we're just grabbing a different column from the same table
+                    # Don't need to modify the original `context_colname`
                     all_context_colnames.add(context_colname)
                 else:
                     raise ValueError(
@@ -406,6 +426,7 @@ class MapIngredient(Ingredient):
         new_arg_column = question or uuid.uuid4().hex[:4]
         while (
             new_arg_column in set(self.db.iter_columns(tablename))
+            # new_arg_column in set(self.db.iter_columns(value_source_tablename))
             or new_arg_column in prev_subquery_map_columns
         ):
             new_arg_column = "_" + new_arg_column

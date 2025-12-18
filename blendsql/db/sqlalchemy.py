@@ -178,8 +178,16 @@ class SQLAlchemyDatabase(Database):
             db.execute_query("SELECT * FROM t WHERE c = :v", {"v": "value"})
             ```
         """
-        res = pl.DataFrame(pd.read_sql(text(query), self.con, params=params))
-        return res.lazy() if lazy else res
+        # DuckDB doesn't allow duplicate column names, but other databases do
+        # So on a join, where we have the same colum in diff tables,
+        #   we may get the same columnname appearing twice. Polars raises an error at this.
+        df_pandas = pd.read_sql(text(query), self.con, params=params)
+        cols = pd.Series(df_pandas.columns)
+        for dup in cols[cols.duplicated()].unique():
+            mask = cols == dup
+            cols[mask] = [f"{dup}_{i}" if i != 0 else dup for i in range(mask.sum())]
+        df_pandas.columns = cols
+        return pl.LazyFrame(df_pandas) if lazy else pl.DataFrame(df_pandas)
 
     def execute_to_list(self, query: str, to_type: Callable = lambda x: x) -> list:
         """A lower-level execute method that doesn't use the pandas processing logic.
