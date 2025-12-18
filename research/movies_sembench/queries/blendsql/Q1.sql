@@ -1,6 +1,6 @@
 SELECT reviewId
-FROM Reviews r
+FROM Reviews
 WHERE {{
-    LLMMap('Is the movie review clearly positive?', r.reviewText)
+    LLMMap('Is the movie review clearly positive?', reviewText)
 }} = TRUE
 LIMIT 5;
