@@ -468,59 +468,109 @@ class LLMMap(MapIngredient):
 
             lm_mapping = {}  # Where we store the final type-cast results
             loaded_lm = False
-            batch_inference_strings = []
-            batch_inference_identifiers = []
-            all_identifiers = []
-            identifier_to_cache_key = {}
-            for idx, (c, v, o) in enumerate(
-                zip(context_in_use, values, filtered_options)
-            ):
-                curr_identifier = v
-                if c is not None:
-                    curr_identifier += f"_{c}"
-                all_identifiers.append(curr_identifier)
 
-                if context_in_use_type == FeatureType.LOCAL:
-                    current_example.context = c
+            # Generator to yield prompts on-the-fly
+            def generate_batch_items():
+                """Generator that yields (identifier, prompt_string, cache_info) tuples"""
+                for idx, (c, v, o) in enumerate(
+                    zip(context_in_use, values, filtered_options)
+                ):
+                    curr_identifier = v
+                    if c is not None:
+                        curr_identifier += f"_{c}"
 
-                current_example_str = current_example.to_string(
-                    list_options=list_options_in_prompt,
-                    add_leading_newlines=True,
+                    # Check cache first
+                    in_cache = False
+                    cache_key = None
+                    if model.caching:
+                        cached_response, cache_key = model.check_cache(
+                            CONSTRAINED_MAIN_INSTRUCTION,
+                            example_str,
+                            current_example_str,
+                            question,
+                            regex,
+                            options,
+                            quantifier,
+                            kwargs.get(
+                                "max_tokens",
+                                int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                            ),
+                            c,
+                            v,
+                            o,
+                            funcs=[
+                                make_prediction,
+                                gen_f[idx]
+                                if self.options_searcher is not None
+                                and self.enable_constrained_decoding
+                                else gen_f,
+                            ],
+                        )
+                        if cached_response is not None:
+                            lm_mapping[curr_identifier] = cached_response
+                            in_cache = True
+
+                    if in_cache:
+                        continue  # Skip to next item
+
+                    # Prepare the prompt only if not cached
+                    if context_in_use_type == FeatureType.LOCAL:
+                        current_example.context = c
+
+                    current_example_str = current_example.to_string(
+                        list_options=list_options_in_prompt,
+                        add_leading_newlines=True,
+                    )
+
+                    model.prompt_tokens += len(
+                        model.tokenizer.encode(current_example_str)
+                    )
+
+                    prompt_string = make_prediction(
+                        value=v,
+                        context=c,
+                        local_options=o,
+                        gen_f=gen_f[idx]
+                        if self.options_searcher is not None
+                        and self.enable_constrained_decoding
+                        else gen_f,
+                    )
+
+                    yield (
+                        curr_identifier,
+                        current_example_str,
+                        prompt_string,
+                        cache_key,
+                    )
+
+            def unquote(s):
+                for quote in ['"', "'"]:
+                    s = s.removeprefix(quote).removesuffix(quote)
+                return s
+
+            batch_generator = generate_batch_items()
+            current_batch_identifiers = []
+            current_batch_strings = []
+            current_batch_cache_keys = []
+            processed_items = 0
+            total_items = len(values)
+            all_processed_identifiers = []
+
+            if logger.level <= logging.DEBUG:
+                pbar = tqdm(
+                    desc=(Color.prefix if Color.in_block else "")
+                    + f"LLMMap with `{batch_size=}` and `{len(few_shot_examples)=}`",
+                    total=total_items,
                 )
 
-                # First check - do we need to load the model?
-                in_cache = False
-                if model.caching:
-                    cached_response, cache_key = model.check_cache(
-                        CONSTRAINED_MAIN_INSTRUCTION,
-                        example_str,
-                        current_example_str,
-                        question,
-                        regex,
-                        options,
-                        quantifier,
-                        kwargs.get(
-                            "max_tokens",
-                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
-                        ),
-                        c,
-                        v,
-                        o,
-                        funcs=[
-                            make_prediction,
-                            gen_f[idx]
-                            if self.options_searcher is not None
-                            and self.enable_constrained_decoding
-                            else gen_f,
-                        ],
-                    )
-                    if cached_response is not None:
-                        lm_mapping[curr_identifier] = cached_response
-                        in_cache = True
-                    else:
-                        identifier_to_cache_key[curr_identifier] = cache_key
-
-                if not in_cache and not loaded_lm:
+            for (
+                identifier,
+                current_example_str,
+                prompt_string,
+                cache_key,
+            ) in batch_generator:
+                # Load LM on first non-cached item
+                if not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
                     loaded_lm = True
                     with guidance.user():
@@ -530,46 +580,16 @@ class LLMMap(MapIngredient):
                             lm += "\n\nNow, complete the docstring for the following example:"
                         lm += current_example_str
 
-                model.prompt_tokens += len(model.tokenizer.encode(current_example_str))
+                current_batch_identifiers.append(identifier)
+                current_batch_strings.append(prompt_string)
+                current_batch_cache_keys.append(cache_key)
 
-                if not in_cache:
-                    batch_inference_strings.append(
-                        make_prediction(
-                            value=v,
-                            context=c,
-                            local_options=o,
-                            gen_f=gen_f[idx]
-                            if self.options_searcher is not None
-                            and self.enable_constrained_decoding
-                            else gen_f,
-                        )
-                    )
-                    batch_inference_identifiers.append(curr_identifier)
-
-            with guidance.assistant():
-                iter = range(0, len(batch_inference_strings), batch_size)
-                total_batches = len(batch_inference_strings) // batch_size
-                if logger.level <= logging.DEBUG:
-                    # Wrap with tqdm if `verbose=True`
-                    iter = tqdm(
-                        iter,
-                        total=total_batches,
-                        desc=(Color.prefix if Color.in_block else "")
-                        + f"LLMMap with `{batch_size=}` and `{len(few_shot_examples)=}`",
-                    )
-                for i in iter:
+                if len(current_batch_strings) >= batch_size:
                     model.num_generation_calls += 1
-                    batch_lm = lm + "\n".join(
-                        batch_inference_strings[i : i + batch_size]
-                    )
-                    self.num_values_passed += len(
-                        batch_inference_strings[i : i + batch_size]
-                    )
+                    with guidance.assistant():
+                        batch_lm = lm + "\n".join(current_batch_strings)
 
-                    def unquote(s):
-                        for quote in ['"', "'"]:
-                            s = s.removeprefix(quote).removesuffix(quote)
-                        return s
+                    self.num_values_passed += len(current_batch_strings)
 
                     model.completion_tokens += sum(
                         [
@@ -583,6 +603,7 @@ class LLMMap(MapIngredient):
                             for result_payload in batch_lm._interpreter.state.captures.values()
                         ]
                     )
+
                     batch_lm_mapping = {
                         value: apply_type_conversion(
                             result_payload["value"],
@@ -593,31 +614,96 @@ class LLMMap(MapIngredient):
                     }
                     lm_mapping.update(batch_lm_mapping)
                     add_to_global_history(str(batch_lm))
-                    if model.caching:
-                        for identifier in batch_inference_identifiers[
-                            i : i + batch_size
-                        ]:
-                            cache_key = identifier_to_cache_key[identifier]
-                            model.cache[cache_key] = lm_mapping[identifier]
 
-                    # Check and see if early exit condition applies
+                    if model.caching:
+                        for i, identifier in enumerate(current_batch_identifiers):
+                            if current_batch_cache_keys[i] is not None:
+                                model.cache[current_batch_cache_keys[i]] = lm_mapping[
+                                    identifier
+                                ]
+
+                    processed_items += len(current_batch_strings)
+                    if logger.level <= logging.DEBUG:
+                        pbar.update(len(current_batch_strings))
+
+                    all_processed_identifiers.extend(current_batch_identifiers)
+
+                    # Clear batch
+                    current_batch_identifiers = []
+                    current_batch_strings = []
+                    current_batch_cache_keys = []
+
+                    # Check exit condition
                     if exit_condition is not None and exit_condition(lm_mapping):
                         logger.debug(
                             Color.optimization(
-                                f"[ 🚪] Exit condition satisfied. Since you used a `LIMIT` clause, we can exit on batch {i} out of {total_batches}."
+                                f"[ 🚪] Exit condition satisfied. Exiting early after processing {processed_items,} out of {total_items,} items."
                             )
                         )
                         break
 
+            # Process any remaining items in the last partial batch
+            if current_batch_strings and (
+                exit_condition is None or not exit_condition(lm_mapping)
+            ):
+                model.num_generation_calls += 1
+                with guidance.assistant():
+                    batch_lm = lm + "\n".join(current_batch_strings)
+                self.num_values_passed += len(current_batch_strings)
+
+                model.completion_tokens += sum(
+                    [
+                        len(
+                            model.tokenizer_encode(
+                                unquote(result_payload["value"])
+                                if resolved_return_type.requires_quotes
+                                else result_payload["value"]
+                            )
+                        )
+                        for result_payload in batch_lm._interpreter.state.captures.values()
+                    ]
+                )
+
+                batch_lm_mapping = {
+                    value: apply_type_conversion(
+                        result_payload["value"],
+                        return_type=resolved_return_type,
+                        db=self.db,
+                    )
+                    for value, result_payload in batch_lm._interpreter.state.captures.items()
+                }
+                lm_mapping.update(batch_lm_mapping)
+                add_to_global_history(str(batch_lm))
+
+                if model.caching:
+                    for i, identifier in enumerate(current_batch_identifiers):
+                        if current_batch_cache_keys[i] is not None:
+                            model.cache[current_batch_cache_keys[i]] = lm_mapping[
+                                identifier
+                            ]
+
+                processed_items += len(current_batch_strings)
+                if logger.level <= logging.DEBUG:
+                    pbar.update(len(current_batch_strings))
+
+                all_processed_identifiers.extend(current_batch_identifiers)
+
+            if loaded_lm:
                 model.prompt_tokens += lm._get_usage().input_tokens
                 lm._reset_usage()
 
             mapped_values = [
-                lm_mapping.get(identifier, None) for identifier in all_identifiers
+                lm_mapping.get(identifier, None)
+                for identifier in all_processed_identifiers
             ]
+            # Find difference in length, and fill `None`
+            mapped_values.extend(
+                [None] * (len(values) - len(all_processed_identifiers))
+            )
+
             logger.debug(
                 lambda: Color.warning(
-                    f"Finished LLMMap with {len(lm_mapping)} total values{' (10 shown)' if len(lm_mapping) > 10 else ''}:\n{indent(json.dumps({str(k)[:100]: str(v)[:100] for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
+                    f"Finished LLMMap with {len(lm_mapping)} total values{' (10 shown)' if len(lm_mapping) > 10 else ''}:\n{indent(json.dumps({str(k): str(v) for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
                 )
             )
             return mapped_values
