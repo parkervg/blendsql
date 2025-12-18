@@ -486,7 +486,6 @@ class LLMMap(MapIngredient):
                         cached_response, cache_key = model.check_cache(
                             CONSTRAINED_MAIN_INSTRUCTION,
                             example_str,
-                            current_example_str,
                             question,
                             regex,
                             options,
