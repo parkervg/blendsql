@@ -1,0 +1,1 @@
+SELECT R1.id, R1.reviewId AS reviewId1, R2.reviewId AS reviewId2 FROM Reviews AS R1 JOIN Reviews AS R2 ON R1.id = R2.id AND R1.reviewId <> R2.reviewId WHERE R1.id = 'ant_man_and_the_wasp_quantumania' AND R1.scoreSentiment = R2.scoreSentiment;

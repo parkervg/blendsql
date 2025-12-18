@@ -1,0 +1,1 @@
+SELECT COUNT(*) AS positive_review_cnt FROM Reviews WHERE id = 'taken_3' AND scoreSentiment = 'POSITIVE';

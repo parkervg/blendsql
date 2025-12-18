@@ -1,0 +1,1 @@
+SELECT reviewId FROM Reviews WHERE scoreSentiment = 'POSITIVE';

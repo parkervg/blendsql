@@ -1,0 +1,1 @@
+SELECT CAST(SUM(CASE WHEN scoreSentiment = 'POSITIVE' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) AS positivity_ratio FROM Reviews WHERE id = 'taken_3';
