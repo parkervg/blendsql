@@ -284,21 +284,24 @@ class SubqueryContextManager:
                     columnnames,
                 ).sql(dialect=self.dialect),
             )
-        for resolved_tablename, aliasname_to_columns in self_join_table_to_data.items():
-            data = [
-                (aliasname, column, f"{aliasname}_{column}")
-                for aliasname, columns in aliasname_to_columns.items()
-                for column in columns
-            ]
-            tablenames, columnnames, aliasnames = zip(*data)
-
-            yield (
-                resolved_tablename,
-                self.node.find(exp.Join) is not None,
-                set_select_to(
-                    abstracted_query, tablenames, columnnames, aliasnames=aliasnames
-                ).sql(dialect=self.dialect),
+        for _, _ in self_join_table_to_data.items():
+            raise NotImplementedError(
+                "BlendSQL doesn't support self-joins yet\nDefine the self-joined table in a CTE, and then perform some BlendSQL operation on it instead"
             )
+            # data = [
+            #     (aliasname, column, f"{aliasname}_{column}")
+            #     for aliasname, columns in aliasname_to_columns.items()
+            #     for column in columns
+            # ]
+            # tablenames, columnnames, aliasnames = zip(*data)
+            #
+            # yield (
+            #     resolved_tablename,
+            #     self.node.find(exp.Join) is not None,
+            #     set_select_to(
+            #         abstracted_query, tablenames, columnnames, aliasnames=aliasnames
+            #     ).sql(dialect=self.dialect),
+            # )
         return
 
     def _gather_alias_mappings(

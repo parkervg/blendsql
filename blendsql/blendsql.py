@@ -848,7 +848,6 @@ def _blend(
                     "aliases_to_tablenames": scm.alias_to_tablename,
                     "prev_subquery_map_columns": prev_subquery_map_columns,
                     "cascade_filter": cascade_filter,
-                    "self_join_tablenames": scm.self_join_tablenames,
                 },
             )
             # Check how to handle output, depending on ingredient type
