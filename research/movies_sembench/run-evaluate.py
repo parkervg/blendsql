@@ -13,6 +13,7 @@ import sys
 from blendsql import BlendSQL
 from blendsql.models import LlamaCpp
 from blendsql.common.logger import Color, logger
+from blendsql.common.utils import fetch_from_hub
 
 logger.setLevel(logging.DEBUG)
 
@@ -205,8 +206,8 @@ def create_duckdb_database():
         DUCKDB_DB_PATH.unlink()
 
     conn = duckdb.connect(DUCKDB_DB_PATH)
-    movies_df = pd.read_csv(MOVIE_FILES_DIR / "Movies.csv")
-    reviews_df = pd.read_csv(MOVIE_FILES_DIR / "Reviews.csv")
+    movies_df = pd.read_csv(fetch_from_hub("movie/rotten_tomatoes_movies.csv"))
+    reviews_df = pd.read_csv(fetch_from_hub("movie/rotten_tomatoes_movie_reviews.csv"))
 
     # Step 2: Save DataFrames as persistent tables
     conn.register("movies_df", movies_df)
@@ -303,7 +304,7 @@ if __name__ == "__main__":
         logger.debug(Color.model_or_data_update("~~~~~ Running blendsql eval ~~~~~"))
         Color.in_block = True
 
-        # create_duckdb_database()
+        create_duckdb_database()
 
         bsql = BlendSQL(
             DUCKDB_DB_PATH,
@@ -327,6 +328,8 @@ if __name__ == "__main__":
             if not query_file.suffix == ".sql":
                 continue
             query_name = query_file.stem
+            if query_name != "Q4":
+                continue
             logger.debug(Color.update(f"Running blendsql {query_name}..."))
             smoothie = bsql.execute(open(query_file).read())
             smoothie.print_summary()

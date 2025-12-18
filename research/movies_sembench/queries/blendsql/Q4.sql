@@ -2,9 +2,9 @@ SELECT SUM(
     {{
         LLMMap(
             'Is this a positive review?',
-            r.reviewText
+            reviewText
         )
     }} = TRUE
 ) / COUNT(*) AS positive_reviews_ratio
-FROM Reviews AS r
+FROM Reviews
 WHERE id = 'taken_3'
