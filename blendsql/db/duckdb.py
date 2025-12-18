@@ -64,10 +64,6 @@ class DuckDB(Database):
         data: dict[str, pd.DataFrame] | pd.DataFrame,
         tablename: str = "w",
     ):
-        if not _has_duckdb:
-            raise ImportError(
-                "Please install duckdb with `pip install duckdb`!"
-            ) from None
         import duckdb
 
         con = duckdb.connect(database=":memory:")
@@ -93,15 +89,11 @@ class DuckDB(Database):
         return cls(con=con, db_url=db_url)
 
     @classmethod
-    def from_sqlite(cls, db_url: str, additional_cmds: list[str] | None = None):
-        if not _has_duckdb:
-            raise ImportError(
-                "Please install duckdb with `pip install duckdb<1`!"
-            ) from None
+    def from_sqlite(cls, filepath: str, additional_cmds: list[str] | None = None):
         import duckdb
 
         con = duckdb.connect(database=":memory:")
-        db_url = str(Path(db_url).resolve())
+        db_url = str(Path(filepath).resolve())
         con.sql("INSTALL sqlite;")
         con.sql("LOAD sqlite;")
         if additional_cmds is not None:
@@ -109,6 +101,14 @@ class DuckDB(Database):
                 con.sql(cmd)
         con.sql(f"ATTACH '{db_url}' AS sqlite_db (TYPE sqlite);")
         con.sql("USE sqlite_db")
+        return cls(con=con, db_url=db_url)
+
+    @classmethod
+    def from_file(cls, filepath: str):
+        import duckdb
+
+        con = duckdb.connect(filepath)
+        db_url = str(Path(filepath).resolve())
         return cls(con=con, db_url=db_url)
 
     def _reset_connection(self):

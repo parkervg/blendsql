@@ -1107,9 +1107,14 @@ class BlendSQL:
             return Pandas(df_or_db_path)
         elif isinstance(df_or_db_path, (str, Path)):
             if Path(df_or_db_path).exists():
-                from .db.sqlite import SQLite
+                if Path(df_or_db_path).suffix == ".duckdb":
+                    from .db.duckdb import DuckDB
 
-                return SQLite(df_or_db_path)
+                    return DuckDB.from_file(df_or_db_path)
+                else:
+                    from .db.sqlite import SQLite
+
+                    return SQLite(df_or_db_path)
             else:
                 from .db.postgresql import PostgreSQL
 
