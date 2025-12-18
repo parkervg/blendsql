@@ -12,6 +12,7 @@ from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
 import string
+from pathlib import Path
 import polars as pl
 
 from blendsql.common.logger import logger, Color
@@ -595,6 +596,7 @@ def _blend(
         else:
             subquery_str = subquery.sql(dialect=dialect)
 
+        subquery_processed_tablenames = set()
         in_cte, cte_table_alias_name = check.in_cte(subquery, return_name=True)
         scm = SubqueryContextManager(
             dialect=dialect,
@@ -686,9 +688,9 @@ def _blend(
                                 if col not in set_of_column_names
                                 and re.search(r"_\d$", col)
                             }
-
-                            # Apply renaming
-                            abstracted_df = abstracted_df.rename(rename_mapping)
+                            if rename_mapping:
+                                # Apply renaming
+                                abstracted_df = abstracted_df.rename(rename_mapping)
 
                         # In case of a join, we could have duplicate column names in our pandas dataframe
                         # This will throw an error when we try to write to the database
@@ -698,6 +700,8 @@ def _blend(
                     df=abstracted_df,
                     tablename=tablename_to_write,
                 )
+                subquery_processed_tablenames.add(tablename)
+
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
             db.lazy_tables.add(
@@ -844,6 +848,7 @@ def _blend(
                     "aliases_to_tablenames": scm.alias_to_tablename,
                     "prev_subquery_map_columns": prev_subquery_map_columns,
                     "cascade_filter": cascade_filter,
+                    "self_join_tablenames": scm.self_join_tablenames,
                 },
             )
             # Check how to handle output, depending on ingredient type
@@ -1045,7 +1050,7 @@ class BlendSQL:
             descriptive titles, useful for datasets where table titles contain metadata.
     """
 
-    db: pd.DataFrame | dict | str | Database = field(default=None)
+    db: pd.DataFrame | dict | str | Path | Database = field(default=None)
     model: Model | None = field(default=None)
     ingredients: Collection[Type[Ingredient]] | None = field(default_factory=list)
 
@@ -1093,9 +1098,7 @@ class BlendSQL:
         return ingredients
 
     @staticmethod
-    def _infer_db_type(df_or_db_path) -> Database:
-        from pathlib import Path
-
+    def _infer_db_type(df_or_db_path: pd.DataFrame | dict | str | Path) -> Database:
         if df_or_db_path is None:
             from .db.pandas import Pandas
 
@@ -1104,7 +1107,16 @@ class BlendSQL:
         elif isinstance(df_or_db_path, (pd.DataFrame, dict)):
             from .db.pandas import Pandas
 
+            if isinstance(df_or_db_path, dict):
+                if not isinstance(next(iter(df_or_db_path.values())), pd.DataFrame):
+                    logger.debug(
+                        Color.update("Converting dict values to pd.DataFrames...")
+                    )
+                    df_or_db_path = {
+                        k: pd.DataFrame(v) for k, v in df_or_db_path.items()
+                    }
             return Pandas(df_or_db_path)
+
         elif isinstance(df_or_db_path, (str, Path)):
             if Path(df_or_db_path).exists():
                 if Path(df_or_db_path).suffix == ".duckdb":

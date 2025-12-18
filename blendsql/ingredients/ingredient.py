@@ -286,28 +286,37 @@ class MapIngredient(Ingredient):
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
         prev_subquery_map_columns: set[str] = kwargs["prev_subquery_map_columns"]
         cascade_filter: LazyTable | None = kwargs["cascade_filter"]
+        self_join_tablenames: Collection[str] | None = kwargs["self_join_tablenames"]
 
         if isinstance(values, StringConcatenation):
             # original_tablenames could be aliases
-            _original_tablenames, _ = zip(
+            _original_tablenames_or_aliases, _ = zip(
                 *[utils.get_tablename_colname(c) for c in values]
             )
-            _original_tablenames = set(_original_tablenames)
-            if len(_original_tablenames) > 1:
+            _original_tablenames_or_aliases = set(_original_tablenames_or_aliases)
+            _resolved_original_tablenames = set(
+                [
+                    aliases_to_tablenames.get(t, t)
+                    for t in _original_tablenames_or_aliases
+                ]
+            )
+            if len(_resolved_original_tablenames) > 1:
                 raise IngredientException(
                     "Can only concatenate two columns from the same table for now!"
                 )
 
-            original_tablename = _original_tablenames.pop()
-            tablename = aliases_to_tablenames.get(
-                original_tablename, original_tablename
-            )
+            original_tablename = _resolved_original_tablenames.pop()
             colname = "__concat__"
             value_source_tablename, _ = self.maybe_get_temp_table(
-                temp_table_func=get_temp_subquery_table, tablename=tablename
+                temp_table_func=get_temp_subquery_table, tablename=original_tablename
             )
+            raw_concat_expr: str = values.raw_expr
+            if original_tablename in self_join_tablenames:
+                # Turn `r1.reviewText || r2.reviewText` into `r1_reviewText || r2_reviewText`
+                raw_concat_expr = re.sub(r"r(\d+)\.(\w+)", r"r\1_\2", raw_concat_expr)
+
             concat_expr = re.sub(
-                rf"{re.escape(original_tablename)}\.", "", values.raw_expr
+                rf"{re.escape(original_tablename)}\.", "", raw_concat_expr
             )
             logger.debug(
                 Color.update("Prepping string concatenations for Map ingredient...")
@@ -330,19 +339,24 @@ class MapIngredient(Ingredient):
                 temp_session_tablename,
                 temp_session_table_exists,
             ) = self.maybe_get_temp_table(
-                temp_table_func=get_temp_session_table, tablename=tablename
+                temp_table_func=get_temp_session_table, tablename=original_tablename
             )
             original_table = self.db.execute_to_df(
                 f"""
-                SELECT *, {concat_expr} AS __concat__ FROM "{double_quote_escape(tablename)}"
+                SELECT *, {concat_expr} AS __concat__ FROM "{double_quote_escape(original_tablename)}"
                 """
             )
             self.db.to_temp_table(original_table, temp_session_tablename)
         else:
             original_table = None
             # TODO: make sure we support all types of ValueArray references here
-            tablename, colname = utils.get_tablename_colname(values)
-            tablename = aliases_to_tablenames.get(tablename, tablename)
+            tablename_or_aliasname, colname = utils.get_tablename_colname(values)
+            tablename = aliases_to_tablenames.get(
+                tablename_or_aliasname, tablename_or_aliasname
+            )
+            if tablename in self_join_tablenames:
+                # We need to qualify the columnname with it's alias, if we're doing a self-join
+                colname = f"{tablename_or_aliasname}_{colname}"
 
             # Check for previously created temporary tables
             value_source_tablename, _ = self.maybe_get_temp_table(
@@ -365,7 +379,22 @@ class MapIngredient(Ingredient):
         if context_was_passed:
             for _context in context:
                 if isinstance(_context, ColumnRef):
-                    _, context_colname = utils.get_tablename_colname(_context)
+                    (
+                        context_tablename_or_alias,
+                        context_colname,
+                    ) = utils.get_tablename_colname(_context)
+                    if (
+                        aliases_to_tablenames.get(
+                            context_tablename_or_alias, context_tablename_or_alias
+                        )
+                        in self_join_tablenames
+                    ):
+                        # We need to qualify the columnname with its alias, if we're doing a self-join
+                        context_colname = (
+                            f"{context_tablename_or_alias}_{context_colname}"
+                        )
+                    # Otherwise - we're just grabbing a different column from the same table
+                    # Don't need to modify the original `context_colname`
                     all_context_colnames.add(context_colname)
                 else:
                     raise ValueError(
@@ -401,11 +430,15 @@ class MapIngredient(Ingredient):
                 original_table = self.db.execute_to_df(
                     f"""SELECT {select_distinct_arg} FROM "{tablename}" """
                 )
+                # original_table = self.db.execute_to_df(
+                #     f"""SELECT {select_distinct_arg} FROM "{value_source_tablename}" """
+                # )
 
         # Need to be sure the new column doesn't already exist here
         new_arg_column = question or uuid.uuid4().hex[:4]
         while (
             new_arg_column in set(self.db.iter_columns(tablename))
+            # new_arg_column in set(self.db.iter_columns(value_source_tablename))
             or new_arg_column in prev_subquery_map_columns
         ):
             new_arg_column = "_" + new_arg_column

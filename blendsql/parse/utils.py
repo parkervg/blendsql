@@ -15,12 +15,23 @@ def get_first_child(node):
     return next(gen)
 
 
-def set_select_to(node, tablename, columnnames) -> exp.Expression:
+def set_select_to(
+    node,
+    tablenames: list[str],
+    columnnames: list[str],
+    aliasnames: list[str] | None = None,
+) -> exp.Expression:
+    assert len(tablenames) == len(columnnames)
     select_star_node = copy.deepcopy(node)
     to_select = [
         f'"{double_quote_escape(tablename)}"."{double_quote_escape(columnname)}"'
-        for columnname in columnnames
+        for tablename, columnname in zip(tablenames, columnnames)
     ]
+    if aliasnames is not None:
+        to_select = [
+            ts + f' AS "{double_quote_escape(aliasname)}"'
+            for ts, aliasname in zip(to_select, aliasnames)
+        ]
     select_star_node.find(exp.Select).set(
         "expressions", exp.select(*to_select).args["expressions"]
     )

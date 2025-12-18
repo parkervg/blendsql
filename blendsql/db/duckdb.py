@@ -73,7 +73,9 @@ class DuckDB(Database):
             # I assign the underlying data to _df, since passing self.data doesn't work
             # in the self.con.sql call.
             _df = data
-            con.sql(f"CREATE TABLE {tablename} AS SELECT * FROM _df")
+            con.sql(
+                f'CREATE TABLE "{double_quote_escape(tablename)}" AS SELECT * FROM _df'
+            )
 
         elif isinstance(data, dict):
             db_url = f"Local pandas tables {', '.join(data.keys())}"

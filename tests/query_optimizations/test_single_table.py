@@ -684,6 +684,37 @@ class TestCTEOperations(TimedTestBase):
             """
         )
 
+    @pytest.mark.parametrize("bsql", bsql_connections)
+    def test_multiple_ctes_with_ingredient(self, bsql: BlendSQL):
+        # First just make sure a `SELECT *` query works
+        _ = bsql.execute(
+            """
+            WITH a AS (
+                SELECT merchant, {{get_length(merchant)}} FROM transactions
+            ), b AS (
+                SELECT merchant FROM transactions
+            ) SELECT * FROM a JOIN b ON a.merchant = b.merchant
+            """
+        )
+        # Then make sure results are correct
+        _ = self.assert_blendsql_equals_sql(
+            bsql,
+            blendsql_query="""
+            WITH a AS (
+                SELECT merchant, {{get_length(merchant)}} AS length_output FROM transactions
+            ), b AS (
+                SELECT merchant FROM transactions
+            ) SELECT a.merchant, length_output FROM a JOIN b ON a.merchant = b.merchant
+            """,
+            sql_query="""
+            WITH a AS (
+                SELECT merchant, LENGTH(merchant) AS length_output FROM transactions
+            ), b AS (
+                SELECT merchant FROM transactions
+            ) SELECT a.merchant, length_output FROM a JOIN b ON a.merchant = b.merchant
+            """,
+        )
+
 
 class TestOffsetOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
