@@ -1,2 +1,4 @@
 llama-cpp-python[server]
 thalamusdb
+ollama
+duckdb>=1.4.3

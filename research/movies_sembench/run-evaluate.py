@@ -6,6 +6,7 @@ import requests
 from textwrap import dedent
 import logging
 from typing import Generator
+import litellm
 
 import pandas as pd
 import duckdb
@@ -15,20 +16,21 @@ from blendsql.common.logger import Color, logger
 from blendsql.common.utils import fetch_from_hub
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+litellm.drop_params = True  # to disable `reasoning_effort` error in thalamusdb
 logger.setLevel(logging.DEBUG)
 
 EVALS_TO_RUN = {"blendsql": True, "flock": False, "thalamusdb": True}
 
-# MODEL_NAME_OR_PATH="unsloth/Qwen3-4B-Instruct-2507-GGUF"
-# FILENAME="Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
-MODEL_NAME_OR_PATH = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
-FILENAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+MODEL_NAME_OR_PATH = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
+FILENAME = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+# MODEL_NAME_OR_PATH = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
+# FILENAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
 
 SKIP_QUERIES = {}
-ONLY_USE = {"Q1"}
+ONLY_USE = {"Q5"}
 
 # Ollama model name (can be different from filename)
-MODEL_NAME = "qwen2.5-1.5b-custom"
+MODEL_NAME = Path(FILENAME).stem
 LOCAL_GGUF_FILEPATH = f"./models/{FILENAME}"
 
 MOVIE_FILES_DIR = Path(os.path.abspath(Path(__file__).resolve().parent / "data"))
@@ -250,6 +252,15 @@ if __name__ == "__main__":
         """
         )
 
+    query_name_to_gold: dict[str, pd.DataFrame] = {}
+    create_duckdb_database()
+    conn = duckdb.connect(DUCKDB_DB_PATH)
+    for query_file, query_name in iter_queries("gold_sql"):
+        res = conn.execute(open(query_file).read()).df()
+        print(res)
+        query_name_to_gold[query_name] = res
+    conn.close()
+
     if EVALS_TO_RUN.get("flock"):
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running flock eval ~~~~~"))
@@ -300,10 +311,10 @@ if __name__ == "__main__":
         )
 
         for query_file, query_name in iter_queries("flockmtl"):
-            logger.debug(Color.update(f"Running flock {query_name}..."))
             query = open(query_file).read().replace("<<model_name>>", MODEL_NAME)
             res: pd.DataFrame = flock_conn.execute(query).df()
             print(res)
+            print(query_name)
 
         flock_conn.close()
         stop_ollama_server()
@@ -312,6 +323,7 @@ if __name__ == "__main__":
     if EVALS_TO_RUN.get("blendsql"):
         from blendsql import BlendSQL
         from blendsql.models import LlamaCpp
+        from blendsql.ingredients import LLMMap
 
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running blendsql eval ~~~~~"))
@@ -325,22 +337,27 @@ if __name__ == "__main__":
                 filename=LOCAL_GGUF_FILEPATH,
                 config={
                     "n_gpu_layers": -1,
-                    "n_ctx": 8000,
+                    "n_ctx": 2048,
                     "seed": 100,
                     "n_threads": 6,
                 },
                 caching=False,
             ),
-            verbose=True,
+            ingredients={LLMMap.from_args(batch_size=3)},
+            verbose=False,
         )
         _ = bsql.model.model_obj
 
         for query_file, query_name in iter_queries("blendsql"):
+            start = time.time()
             smoothie = bsql.execute(open(query_file).read())
-            smoothie.print_summary()
-            res: pd.DataFrame = smoothie.df
-            print(query_name)
-            print(res)
+            latency = time.time() - start
+            print(f"blendsql {query_name} took {latency}")
+            result: pd.DataFrame = smoothie.df
+            print(result)
+            # print(len(set(res['reviewId'].tolist()[:5]).intersection(set(query_name_to_gold[query_name]['reviewId'].tolist()))))
+
+        del bsql.model.model_obj
 
     if EVALS_TO_RUN.get("thalamusdb"):
         import json
@@ -355,6 +372,17 @@ if __name__ == "__main__":
         Color.in_block = True
 
         start_ollama_server()
+
+        # Load GGUF into Ollama
+        if not load_gguf_into_ollama(LOCAL_GGUF_FILEPATH, MODEL_NAME):
+            logger.debug(Color.error("Failed to load model into Ollama. Exiting."))
+            sys.exit(1)
+
+        # Warm up the model
+        warmup_ollama_model(MODEL_NAME)
+
+        # Create database
+        create_duckdb_database()
 
         model_config = {
             "models": [
@@ -389,6 +417,10 @@ if __name__ == "__main__":
         engine = ExecutionEngine(db=db, dop=20, model_config_path=model_config_path)
         constraints = Constraints(max_calls=1000, max_seconds=6000)
         for query_file, query_name in iter_queries("thalamusdb"):
+            start = time.time()
             query = Query(db, open(query_file).read())
             result, counters = engine.run(query, constraints)
-            print(query_name)
+            latency = time.time() - start
+            print(f"thalamusdb {query_name} took {latency}")
+            print(result)
+            # print(len(set(res['reviewId'].tolist()[:5]).intersection(set(query_name_to_gold[query_name]['reviewId'].tolist()))))
