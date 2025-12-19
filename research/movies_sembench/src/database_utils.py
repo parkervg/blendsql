@@ -25,8 +25,8 @@ def create_duckdb_database():
     conn = duckdb.connect(DUCKDB_DB_PATH)
 
     # Load data from hub
-    movies_df = pd.read_csv(fetch_from_hub("movie/rotten_tomatoes_movies.csv"))
-    reviews_df = pd.read_csv(fetch_from_hub("movie/rotten_tomatoes_movie_reviews.csv"))
+    movies_df = pd.read_csv(fetch_from_hub("movie/sf_100000/Movies.csv"))
+    reviews_df = pd.read_csv(fetch_from_hub("movie/sf_100000/Reviews.csv"))
 
     # Register DataFrames
     conn.register("movies_df", movies_df)

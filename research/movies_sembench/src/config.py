@@ -49,7 +49,7 @@ EVALS_TO_RUN = {
 }
 
 # Query Filtering
-SKIP_QUERIES = {"Q10", "Q7"}
+SKIP_QUERIES = {"Q10"}
 ONLY_USE = {}
 
 # Server Configuration

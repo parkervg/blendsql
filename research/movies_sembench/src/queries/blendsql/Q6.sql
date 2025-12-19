@@ -1,5 +1,5 @@
 WITH self_joined_reviews AS (
-    SELECT
+    SELECT DISTINCT
     r1.reviewText AS reviewText1,
     r2.reviewText AS reviewText2,
     r1.id as id1,
