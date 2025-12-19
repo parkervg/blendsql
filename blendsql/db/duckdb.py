@@ -53,7 +53,7 @@ class DuckDB(Database):
     # Can be either a dict from name -> pd.DataFrame
     # or, a single pd.DataFrame object
     con: "DuckDBPyConnection" = attrib()
-    db_url: str = attrib()
+    db_url: str = attrib(default=None)
 
     # We use below to track which tables we should drop on '_reset_connection'
     temp_tables: set[str] = set()
