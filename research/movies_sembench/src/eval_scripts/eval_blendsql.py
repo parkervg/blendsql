@@ -1,3 +1,6 @@
+import pandas as pd
+
+
 def run_blendsql_eval():
     import time
     import json
@@ -61,14 +64,21 @@ def run_blendsql_eval():
         _ = bsql.model.model_obj
 
         # Run queries
+        results = []
         for query_file, query_name in iter_queries("blendsql"):
+            query = open(query_file).read()
             start = time.time()
-            smoothie = bsql.execute(open(query_file).read())
+            result = bsql.execute(query).df
             latency = time.time() - start
-
-            print(f"blendsql {query_name} took {latency}")
-            result = smoothie.df
-            print(result)
+            results.append(
+                {
+                    "system_name": "blendsql",
+                    "query_name": query_name,
+                    "latency": latency,
+                    "prediction": result.to_json(orient="split", index=False),
+                }
+            )
+        return pd.DataFrame(results)
 
     del bsql.model.model_obj._interpreter.engine.model_obj
     gc.collect()

@@ -14,6 +14,8 @@ LOCAL_GGUF_FILEPATH = Path(__file__).resolve().parent / f"models/{FILENAME}"
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_API_ENDPOINT = f"{OLLAMA_BASE_URL}/api/tags"
 
+OUTPUT_DIR = Path(__file__).resolve().parent / "results"
+
 # Model Parameters
 MODEL_PARAMS = {
     "temperature": 0.0,
@@ -47,8 +49,8 @@ EVALS_TO_RUN = {
 }
 
 # Query Filtering
-SKIP_QUERIES = {}
-ONLY_USE = {"Q3"}
+SKIP_QUERIES = {"Q10", "Q7"}
+ONLY_USE = {}
 
 # Server Configuration
 OLLAMA_SERVER_STARTUP_TIMEOUT = 10  # seconds

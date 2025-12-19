@@ -1,6 +1,7 @@
 def run_flock_eval():
     import duckdb
-
+    import time
+    import pandas as pd
     from blendsql.common.logger import Color, logger
 
     from ..config import (
@@ -14,7 +15,7 @@ def run_flock_eval():
     from ..database_utils import iter_queries
     from ..ollama_utils import prepare_ollama_server, stop_ollama_server
 
-    with duckdb.connect(DUCKDB_DB_PATH, read_only=True) as conn:
+    with duckdb.connect(DUCKDB_DB_PATH, read_only=True) as con:
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running flock eval ~~~~~"))
         Color.in_block = True
@@ -25,11 +26,11 @@ def run_flock_eval():
 
         # Set up Flock
         logger.debug(Color.update(f"Installing Flock version {FLOCK_VERSION}..."))
-        conn.install_extension("flock", repository="community", version=FLOCK_VERSION)
-        conn.load_extension("flock")
+        con.install_extension("flock", repository="community", version=FLOCK_VERSION)
+        con.load_extension("flock")
 
         # Configure Flock with OpenAI-compatible endpoint
-        conn.execute(
+        con.execute(
             """
             CREATE SECRET (
                 TYPE OPENAI,
@@ -40,7 +41,7 @@ def run_flock_eval():
         )
 
         # Create model configuration
-        conn.execute(
+        con.execute(
             f"""
             CREATE MODEL(
                 '{MODEL_NAME}',
@@ -52,11 +53,21 @@ def run_flock_eval():
         )
 
         # Run queries
+        results = []
         for query_file, query_name in iter_queries("flockmtl"):
             query = open(query_file).read().replace("<<model_name>>", MODEL_NAME)
-            result = conn.execute(query).df()
-            print(result)
-            print(query_name)
+            start = time.time()
+            result = con.execute(query).df()
+            latency = time.time() - start
+            results.append(
+                {
+                    "system_name": "flock",
+                    "query_name": query_name,
+                    "latency": latency,
+                    "prediction": result.to_json(orient="split", index=False),
+                }
+            )
+        return pd.DataFrame(results)
 
     stop_ollama_server()
     Color.in_block = False

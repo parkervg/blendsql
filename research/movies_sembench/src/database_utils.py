@@ -1,11 +1,14 @@
 import duckdb
 import pandas as pd
 from typing import Generator
+import logging
 
 from blendsql.common.logger import Color, logger
 from blendsql.common.utils import fetch_from_hub
 
 from src.config import DUCKDB_DB_PATH, SKIP_QUERIES, ONLY_USE, QUERIES_DIR
+
+logger.setLevel(logging.DEBUG)
 
 
 def create_duckdb_database():
@@ -68,15 +71,13 @@ def iter_queries(system_name: str) -> Generator:
         Tuples of (query_file_path, query_name)
     """
     queries_path = QUERIES_DIR / system_name
+    sorted_query_files = sorted(queries_path.iterdir(), key=lambda x: x.stem)
 
-    for query_file in queries_path.iterdir():
+    for query_file in sorted_query_files:
         query_name = query_file.stem
-
         if query_name in SKIP_QUERIES:
             continue
-
         if ONLY_USE and query_name not in ONLY_USE:
             continue
-
-        logger.debug(Color.update(f"Running {system_name} {query_name}..."))
+        print(f"Running {system_name} {query_name}...")
         yield (query_file, query_name)

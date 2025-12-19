@@ -1,5 +1,5 @@
 WITH self_joined_reviews AS (
-    SELECT
+    SELECT DISTINCT
     r1.reviewText AS reviewText1,
     r2.reviewText AS reviewText2,
     r1.id as id1,
@@ -8,7 +8,7 @@ WITH self_joined_reviews AS (
     FROM Reviews r1
     JOIN Reviews r2
     ON r1.id = r2.id
-    AND r1.reviewId < r2.reviewId
+    AND r1.reviewId <> r2.reviewId
     WHERE r1.id = 'ant_man_and_the_wasp_quantumania'
     AND r2.id = 'ant_man_and_the_wasp_quantumania'
 ) SELECT id1, reviewId1, reviewId2 FROM self_joined_reviews
@@ -18,4 +18,3 @@ WHERE {{
         'Review 1: ' || reviewText1 || '\nReview 2:' || reviewText2
     )
 }} = TRUE
-LIMIT 10

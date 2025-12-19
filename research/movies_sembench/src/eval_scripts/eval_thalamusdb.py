@@ -1,9 +1,18 @@
 def run_thalamusdb_eval():
     import json
+    import pandas as pd
     import time
     import duckdb
     from contextlib import contextmanager
     import os
+
+    # class DummyConsole:
+    #     def __getattr__(self, name):
+    #         return lambda *args, **kwargs: None
+    #
+    # import rich.console
+    #
+    # rich.console.Console = DummyConsole
     import sys
 
     @contextmanager
@@ -91,16 +100,23 @@ def run_thalamusdb_eval():
         constraints = Constraints(max_calls=1000, max_seconds=6000)
 
         # Run queries
+        results = []
         for query_file, query_name in iter_queries("thalamusdb"):
+            query = open(query_file).read()
             start = time.time()
-            query = Query(db, open(query_file).read())
+            query = Query(db, query)
             with suppress_stdout():
                 result, counters = engine.run(query, constraints)
             latency = time.time() - start
+            results.append(
+                {
+                    "system_name": "thalamusdb",
+                    "query_name": query_name,
+                    "latency": latency,
+                    "prediction": result.to_json(orient="split", index=False),
+                }
+            )
+        return pd.DataFrame(results)
 
-            print(f"thalamusdb {query_name} took {latency}")
-            print(result)
-
-        Color.in_block = False
-
+    Color.in_block = False
     stop_ollama_server()
