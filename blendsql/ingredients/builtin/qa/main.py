@@ -81,7 +81,7 @@ class LLMQA(QAIngredient):
         few_shot_examples: list[dict] | list[AnnotatedQAExample] | None = None,
         context_formatter: Callable[[pd.DataFrame], str] = DEFAULT_CONTEXT_FORMATTER,
         list_options_in_prompt: bool = True,
-        num_few_shot_examples: int | None = 1,
+        num_few_shot_examples: int | None = 0,
         context_searcher: Searcher | None = None,
         options_searcher: Searcher | None = None,
         enable_constrained_decoding: bool = True,
@@ -138,16 +138,12 @@ class LLMQA(QAIngredient):
             ```
         """
         if few_shot_examples is None:
-            few_shot_examples = DEFAULT_QA_FEW_SHOT
+            few_shot_retriever = lambda *_: []
         else:
-            few_shot_examples = [
-                AnnotatedQAExample(**d) if isinstance(d, dict) else d
-                for d in few_shot_examples
-            ]
-        few_shot_retriever = initialize_retriever(
-            examples=few_shot_examples,
-            num_few_shot_examples=num_few_shot_examples,
-        )
+            few_shot_retriever = initialize_retriever(
+                examples=few_shot_examples, num_few_shot_examples=num_few_shot_examples
+            )
+
         return cls._maybe_set_name_to_var_name(
             partialclass(
                 cls,

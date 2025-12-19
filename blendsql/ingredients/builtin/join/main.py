@@ -39,7 +39,7 @@ class LLMJoin(JoinIngredient):
         model: Model | None = None,
         use_skrub_joiner: bool = True,
         few_shot_examples: list[dict] | list[AnnotatedJoinExample] | None = None,
-        num_few_shot_examples: int | None = None,
+        num_few_shot_examples: int | None = 1,
         enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.

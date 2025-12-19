@@ -95,7 +95,7 @@ class LLMMap(MapIngredient):
         list_options_in_prompt: bool = True,
         options_searcher: Searcher | None = None,
         batch_size: int | None = None,
-        num_few_shot_examples: int | None = None,
+        num_few_shot_examples: int | None = 0,
         context_searcher: Searcher | None = None,
         enable_constrained_decoding: bool = True,
     ):
