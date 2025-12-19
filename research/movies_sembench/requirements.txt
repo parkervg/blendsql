@@ -1,1 +1,2 @@
 llama-cpp-python[server]
+thalamusdb

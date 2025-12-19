@@ -3,80 +3,113 @@ import psutil
 import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
-from blendsql import BlendSQL
-from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
+from blendsql import BlendSQL, GLOBAL_HISTORY
+from blendsql.db import DuckDB
 from blendsql.models import LiteLLM, LlamaCpp
+from blendsql.common.utils import fetch_from_hub
+
 
 USE_LOCAL_CONSTRAINED_MODEL = True
 
 # Load model, either a local transformers model, or remote provider via LiteLLM
-if USE_LOCAL_CONSTRAINED_MODEL:
-    model = LlamaCpp(
-        model_name_or_path="bartowski/Qwen2.5.1-Coder-7B-Instruct-GGUF",
-        filename="Qwen2.5.1-Coder-7B-Instruct-Q4_K_M.gguf",
-        config={
-            "n_gpu_layers": -1,
-            "n_ctx": 8000,
-            "seed": 100,
-            "n_threads": psutil.cpu_count(logical=False),
-        },
-        caching=False,
-    )
-else:
-    model = LiteLLM("openai/gpt-4o-mini")
+model = None
+if True:
+    if USE_LOCAL_CONSTRAINED_MODEL:
+        model = LlamaCpp(
+            # model_name_or_path="Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+            # filename="qwen2.5-1.5b-instruct-q4_k_m.gguf",
+            model_name_or_path="bartowski/SmolLM2-135M-Instruct-GGUF",
+            filename="SmolLM2-135M-Instruct-Q4_K_M.gguf",
+            config={
+                "n_gpu_layers": -1,
+                "n_ctx": 1028,
+                "seed": 100,
+                "n_threads": psutil.cpu_count(logical=False),
+            },
+            caching=False,
+        )
+        _ = model.model_obj
+    else:
+        model = LiteLLM("openai/gpt-4o-mini")
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
-    {
-        "People": pd.DataFrame(
-            {
-                "Name": [
-                    "George Washington",
-                    "John Adams",
-                    "Thomas Jefferson",
-                    "James Madison",
-                    "James Monroe",
-                    "Alexander Hamilton",
-                    "Sabrina Carpenter",
-                    "Charli XCX",
-                    "Elon Musk",
-                    "Michelle Obama",
-                    "Elvis Presley",
-                ],
-                "Known_For": [
-                    "Established federal government, First U.S. President",
-                    "XYZ Affair, Alien and Sedition Acts",
-                    "Louisiana Purchase, Declaration of Independence",
-                    "War of 1812, Constitution",
-                    "Monroe Doctrine, Missouri Compromise",
-                    "Created national bank, Federalist Papers",
-                    "Nonsense, Emails I Cant Send, Mean Girls musical",
-                    "Crash, How Im Feeling Now, Boom Clap",
-                    "Tesla, SpaceX, Twitter/X acquisition",
-                    "Lets Move campaign, Becoming memoir",
-                    "14 Grammys, King of Rock n Roll",
-                ],
-            }
-        ),
-        "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
-    },
-    ingredients={LLMMap, LLMQA, LLMJoin},
+    DuckDB.from_pandas(
+        {
+            "Movies": pd.read_csv(fetch_from_hub("movie/rotten_tomatoes_movies.csv")),
+            "Reviews": pd.read_csv(
+                fetch_from_hub("movie/rotten_tomatoes_movie_reviews.csv")
+            ),
+        }
+    ),
+    # {
+    #     "People": pd.DataFrame(
+    #         {
+    #             "Name": [
+    #                 "George Washington",
+    #                 "John Adams",
+    #                 "Thomas Jefferson",
+    #                 "James Madison",
+    #                 "James Monroe",
+    #                 "Alexander Hamilton",
+    #                 "Sabrina Carpenter",
+    #                 "Charli XCX",
+    #                 "Elon Musk",
+    #                 "Michelle Obama",
+    #                 "Elvis Presley",
+    #             ],
+    #             "Known_For": [
+    #                 "Established federal government, First U.S. President",
+    #                 "XYZ Affair, Alien and Sedition Acts",
+    #                 "Louisiana Purchase, Declaration of Independence",
+    #                 "War of 1812, Constitution",
+    #                 "Monroe Doctrine, Missouri Compromise",
+    #                 "Created national bank, Federalist Papers",
+    #                 "Nonsense, Emails I Cant Send, Mean Girls musical",
+    #                 "Crash, How Im Feeling Now, Boom Clap",
+    #                 "Tesla, SpaceX, Twitter/X acquisition",
+    #                 "Lets Move campaign, Becoming memoir",
+    #                 "14 Grammys, King of Rock n Roll",
+    #             ],
+    #         }
+    #     ),
+    #     "Eras": pd.DataFrame({"Years": ["1700-1800", "1800-1900", "1900-2000", "2000-Now"]}),
+    # },
     model=model,
     verbose=True,
 )
+#
+# smoothie = bsql.execute(
+#     """
+#     SELECT {{LLMMap('What is their name?', Name)}} FROM People
+#     """
+# )
+# smoothie.print_summary()
+# print(GLOBAL_HISTORY[-1])
+# exit()
 
+
+print(f'{bsql.execute("SELECT COUNT(*) FROM reviews").df.values.item():,} total rows')
+
+# If we've already processed this tablename before in the same subquery,
+# it's a self-join, or something similar where a single table is used as a reference
+# with more than one referent. As a result, our base 'swap in temp table strings by
+# finding the original table name in the query' strategy doesn't work.
+# We need to use the aliasname to identify the temp table we create.
+# r1.reviewText, r2.reviewText
 smoothie = bsql.execute(
     """
-    WITH musicians AS (
-        SELECT * FROM People p WHERE
-        {{LLMMap('Is a singer?', p.Name)}} = True
-    ) SELECT * FROM musicians WHERE
-    musicians.Name = {{LLMQA('Who wrote the song espresso?')}}
+    SELECT reviewId
+    FROM Reviews
+    WHERE {{
+        LLMMap('Is the movie review clearly positive?', reviewText)
+    }} = TRUE
+    LIMIT 5;
     """,
-    infer_gen_constraints=True,
 )
-
 smoothie.print_summary()
+print(GLOBAL_HISTORY[-1])
+exit()
 # ┌───────────────────┬───────────────────────────────────────────────────────┐
 # │ Name              │ Known_For                                             │
 # ├───────────────────┼───────────────────────────────────────────────────────┤

@@ -5,24 +5,27 @@ import time
 import requests
 from textwrap import dedent
 import logging
+from typing import Generator
 
 import pandas as pd
 import duckdb
 import sys
 
-from blendsql import BlendSQL
-from blendsql.models import LlamaCpp
 from blendsql.common.logger import Color, logger
 from blendsql.common.utils import fetch_from_hub
 
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 logger.setLevel(logging.DEBUG)
 
-EVALS_TO_RUN = {"blendsql": True, "flock": False}
+EVALS_TO_RUN = {"blendsql": True, "flock": False, "thalamusdb": True}
 
 # MODEL_NAME_OR_PATH="unsloth/Qwen3-4B-Instruct-2507-GGUF"
 # FILENAME="Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
 MODEL_NAME_OR_PATH = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
 FILENAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+
+SKIP_QUERIES = {}
+ONLY_USE = {"Q1"}
 
 # Ollama model name (can be different from filename)
 MODEL_NAME = "qwen2.5-1.5b-custom"
@@ -219,6 +222,19 @@ def create_duckdb_database():
     conn.close()
 
 
+def iter_queries(system_name: str) -> Generator:
+    for query_file in (
+        Path(__file__).resolve().parent / f"queries/{system_name}"
+    ).iterdir():
+        query_name = query_file.stem
+        if query_name in SKIP_QUERIES:
+            continue
+        if ONLY_USE and query_name not in ONLY_USE:
+            continue
+        logger.debug(Color.update(f"Running {system_name} {query_name}..."))
+        yield (query_file, query_name)
+
+
 if __name__ == "__main__":
     # Download GGUF if not exists
     if not Path(LOCAL_GGUF_FILEPATH).is_file():
@@ -238,7 +254,7 @@ if __name__ == "__main__":
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running flock eval ~~~~~"))
         Color.in_block = True
-        # Ensure Ollama server is running
+
         start_ollama_server()
 
         # Load GGUF into Ollama
@@ -283,13 +299,7 @@ if __name__ == "__main__":
         """
         )
 
-        # Run queries
-        for query_file in (
-            Path(__file__).resolve().parent / "queries/flockmtl"
-        ).iterdir():
-            if not query_file.suffix == ".sql":
-                continue
-            query_name = query_file.stem
+        for query_file, query_name in iter_queries("flockmtl"):
             logger.debug(Color.update(f"Running flock {query_name}..."))
             query = open(query_file).read().replace("<<model_name>>", MODEL_NAME)
             res: pd.DataFrame = flock_conn.execute(query).df()
@@ -300,6 +310,9 @@ if __name__ == "__main__":
         Color.in_block = False
 
     if EVALS_TO_RUN.get("blendsql"):
+        from blendsql import BlendSQL
+        from blendsql.models import LlamaCpp
+
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running blendsql eval ~~~~~"))
         Color.in_block = True
@@ -321,17 +334,61 @@ if __name__ == "__main__":
             verbose=True,
         )
         _ = bsql.model.model_obj
-        # Run queries
-        for query_file in (
-            Path(__file__).resolve().parent / "queries/blendsql"
-        ).iterdir():
-            if not query_file.suffix == ".sql":
-                continue
-            query_name = query_file.stem
-            if query_name != "Q4":
-                continue
-            logger.debug(Color.update(f"Running blendsql {query_name}..."))
+
+        for query_file, query_name in iter_queries("blendsql"):
             smoothie = bsql.execute(open(query_file).read())
             smoothie.print_summary()
             res: pd.DataFrame = smoothie.df
+            print(query_name)
             print(res)
+
+    if EVALS_TO_RUN.get("thalamusdb"):
+        import json
+
+        from tdb.data.relational import Database
+        from tdb.execution.constraints import Constraints
+        from tdb.execution.engine import ExecutionEngine
+        from tdb.queries.query import Query
+
+        logger.debug(Color.horizontal_line())
+        logger.debug(Color.model_or_data_update("~~~~~ Running thalamusdb eval ~~~~~"))
+        Color.in_block = True
+
+        start_ollama_server()
+
+        model_config = {
+            "models": [
+                {
+                    "modalities": ["text"],
+                    "priority": 10,
+                    "kwargs": {
+                        "filter": {
+                            "model": f"ollama/{MODEL_NAME}",
+                            "temperature": 0,
+                            "max_tokens": 1,
+                            "reasoning_effort": "disable",
+                        },
+                        "join": {
+                            "model": f"ollama/{MODEL_NAME}",
+                            "temperature": 0,
+                            "stop": ["."],
+                            "reasoning_effort": "disable",
+                        },
+                    },
+                }
+            ]
+        }
+
+        model_config_path = "./thalamus_db_model_config.json"
+
+        # Create a temporary file with the model config
+        with open(model_config_path, "w") as f:
+            json.dump(model_config, f)
+
+        db = Database(DUCKDB_DB_PATH)
+        engine = ExecutionEngine(db=db, dop=20, model_config_path=model_config_path)
+        constraints = Constraints(max_calls=1000, max_seconds=6000)
+        for query_file, query_name in iter_queries("thalamusdb"):
+            query = Query(db, open(query_file).read())
+            result, counters = engine.run(query, constraints)
+            print(query_name)
