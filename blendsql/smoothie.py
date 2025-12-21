@@ -4,7 +4,6 @@ import polars as pl
 from functools import cached_property
 
 from blendsql.ingredients import Ingredient
-from blendsql.db.utils import truncate_df_content
 
 
 @dataclass
@@ -109,7 +108,7 @@ class Smoothie:
             df_to_display = self.pl
             result_title = f"Result"
         result_panel = Panel(
-            df_to_table(truncate_df_content(df_to_display, 200)),
+            df_to_table(df_to_display),
             title=result_title,
             border_style="blue",
         )

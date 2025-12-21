@@ -33,7 +33,7 @@ from blendsql.configure import (
     MAX_TOKENS_KEY,
     DEFAULT_MAX_TOKENS,
 )
-from blendsql.types import prepare_datatype, apply_type_conversion
+from blendsql.types import prepare_datatype, apply_type_conversion, unquote
 from .examples import (
     MapExample,
     AnnotatedMapExample,
@@ -410,8 +410,9 @@ class LLMMap(MapIngredient):
                             for o in filtered_options
                         ]
                     elif options is not None:
+                        select_fn = guidance.select(options=options)
                         gen_f = lambda _: _wrap_with_quotes(
-                            guidance.select(options=options),
+                            select_fn,
                             has_options_or_regex=bool(options or regex),
                             force_quotes=resolved_return_type.requires_quotes,
                         )
@@ -542,11 +543,6 @@ class LLMMap(MapIngredient):
                         cache_key,
                     )
 
-            def unquote(s):
-                for quote in ['"', "'"]:
-                    s = s.removeprefix(quote).removesuffix(quote)
-                return s
-
             batch_generator = generate_batch_items()
             current_batch_identifiers = []
             current_batch_strings = []
@@ -636,7 +632,7 @@ class LLMMap(MapIngredient):
                     if exit_condition is not None and exit_condition(lm_mapping):
                         logger.debug(
                             Color.optimization(
-                                f"[ 🚪] Exit condition satisfied. Exiting early after processing {processed_items,} out of {total_items,} items."
+                                f"[ 🚪] Exit condition satisfied. Exiting early after processing {processed_items:,} out of {total_items:,} items."
                             )
                         )
                         break
@@ -692,7 +688,9 @@ class LLMMap(MapIngredient):
                 lm._reset_usage()
 
             mapped_values = [
-                unquote(lm_mapping.get(identifier, None)) if resolved_return_type.requires_quotes else lm_mapping.get(identifier, None)
+                unquote(lm_mapping.get(identifier, None))
+                if resolved_return_type.requires_quotes
+                else lm_mapping.get(identifier, None)
                 for identifier in all_processed_identifiers
             ]
             # Find difference in length, and fill `None`

@@ -6,6 +6,12 @@ from blendsql.common.typing import DataType
 from blendsql.db import Database
 
 
+def unquote(s):
+    for quote in ['"', "'"]:
+        s = s.removeprefix(quote).removesuffix(quote)
+    return s
+
+
 def str_to_bool(s: str | None, _: Database | None) -> bool | str | None:
     return {
         "t": True,
@@ -40,20 +46,24 @@ def str_to_date(s: str | None, db: Database | None) -> str | None:
     return s
 
 
+def str_to_str(s: str | None, _: Database | None) -> str | None:
+    return unquote(s)
+
+
 @dataclass
 class DataTypes:
     STR = lambda quantifier=None: DataType(
         _name="str",
         regex=None,
         quantifier=quantifier,
-        _coerce_fn=lambda s, _: s,
+        _coerce_fn=str_to_str,
         requires_quotes=True,
     )
     SUBSTRING = lambda quantifier=None: DataType(
         _name="substring",
         regex=None,
         quantifier=quantifier,
-        _coerce_fn=lambda s, _: s,
+        _coerce_fn=str_to_str,
         requires_quotes=True,
     )
     BOOL = lambda quantifier=None: DataType(
