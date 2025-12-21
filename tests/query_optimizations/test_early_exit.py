@@ -182,3 +182,35 @@ class TestEarlyExitOperations(TimedTestBase):
             """,
             args=["A"],
         )
+
+    def test_early_exit_with_function_alias(self, bsql):
+        """744c696"""
+        smoothie = self.assert_blendsql_equals_sql(
+            bsql,
+            blendsql_query="""
+            SELECT name,
+            {{test_starts_with('C', country)}} AS aliased_function
+            FROM customers c
+            JOIN orders o 
+            ON c.customer_id = o.customer_id
+            WHERE name LIKE 'A%'
+            AND order_id != 102
+            AND aliased_function = TRUE
+            LIMIT 1
+            """,
+            sql_query="""
+            SELECT name,
+            Country LIKE 'C%' AS aliased_function
+            FROM customers c
+            JOIN orders o 
+            ON c.customer_id = o.customer_id
+            WHERE name LIKE 'A%'
+            AND order_id != 102
+            AND aliased_function = TRUE
+            """,
+            expected_num_values_passed=1,
+            args=["C"],
+            skip_assert_equality=True,
+        )
+        # Both candidate rows have the same name
+        assert list(smoothie.df.values.flat)[0] == "Alice Chen"
