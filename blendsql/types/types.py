@@ -47,6 +47,8 @@ def str_to_date(s: str | None, db: Database | None) -> str | None:
 
 
 def str_to_str(s: str | None, _: Database | None) -> str | None:
+    if not isinstance(s, str):
+        return s
     return unquote(s)
 
 
