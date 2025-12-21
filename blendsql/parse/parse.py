@@ -383,11 +383,22 @@ class SubqueryContextManager:
             # For now, don't try and get an exit condition from a query with an `OR`
             # or, the other expressions. These change the semantics of the `LIMIT`
             return None
-        if len(list(self.node.find_all(exp.BlendSQLFunction))) > 1:
+        # Where is this function being called? This includes aliases.
+        function_references = list(self.node.find_all(exp.BlendSQLFunction))
+        if len(set(function_references)) > 1:
             # Getting a valid exit condition from a query with more than 1 BlendSQL function takes more work.
             # E.g. `SELECT * FROM t WHERE a() = TRUE AND b() > 3 LIMIT 5`
             # The two functions must both be evaluated to determine when we can exit.
             return None
+
+        # first - is this function_node an alias in a `SELECT` statement?
+        if isinstance(function_node.parent, exp.Alias):
+            for _node in function_references:
+                if isinstance(_node.parent, exp.Binary):
+                    function_node = _node
+                    # TODO: this can be made more robust by finding ALL references of this function,
+                    #   and seeing if we can combine them into a single exit_condition.
+
         if isinstance(function_node.parent, exp.Binary):
             # We can apply some exit_condition function
             limit_arg: int = limit_node.expression.to_py()
