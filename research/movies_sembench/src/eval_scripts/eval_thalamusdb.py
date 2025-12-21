@@ -5,14 +5,6 @@ def run_thalamusdb_eval():
     import duckdb
     from contextlib import contextmanager
     import os
-
-    # class DummyConsole:
-    #     def __getattr__(self, name):
-    #         return lambda *args, **kwargs: None
-    #
-    # import rich.console
-    #
-    # rich.console.Console = DummyConsole
     import sys
 
     @contextmanager

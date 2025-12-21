@@ -1,7 +1,5 @@
-import pandas as pd
-
-
 def run_blendsql_eval():
+    import pandas as pd
     import time
     import json
     import gc

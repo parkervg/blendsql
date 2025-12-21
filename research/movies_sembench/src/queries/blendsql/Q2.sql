@@ -1,6 +1,10 @@
 SELECT reviewId
 FROM Reviews
 WHERE id = 'taken_3' AND {{
-    LLMMap('Does this review have a positive sentiment?', reviewText)
-}} = TRUE
+LLMMap(
+    'What is the sentiment of this review?',
+    reviewText,
+    options=('POSITIVE', 'NEGATIVE')
+)
+}} = 'POSITIVE'
 LIMIT 5;

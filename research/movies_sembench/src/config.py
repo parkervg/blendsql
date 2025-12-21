@@ -45,11 +45,11 @@ THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
 EVALS_TO_RUN = {
     "blendsql": True,
     "flock": False,
-    "thalamusdb": True,
+    "thalamusdb": False,
 }
 
 # Query Filtering
-SKIP_QUERIES = {"Q10"}
+SKIP_QUERIES = {"Q10", "Q7"}
 ONLY_USE = {}
 
 # Server Configuration
