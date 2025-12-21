@@ -10,8 +10,6 @@ SELECT reviewId,
         3: Neutral. Expresses no clear positive or negative sentiment. May be factual or descriptive without emotional language.
         2: Negative. Noticeably negative sentiment, indicating some level of dissatisfaction but without strong anger or frustration.
         1: Very negative. Strong negative sentiment, indicating high dissatisfaction, frustration, or anger.
-
-        Review:
         ",
         reviewText,
         options=(1, 2, 3, 4, 5),

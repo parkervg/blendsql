@@ -1,6 +1,9 @@
 SELECT reviewId
 FROM Reviews
 WHERE {{
-    LLMMap('Does this review have a positive sentiment?', reviewText)
+    LLMMap(
+        'Is the review sentiment positive?',
+        reviewText
+    )
 }} = TRUE
 LIMIT 5;

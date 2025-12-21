@@ -7,6 +7,13 @@ def create_ground_truth():
     from .config import DUCKDB_DB_PATH
 
     with duckdb.connect(DUCKDB_DB_PATH, read_only=True) as con:
+        print(
+            f"Reviews has {con.execute('SELECT COUNT(*) FROM Reviews').fetchone()} rows"
+        )
+        print(
+            f"Movies has {con.execute('SELECT COUNT(*) FROM Movies').fetchone()} rows"
+        )
+
         # Run queries
         results = []
         for query_file, query_name in iter_queries("gold_sql"):

@@ -4,9 +4,13 @@ Configuration settings for model evaluation framework.
 from pathlib import Path
 import os
 
+USE_DATA_SIZE = 2000
+
 # Model Configuration
-MODEL_NAME_OR_PATH = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
-FILENAME = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+MODEL_NAME_OR_PATH = "bartowski/google_gemma-3-12b-it-GGUF"
+FILENAME = "google_gemma-3-12b-it-Q4_K_M.gguf"
+# MODEL_NAME_OR_PATH = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
+# FILENAME = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
 
 # Ollama Configuration
 MODEL_NAME = Path(FILENAME).stem
@@ -37,7 +41,7 @@ SYSTEM_PARAMS = {"batch_size": 10}
 # Paths
 BASE_DIR = Path(os.path.abspath(Path(__file__).resolve().parent))
 MOVIE_FILES_DIR = BASE_DIR / "data"
-DUCKDB_DB_PATH = MOVIE_FILES_DIR / "movie_database.duckdb"
+DUCKDB_DB_PATH = MOVIE_FILES_DIR / f"movie_database_{USE_DATA_SIZE}.duckdb"
 QUERIES_DIR = BASE_DIR / "queries"
 THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
 

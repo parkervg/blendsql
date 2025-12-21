@@ -6,7 +6,13 @@ import logging
 from blendsql.common.logger import Color, logger
 from blendsql.common.utils import fetch_from_hub
 
-from src.config import DUCKDB_DB_PATH, SKIP_QUERIES, ONLY_USE, QUERIES_DIR
+from src.config import (
+    DUCKDB_DB_PATH,
+    SKIP_QUERIES,
+    ONLY_USE,
+    QUERIES_DIR,
+    USE_DATA_SIZE,
+)
 
 logger.setLevel(logging.DEBUG)
 
@@ -25,8 +31,8 @@ def create_duckdb_database():
     conn = duckdb.connect(DUCKDB_DB_PATH)
 
     # Load data from hub
-    movies_df = pd.read_csv(fetch_from_hub("movie/sf_100000/Movies.csv"))
-    reviews_df = pd.read_csv(fetch_from_hub("movie/sf_100000/Reviews.csv"))
+    movies_df = pd.read_csv(fetch_from_hub(f"movie/sf_{USE_DATA_SIZE}/Movies.csv"))
+    reviews_df = pd.read_csv(fetch_from_hub(f"movie/sf_{USE_DATA_SIZE}/Reviews.csv"))
 
     # Register DataFrames
     conn.register("movies_df", movies_df)

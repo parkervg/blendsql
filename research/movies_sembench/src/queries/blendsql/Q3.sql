@@ -2,5 +2,8 @@ SELECT COUNT(*) AS positive_review_counts
 FROM Reviews
 WHERE id = 'taken_3'
 AND {{
-    LLMMap('Does this review have a positive sentiment?', reviewText)
+LLMMap(
+    'Is the review sentiment positive?',
+    reviewText
+)
 }} = TRUE
