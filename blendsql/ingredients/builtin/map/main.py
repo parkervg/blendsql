@@ -692,7 +692,7 @@ class LLMMap(MapIngredient):
                 lm._reset_usage()
 
             mapped_values = [
-                lm_mapping.get(identifier, None)
+                unquote(lm_mapping.get(identifier, None)) if resolved_return_type.requires_quotes else lm_mapping.get(identifier, None)
                 for identifier in all_processed_identifiers
             ]
             # Find difference in length, and fill `None`
