@@ -284,6 +284,7 @@ class LLMQA(QAIngredient):
                 context_formatter, list_options=list_options_in_prompt
             )
 
+            gen_f = None
             if enable_constrained_decoding:
                 if is_list_output:
                     gen_f = lambda _: guidance.capture(
@@ -303,6 +304,8 @@ class LLMQA(QAIngredient):
                         "Not applying constraints, since `enable_constrained_decoding==False`"
                     )
                 )
+
+            if gen_f is None:
                 gen_f = lambda _: guidance.gen(
                     max_tokens=kwargs.get(
                         "max_tokens",
