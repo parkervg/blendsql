@@ -1182,7 +1182,8 @@ class BlendSQL:
 
         Args:
             query: The BlendSQL query to execute
-            ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query
+            ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query.
+                {LLMQA, LLMMap, LLMJoin} are supplied by default.
             verbose: Boolean defining whether to run with logger in debug mode
             default_model: Which BlendSQL model to use in performing ingredient tasks in the current query
             infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context
@@ -1190,31 +1191,20 @@ class BlendSQL:
                 We can infer the output format should look like '1960-12-31' and both:
                     1) Put this string in the `example_outputs` kwarg
                     2) If we have a LocalModel, pass the date regex pattern to guidance
-            table_to_title: Optional mapping from table name to title of table.
-                Useful for datasets like WikiTableQuestions, where relevant info is stored in table title.
+            enable_cascade_filter: Enable cascade filtering optimization.
+            enable_early_exit: Enable early exit optimization.
+            enable_constrained_decoding: Enable constrained decoding for local models.
 
         Returns:
             smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata
 
         Examples:
             ```python
+            import psutil
             import pandas as pd
 
-            from blendsql import BlendSQL, config
-            from blendsql.ingredients import LLMMap, LLMQA, LLMJoin
-            from blendsql.models import LiteLLM, TransformersLLM
-
-            # Optionally set how many async calls to allow concurrently
-            # This depends on your OpenAI/Anthropic/etc. rate limits
-            config.set_async_limit(10)
-
-            # Load model
-            model = LiteLLM("openai/gpt-4o-mini") # requires .env file with `OPENAI_API_KEY`
-            # model = LiteLLM("anthropic/claude-3-haiku-20240307") # requires .env file with `ANTHROPIC_API_KEY`
-            # model = TransformersLLM(
-            #    "meta-llama/Llama-3.2-1B-Instruct",
-            #    config={"chat_template": Llama3ChatTemplate, "device_map": "auto"},
-            # ) # run with any local Transformers model
+            from blendsql import BlendSQL
+            from blendsql.models import LlamaCpp
 
             # Prepare our BlendSQL connection
             bsql = BlendSQL(
@@ -1251,8 +1241,16 @@ class BlendSQL:
                     ),
                     "Eras": pd.DataFrame({"Years": ["1800-1900", "1900-2000", "2000-Now"]}),
                 },
-                ingredients={LLMMap, LLMQA, LLMJoin},
-                model=model,
+                model = LlamaCpp(
+                    model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
+                    filename="gemma-3-4b-it-Q4_K_M.gguf",
+                    config={
+                        "n_gpu_layers": -1,
+                        "n_ctx": 1028,
+                        "seed": 100,
+                        "n_threads": psutil.cpu_count(logical=False),
+                    }
+                )
             )
 
             smoothie = bsql.execute(
