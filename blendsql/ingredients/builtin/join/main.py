@@ -40,7 +40,6 @@ class LLMJoin(JoinIngredient):
         use_skrub_joiner: bool = True,
         few_shot_examples: list[dict] | list[AnnotatedJoinExample] | None = None,
         num_few_shot_examples: int | None = 1,
-        enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -98,7 +97,6 @@ class LLMJoin(JoinIngredient):
                 model=model,
                 few_shot_retriever=few_shot_retriever,
                 use_skrub_joiner=use_skrub_joiner,
-                enable_constrained_decoding=enable_constrained_decoding,
             )
         )
 
@@ -109,6 +107,7 @@ class LLMJoin(JoinIngredient):
         right_values: list[str],
         join_criteria: str | None = None,
         few_shot_retriever: Callable[[str], list[AnnotatedJoinExample]] = None,
+        enable_constrained_decoding: bool = True,
         **kwargs,
     ) -> dict:
         """
@@ -122,7 +121,7 @@ class LLMJoin(JoinIngredient):
         Returns:
             Dict mapping left values to right values.
         """
-        if not self.enable_constrained_decoding:
+        if not enable_constrained_decoding:
             raise NotImplementedError(
                 "Haven't implemented enable_constrained_decoding==False for LLMJoin yet"
             )

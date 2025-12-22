@@ -84,7 +84,6 @@ class LLMQA(QAIngredient):
         num_few_shot_examples: int | None = 0,
         context_searcher: Searcher | None = None,
         options_searcher: Searcher | None = None,
-        enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -153,7 +152,6 @@ class LLMQA(QAIngredient):
                 list_options_in_prompt=list_options_in_prompt,
                 context_searcher=context_searcher,
                 options_searcher=options_searcher,
-                enable_constrained_decoding=enable_constrained_decoding,
             )
         )
 
@@ -173,6 +171,7 @@ class LLMQA(QAIngredient):
         context: list[pd.DataFrame] | None = None,
         long_answer: bool = False,
         use_option_aliases: bool = False,
+        enable_constrained_decoding: bool = True,
         **kwargs,
     ) -> str | int | float | tuple:
         """
@@ -285,34 +284,34 @@ class LLMQA(QAIngredient):
                 context_formatter, list_options=list_options_in_prompt
             )
 
-            if is_list_output and self.enable_constrained_decoding:
-                gen_f = lambda _: guidance.capture(
-                    gen_list(
-                        force_quotes=bool("str" in resolved_return_type.name),
-                        regex=regex,
-                        options=options_with_aliases,
-                        quantifier=quantifier,
-                    ),
-                    name="response",
-                )
-            else:
-                if options and self.enable_constrained_decoding:
-                    gen_f = lambda _: guidance.select(options=options, name="response")
-                else:
-                    if not self.enable_constrained_decoding:
-                        logger.debug(
-                            Color.warning(
-                                "Not applying constraints, since `enable_constrained_decoding==False`"
-                            )
-                        )
-                    gen_f = lambda _: guidance.gen(
-                        max_tokens=kwargs.get(
-                            "max_tokens",
-                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+            if enable_constrained_decoding:
+                if is_list_output:
+                    gen_f = lambda _: guidance.capture(
+                        gen_list(
+                            force_quotes=bool("str" in resolved_return_type.name),
+                            regex=regex,
+                            options=options_with_aliases,
+                            quantifier=quantifier,
                         ),
-                        regex=regex if self.enable_constrained_decoding else None,
                         name="response",
                     )
+                elif options:
+                    gen_f = lambda _: guidance.select(options=options, name="response")
+            else:
+                logger.debug(
+                    Color.warning(
+                        "Not applying constraints, since `enable_constrained_decoding==False`"
+                    )
+                )
+                gen_f = lambda _: guidance.gen(
+                    max_tokens=kwargs.get(
+                        "max_tokens",
+                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                    ),
+                    regex=regex if enable_constrained_decoding else None,
+                    name="response",
+                )
+
             # First check - do we need to load the model?
             in_cache = False
             if model.caching:

@@ -462,6 +462,9 @@ def _blend(
     default_model: Model | None = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
+    enable_cascade_filer: bool = True,
+    enable_early_exit: bool = True,
+    enable_constrained_decoding: bool = True,
     table_to_title: dict[str, str] | None = None,
     _prev_passed_values: int = 0,
 ) -> Smoothie:
@@ -755,7 +758,10 @@ def _blend(
             executed_subquery_ingredients.add(function_node.name)
             kwargs_dict = curr_function_parsed_results["kwargs_dict"]
 
-            if curr_ingredient.ingredient_type == IngredientType.MAP:
+            if (
+                enable_early_exit
+                and curr_ingredient.ingredient_type == IngredientType.MAP
+            ):
                 # Fetch an exit condition, if we can extract one from the expression context
                 # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
                 # The exit condition would be at least 5 `a()` evaluate to `TRUE`
@@ -848,6 +854,7 @@ def _blend(
                     "aliases_to_tablenames": scm.alias_to_tablename,
                     "prev_subquery_map_columns": prev_subquery_map_columns,
                     "cascade_filter": cascade_filter,
+                    "enable_constrained_decoding": enable_constrained_decoding,
                 },
             )
             # Check how to handle output, depending on ingredient type
@@ -866,7 +873,7 @@ def _blend(
                     function_node.name
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
 
-                if scm.is_eligible_for_cascade_filter():
+                if enable_cascade_filer and scm.is_eligible_for_cascade_filter():
                     cascade_filter = LazyTable(
                         collect_fn=partial(
                             get_cascade_filter,
@@ -1054,7 +1061,12 @@ class BlendSQL:
     ingredients: Collection[Type[Ingredient]] | None = field(default_factory=list)
 
     verbose: bool = field(default=False)
+
     infer_gen_constraints: bool = field(default=True)
+    enable_constrained_decoding: bool = field(default=True)
+    enable_cascade_filter: bool = field(default=True)
+    enable_early_exit: bool = field(default=True)
+
     table_to_title: dict[str, str] | None = field(default=None)
 
     def __post_init__(self):
@@ -1159,6 +1171,9 @@ class BlendSQL:
         ingredients: Collection[Type[Ingredient]] | None = None,
         model: str | None = None,
         infer_gen_constraints: bool | None = None,
+        enable_cascade_filer: bool | None = None,
+        enable_early_exit: bool | None = None,
+        enable_constrained_decoding: bool | None = None,
         verbose: bool | None = None,
     ) -> Smoothie:
         '''The `execute()` function is used to execute a BlendSQL query against a database and
@@ -1280,6 +1295,15 @@ class BlendSQL:
                 infer_gen_constraints=infer_gen_constraints
                 if infer_gen_constraints is not None
                 else self.infer_gen_constraints,
+                enable_constrained_decoding=enable_constrained_decoding
+                if enable_constrained_decoding is not None
+                else self.enable_constrained_decoding,
+                enable_cascade_filter=enable_cascade_filter
+                if enable_cascade_filter is not None
+                else self.enable_cascade_filter,
+                enable_early_exit=enable_early_exit
+                if enable_early_exit is not None
+                else self.enable_early_exit,
                 table_to_title=self.table_to_title,
             )
         except Exception as error:

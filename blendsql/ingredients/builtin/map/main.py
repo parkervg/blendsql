@@ -97,7 +97,6 @@ class LLMMap(MapIngredient):
         batch_size: int | None = None,
         num_few_shot_examples: int | None = 0,
         context_searcher: Searcher | None = None,
-        enable_constrained_decoding: bool = True,
     ):
         """Creates a partial class with predefined arguments.
 
@@ -169,7 +168,6 @@ class LLMMap(MapIngredient):
                 options_searcher=options_searcher,
                 batch_size=batch_size,
                 context_searcher=context_searcher,
-                enable_constrained_decoding=enable_constrained_decoding,
             )
         )
 
@@ -195,6 +193,7 @@ class LLMMap(MapIngredient):
         regex: str | None = None,
         batch_size: int = None,
         exit_condition: Callable = None,
+        enable_constrained_decoding: bool = True,
         **kwargs,
     ) -> list[float | int | str | bool]:
         """For each value in a given column, calls a Model and retrieves the output.
@@ -345,40 +344,14 @@ class LLMMap(MapIngredient):
         if isinstance(model, ConstrainedModel):
             import guidance
 
+            lm = LMString()  # type: ignore
+
             if all(x is not None for x in [options, regex]):
                 raise IngredientException(
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
                 )
 
-            if self.options_searcher:
-                # Need to create separate gen_f for each set of filtered_options
-                gen_f = [
-                    lambda _, o=o: _wrap_with_quotes(
-                        guidance.select(options=o),
-                        has_options_or_regex=bool(o or regex),
-                        force_quotes=resolved_return_type.requires_quotes,
-                    )
-                    for o in filtered_options
-                ]
-            lm = LMString()  # type: ignore
-            # Create base gen_f function
-            gen_f = lambda _: _wrap_with_quotes(
-                guidance.gen(
-                    max_tokens=kwargs.get(
-                        "max_tokens",
-                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
-                    ),
-                    # guidance=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    stop=None
-                    if regex is not None
-                    else [")", f"\n{INDENT()}"]
-                    + (['"'] if resolved_return_type.requires_quotes else []),
-                    regex=regex if self.enable_constrained_decoding else None,
-                ),
-                has_options_or_regex=bool(options or regex),
-                force_quotes=resolved_return_type.requires_quotes,
-            )
-            if self.enable_constrained_decoding:
+            if enable_constrained_decoding:
                 if is_list_output:
                     if self.options_searcher is not None:
                         # Need to create separate gen_f for each set of filtered_options
@@ -428,6 +401,23 @@ class LLMMap(MapIngredient):
                     Color.warning(
                         "Not applying constraints, since `enable_constrained_decoding==False`"
                     )
+                )
+                # Create base gen_f function
+                gen_f = lambda _: _wrap_with_quotes(
+                    guidance.gen(
+                        max_tokens=kwargs.get(
+                            "max_tokens",
+                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                        ),
+                        # guidance>=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                        stop=None
+                        if regex is not None
+                        else [")", f"\n{INDENT()}"]
+                        + (['"'] if resolved_return_type.requires_quotes else []),
+                        regex=regex if enable_constrained_decoding else None,
+                    ),
+                    has_options_or_regex=bool(options or regex),
+                    force_quotes=resolved_return_type.requires_quotes,
                 )
 
             def make_prediction(
@@ -502,7 +492,7 @@ class LLMMap(MapIngredient):
                                 make_prediction,
                                 gen_f[idx]
                                 if self.options_searcher is not None
-                                and self.enable_constrained_decoding
+                                and enable_constrained_decoding
                                 else gen_f,
                             ],
                         )
@@ -532,7 +522,7 @@ class LLMMap(MapIngredient):
                         local_options=o,
                         gen_f=gen_f[idx]
                         if self.options_searcher is not None
-                        and self.enable_constrained_decoding
+                        and enable_constrained_decoding
                         else gen_f,
                     )
 
