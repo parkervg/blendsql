@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 BASE_DIR = Path(__file__).resolve().parent
 USE_DATA_SIZE = 2000
-MODEL_SIZE = "12b"
+MODEL_SIZE = "4b"
 
 
 @dataclass
@@ -52,20 +52,13 @@ MODEL_PARAMS = {
 }
 
 # System params
-SYSTEM_PARAMS = {"batch_size": 10}
+SYSTEM_PARAMS = {"batch_size": 5}
 
 # Paths
 MOVIE_FILES_DIR = BASE_DIR / "data"
 DUCKDB_DB_PATH = MOVIE_FILES_DIR / f"movie_database_{USE_DATA_SIZE}.duckdb"
 QUERIES_DIR = BASE_DIR / "queries"
 THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
-
-# Evaluation Configuration
-EVALS_TO_RUN = {
-    "blendsql": True,
-    "flock": True,
-    "thalamusdb": True,
-}
 
 # Query Filtering
 SKIP_QUERIES = {"Q10", "Q7"}

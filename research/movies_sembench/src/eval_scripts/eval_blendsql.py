@@ -1,4 +1,7 @@
-def run_blendsql_eval():
+from ..config import ModelConfig
+
+
+def run_blendsql_eval(model_config: ModelConfig):
     import pandas as pd
     import time
     import json
@@ -15,13 +18,12 @@ def run_blendsql_eval():
 
     from ..config import (
         DUCKDB_DB_PATH,
-        MODEL_CONFIG,
         SYSTEM_PARAMS,
         MODEL_PARAMS,
     )
     from ..database_utils import iter_queries
 
-    with duckdb.connect(DUCKDB_DB_PATH, read_only=True) as con:
+    with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running blendsql eval ~~~~~"))
         Color.in_block = True
@@ -43,8 +45,8 @@ def run_blendsql_eval():
         bsql = BlendSQL(
             DuckDB(con),
             model=LlamaCpp(
-                model_name_or_path=MODEL_CONFIG.model_name_or_path,
-                filename=MODEL_CONFIG.filename,
+                model_name_or_path=model_config.model_name_or_path,
+                filename=model_config.filename,
                 config={
                     "n_gpu_layers": -1,
                     "n_ctx": MODEL_PARAMS["num_ctx"],

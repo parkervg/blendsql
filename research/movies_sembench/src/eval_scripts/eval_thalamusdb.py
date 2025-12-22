@@ -1,4 +1,7 @@
-def run_thalamusdb_eval():
+from ..config import ModelConfig
+
+
+def run_thalamusdb_eval(model_config: ModelConfig):
     import json
     import pandas as pd
     import time
@@ -26,7 +29,6 @@ def run_thalamusdb_eval():
 
     from ..config import (
         DUCKDB_DB_PATH,
-        MODEL_CONFIG,
         THALAMUS_CONFIG_PATH,
         SYSTEM_PARAMS,
         MODEL_PARAMS,
@@ -34,7 +36,7 @@ def run_thalamusdb_eval():
     from ..database_utils import iter_queries
     from ..ollama_utils import prepare_ollama_server, stop_ollama_server
 
-    with duckdb.connect(DUCKDB_DB_PATH, read_only=True) as con:
+    with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running thalamusdb eval ~~~~~"))
         Color.in_block = True
@@ -45,7 +47,7 @@ def run_thalamusdb_eval():
         # Disable all Rich console output
         rich.console.Console.is_terminal = False
 
-        prepare_ollama_server(model_name=MODEL_CONFIG.ollama_model_name)
+        prepare_ollama_server(model_name=model_config.ollama_model_name)
 
         class CustomDatabase(Database):
             def __init__(self, con):
@@ -64,13 +66,13 @@ def run_thalamusdb_eval():
                             "priority": 10,
                             "kwargs": {
                                 "filter": {
-                                    "model": f"ollama/{MODEL_CONFIG.ollama_model_name}",
+                                    "model": f"ollama/{model_config.ollama_model_name}",
                                     "temperature": MODEL_PARAMS["temperature"],
                                     "max_tokens": 1,
                                     "reasoning_effort": "disable",
                                 },
                                 "join": {
-                                    "model": f"ollama/{MODEL_CONFIG.ollama_model_name}",
+                                    "model": f"ollama/{model_config.ollama_model_name}",
                                     "temperature": MODEL_PARAMS["temperature"],
                                     "stop": ["."],
                                     "reasoning_effort": "disable",

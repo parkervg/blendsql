@@ -1,4 +1,7 @@
-def run_flock_eval():
+from ..config import ModelConfig
+
+
+def run_flock_eval(model_config: ModelConfig):
     import duckdb
     import time
     import pandas as pd
@@ -9,17 +12,16 @@ def run_flock_eval():
         MODEL_PARAMS,
         SYSTEM_PARAMS,
         FLOCK_VERSION,
-        MODEL_CONFIG,
     )
     from ..database_utils import iter_queries
     from ..ollama_utils import prepare_ollama_server, stop_ollama_server
 
-    with duckdb.connect(DUCKDB_DB_PATH, read_only=True) as con:
+    with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running flock eval ~~~~~"))
         Color.in_block = True
 
-        prepare_ollama_server(model_name=MODEL_CONFIG.ollama_model_name)
+        prepare_ollama_server(model_name=model_config.ollama_model_name)
 
         # Set up Flock
         logger.debug(Color.update(f"Installing Flock version {FLOCK_VERSION}..."))
@@ -41,8 +43,8 @@ def run_flock_eval():
         con.execute(
             f"""
             CREATE MODEL(
-                '{MODEL_CONFIG.ollama_model_name}',
-                '{MODEL_CONFIG.ollama_model_name}', 
+                '{model_config.ollama_model_name}',
+                '{model_config.ollama_model_name}', 
                 'openai',
                 {{"tuple_format": "JSON", "batch_size": {SYSTEM_PARAMS['batch_size']}, "model_parameters": {{"temperature": {MODEL_PARAMS['temperature']}}}}}
             )
@@ -55,7 +57,7 @@ def run_flock_eval():
             query = (
                 open(query_file)
                 .read()
-                .replace("<<model_name>>", MODEL_CONFIG.ollama_model_name)
+                .replace("<<model_name>>", model_config.ollama_model_name)
             )
             start = time.time()
             result = con.execute(query).df()

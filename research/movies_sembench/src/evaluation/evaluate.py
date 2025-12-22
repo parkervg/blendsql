@@ -105,6 +105,9 @@ class MovieEvaluator(GenericEvaluator):
         (exist in ground truth) rather than exact set matching.
         Uses first column for comparison regardless of column names.
         """
+        # BEFORE DOING ANYTHING - apply limit
+        system_results = system_results.head(limit)
+
         if len(system_results) == 0:
             return QueryMetricRetrieval(
                 precision=1.0 if len(ground_truth) == 0 else 0.0
@@ -211,6 +214,9 @@ class MovieEvaluator(GenericEvaluator):
 
         Uses column positions instead of names: assumes first 3 columns are id, reviewId1, reviewId2.
         """
+        # BEFORE DOING ANYTHING - apply limit
+        system_results = system_results.head(limit)
+
         if len(system_results) == 0:
             return QueryMetricRetrieval(
                 precision=1.0 if len(ground_truth) == 0 else 0.0

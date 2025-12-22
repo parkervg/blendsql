@@ -27,7 +27,7 @@ def check_ollama_running() -> bool:
         return False
 
 
-def start_ollama_server() -> bool:
+def start_ollama_server(model_name) -> bool:
     """
     Start Ollama server if not running.
 
@@ -39,17 +39,26 @@ def start_ollama_server() -> bool:
         return True
 
     logger.debug(Color.update("Starting Ollama server..."))
+
+    subprocess.Popen(["ollama", "pull", model_name])
+
     try:
         # Start Ollama in the background
+        import os
+
+        env = os.environ.copy()
+        env["OLLAMA_FLASH_ATTENTION"] = "1"
+
         subprocess.Popen(
-            ["OLLAMA_FLASH_ATTENTION=1", "ollama", "serve"],
+            ["ollama", "serve"],
+            env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
 
         # Wait for server to start
         for _i in range(OLLAMA_SERVER_STARTUP_TIMEOUT):
-            time.sleep(1)
+            time.sleep(2)
             if check_ollama_running():
                 logger.debug(Color.success("✓ Ollama server started successfully"))
                 return True
@@ -59,9 +68,8 @@ def start_ollama_server() -> bool:
         )
         return False
 
-    except FileNotFoundError:
-        print("Error: 'ollama' command not found. Make sure Ollama is installed.")
-        return False
+    except Exception as e:
+        raise e
 
 
 def stop_ollama_server() -> bool:
@@ -74,7 +82,9 @@ def stop_ollama_server() -> bool:
     logger.debug(Color.update("Stopping Ollama server..."))
 
     try:
-        subprocess.run(["pkill", "-9", "ollama"], capture_output=True, check=False)
+        subprocess.run(
+            ["sudo", "pkill", "-9", "ollama"], capture_output=True, check=False
+        )
 
         # Wait a moment and verify
         time.sleep(OLLAMA_SERVER_SHUTDOWN_DELAY)
@@ -118,10 +128,8 @@ def warmup_ollama_model(model_name: str, base_url: str = OLLAMA_BASE_URL) -> boo
             logger.debug(Color.success("✓ Model warmed up successfully!"))
             return True
         else:
-            logger.debug(
-                Color.warning(f"Warning: Warmup returned status {response.status_code}")
-            )
-            return False
+            print(response.json())
+            raise Exception
 
     except requests.exceptions.RequestException as e:
         logger.debug(Color.error(f"Warning: Model warmup failed: {e}"))
@@ -129,8 +137,9 @@ def warmup_ollama_model(model_name: str, base_url: str = OLLAMA_BASE_URL) -> boo
 
 
 def prepare_ollama_server(model_name: str):
-    # Start Ollama server
-    start_ollama_server()
+    if not check_ollama_running():
+        # Start Ollama server
+        start_ollama_server(model_name)
 
     # Warm up the model
     warmup_ollama_model(model_name)
