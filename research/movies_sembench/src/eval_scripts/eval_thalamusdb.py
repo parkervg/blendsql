@@ -26,10 +26,10 @@ def run_thalamusdb_eval():
 
     from ..config import (
         DUCKDB_DB_PATH,
-        MODEL_NAME,
-        LOCAL_GGUF_FILEPATH,
+        MODEL_CONFIG,
         THALAMUS_CONFIG_PATH,
         SYSTEM_PARAMS,
+        MODEL_PARAMS,
     )
     from ..database_utils import iter_queries
     from ..ollama_utils import prepare_ollama_server, stop_ollama_server
@@ -45,7 +45,7 @@ def run_thalamusdb_eval():
         # Disable all Rich console output
         rich.console.Console.is_terminal = False
 
-        prepare_ollama_server(gguf_filepath=LOCAL_GGUF_FILEPATH, model_name=MODEL_NAME)
+        prepare_ollama_server(model_name=MODEL_CONFIG.ollama_model_name)
 
         class CustomDatabase(Database):
             def __init__(self, con):
@@ -64,14 +64,14 @@ def run_thalamusdb_eval():
                             "priority": 10,
                             "kwargs": {
                                 "filter": {
-                                    "model": f"ollama/{MODEL_NAME}",
-                                    "temperature": 0,
+                                    "model": f"ollama/{MODEL_CONFIG.ollama_model_name}",
+                                    "temperature": MODEL_PARAMS["temperature"],
                                     "max_tokens": 1,
                                     "reasoning_effort": "disable",
                                 },
                                 "join": {
-                                    "model": f"ollama/{MODEL_NAME}",
-                                    "temperature": 0,
+                                    "model": f"ollama/{MODEL_CONFIG.ollama_model_name}",
+                                    "temperature": MODEL_PARAMS["temperature"],
                                     "stop": ["."],
                                     "reasoning_effort": "disable",
                                 },
@@ -108,7 +108,8 @@ def run_thalamusdb_eval():
                     "prediction": result.to_json(orient="split", index=False),
                 }
             )
-        return pd.DataFrame(results)
 
     Color.in_block = False
     stop_ollama_server()
+
+    return pd.DataFrame(results)

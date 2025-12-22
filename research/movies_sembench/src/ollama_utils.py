@@ -1,19 +1,15 @@
 import subprocess
 import time
 import requests
-from pathlib import Path
-import sys
 
 from blendsql.common.logger import Color, logger
 
 from src.config import (
-    MODEL_PARAMS,
     OLLAMA_API_ENDPOINT,
     OLLAMA_BASE_URL,
     OLLAMA_SERVER_STARTUP_TIMEOUT,
     OLLAMA_SERVER_SHUTDOWN_DELAY,
     OLLAMA_WARMUP_TIMEOUT,
-    OLLAMA_MODELFILE_TEMPLATE,
 )
 
 
@@ -86,90 +82,10 @@ def stop_ollama_server() -> bool:
             logger.debug(Color.success("✓ Ollama server stopped successfully"))
             return True
         else:
-            logger.debug(Color.warning("Warning: Ollama server may still be running"))
-            return False
+            raise
 
     except Exception as e:
-        logger.debug(Color.error(f"Error stopping Ollama: {e}"))
-        return False
-
-
-def create_ollama_modelfile(gguf_path: str) -> Path:
-    """
-    Create a Modelfile for Ollama.
-
-    Args:
-        gguf_path: Path to the GGUF model file
-
-    Returns:
-        Path to the created Modelfile
-    """
-    modelfile_path = Path("./Modelfile")
-
-    modelfile_content = OLLAMA_MODELFILE_TEMPLATE.format(
-        gguf_path=gguf_path,
-        temperature=MODEL_PARAMS["temperature"],
-        repeat_penalty=MODEL_PARAMS["repeat_penalty"],
-        num_ctx=MODEL_PARAMS["num_ctx"],
-        seed=MODEL_PARAMS["seed"],
-        num_predict=MODEL_PARAMS["num_predict"],
-        top_k=MODEL_PARAMS["top_k"],
-        top_p=MODEL_PARAMS["top_p"],
-        min_p=MODEL_PARAMS["min_p"],
-        num_thread=MODEL_PARAMS["num_threads"],
-    )
-
-    with open(modelfile_path, "w") as f:
-        f.write(modelfile_content)
-
-    return modelfile_path
-
-
-def load_gguf_into_ollama(gguf_path: str, model_name: str) -> bool:
-    """
-    Load a GGUF file into Ollama by creating a model.
-
-    Args:
-        gguf_path: Path to the GGUF model file
-        model_name: Name to give the model in Ollama
-
-    Returns:
-        True if model loaded successfully
-    """
-    logger.debug(Color.update(f"Loading GGUF model into Ollama as '{model_name}'..."))
-
-    # Create Modelfile
-    modelfile_path = create_ollama_modelfile(gguf_path)
-
-    try:
-        # Create the model in Ollama
-        result = subprocess.run(
-            ["ollama", "create", model_name, "-f", str(modelfile_path)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        logger.debug(
-            Color.success(f"✓ Model '{model_name}' created successfully in Ollama")
-        )
-        logger.debug(Color.update(result.stdout))
-
-        # Clean up Modelfile
-        modelfile_path.unlink()
-        return True
-
-    except subprocess.CalledProcessError as e:
-        logger.debug(Color.error(f"Error creating Ollama model: {e}"))
-        logger.debug(Color.error(f"stdout: {e.stdout}"))
-        logger.debug(Color.error(f"stderr: {e.stderr}"))
-        return False
-    except FileNotFoundError:
-        logger.debug(
-            Color.error(
-                "Error: 'ollama' command not found. Make sure Ollama is installed and in your PATH"
-            )
-        )
-        return False
+        raise e
 
 
 def warmup_ollama_model(model_name: str, base_url: str = OLLAMA_BASE_URL) -> bool:
@@ -212,14 +128,9 @@ def warmup_ollama_model(model_name: str, base_url: str = OLLAMA_BASE_URL) -> boo
         return False
 
 
-def prepare_ollama_server(gguf_filepath: str, model_name: str):
+def prepare_ollama_server(model_name: str):
     # Start Ollama server
     start_ollama_server()
-
-    # Load GGUF into Ollama
-    if not load_gguf_into_ollama(gguf_filepath, model_name):
-        logger.debug(Color.error("Failed to load model into Ollama. Exiting."))
-        sys.exit(1)
 
     # Warm up the model
     warmup_ollama_model(model_name)

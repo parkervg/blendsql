@@ -19,7 +19,7 @@ from transformers import AutoTokenizer
 
 MODEL_NAME_OR_PATH = "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF"
 FILENAME = "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
-TOKENIZER_PATH = "meta-llama/Llama-3.1-8B-Instruct"
+TOKENIZER_PATH = "google/gemma-3-12b-it"
 CHAT_FORMAT = "llama-3"
 # Llama: 142 tok/s local, 135 tok/s server
 

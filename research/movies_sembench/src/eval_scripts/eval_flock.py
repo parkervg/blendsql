@@ -6,11 +6,10 @@ def run_flock_eval():
 
     from ..config import (
         DUCKDB_DB_PATH,
-        MODEL_NAME,
-        LOCAL_GGUF_FILEPATH,
+        MODEL_PARAMS,
+        SYSTEM_PARAMS,
         FLOCK_VERSION,
-        FLOCK_BATCH_SIZE,
-        FLOCK_TEMPERATURE,
+        MODEL_CONFIG,
     )
     from ..database_utils import iter_queries
     from ..ollama_utils import prepare_ollama_server, stop_ollama_server
@@ -20,9 +19,7 @@ def run_flock_eval():
         logger.debug(Color.model_or_data_update("~~~~~ Running flock eval ~~~~~"))
         Color.in_block = True
 
-        ########### Prepare database + model ###########
-        prepare_ollama_server(gguf_filepath=LOCAL_GGUF_FILEPATH, model_name=MODEL_NAME)
-        #################################################
+        prepare_ollama_server(model_name=MODEL_CONFIG.ollama_model_name)
 
         # Set up Flock
         logger.debug(Color.update(f"Installing Flock version {FLOCK_VERSION}..."))
@@ -44,10 +41,10 @@ def run_flock_eval():
         con.execute(
             f"""
             CREATE MODEL(
-                '{MODEL_NAME}',
-                '{MODEL_NAME}', 
+                '{MODEL_CONFIG.ollama_model_name}',
+                '{MODEL_CONFIG.ollama_model_name}', 
                 'openai',
-                {{"tuple_format": "JSON", "batch_size": {FLOCK_BATCH_SIZE}, "model_parameters": {{"temperature": {FLOCK_TEMPERATURE}}}}}
+                {{"tuple_format": "JSON", "batch_size": {SYSTEM_PARAMS['batch_size']}, "model_parameters": {{"temperature": {MODEL_PARAMS['temperature']}}}}}
             )
             """
         )
@@ -55,7 +52,11 @@ def run_flock_eval():
         # Run queries
         results = []
         for query_file, query_name in iter_queries("flockmtl"):
-            query = open(query_file).read().replace("<<model_name>>", MODEL_NAME)
+            query = (
+                open(query_file)
+                .read()
+                .replace("<<model_name>>", MODEL_CONFIG.ollama_model_name)
+            )
             start = time.time()
             result = con.execute(query).df()
             latency = time.time() - start
@@ -67,7 +68,8 @@ def run_flock_eval():
                     "prediction": result.to_json(orient="split", index=False),
                 }
             )
-        return pd.DataFrame(results)
 
     stop_ollama_server()
     Color.in_block = False
+
+    return pd.DataFrame(results)

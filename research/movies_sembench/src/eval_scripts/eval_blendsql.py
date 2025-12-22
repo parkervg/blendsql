@@ -15,7 +15,7 @@ def run_blendsql_eval():
 
     from ..config import (
         DUCKDB_DB_PATH,
-        LOCAL_GGUF_FILEPATH,
+        MODEL_CONFIG,
         SYSTEM_PARAMS,
         MODEL_PARAMS,
     )
@@ -43,7 +43,8 @@ def run_blendsql_eval():
         bsql = BlendSQL(
             DuckDB(con),
             model=LlamaCpp(
-                filename=str(LOCAL_GGUF_FILEPATH),
+                model_name_or_path=MODEL_CONFIG.model_name_or_path,
+                filename=MODEL_CONFIG.filename,
                 config={
                     "n_gpu_layers": -1,
                     "n_ctx": MODEL_PARAMS["num_ctx"],
@@ -76,9 +77,13 @@ def run_blendsql_eval():
                     "prediction": result.to_json(orient="split", index=False),
                 }
             )
-        return pd.DataFrame(results)
 
     del bsql.model.model_obj._interpreter.engine.model_obj
+
+    # Force garbage collection
     gc.collect()
     torch.cuda.empty_cache()
+    torch.cuda.synchronize()
     Color.in_block = False
+
+    return pd.DataFrame(results)

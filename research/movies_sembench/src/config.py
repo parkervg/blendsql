@@ -2,19 +2,35 @@
 Configuration settings for model evaluation framework.
 """
 from pathlib import Path
-import os
+from dataclasses import dataclass
 
+BASE_DIR = Path(__file__).resolve().parent
 USE_DATA_SIZE = 2000
+MODEL_SIZE = "12b"
 
-# Model Configuration
-MODEL_NAME_OR_PATH = "bartowski/google_gemma-3-12b-it-GGUF"
-FILENAME = "google_gemma-3-12b-it-Q4_K_M.gguf"
-# MODEL_NAME_OR_PATH = "unsloth/Qwen3-4B-Instruct-2507-GGUF"
-# FILENAME = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
 
-# Ollama Configuration
-MODEL_NAME = Path(FILENAME).stem
-LOCAL_GGUF_FILEPATH = Path(__file__).resolve().parent / f"models/{FILENAME}"
+@dataclass
+class ModelConfig:
+    model_name_or_path: str
+    filename: str
+    ollama_model_name: str
+
+
+MODEL_CONFIGS = {
+    "4b": ModelConfig(
+        model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
+        filename="gemma-3-4b-it-Q4_K_M.gguf",
+        ollama_model_name="gemma3:4b",
+    ),
+    "12b": ModelConfig(
+        model_name_or_path="unsloth/gemma-3-12b-it-GGUF",
+        filename="gemma-3-12b-it-Q4_K_M.gguf",
+        ollama_model_name="gemma3:12b",
+    ),
+}
+
+MODEL_CONFIG = MODEL_CONFIGS[MODEL_SIZE]
+
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_API_ENDPOINT = f"{OLLAMA_BASE_URL}/api/tags"
 
@@ -39,7 +55,6 @@ MODEL_PARAMS = {
 SYSTEM_PARAMS = {"batch_size": 10}
 
 # Paths
-BASE_DIR = Path(os.path.abspath(Path(__file__).resolve().parent))
 MOVIE_FILES_DIR = BASE_DIR / "data"
 DUCKDB_DB_PATH = MOVIE_FILES_DIR / f"movie_database_{USE_DATA_SIZE}.duckdb"
 QUERIES_DIR = BASE_DIR / "queries"
@@ -48,8 +63,8 @@ THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
 # Evaluation Configuration
 EVALS_TO_RUN = {
     "blendsql": True,
-    "flock": False,
-    "thalamusdb": False,
+    "flock": True,
+    "thalamusdb": True,
 }
 
 # Query Filtering
@@ -63,33 +78,3 @@ OLLAMA_WARMUP_TIMEOUT = 30  # seconds
 
 # Flock Configuration
 FLOCK_VERSION = "7f1c36a"
-FLOCK_BATCH_SIZE = 32
-FLOCK_TEMPERATURE = 0.7
-
-# Template for Ollama Modelfile
-OLLAMA_MODELFILE_TEMPLATE = """FROM {gguf_path}
-
-# Set the template format
-TEMPLATE \"\"\"{{{{ if .System }}}}<|im_start|>system
-{{{{ .System }}}}<|im_end|>
-{{{{ end }}}}{{{{ if .Prompt }}}}<|im_start|>user
-{{{{ .Prompt }}}}<|im_end|>
-{{{{ end }}}}<|im_start|>assistant
-\"\"\"
-
-# Set parameters 
-# https://docs.ollama.com/modelfile#instructions
-# Match the llama-cpp-python defaults
-# https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#__codelineno-0-670
-PARAMETER temperature {temperature}
-PARAMETER repeat_penalty {repeat_penalty}
-PARAMETER num_ctx {num_ctx}
-PARAMETER seed {seed}
-PARAMETER num_predict {num_predict}
-PARAMETER top_k {top_k}
-PARAMETER top_p {top_p}
-PARAMETER min_p {min_p}
-PARAMETER num_thread {num_thread}
-PARAMETER stop "<|im_start|>"
-PARAMETER stop "<|im_end|>"
-"""

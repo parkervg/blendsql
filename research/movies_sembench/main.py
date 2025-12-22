@@ -9,7 +9,6 @@ from dataclasses import asdict
 from io import StringIO
 
 from src.config import EVALS_TO_RUN, DUCKDB_DB_PATH, OUTPUT_DIR
-from src.model_utils import download_model_if_needed
 from src.database_utils import create_duckdb_database
 from src.eval_scripts import run_blendsql_eval, run_thalamusdb_eval, run_flock_eval
 from src.create_ground_truth import create_ground_truth
@@ -31,11 +30,6 @@ def main():
     """
     if not OUTPUT_DIR.is_dir():
         OUTPUT_DIR.mkdir(parents=True)
-
-    # Download GGUF model if not exists
-    if not download_model_if_needed():
-        print("Failed to download model. Exiting.")
-        return
 
     if not DUCKDB_DB_PATH.is_file():
         create_duckdb_database()
