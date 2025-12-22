@@ -351,6 +351,7 @@ class LLMMap(MapIngredient):
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
                 )
 
+            gen_f = None
             if enable_constrained_decoding:
                 if is_list_output:
                     if self.options_searcher is not None:
@@ -402,6 +403,7 @@ class LLMMap(MapIngredient):
                         "Not applying constraints, since `enable_constrained_decoding==False`"
                     )
                 )
+            if gen_f is None:
                 # Create base gen_f function
                 gen_f = lambda _: _wrap_with_quotes(
                     guidance.gen(
