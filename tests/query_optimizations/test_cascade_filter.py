@@ -109,7 +109,7 @@ def bsql() -> BlendSQL:
 
 class TestCascadeFilter(TimedTestBase):
     def test_basic_cascade_filter(self, bsql):
-        expected_num_values_passed: int = bsql.db.execute_to_list(
+        expected_num_values_passed_with_filter: int = bsql.db.execute_to_list(
             """
             SELECT (
                 SELECT COUNT(DISTINCT name) FROM customers
@@ -122,22 +122,41 @@ class TestCascadeFilter(TimedTestBase):
             """,
             to_type=int,
         )[0]
-        _ = self.assert_blendsql_equals_sql(
-            bsql,
-            blendsql_query="""
-            SELECT country FROM customers
-            WHERE {{test_starts_with('C', name)}} = TRUE
-            AND {{get_length(country)}} = 2
-            AND customer_id > 2
+
+        expected_num_values_passed_without_filter: int = (
+            bsql.db.execute_to_list(
+                """
+            SELECT (
+                SELECT COUNT(DISTINCT name) FROM customers
+                WHERE customer_id > 2
+            ) 
             """,
-            sql_query="""
-            SELECT country FROM customers
-            WHERE customer_id > 2
-            AND name LIKE 'C%'
-            AND LENGTH(country) = 2
-            """,
-            expected_num_values_passed=expected_num_values_passed,
+                to_type=int,
+            )[0]
+            * 2
         )
+
+        for enable_cascade_filter, expected_num_values_passed in [
+            (True, expected_num_values_passed_with_filter),
+            (False, expected_num_values_passed_without_filter),
+        ]:
+            _ = self.assert_blendsql_equals_sql(
+                bsql,
+                blendsql_query="""
+                SELECT country FROM customers
+                WHERE {{test_starts_with('C', name)}} = TRUE
+                AND {{get_length(country)}} = 2
+                AND customer_id > 2
+                """,
+                sql_query="""
+                SELECT country FROM customers
+                WHERE customer_id > 2
+                AND name LIKE 'C%'
+                AND LENGTH(country) = 2
+                """,
+                expected_num_values_passed=expected_num_values_passed,
+                enable_cascade_filter=enable_cascade_filter,
+            )
 
     def test_do_not_cascade_filter(self, bsql):
         """If a BlendSQL function is impacted by an OR, do not apply cascade filter."""

@@ -28,9 +28,10 @@ def assert_blendsql_equals_sql(
     expected_num_values_passed: int | None = None,
     allow_lt_num_values_compare: bool = False,
     skip_assert_equality: bool = False,
+    **bsql_kwargs,
 ):
     start = time.perf_counter()
-    smoothie = bsql.execute(blendsql_query)
+    smoothie = bsql.execute(blendsql_query, **bsql_kwargs)
     blendsql_time = time.perf_counter() - start
 
     start = time.perf_counter()
@@ -72,6 +73,7 @@ class TimedTestBase:
         expected_num_values_passed: int | None = None,
         allow_lt_num_values_compare: bool = False,
         skip_assert_equality: bool = False,
+        **bsql_kwargs,
     ):
         """Wrapper that automatically includes timing_collector."""
         return assert_blendsql_equals_sql(
@@ -83,4 +85,5 @@ class TimedTestBase:
             allow_lt_num_values_compare=allow_lt_num_values_compare,
             skip_assert_equality=skip_assert_equality,
             timing_collector=self.timing_collector,
+            **bsql_kwargs,
         )

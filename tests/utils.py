@@ -18,7 +18,7 @@ class test_starts_with(MapIngredient):
         self,
         question: str,
         values: list[str],
-        exit_condition: Callable | None,
+        exit_condition: Callable | None = None,
         **kwargs,
     ) -> list[bool]:
         """Simple test function, equivalent to the following in SQL:
@@ -45,7 +45,7 @@ class get_length(MapIngredient):
         return super().__call__(question="length", values=values, *args, **kwargs)
 
     def run(
-        self, values: list[str], exit_condition: Callable | None, **kwargs
+        self, values: list[str], exit_condition: Callable | None = None, **kwargs
     ) -> Iterable[int]:
         """Simple test function, equivalent to the following in SQL:
             `LENGTH '{arg}%`
@@ -82,7 +82,9 @@ class return_true(QAIngredient):
 
 
 class return_true_map(MapIngredient):
-    def run(self, values: list[str], exit_condition: Callable | None, **kwargs) -> bool:
+    def run(
+        self, values: list[str], exit_condition: Callable | None = None, **kwargs
+    ) -> bool:
         d = {}
         for value in values:
             d[value] = True

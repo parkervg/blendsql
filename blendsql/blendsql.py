@@ -462,7 +462,7 @@ def _blend(
     default_model: Model | None = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
-    enable_cascade_filer: bool = True,
+    enable_cascade_filter: bool = True,
     enable_early_exit: bool = True,
     enable_constrained_decoding: bool = True,
     table_to_title: dict[str, str] | None = None,
@@ -873,7 +873,7 @@ def _blend(
                     function_node.name
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
 
-                if enable_cascade_filer and scm.is_eligible_for_cascade_filter():
+                if enable_cascade_filter and scm.is_eligible_for_cascade_filter():
                     cascade_filter = LazyTable(
                         collect_fn=partial(
                             get_cascade_filter,
@@ -1138,7 +1138,7 @@ class BlendSQL:
                     from .db.sqlite import SQLite
 
                     return SQLite(df_or_db_path)
-            else:
+            elif "://" in df_or_db_path:
                 from .db.postgresql import PostgreSQL
 
                 return PostgreSQL(df_or_db_path)
@@ -1171,7 +1171,7 @@ class BlendSQL:
         ingredients: Collection[Type[Ingredient]] | None = None,
         model: str | None = None,
         infer_gen_constraints: bool | None = None,
-        enable_cascade_filer: bool | None = None,
+        enable_cascade_filter: bool | None = None,
         enable_early_exit: bool | None = None,
         enable_constrained_decoding: bool | None = None,
         verbose: bool | None = None,
