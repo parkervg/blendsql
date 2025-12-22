@@ -10,6 +10,7 @@ from src.config import (
     OLLAMA_SERVER_STARTUP_TIMEOUT,
     OLLAMA_SERVER_SHUTDOWN_DELAY,
     OLLAMA_WARMUP_TIMEOUT,
+    MODEL_PARAMS,
 )
 
 
@@ -47,7 +48,9 @@ def start_ollama_server(model_name) -> bool:
         import os
 
         env = os.environ.copy()
-        env["OLLAMA_FLASH_ATTENTION"] = "1"
+
+        if MODEL_PARAMS["flash_attn"]:
+            env["OLLAMA_FLASH_ATTENTION"] = "1"
 
         subprocess.Popen(
             ["ollama", "serve"],

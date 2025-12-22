@@ -1,19 +1,11 @@
 import sys
 import gc
 
-from src.model_utils import download_model_if_needed
 from src.ollama_utils import (
-    start_ollama_server,
-    check_ollama_running,
-    warmup_ollama_model,
+    prepare_ollama_server,
     stop_ollama_server,
 )
 from src.config import (
-    MODEL_NAME_OR_PATH,
-    MODEL_NAME,
-    LOCAL_GGUF_FILEPATH,
-    CHAT_FORMAT,
-    TOKENIZER_PATH,
     OLLAMA_BASE_URL,
     MODEL_PARAMS,
 )
@@ -29,14 +21,19 @@ import requests
 BENCHMARK_PROMPT = """You are a helpful assistant.
 Explain the theory of relativity in simple terms, with LOTS of examples.
 """
-BENCHMARK_RUNS = 2
+BENCHMARK_RUNS = 20
 BENCHMARK_TEMPERATURE = 0.7
 MAX_TOKENS = 512
 
 N_CTX = MODEL_PARAMS["num_ctx"]
 SEED = MODEL_PARAMS["seed"]
 N_THREADS = MODEL_PARAMS["num_threads"]
+CHAT_FORMAT = "gemma3"
 
+MODEL_NAME_OR_PATH = "unsloth/gemma-3-4b-it-GGUF"
+FILENAME = "gemma-3-4b-it-Q4_K_M.gguf"
+OLLAMA_MODEL_NAME = "gemma3:4b"
+TOKENIZER_PATH = "google/gemma-3-4b-it"
 
 OLLAMA_API_URL = f"{OLLAMA_BASE_URL}/v1"
 OLLAMA_GENERATE_ENDPOINT = f"{OLLAMA_BASE_URL}/api/generate"
@@ -48,6 +45,7 @@ BENCHMARK_LLAMA_CPP_CONFIG = {
     "n_threads": N_THREADS,
     "chat_format": CHAT_FORMAT,
     "flash_attn": MODEL_PARAMS["flash_attn"],
+    # "flash_attn": False # Is ollama using flash_attn correctly?
 }
 
 
@@ -95,13 +93,9 @@ def benchmark_local_llama_cpp(
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH, trust_remote_code=True)
 
-    # Initialize model
-    if verbose:
-        print(f"Loading model: {LOCAL_GGUF_FILEPATH}")
-        print(f"Config: {BENCHMARK_LLAMA_CPP_CONFIG}")
-
-    llm = Llama(
-        model_path=str(LOCAL_GGUF_FILEPATH),
+    llm = Llama.from_pretrained(
+        repo_id=str(MODEL_NAME_OR_PATH),
+        filename=str(FILENAME),
         **BENCHMARK_LLAMA_CPP_CONFIG,
     )
 
@@ -216,7 +210,7 @@ def benchmark_ollama(
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_PATH, trust_remote_code=True)
 
     if verbose:
-        print(f"Model: {MODEL_NAME}")
+        print(f"Model: {OLLAMA_MODEL_NAME}")
         print(f"\nRunning {runs} iterations...")
         print(f"Prompt length: {len(tokenizer.encode(prompt))} tokens")
         print(f"Max tokens: {max_tokens}")
@@ -231,7 +225,7 @@ def benchmark_ollama(
         response = requests.post(
             OLLAMA_GENERATE_ENDPOINT,
             json={
-                "model": MODEL_NAME,
+                "model": OLLAMA_MODEL_NAME,
                 "prompt": prompt,
                 "stream": False,
                 "options": {
@@ -337,13 +331,6 @@ def main():
         print("llama-cpp-python vs Ollama Benchmark")
         print("=" * 60)
 
-        # Step 1: Download model if needed
-        print("\n[1/5] Checking model availability...")
-        if not download_model_if_needed():
-            print("✗ Failed to download model. Exiting.")
-            sys.exit(1)
-        print(f"✓ Model available at: {MODEL_NAME_OR_PATH}")
-
         # Step 2: Benchmark llama-cpp-python
         print("\n[2/5] Benchmarking llama-cpp-python...")
         try:
@@ -353,22 +340,7 @@ def main():
             sys.exit(1)
 
         # Step 3: Start Ollama server
-        print("\n[3/5] Setting up Ollama...")
-        if not check_ollama_running():
-            if not start_ollama_server():
-                print("✗ Failed to start Ollama server. Exiting.")
-                sys.exit(1)
-        else:
-            print("✓ Ollama server already running")
-
-        # Load model into Ollama
-        print(f"\n[4/5] Loading model into Ollama...")
-        # if not load_gguf_into_ollama(LOCAL_GGUF_FILEPATH, MODEL_NAME):
-        #     print("✗ Failed to load model into Ollama. Exiting.")
-        #     sys.exit(1)
-
-        # Warm up Ollama
-        warmup_ollama_model(MODEL_NAME)
+        prepare_ollama_server(OLLAMA_MODEL_NAME)
 
         # Step 4: Benchmark Ollama
         print("\n[5/5] Benchmarking Ollama...")
