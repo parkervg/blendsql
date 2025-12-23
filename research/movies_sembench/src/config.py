@@ -49,6 +49,7 @@ MODEL_PARAMS = {
     "num_threads": 6,
     "n_gpu_layers": -1,
     "flash_attn": True,
+    "n_batch": 512,
 }
 
 # System params
