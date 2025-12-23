@@ -1,3 +1,4 @@
+import os
 from typing import Callable
 import json
 from pathlib import Path
@@ -10,6 +11,10 @@ from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.common.logger import logger, Color
 from blendsql.ingredients.ingredient import JoinIngredient, IngredientException
 from blendsql.ingredients.utils import initialize_retriever, partialclass
+from blendsql.configure import (
+    MAX_TOKENS_KEY,
+    DEFAULT_MAX_TOKENS,
+)
 
 from .examples import AnnotatedJoinExample, JoinExample
 
@@ -249,7 +254,12 @@ class LLMJoin(JoinIngredient):
             messages.append(user(current_example.to_string()))
             "".join([i["content"] for i in messages])
             response = (
-                model.generate(messages_list=[messages])[0]
+                model.generate(
+                    messages_list=[messages],
+                    max_tokens=kwargs.get(
+                        "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
+                    ),
+                )[0]
                 .removeprefix("```json")
                 .removesuffix("```")
             )
