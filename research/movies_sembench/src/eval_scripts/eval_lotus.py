@@ -1,3 +1,5 @@
+import pandas as pd
+
 from ..config import ModelConfig
 
 
@@ -10,8 +12,13 @@ def run_lotus_eval(model_config: ModelConfig):
     from lotus.models import LM
     from blendsql.common.logger import Color, logger
 
-    from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS, MODEL_PARAMS, OLLAMA_BASE_URL
-    from ..ollama_utils import prepare_ollama_server
+    from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS, MODEL_PARAMS
+    from ..server_utils import (
+        start_llama_cpp_server,
+        stop_llama_cpp_server,
+        LLAMA_SERVER_HOST,
+        LLAMA_SERVER_PORT,
+    )
     from ..database_utils import iter_queries
     import importlib.util
 
@@ -23,7 +30,7 @@ def run_lotus_eval(model_config: ModelConfig):
 
         return module
 
-    prepare_ollama_server(model_name=model_config.ollama_model_name)
+    start_llama_cpp_server(model_config)
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
@@ -32,8 +39,9 @@ def run_lotus_eval(model_config: ModelConfig):
 
         lotus.settings.configure(
             lm=LM(
-                f"ollama/{model_config.ollama_model_name}",
-                api_base=OLLAMA_BASE_URL,
+                model=f"openai/local-model",
+                api_base=f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
+                api_key="N.A.",
                 temperature=MODEL_PARAMS["temperature"],
                 max_batch_size=SYSTEM_PARAMS["batch_size"],
             )
@@ -54,3 +62,6 @@ def run_lotus_eval(model_config: ModelConfig):
                     "prediction": result.to_json(orient="split", index=False),
                 }
             )
+    stop_llama_cpp_server()
+    Color.in_block = False
+    return pd.DataFrame(result)

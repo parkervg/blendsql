@@ -14,14 +14,19 @@ def run_flock_eval(model_config: ModelConfig):
         FLOCK_VERSION,
     )
     from ..database_utils import iter_queries
-    from ..ollama_utils import prepare_ollama_server, stop_ollama_server
+    from ..server_utils import (
+        start_llama_cpp_server,
+        stop_llama_cpp_server,
+        LLAMA_SERVER_HOST,
+        LLAMA_SERVER_PORT,
+    )
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running flock eval ~~~~~"))
         Color.in_block = True
 
-        prepare_ollama_server(model_name=model_config.ollama_model_name)
+        start_llama_cpp_server(model_config)
 
         # Set up Flock
         logger.debug(Color.update(f"Installing Flock version {FLOCK_VERSION}..."))
@@ -30,10 +35,10 @@ def run_flock_eval(model_config: ModelConfig):
 
         # Configure Flock with OpenAI-compatible endpoint
         con.execute(
-            """
+            f"""
             CREATE SECRET (
                 TYPE OPENAI,
-                BASE_URL 'http://localhost:11434/v1',
+                BASE_URL 'http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1',
                 API_KEY 'N.A.'
             )
             """
@@ -43,10 +48,10 @@ def run_flock_eval(model_config: ModelConfig):
         con.execute(
             f"""
             CREATE MODEL(
-                '{model_config.ollama_model_name}',
-                '{model_config.ollama_model_name}', 
+                '{model_config.model_name_or_path}',
+                '{model_config.model_name_or_path}', 
                 'openai',
-                {{"tuple_format": "JSON", "batch_size": {SYSTEM_PARAMS['batch_size']}, "model_parameters": {{"temperature": {MODEL_PARAMS['temperature']}}}}}
+                {{"tuple_format": "json_object", "batch_size": {SYSTEM_PARAMS['batch_size']}, "model_parameters": {{"temperature": {MODEL_PARAMS['temperature']}}}}}
             )
             """
         )
@@ -57,7 +62,7 @@ def run_flock_eval(model_config: ModelConfig):
             query = (
                 open(query_file)
                 .read()
-                .replace("<<model_name>>", model_config.ollama_model_name)
+                .replace("<<model_name>>", model_config.model_name_or_path)
             )
             start = time.time()
             result = con.execute(query).df()
@@ -71,7 +76,7 @@ def run_flock_eval(model_config: ModelConfig):
                 }
             )
 
-    stop_ollama_server()
+    stop_llama_cpp_server()
     Color.in_block = False
 
     return pd.DataFrame(results)

@@ -34,7 +34,12 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         MODEL_PARAMS,
     )
     from ..database_utils import iter_queries
-    from ..ollama_utils import prepare_ollama_server, stop_ollama_server
+    from ..server_utils import (
+        start_llama_cpp_server,
+        stop_llama_cpp_server,
+        LLAMA_SERVER_HOST,
+        LLAMA_SERVER_PORT,
+    )
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
@@ -47,7 +52,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         # Disable all Rich console output
         rich.console.Console.is_terminal = False
 
-        prepare_ollama_server(model_name=model_config.ollama_model_name)
+        start_llama_cpp_server(model_config)
 
         class CustomDatabase(Database):
             def __init__(self, con):
@@ -66,13 +71,17 @@ def run_thalamusdb_eval(model_config: ModelConfig):
                             "priority": 10,
                             "kwargs": {
                                 "filter": {
-                                    "model": f"ollama/{model_config.ollama_model_name}",
+                                    "model": "openai/local-model",
+                                    "api_base": f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
+                                    "api_key": "N.A.",
                                     "temperature": MODEL_PARAMS["temperature"],
                                     "max_tokens": 1,
                                     "reasoning_effort": "disable",
                                 },
                                 "join": {
-                                    "model": f"ollama/{model_config.ollama_model_name}",
+                                    "model": "openai/local-model",
+                                    "api_base": f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
+                                    "api_key": "N.A.",
                                     "temperature": MODEL_PARAMS["temperature"],
                                     "stop": ["."],
                                     "reasoning_effort": "disable",
@@ -112,6 +121,6 @@ def run_thalamusdb_eval(model_config: ModelConfig):
             )
 
     Color.in_block = False
-    stop_ollama_server()
+    stop_llama_cpp_server()
 
     return pd.DataFrame(results)

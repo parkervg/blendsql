@@ -14,6 +14,7 @@ class ModelConfig:
     model_name_or_path: str
     filename: str
     ollama_model_name: str
+    chat_format: str
 
 
 MODEL_CONFIGS = {
@@ -21,11 +22,13 @@ MODEL_CONFIGS = {
         model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
         filename="gemma-3-4b-it-Q4_K_M.gguf",
         ollama_model_name="gemma3:4b",
+        chat_format="gemma",
     ),
     "12b": ModelConfig(
         model_name_or_path="unsloth/gemma-3-12b-it-GGUF",
         filename="gemma-3-12b-it-Q4_K_M.gguf",
         ollama_model_name="gemma3:12b",
+        chat_format="gemma",
     ),
 }
 

@@ -1,8 +1,7 @@
 import pandas as pd
 import psutil
-import os
 
-os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
+# os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 from blendsql import BlendSQL, GLOBAL_HISTORY
 from blendsql.db import DuckDB
 from blendsql.models import LiteLLM, LlamaCpp
@@ -16,10 +15,10 @@ model = None
 if True:
     if USE_LOCAL_CONSTRAINED_MODEL:
         model = LlamaCpp(
-            # model_name_or_path="Qwen/Qwen2.5-1.5B-Instruct-GGUF",
-            # filename="qwen2.5-1.5b-instruct-q4_k_m.gguf",
-            model_name_or_path="bartowski/SmolLM2-135M-Instruct-GGUF",
-            filename="SmolLM2-135M-Instruct-Q4_K_M.gguf",
+            model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
+            filename="gemma-3-4b-it-Q4_K_M.gguf",
+            # model_name_or_path="bartowski/SmolLM2-135M-Instruct-GGUF",
+            # filename="SmolLM2-135M-Instruct-Q4_K_M.gguf",
             config={
                 "n_gpu_layers": -1,
                 "n_ctx": 1028,
@@ -36,58 +35,14 @@ if True:
 bsql = BlendSQL(
     DuckDB.from_pandas(
         {
-            "Movies": pd.read_csv(fetch_from_hub("movie/rotten_tomatoes_movies.csv")),
-            "Reviews": pd.read_csv(
-                fetch_from_hub("movie/rotten_tomatoes_movie_reviews.csv")
-            ),
-        }
+            "Movies": pd.read_csv(fetch_from_hub("movie/sf_2000/Movies.csv")),
+            "Reviews": pd.read_csv(fetch_from_hub("movie/sf_2000/Reviews.csv")),
+        },
     ),
-    # {
-    #     "People": pd.DataFrame(
-    #         {
-    #             "Name": [
-    #                 "George Washington",
-    #                 "John Adams",
-    #                 "Thomas Jefferson",
-    #                 "James Madison",
-    #                 "James Monroe",
-    #                 "Alexander Hamilton",
-    #                 "Sabrina Carpenter",
-    #                 "Charli XCX",
-    #                 "Elon Musk",
-    #                 "Michelle Obama",
-    #                 "Elvis Presley",
-    #             ],
-    #             "Known_For": [
-    #                 "Established federal government, First U.S. President",
-    #                 "XYZ Affair, Alien and Sedition Acts",
-    #                 "Louisiana Purchase, Declaration of Independence",
-    #                 "War of 1812, Constitution",
-    #                 "Monroe Doctrine, Missouri Compromise",
-    #                 "Created national bank, Federalist Papers",
-    #                 "Nonsense, Emails I Cant Send, Mean Girls musical",
-    #                 "Crash, How Im Feeling Now, Boom Clap",
-    #                 "Tesla, SpaceX, Twitter/X acquisition",
-    #                 "Lets Move campaign, Becoming memoir",
-    #                 "14 Grammys, King of Rock n Roll",
-    #             ],
-    #         }
-    #     ),
-    #     "Eras": pd.DataFrame({"Years": ["1700-1800", "1800-1900", "1900-2000", "2000-Now"]}),
-    # },
+    enable_early_exit=False,
     model=model,
     verbose=True,
 )
-#
-# smoothie = bsql.execute(
-#     """
-#     SELECT {{LLMMap('What is their name?', Name)}} FROM People
-#     """
-# )
-# smoothie.print_summary()
-# print(GLOBAL_HISTORY[-1])
-# exit()
-
 
 print(f'{bsql.execute("SELECT COUNT(*) FROM reviews").df.values.item():,} total rows')
 
@@ -99,11 +54,18 @@ print(f'{bsql.execute("SELECT COUNT(*) FROM reviews").df.values.item():,} total 
 # r1.reviewText, r2.reviewText
 smoothie = bsql.execute(
     """
-    SELECT reviewId
+    SELECT reviewId, reviewText,
+    {{
+        LLMMap(
+            'What is the sentiment of this review?',
+            reviewText,
+            options=('POSITIVE', 'NEGATIVE')
+        )
+    }} AS prediction,
+    scoreSentiment AS reference
     FROM Reviews
-    WHERE {{
-        LLMMap('Is the movie review clearly positive?', reviewText)
-    }} = TRUE
+    WHERE id = 'taken_3'
+    AND prediction = 'POSITIVE'
     LIMIT 5;
     """,
 )
