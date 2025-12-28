@@ -41,6 +41,14 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         LLAMA_SERVER_PORT,
     )
 
+    import litellm
+
+    litellm.drop_params = True
+    litellm.completion_kwargs = {
+        "max_tokens": MODEL_PARAMS["max_tokens"],
+        "temperature": MODEL_PARAMS["temperature"],
+    }
+
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running thalamusdb eval ~~~~~"))

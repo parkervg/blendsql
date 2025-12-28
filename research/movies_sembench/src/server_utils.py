@@ -106,15 +106,15 @@ def start_llama_cpp_server(
     # Start server
     _llama_server_process = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     # Register cleanup on exit
     atexit.register(stop_llama_cpp_server, verbose=verbose)
 
     # Wait for server to be ready
-    max_wait = 60  # seconds
+    max_wait = 15  # seconds
     start_time = time.time()
     while time.time() - start_time < max_wait:
         try:
@@ -123,9 +123,36 @@ def start_llama_cpp_server(
             if response.status_code == 200:
                 if verbose:
                     print("✓ llama-cpp-server is ready")
-                return _llama_server_process
+                break
         except requests.exceptions.RequestException:
             pass
         time.sleep(1)
+    else:
+        raise RuntimeError("llama-cpp-server failed to start within timeout period")
 
-    raise RuntimeError("llama-cpp-server failed to start within timeout period")
+    # Warmup call to completions endpoint
+    if verbose:
+        print("Running warmup call...")
+
+    try:
+        warmup_response = requests.post(
+            f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
+            json={
+                "model": "local-model",
+                "messages": [{"role": "user", "content": "Hello"}],
+                "max_tokens": 5,
+                "temperature": 0.0,
+            },
+            timeout=30,
+        )
+        if warmup_response.status_code == 200:
+            if verbose:
+                print("✓ Warmup call completed successfully")
+        else:
+            if verbose:
+                print(f"⚠ Warmup call returned status {warmup_response.status_code}")
+    except requests.exceptions.RequestException as e:
+        if verbose:
+            print(f"⚠ Warmup call failed: {e}")
+
+    return _llama_server_process

@@ -3,32 +3,21 @@ import pandas as pd
 from ..config import ModelConfig
 
 
-def run_lotus_eval(model_config: ModelConfig):
+def run_palimpzest_eval(model_config: ModelConfig):
     import time
     import duckdb
     import importlib
 
-    import lotus
-    from lotus.models import LM
+    import palimpzest as pz
     from blendsql.common.logger import Color, logger
 
-    from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS, MODEL_PARAMS
+    from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS
     from ..server_utils import (
         start_llama_cpp_server,
         stop_llama_cpp_server,
-        LLAMA_SERVER_HOST,
-        LLAMA_SERVER_PORT,
     )
     from ..database_utils import iter_queries
     import importlib.util
-
-    import litellm
-
-    litellm.drop_params = True
-    litellm.completion_kwargs = {
-        "max_tokens": MODEL_PARAMS["max_tokens"],
-        "temperature": MODEL_PARAMS["temperature"],
-    }
 
     def load_module(filename):
         """Load a Python file as a module and execute its run() function."""
@@ -42,18 +31,18 @@ def run_lotus_eval(model_config: ModelConfig):
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
-        logger.debug(Color.model_or_data_update("~~~~~ Running lotus eval ~~~~~"))
+        logger.debug(Color.model_or_data_update("~~~~~ Running palimpzest eval ~~~~~"))
         Color.in_block = True
 
-        lotus.settings.configure(
-            lm=LM(
-                model=f"openai/local-model",
-                api_base=f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
-                api_key="N.A.",
-                temperature=MODEL_PARAMS["temperature"],
-                max_batch_size=SYSTEM_PARAMS["batch_size"],
-            )
-        )
+        config_kwargs = {
+            "policy": pz.MaxQuality(),
+            "execution_strategy": "parallel",
+            "max_workers": SYSTEM_PARAMS["batch_size"],
+            "join_parallelism": SYSTEM_PARAMS["batch_size"],
+            "verbose": False,
+            "progress": True,
+            "available_models": [selected_model],
+        }
 
         # Run queries
         results = []

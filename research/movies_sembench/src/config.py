@@ -13,7 +13,6 @@ MODEL_SIZE = "4b"
 class ModelConfig:
     model_name_or_path: str
     filename: str
-    ollama_model_name: str
     chat_format: str
 
 
@@ -21,13 +20,11 @@ MODEL_CONFIGS = {
     "4b": ModelConfig(
         model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
         filename="gemma-3-4b-it-Q4_K_M.gguf",
-        ollama_model_name="gemma3:4b",
         chat_format="gemma",
     ),
     "12b": ModelConfig(
         model_name_or_path="unsloth/gemma-3-12b-it-GGUF",
         filename="gemma-3-12b-it-Q4_K_M.gguf",
-        ollama_model_name="gemma3:12b",
         chat_format="gemma",
     ),
 }
@@ -43,6 +40,7 @@ OUTPUT_DIR = Path(__file__).resolve().parent / "results"
 MODEL_PARAMS = {
     "temperature": 0.0,
     "repeat_penalty": 1.0,
+    "max_tokens": 50,
     "num_ctx": 2048,
     "seed": 100,
     "num_predict": -1,

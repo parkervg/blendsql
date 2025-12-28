@@ -5,8 +5,6 @@ def run_blendsql_eval(model_config: ModelConfig):
     import pandas as pd
     import time
     import json
-    import gc
-    import torch
     from textwrap import indent
     import duckdb
 
@@ -15,6 +13,7 @@ def run_blendsql_eval(model_config: ModelConfig):
     from blendsql.db import DuckDB
     from blendsql.ingredients import LLMMap
     from blendsql.common.logger import Color, logger
+    from blendsql.configure import set_default_max_tokens
 
     from ..config import (
         DUCKDB_DB_PATH,
@@ -22,6 +21,8 @@ def run_blendsql_eval(model_config: ModelConfig):
         MODEL_PARAMS,
     )
     from ..database_utils import iter_queries
+
+    set_default_max_tokens(MODEL_PARAMS["max_tokens"])
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
@@ -80,12 +81,5 @@ def run_blendsql_eval(model_config: ModelConfig):
                 }
             )
 
-    del bsql.model.model_obj._interpreter.engine.model_obj
-
-    # Force garbage collection
-    gc.collect()
-    torch.cuda.empty_cache()
-    torch.cuda.synchronize()
     Color.in_block = False
-
     return pd.DataFrame(results)
