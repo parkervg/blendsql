@@ -1,3 +1,5 @@
+from tdb.execution.counters import LLMCounters
+
 from ..config import ModelConfig
 
 
@@ -32,6 +34,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         THALAMUS_CONFIG_PATH,
         SYSTEM_PARAMS,
         MODEL_PARAMS,
+        DUCKDB_SEED,
     )
     from ..database_utils import iter_queries
     from ..server_utils import (
@@ -50,6 +53,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
     }
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
+        con.execute(f"SELECT setseed({DUCKDB_SEED})")
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running thalamusdb eval ~~~~~"))
         Color.in_block = True
@@ -70,6 +74,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         #################################################
 
         # Create model configuration file
+        tdb_model_name = "openai/local-model"
         with open(THALAMUS_CONFIG_PATH, "w") as f:
             json.dump(
                 {
@@ -79,15 +84,15 @@ def run_thalamusdb_eval(model_config: ModelConfig):
                             "priority": 10,
                             "kwargs": {
                                 "filter": {
-                                    "model": "openai/local-model",
+                                    "model": tdb_model_name,
                                     "api_base": f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
                                     "api_key": "N.A.",
                                     "temperature": MODEL_PARAMS["temperature"],
-                                    "max_tokens": 1,
+                                    "max_tokens": MODEL_PARAMS["max_tokens"],
                                     "reasoning_effort": "disable",
                                 },
                                 "join": {
-                                    "model": "openai/local-model",
+                                    "model": tdb_model_name,
                                     "api_base": f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
                                     "api_key": "N.A.",
                                     "temperature": MODEL_PARAMS["temperature"],
@@ -119,12 +124,16 @@ def run_thalamusdb_eval(model_config: ModelConfig):
             with suppress_stdout():
                 result, counters = engine.run(query, constraints)
             latency = time.time() - start
+            model_counter: LLMCounters = counters.model2counters[tdb_model_name]
             results.append(
                 {
                     "system_name": "thalamusdb",
                     "query_name": query_name,
                     "latency": latency,
                     "prediction": result.to_json(orient="split", index=False),
+                    "num_generation_calls": model_counter.LLM_calls,
+                    "output_tokens": model_counter.output_tokens,
+                    "input_tokens": model_counter.input_tokens,
                 }
             )
 

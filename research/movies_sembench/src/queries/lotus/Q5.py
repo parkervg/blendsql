@@ -3,33 +3,34 @@ import pandas as pd
 
 def run(con):
     reviews = con.execute("SELECT * FROM Reviews").df()
-    reviews = reviews[reviews["id"] == "ant_man_and_the_wasp_quantumania"]
+    filtered_df = reviews[reviews["id"] == "ant_man_and_the_wasp_quantumania"]
 
-    # Reset index for approximate policy
-    # if hasattr(self, "policy") and self.policy == "approximate":
-    #     reviews = reviews.reset_index(drop=True)
+    # Self-join on id
+    merged_df = filtered_df.merge(filtered_df, on="id", suffixes=("_1", "_2"))
 
-    # Check if we have reviews for this movie
-    if len(reviews) == 0:
-        print(
-            "  Warning: No reviews found for movie 'ant_man_and_the_wasp_quantumania'"
-        )
-        return pd.DataFrame()
+    # Apply the condition reviewId1 < reviewId2
+    merged_df = merged_df[merged_df["reviewId_1"] < merged_df["reviewId_2"]]
 
-    # Semantic self-join for same sentiment within specific movie
-    join_instruction = 'These two movie reviews express the same sentiment - either both are positive or both are negative. Review 1: "{reviewText:left}" Review 2: "{reviewText:right}"'
+    # Select and rename columns
+    merged_df = merged_df[
+        ["reviewText_1", "reviewText_2", "id", "reviewId_1", "reviewId_2"]
+    ]
+    merged_df = merged_df.rename(
+        columns={
+            "reviewText_1": "reviewText1",
+            "reviewText_2": "reviewText2",
+            "id": "id1",
+            "reviewId_1": "reviewId1",
+            "reviewId_2": "reviewId2",
+        }
+    )
 
-    # if hasattr(self, "policy") and self.policy == "approximate":
-    #     joined_df = reviews.sem_join(
-    #         reviews,
-    #         join_instruction=join_instruction,
-    #         cascade_args=self.cascade_args,
-    #     )
-    # else:
-    joined_df = reviews.sem_join(reviews, join_instruction=join_instruction)
+    # Remove duplicates (equivalent to DISTINCT)
+    merged_df = merged_df.drop_duplicates()
 
-    # Filter out self-matches (same reviewId)
-    joined_df = joined_df[joined_df["reviewId:left"] != joined_df["reviewId:right"]]
+    joined_df = merged_df.sem_filter(
+        'These two movie reviews express opposite sentiments, one is positive and one is negative. Review 1: "{reviewText1}" Review 2: "{reviewText2}"'
+    )
 
     # Check if we got any results
     if len(joined_df) == 0:
@@ -39,8 +40,4 @@ def run(con):
     # Limit to 10 results
     final_result = joined_df.head(10)
 
-    # Select and rename relevant columns to match expected format (evaluator needs id, reviewId, reviewId2)
-    result_df = final_result[["id:left", "reviewId:left", "reviewId:right"]].copy()
-    result_df.columns = ["id", "reviewId", "reviewId2"]
-
-    return result_df
+    return final_result[["id1", "reviewId1", "reviewId2"]]

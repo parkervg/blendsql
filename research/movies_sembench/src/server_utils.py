@@ -50,7 +50,6 @@ def start_llama_cpp_server(
     model_config: ModelConfig,
     host: str = LLAMA_SERVER_HOST,
     port: int = LLAMA_SERVER_PORT,
-    n_gpu_layers: int = -1,
     verbose=False,
 ) -> subprocess.Popen:
     """
@@ -88,7 +87,7 @@ def start_llama_cpp_server(
         "--port",
         str(port),
         "--n_gpu_layers",
-        str(n_gpu_layers),
+        "-1",
         "--n_ctx",
         str(MODEL_PARAMS["num_ctx"]),
         "--n_threads",
@@ -102,7 +101,8 @@ def start_llama_cpp_server(
         "--chat_format",
         model_config.chat_format,
     ]
-
+    print(" ".join(cmd))
+    exit()
     # Start server
     _llama_server_process = subprocess.Popen(
         cmd,

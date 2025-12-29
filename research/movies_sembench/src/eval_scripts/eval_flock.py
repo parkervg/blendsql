@@ -12,6 +12,7 @@ def run_flock_eval(model_config: ModelConfig):
         MODEL_PARAMS,
         SYSTEM_PARAMS,
         FLOCK_VERSION,
+        DUCKDB_SEED,
     )
     from ..database_utils import iter_queries
     from ..server_utils import (
@@ -22,6 +23,7 @@ def run_flock_eval(model_config: ModelConfig):
     )
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
+        con.execute(f"SELECT setseed({DUCKDB_SEED})")
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running flock eval ~~~~~"))
         Color.in_block = True

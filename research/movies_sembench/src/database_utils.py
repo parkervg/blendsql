@@ -77,7 +77,10 @@ def iter_queries(system_name: str) -> Generator:
         Tuples of (query_file_path, query_name)
     """
     queries_path = QUERIES_DIR / system_name
-    sorted_query_files = sorted(queries_path.iterdir(), key=lambda x: x.stem)
+    sorted_query_files = sorted(
+        (f for f in queries_path.iterdir() if not f.name.startswith("_")),
+        key=lambda x: x.stem,
+    )
 
     for query_file in sorted_query_files:
         query_name = query_file.stem

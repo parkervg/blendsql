@@ -3,34 +3,38 @@ import pandas as pd
 
 def run(con):
     reviews = con.execute("SELECT * FROM Reviews").df()
-    reviews = reviews[reviews["id"] == "ant_man_and_the_wasp_quantumania"]
+    filtered_df = reviews[reviews["id"] == "ant_man_and_the_wasp_quantumania"]
 
-    # Reset index for approximate policy
-    # if hasattr(self, "policy") and self.policy == "approximate":
-    #     reviews = reviews.reset_index(drop=True)
+    # Self-join on id
+    merged_df = filtered_df.merge(filtered_df, on="id", suffixes=("_1", "_2"))
 
-    # Semantic self-join for opposite sentiment within specific movie
-    join_instruction = 'These two movie reviews express opposite sentiments - one is positive and the other is negative. Review 1: "{reviewText:left}" Review 2: "{reviewText:right}"'
+    # Apply the condition reviewId1 < reviewId2
+    merged_df = merged_df[merged_df["reviewId_1"] < merged_df["reviewId_2"]]
 
-    # if hasattr(self, "policy") and self.policy == "approximate":
-    #     joined_df = reviews.sem_join(
-    #         reviews,
-    #         join_instruction=join_instruction,
-    #         cascade_args=self.cascade_args,
-    #     )
-    # else:
-    joined_df = reviews.sem_join(reviews, join_instruction=join_instruction)
+    # Select and rename columns
+    merged_df = merged_df[
+        ["reviewText_1", "reviewText_2", "id", "reviewId_1", "reviewId_2"]
+    ]
+    merged_df = merged_df.rename(
+        columns={
+            "reviewText_1": "reviewText1",
+            "reviewText_2": "reviewText2",
+            "id": "id1",
+            "reviewId_1": "reviewId1",
+            "reviewId_2": "reviewId2",
+        }
+    )
 
-    # Filter out self-matches (same reviewId)
-    joined_df = joined_df[joined_df["reviewId:left"] != joined_df["reviewId:right"]]
+    # Remove duplicates (equivalent to DISTINCT)
+    merged_df = merged_df.drop_duplicates()
+
+    joined_df = merged_df.sem_filter(
+        'These two movie reviews express opposite sentiment - either both are positive or both are negative. Review 1: "{reviewText1}" Review 2: "{reviewText2}"'
+    )
 
     # Check if we got any results
     if len(joined_df) == 0:
-        print("  Warning: No matching opposite sentiment review pairs found")
+        print("  Warning: No matching review pairs found")
         return pd.DataFrame()
 
-    # Select and rename relevant columns to match expected format (evaluator needs id, reviewId, reviewId2)
-    result_df = joined_df[["id:left", "reviewId:left", "reviewId:right"]].copy()
-    result_df.columns = ["id", "reviewId", "reviewId2"]
-
-    return result_df
+    return joined_df[["id1", "reviewId1", "reviewId2"]]

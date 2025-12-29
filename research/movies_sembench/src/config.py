@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 BASE_DIR = Path(__file__).resolve().parent
 USE_DATA_SIZE = 2000
-MODEL_SIZE = "4b"
+DUCKDB_SEED = 0.5
 
 
 @dataclass
@@ -17,30 +17,38 @@ class ModelConfig:
 
 
 MODEL_CONFIGS = {
-    "4b": ModelConfig(
+    "gemma_4b": ModelConfig(
         model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
         filename="gemma-3-4b-it-Q4_K_M.gguf",
         chat_format="gemma",
     ),
-    "12b": ModelConfig(
+    "gemma_12b": ModelConfig(
         model_name_or_path="unsloth/gemma-3-12b-it-GGUF",
         filename="gemma-3-12b-it-Q4_K_M.gguf",
         chat_format="gemma",
     ),
+    "qwen_4b": ModelConfig(
+        model_name_or_path="Qwen/Qwen3-4B-GGUF",
+        filename="Qwen3-4B-Q4_K_M.gguf",
+        chat_format="qwen",
+    ),
+    "qwen_14b": ModelConfig(
+        model_name_or_path="Qwen/Qwen3-14B-GGUF",
+        filename="Qwen3-14B-Q4_K_M.gguf",
+        chat_format="qwen",
+    ),
 }
-
-MODEL_CONFIG = MODEL_CONFIGS[MODEL_SIZE]
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_API_ENDPOINT = f"{OLLAMA_BASE_URL}/api/tags"
 
-OUTPUT_DIR = Path(__file__).resolve().parent / "results"
+BASE_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "results"
 
 # Model Parameters
 MODEL_PARAMS = {
     "temperature": 0.0,
     "repeat_penalty": 1.0,
-    "max_tokens": 50,
+    "max_tokens": 5,
     "num_ctx": 2048,
     "seed": 100,
     "num_predict": -1,
@@ -50,11 +58,11 @@ MODEL_PARAMS = {
     "num_threads": 6,
     "n_gpu_layers": -1,
     "flash_attn": True,
-    "n_batch": 512,
+    "n_batch": 2048,
 }
 
 # System params
-SYSTEM_PARAMS = {"batch_size": 5}
+SYSTEM_PARAMS = {"batch_size": 1}
 
 # Paths
 MOVIE_FILES_DIR = BASE_DIR / "data"
@@ -63,7 +71,7 @@ QUERIES_DIR = BASE_DIR / "queries"
 THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
 
 # Query Filtering
-SKIP_QUERIES = {"Q10", "Q7"}
+SKIP_QUERIES = {"Q7"}
 ONLY_USE = {}
 
 # Server Configuration
