@@ -47,7 +47,7 @@ from blendsql.common.typing import (
     ColumnRef,
     StringConcatenation,
 )
-from blendsql.models.model import Model
+from blendsql.models.model import Model, ConstrainedModel
 
 format_blendsql_function = lambda name: "{{" + name + "()}}"
 
@@ -243,11 +243,25 @@ def preprocess_blendsql(
             current_ingredient = kitchen.get_from_name(function_name)
             sig = signature(current_ingredient)
             bound = sig.bind(*function_args, **function_kwargs)
+
+            binary_expr = None
+            if isinstance(function_node.parent.this, exp.Binary):
+                binary_expr = function_node.parent.this.copy()
+            elif isinstance(function_node.parent, exp.Binary):
+                if len(list(function_node.parent.find_all(exp.BlendSQLFunction))) == 1:
+                    binary_expr = function_node.parent.copy()
+
+            if binary_expr is not None:
+                # A little catch for when we get a little lost in the AST trying to find the right binary node
+                if binary_expr.find(exp.BlendSQLFunction) != function_node:
+                    binary_expr = None
+
             # Below we track the 'raw' representation, in case we need to pass into
             #   a recursive BlendSQL call later
             ingredient_alias_to_parsed_dict[ingredient_aliasname] = {
                 "function": function_name,
                 "raw": function_node.sql(dialect=dialect),
+                "binary_expr": binary_expr,  # The full binary expr this function gets used in, e.g. `{{raw()}} = TRUE`
                 "kwargs_dict": {
                     "model": default_model,
                     **bound.arguments,
@@ -320,6 +334,7 @@ def materialize_cte(
 
 def get_cascade_filter(
     function_node: exp.Exp,
+    binary_expr: exp.Exp,
     tablename: str,
     new_col: str,
     new_table: pl.LazyFrame,
@@ -340,18 +355,7 @@ def get_cascade_filter(
                 )
             return node
 
-        binary_expr = None
-        if isinstance(function_node.parent.this, exp.Binary):
-            binary_expr = function_node.parent.this
-        elif isinstance(function_node.parent, exp.Binary):
-            if len(list(function_node.parent.find_all(exp.BlendSQLFunction))) == 1:
-                binary_expr = function_node.parent
-
-        if (
-            binary_expr is not None
-            and binary_expr.find(exp.BlendSQLFunction) == function_node
-        ):
-            # Second condition is for when we get a little lost in the AST trying to find the right binary node
+        if binary_expr is not None:
             cascade_filter_sql = f"SELECT * FROM self AS {tablename} WHERE {binary_expr.transform(t, new_col=new_col).sql()}"
             logger.debug(
                 Color.update("Executing ")
@@ -388,6 +392,9 @@ def get_sorted_blendsql_nodes(
     node: exp.Expression,
     ingredient_alias_to_parsed_dict: dict,
     kitchen: Kitchen,
+    dialect: sqlglot.Dialect,
+    enable_model_defined_precedence: bool,
+    model: Model,
 ) -> Generator[exp.Expression, None, None]:
     """
     Yields parsed matches from grammar, according to a specified order of operations.
@@ -408,13 +415,80 @@ def get_sorted_blendsql_nodes(
         IngredientType.QA,
         IngredientType.JOIN,
     ]
-    # TODO: since we have cascade filtering now, we can do some cost estimation here
-    #   to yield the less expensive functions first (e.g. those without context, no searcher, etc.)
     parse_results = list(node.find_all(exp.BlendSQLFunction))
+    most_selective_map_node = None
+
+    if enable_model_defined_precedence:
+        # Call our model object to determine which ingredients will likely return a smaller subset of data.
+        # This is useful for when we apply our filter cascade over large amounts of data. While we add a small upfront cost below,
+        #   in the long run, this likely saves latency by avoiding `Map` calls over large amounts of data.
+        if isinstance(model, ConstrainedModel):
+            function_node_to_parse_results = {
+                f: ingredient_alias_to_parsed_dict[f.name]
+                for f in parse_results
+                if ingredient_alias_to_parsed_dict[f.name]["function"] == "LLMMap"
+            }
+            if len(function_node_to_parse_results) > 1:
+                logger.debug(
+                    Color.optimization(
+                        "Calling model to determine optimal precedence of multiple `Map` calls..."
+                    )
+                )
+
+                import guidance
+                from textwrap import dedent
+
+                options = {
+                    k.name: v["binary_expr"].sql(dialect=dialect)
+                    for k, v in function_node_to_parse_results.items()
+                }
+                options_str = "\n".join(
+                    [f"{k}): " + "`" + v + "`" for k, v in options.items()]
+                )
+                selectivity_lm = model.model_obj
+                with guidance.user():
+                    selectivity_lm += dedent(
+                        f"""
+                    You are a database expert in charge of optimizing a query. Given the choice of functions below, choose the one with the highest selectivity (i.e, will likely return the smallest subset of data).
+                    
+                    {options_str}
+                    """
+                    )
+                with guidance.assistant():
+                    selectivity_lm += "Answer: " + guidance.select(
+                        options=list(options.keys()), name="response"
+                    )
+                response = selectivity_lm["response"]
+                response = "A"
+                most_selective_map_node = [
+                    i for i in parse_results if i.name == response
+                ][0]
+                logger.debug(
+                    Color.optimization(
+                        f"Predicted that {function_node_to_parse_results[most_selective_map_node]['raw']} is the most selective, yielding this first..."
+                    )
+                )
+
+    most_selective_yielded = False
+
     while len(parse_results) > 0:
         curr_ingredient_target = ooo.pop(0)
         remaining_parse_results = []
+
+        # Yield most_selective_map_node first when processing MAP ingredients (if it exists)
+        if (
+            curr_ingredient_target == IngredientType.MAP
+            and not most_selective_yielded
+            and most_selective_map_node is not None
+        ):
+            yield most_selective_map_node
+            most_selective_yielded = True
+
         for function_node in parse_results:
+            # Skip the most_selective_map_node since we already yielded it
+            if most_selective_yielded and function_node is most_selective_map_node:
+                continue
+
             # Fetch parsed ingredient dict from our cache
             parse_results_dict = ingredient_alias_to_parsed_dict[function_node.name]
             _function: Ingredient = kitchen.get_from_name(
@@ -465,6 +539,7 @@ def _blend(
     enable_cascade_filter: bool = True,
     enable_early_exit: bool = True,
     enable_constrained_decoding: bool = True,
+    enable_model_defined_precedence: bool = True,
     table_to_title: dict[str, str] | None = None,
     _prev_passed_values: int = 0,
 ) -> Smoothie:
@@ -741,6 +816,9 @@ def _blend(
             node=scm.node,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
             kitchen=kitchen,
+            dialect=dialect,
+            enable_model_defined_precedence=enable_model_defined_precedence,
+            model=default_model,
         ):
             if in_cte:  # Don't execute CTEs until we need them
                 continue
@@ -878,6 +956,7 @@ def _blend(
                         collect_fn=partial(
                             get_cascade_filter,
                             function_node=function_node,
+                            binary_expr=curr_function_parsed_results["binary_expr"],
                             tablename=tablename,
                             new_table=new_table,
                             new_col=new_col,
@@ -1066,6 +1145,7 @@ class BlendSQL:
     enable_constrained_decoding: bool = field(default=True)
     enable_cascade_filter: bool = field(default=True)
     enable_early_exit: bool = field(default=True)
+    enable_model_defined_precedence: bool = field(default=True)
 
     table_to_title: dict[str, str] | None = field(default=None)
 
@@ -1174,6 +1254,7 @@ class BlendSQL:
         enable_cascade_filter: bool | None = None,
         enable_early_exit: bool | None = None,
         enable_constrained_decoding: bool | None = None,
+        enable_model_defined_precedence: bool | None = None,
         verbose: bool | None = None,
     ) -> Smoothie:
         '''The `execute()` function is used to execute a BlendSQL query against a database and
@@ -1302,6 +1383,9 @@ class BlendSQL:
                 enable_early_exit=enable_early_exit
                 if enable_early_exit is not None
                 else self.enable_early_exit,
+                enable_model_defined_precedence=enable_model_defined_precedence
+                if enable_model_defined_precedence is not None
+                else self.enable_model_defined_precedence,
                 table_to_title=self.table_to_title,
             )
         except Exception as error:
