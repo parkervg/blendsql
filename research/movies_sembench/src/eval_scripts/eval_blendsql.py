@@ -16,6 +16,7 @@ def run_blendsql_eval(model_config: ModelConfig):
     from blendsql.configure import set_default_max_tokens
 
     from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS, MODEL_PARAMS, DUCKDB_SEED
+    from ..server_utils import maybe_download_and_get_local_path
     from ..database_utils import iter_queries
 
     set_default_max_tokens(MODEL_PARAMS["max_tokens"])
@@ -43,8 +44,7 @@ def run_blendsql_eval(model_config: ModelConfig):
         bsql = BlendSQL(
             DuckDB(con),
             model=LlamaCpp(
-                model_name_or_path=model_config.model_name_or_path,
-                filename=model_config.filename,
+                filename=maybe_download_and_get_local_path(model_config),
                 config={
                     "n_gpu_layers": -1,
                     "n_ctx": MODEL_PARAMS["num_ctx"],

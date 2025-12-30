@@ -1,11 +1,10 @@
 SELECT SUM(
     {{
         LLMMap(
-            'What is the sentiment of this review?',
-            reviewText,
-            options=('POSITIVE', 'NEGATIVE')
+            'Is the review sentiment clearly positive?',
+            reviewText
         )
-    }} = 'POSITIVE'
+    }} = TRUE
 ) / COUNT(*) AS positive_reviews_ratio
 FROM Reviews
 WHERE id = 'taken_3'

@@ -4,9 +4,9 @@ WITH scored_reviews AS (
     {{
         LLMMap(
             "
-            Score from 1 to 5 how much did the reviewer like the movie based on provided rubrics.
+            Return a score from 1 to 5 representing how much the reviewer liked the movie based on the below rubric.
 
-            Rubrics:
+            Rubric:
             5: Very positive. Strong positive sentiment, indicating high satisfaction.
             4: Positive. Noticeably positive sentiment, indicating general satisfaction.
             3: Neutral. Expresses no clear positive or negative sentiment. May be factual or descriptive without emotional language.

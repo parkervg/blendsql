@@ -12,6 +12,21 @@ LLAMA_SERVER_BASE_URL = f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}"
 LLAMA_SERVER_COMPLETION_ENDPOINT = f"{LLAMA_SERVER_BASE_URL}/v1/completions"
 
 
+def maybe_download_and_get_local_path(model_config: ModelConfig) -> str:
+    if isinstance(model_config.filename, list):
+        for f in model_config.filename[::-1]:
+            model_path = hf_hub_download(
+                repo_id=model_config.model_name_or_path,
+                filename=f,
+            )
+    else:
+        model_path = hf_hub_download(
+            repo_id=model_config.model_name_or_path,
+            filename=model_config.filename,
+        )
+    return model_path
+
+
 def stop_llama_cpp_server(verbose: bool = True):
     """
     Stop llama-cpp-server.
@@ -70,10 +85,7 @@ def start_llama_cpp_server(
     """
     global _llama_server_process
 
-    model_path = hf_hub_download(
-        repo_id=model_config.model_name_or_path,
-        filename=model_config.filename,
-    )
+    model_path = maybe_download_and_get_local_path(model_config)
 
     # Build command
     cmd = [
@@ -101,8 +113,6 @@ def start_llama_cpp_server(
         "--chat_format",
         model_config.chat_format,
     ]
-    print(" ".join(cmd))
-    exit()
     # Start server
     _llama_server_process = subprocess.Popen(
         cmd,

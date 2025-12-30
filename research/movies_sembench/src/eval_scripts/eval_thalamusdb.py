@@ -1,3 +1,65 @@
+import tdb.operators.semantic_filter
+import litellm
+from litellm import completion
+
+
+def make_llama_compatible(config):
+    """
+    Convert OpenAI multi-part content format to llama-cpp-server compatible format.
+
+    Args:
+        config: Dictionary containing the API configuration and messages
+
+    Returns:
+        Modified dict with compatible message format
+    """
+    # Create a deep copy to avoid modifying the original
+    new_config = config.copy()
+
+    if "messages" in new_config:
+        new_messages = []
+        for message in new_config["messages"]:
+            new_message = message.copy()
+            # Check if content is a list (multi-part format)
+            if isinstance(new_message.get("content"), list):
+                # Extract and concatenate all text parts
+                text_parts = []
+                for part in new_message["content"]:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        text_parts.append(part.get("text", ""))
+                # Join with newline or space (you can adjust the separator)
+                new_message["content"] = "\n".join(text_parts)
+            new_messages.append(new_message)
+        new_config["messages"] = new_messages
+    return new_config
+
+
+def _modified_filter_completion_wrapper(item_text, kwargs):
+    """Invoke completion function with given keyword arguments.
+
+    Args:
+        item_text (str): Text representation of the item.
+        kwargs (dict): Keyword arguments for the completion function.
+
+    Returns:
+        tuple: (item_text, kwargs, LLM response).
+    """
+    # Ensure parameters are dropped for logging where applicable
+    litellm.drop_params = True
+    response = completion(**make_llama_compatible(kwargs))
+    # ThalamusDB does this on their filter:
+    # `results.append((item_text, result == '1'))`
+    # Many times small models will add a leading/trailing newline, making this equality wrong.
+    # We patch that here.
+    model_response = response.choices[0].message.content
+    response.choices[0].message.content = model_response.strip()
+    return item_text, kwargs, response
+
+
+tdb.operators.semantic_filter._filter_completion_wrapper = (
+    _modified_filter_completion_wrapper
+)
+
 from tdb.execution.counters import LLMCounters
 
 from ..config import ModelConfig
@@ -88,7 +150,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
                                     "api_base": f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
                                     "api_key": "N.A.",
                                     "temperature": MODEL_PARAMS["temperature"],
-                                    "max_tokens": MODEL_PARAMS["max_tokens"],
+                                    "max_tokens": 1,
                                     "reasoning_effort": "disable",
                                 },
                                 "join": {

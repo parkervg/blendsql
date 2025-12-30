@@ -1,1 +1,1 @@
-select reviewId from Reviews where NLfilter(reviewText, 'the review sentiment is positive') limit 5
+select reviewId from Reviews where NLfilter(reviewText, 'the review sentiment is clearly positive') limit 5

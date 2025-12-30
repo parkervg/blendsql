@@ -51,6 +51,7 @@ def run_lotus_eval(model_config: ModelConfig):
                 model=f"openai/local-model",
                 api_base=f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
                 api_key="N.A.",
+                # https://docs.litellm.ai/docs/providers/openai_compatible#advanced---disable-system-messages
                 supports_system_message=False,  # lotus uses system prompts. Gemma3 doesn't listen to those.
                 temperature=MODEL_PARAMS["temperature"],
                 max_batch_size=SYSTEM_PARAMS["batch_size"],
@@ -80,4 +81,4 @@ def run_lotus_eval(model_config: ModelConfig):
 
     stop_llama_cpp_server()
     Color.in_block = False
-    return pd.DataFrame(result)
+    return pd.DataFrame(results)

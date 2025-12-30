@@ -2,7 +2,7 @@ WITH sentiment_results AS (
     SELECT
       {{
         LLMMap(
-            'What is the sentiment of this review?',
+            'What is the sentiment of this review? Classify as either ''POSITIVE'' or ''NEGATIVE''.',
             reviewText,
             options=('POSITIVE', 'NEGATIVE')
         )

@@ -27,14 +27,18 @@ MODEL_CONFIGS = {
         filename="gemma-3-12b-it-Q4_K_M.gguf",
         chat_format="gemma",
     ),
-    "qwen_4b": ModelConfig(
-        model_name_or_path="Qwen/Qwen3-4B-GGUF",
-        filename="Qwen3-4B-Q4_K_M.gguf",
+    "qwen_3b": ModelConfig(
+        model_name_or_path="Qwen/Qwen2.5-3B-Instruct-GGUF",
+        filename="qwen2.5-3b-instruct-q4_k_m.gguf",
         chat_format="qwen",
     ),
     "qwen_14b": ModelConfig(
-        model_name_or_path="Qwen/Qwen3-14B-GGUF",
-        filename="Qwen3-14B-Q4_K_M.gguf",
+        model_name_or_path="Qwen/Qwen2.5-14B-Instruct-GGUF",
+        filename=[
+            "qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf",
+            "qwen2.5-14b-instruct-q4_k_m-00002-of-00003.gguf",
+            "qwen2.5-14b-instruct-q4_k_m-00003-of-00003.gguf",
+        ],
         chat_format="qwen",
     ),
 }

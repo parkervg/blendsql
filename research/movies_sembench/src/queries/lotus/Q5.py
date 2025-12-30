@@ -29,7 +29,7 @@ def run(con):
     merged_df = merged_df.drop_duplicates()
 
     joined_df = merged_df.sem_filter(
-        'These two movie reviews express opposite sentiments, one is positive and one is negative. Review 1: "{reviewText1}" Review 2: "{reviewText2}"'
+        'These two movie reviews express the same sentiments - either both are positive or both are negative. Review 1: "{reviewText1}" Review 2: "{reviewText2}"'
     )
 
     # Check if we got any results
