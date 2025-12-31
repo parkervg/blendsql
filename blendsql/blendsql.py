@@ -388,7 +388,7 @@ def get_sorted_blendsql_nodes(
     node: exp.Expression,
     ingredient_alias_to_parsed_dict: dict,
     kitchen: Kitchen,
-) -> Generator[exp.Expression, None, None]:
+) -> Generator[tuple[exp.Expression, bool], None, None]:
     """
     Yields parsed matches from grammar, according to a specified order of operations.
 
@@ -408,9 +408,17 @@ def get_sorted_blendsql_nodes(
         IngredientType.QA,
         IngredientType.JOIN,
     ]
-    # TODO: since we have cascade filtering now, we can do some cost estimation here
-    #   to yield the less expensive functions first (e.g. those without context, no searcher, etc.)
+
     parse_results = list(node.find_all(exp.BlendSQLFunction))
+
+    # Pre-scan to count total distinct mAP ingredients
+    total_maps_left = set()
+    for function_node in parse_results:
+        parse_results_dict = ingredient_alias_to_parsed_dict[function_node.name]
+        _function = kitchen.get_from_name(parse_results_dict["function"])
+        if _function.ingredient_type == IngredientType.MAP:
+            total_maps_left.add(function_node.name)
+
     while len(parse_results) > 0:
         curr_ingredient_target = ooo.pop(0)
         remaining_parse_results = []
@@ -421,7 +429,11 @@ def get_sorted_blendsql_nodes(
                 parse_results_dict["function"]
             )
             if _function.ingredient_type == curr_ingredient_target:
-                yield function_node
+                is_final_map = False
+                if curr_ingredient_target == IngredientType.MAP:
+                    total_maps_left.discard(function_node.name)
+                    is_final_map = len(total_maps_left) == 0
+                yield function_node, is_final_map
                 continue
             elif _function.ingredient_type not in IngredientType:
                 raise ValueError(
@@ -737,7 +749,7 @@ def _blend(
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
         tablename_to_map_out: dict[str, tuple[pd.DataFrame, str]] = {}
         cascade_filter: pl.LazyFrame = None
-        for function_node in get_sorted_blendsql_nodes(
+        for function_node, is_final_map in get_sorted_blendsql_nodes(
             node=scm.node,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
             kitchen=kitchen,
@@ -762,10 +774,14 @@ def _blend(
                 enable_early_exit
                 and curr_ingredient.ingredient_type == IngredientType.MAP
             ):
-                # Fetch an exit condition, if we can extract one from the expression context
-                # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
-                # The exit condition would be at least 5 `a()` evaluate to `TRUE`
-                kwargs_dict["exit_condition"] = scm.get_exit_condition(function_node)
+                # We can ONLY apply this exit condition if we're executing the final Map function of the subquery
+                if is_final_map:
+                    # Fetch an exit condition, if we can extract one from the expression context
+                    # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
+                    # The exit condition would be at least 5 `a()` evaluate to `TRUE`
+                    kwargs_dict["exit_condition"] = scm.get_exit_condition(
+                        function_node
+                    )
 
             logger.debug(
                 Color.update("\nExecuting ")
