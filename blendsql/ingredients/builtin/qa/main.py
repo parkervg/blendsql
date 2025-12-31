@@ -7,6 +7,7 @@ import pandas as pd
 import polars as pl
 import json
 from attr import attrs, attrib
+from textwrap import dedent
 
 from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger, Color
@@ -201,6 +202,8 @@ class LLMQA(QAIngredient):
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: []
 
+        question = dedent(question.removeprefix("\n"))
+
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if context_searcher is not None and context is None:
             docs = context_searcher(question)[0]
@@ -342,6 +345,7 @@ class LLMQA(QAIngredient):
                 # Load our underlying guidance model, if we need to
                 lm: guidance.models.Model = maybe_load_lm(model, lm)
                 model.num_generation_calls += 1
+                lm = model.maybe_add_system_prompt(lm)
                 with guidance.user():
                     lm += instruction_str
                 if len(few_shot_examples) > 0:

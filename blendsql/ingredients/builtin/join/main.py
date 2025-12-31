@@ -3,6 +3,7 @@ from typing import Callable
 import json
 from pathlib import Path
 from attr import attrs, attrib
+from textwrap import dedent
 
 from blendsql.configure import add_to_global_history
 from blendsql.models import Model, ConstrainedModel
@@ -138,6 +139,9 @@ class LLMJoin(JoinIngredient):
 
         if join_criteria is None:
             join_criteria = "Join to same topics."
+        else:
+            join_criteria = dedent(join_criteria.removeprefix("\n"))
+
         if few_shot_retriever is None:
             # Default to 1 few-shot example in LLMJoin
             few_shot_retriever = lambda *_: DEFAULT_JOIN_FEW_SHOT[:1]
@@ -207,6 +211,7 @@ class LLMJoin(JoinIngredient):
             if not in_cache:
                 # Load our underlying guidance model, if we need to
                 lm: guidance.models.Model = maybe_load_lm(model, lm)
+                lm = model.maybe_add_system_prompt(lm)
                 with guidance.user():
                     lm += MAIN_INSTRUCTION
                 if len(few_shot_examples) > 0:

@@ -10,7 +10,7 @@ from attr import attrs, attrib
 import copy
 from itertools import islice
 from tqdm.auto import tqdm
-from textwrap import indent
+from textwrap import indent, dedent
 
 from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger, Color
@@ -217,6 +217,7 @@ class LLMMap(MapIngredient):
         if few_shot_retriever is None:
             few_shot_retriever = lambda *_: []
 
+        question = dedent(question.removeprefix("\n"))
         # Resolve context argument
         # If we explicitly passed `context`, this should take precedence over the vector store.
         context_in_use: list[str | None] = [None] * len(values)
@@ -560,6 +561,7 @@ class LLMMap(MapIngredient):
                 if not loaded_lm:
                     lm: guidance.models.Model = maybe_load_lm(model, lm)
                     loaded_lm = True
+                    lm = model.maybe_add_system_prompt(lm)
                     with guidance.user():
                         lm += CONSTRAINED_MAIN_INSTRUCTION
                         if example_str != "":

@@ -1,6 +1,7 @@
 from attr import attrs, attrib
 from collections.abc import Collection
 from enum import Enum
+from textwrap import indent
 
 from blendsql.ingredients.few_shot import Example
 from blendsql.types import DataTypes, STR_TO_DATATYPE
@@ -81,7 +82,9 @@ class ConstrainedMapExample(MapExample):
         if self.options_type == FeatureType.LOCAL:
             s += f""", options: List[str]"""
         s += ")"
-        s += f' -> {type_annotation}:\n{INDENT()}"""{self.question}'
+        s += f" -> {type_annotation}:\n" + indent(
+            f'"""{self.question}', prefix=INDENT()
+        )
         if self.context_type == FeatureType.GLOBAL:
             indented_context = self.context.replace("\n", "\n" + INDENT())
             s += (
@@ -96,9 +99,12 @@ class ConstrainedMapExample(MapExample):
             s += f"""\n{INDENT(2)}options (List[str]): Candidate strings for use in your response."""
         s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{self.return_type.name}: Answer to the above question for each value `s`."""
         s += f"""\n\n{INDENT()}Examples:\n{INDENT(2)}```python"""
-        s += (
-            f'\n{INDENT(2)}# f() returns the output to the question "{self.question}"'
-            + ("" if not use_context else f" given the supplied context")
+        _question = '"' + self.question + '"'
+        if "\n" in self.question:
+            _question = "\n" + indent(self.question, prefix=INDENT(2))
+            _question = '"""' + _question + INDENT(2) + '"""'
+        s += f"\n{INDENT(2)}# f() returns the output to the question {_question}" + (
+            "" if not use_context else f" given the supplied context"
         )
         return s
 

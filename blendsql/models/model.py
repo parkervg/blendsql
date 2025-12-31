@@ -1,11 +1,6 @@
-from typing import (
-    Any,
-    Generic,
-    TypeVar,
-    Sequence,
-    Callable,
-    Tuple,
-)
+from typing import Any, Generic, TypeVar, Sequence, Callable, Tuple, Union
+
+import guidance
 import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
@@ -56,6 +51,7 @@ class Model:
     caching: bool = attrib(default=True)
 
     model_obj: Generic[ModelObj] = attrib(init=False)
+    maybe_add_system_prompt: Callable = attrib(init=False)  # For ConstrainedModels only
     prompts: list[dict] = attrib(factory=list)
     raw_prompts: list[str] = attrib(factory=list)
     cache: Cache | None = attrib(default=None)
@@ -178,34 +174,50 @@ class Model:
 
 class ConstrainedModel(Model):
     @staticmethod
-    def infer_chat_template(model_name_or_path: str) -> dict:
+    def infer_chat_template(
+        model_name_or_path: str,
+    ) -> tuple[Union["ChatTemplate", None], Callable]:
         # Try to infer chat template
         chat_template = None
-        if "smollm" in model_name_or_path.lower():
+        maybe_add_system_prompt = lambda lm: lm
+        _model_name_or_path = model_name_or_path.split("/")[-1].lower()
+
+        if "smollm" in _model_name_or_path.lower():
             from guidance.chat import ChatMLTemplate
 
             chat_template = ChatMLTemplate
-        elif "llama-3" in model_name_or_path.lower():
+
+        elif "llama-3" in _model_name_or_path:
             from guidance.chat import Llama3ChatTemplate
 
             chat_template = Llama3ChatTemplate
-        elif "llama-2" in model_name_or_path.lower():
+
+        elif "llama-2" in _model_name_or_path:
             from guidance.chat import Llama2ChatTemplate
 
             chat_template = Llama2ChatTemplate
-        elif "phi-3" in model_name_or_path.lower():
+
+        elif "phi-3" in _model_name_or_path:
             from guidance.chat import Phi3MiniChatTemplate
 
             chat_template = Phi3MiniChatTemplate
 
-        elif "qwen" in model_name_or_path.lower():
-            # https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/tokenizer_config.json
-            # Uses ChatML
-            from guidance.chat import ChatMLTemplate
+        elif "qwen2.5" in _model_name_or_path:
+            from guidance.chat import Qwen2dot5ChatTemplate
 
-            chat_template = ChatMLTemplate
+            chat_template = Qwen2dot5ChatTemplate
 
-        elif "gemma" in model_name_or_path.lower():
+            def maybe_add_system_prompt(lm):
+                with guidance.system():
+                    lm += "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
+                return lm
+
+        elif "qwen3" in _model_name_or_path:
+            from guidance.chat import Qwen3ChatTemplate
+
+            chat_template = Qwen3ChatTemplate
+
+        elif "gemma" in _model_name_or_path:
             from guidance.chat import Gemma29BInstructChatTemplate
 
             chat_template = Gemma29BInstructChatTemplate
@@ -216,7 +228,7 @@ class ConstrainedModel(Model):
                     f"Loading '{model_name_or_path}' with '{chat_template.__name__}' chat template..."
                 )
             )
-        return chat_template
+        return (chat_template, maybe_add_system_prompt)
 
     @cached_property
     def model_obj(self) -> ModelObj:
@@ -225,9 +237,10 @@ class ConstrainedModel(Model):
             filename = None
             if hasattr(self, "filename"):
                 filename = self.filename
-            self.config["chat_template"] = self.infer_chat_template(
-                self.model_name_or_path or filename
-            )
+            (
+                self.config["chat_template"],
+                self.maybe_add_system_prompt,
+            ) = self.infer_chat_template(self.model_name_or_path or filename)
         return self._load_model()
 
 
