@@ -208,6 +208,7 @@ class TestEarlyExitOperations(TimedTestBase):
                 WHERE name LIKE 'A%'
                 AND order_id != 102
                 AND aliased_function = TRUE
+                LIMIT 1
                 """,
                 expected_num_values_passed=expected_num_values_passed,
                 args=["C"],
