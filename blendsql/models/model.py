@@ -51,7 +51,9 @@ class Model:
     caching: bool = attrib(default=True)
 
     model_obj: Generic[ModelObj] = attrib(init=False)
-    maybe_add_system_prompt: Callable = attrib(init=False)  # For ConstrainedModels only
+    maybe_add_system_prompt: Callable = attrib(
+        default=lambda lm: lm
+    )  # For ConstrainedModels only
     prompts: list[dict] = attrib(factory=list)
     raw_prompts: list[str] = attrib(factory=list)
     cache: Cache | None = attrib(default=None)
