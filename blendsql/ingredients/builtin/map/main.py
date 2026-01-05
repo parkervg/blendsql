@@ -221,6 +221,8 @@ class LLMMap(MapIngredient):
         # Resolve context argument
         # If we explicitly passed `context`, this should take precedence over the vector store.
         context_in_use: list[str | None] = [None] * len(values)
+        # Only for use with local context
+        local_context_variable_names: list[str] | None = None
         context_in_use_type: FeatureType = None
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if context_searcher is not None and context is None:
@@ -228,7 +230,8 @@ class LLMMap(MapIngredient):
                 unpacked_questions is not None
             ):  # Implies we have different context for each value
                 context_in_use = context_searcher(unpacked_questions)
-                context_in_use_type = FeatureType.LOCAL
+                local_context_variable_names = ["context"]
+                context_in_use_type = FeatureType.LOCAL_MANY_VALUES
             else:
                 context_in_use = " | ".join(context_searcher(question)[0])
                 context_in_use_type = FeatureType.GLOBAL
@@ -243,7 +246,8 @@ class LLMMap(MapIngredient):
                 context_in_use = [
                     list(row) for row in pl.concat(context, how="horizontal").rows()
                 ]
-                context_in_use_type = FeatureType.LOCAL
+                local_context_variable_names = [c.columns[0] for c in context]
+                context_in_use_type = FeatureType.LOCAL_SINGLE_VALUE
         # Log what we found
         if context_in_use_type == FeatureType.GLOBAL:
             logger.debug(
@@ -251,7 +255,10 @@ class LLMMap(MapIngredient):
                     f"Retrieved global context '{context_in_use[:50]}...'"
                 )
             )
-        elif context_in_use_type == FeatureType.LOCAL:
+        elif context_in_use_type in [
+            FeatureType.LOCAL_MANY_VALUES,
+            FeatureType.LOCAL_SINGLE_VALUE,
+        ]:
             logger.debug(
                 Color.quiet_update(
                     f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
@@ -295,7 +302,7 @@ class LLMMap(MapIngredient):
                     f"Calling provided `options_searcher` to retrieve {self.options_searcher.k} options for each of the {len(values)} unique values, out of {len(self.options_searcher.documents):,} total options..."
                 )
             )
-            options_in_use_type = FeatureType.LOCAL
+            options_in_use_type = FeatureType.LOCAL_MANY_VALUES
 
         filtered_options: list[str | None] = [None] * len(values)
         if self.options_searcher is not None:
@@ -324,7 +331,11 @@ class LLMMap(MapIngredient):
                 ConstrainedAnnotatedMapExample(**example.__dict__)
                 if not isinstance(example, dict)
                 else ConstrainedAnnotatedMapExample(**example)
-                for example in few_shot_retriever(current_example.to_string())
+                for example in few_shot_retriever(
+                    current_example.to_string(
+                        local_context_variable_names=local_context_variable_names
+                    )
+                )
             ]
         else:
             batch_size = batch_size or DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE
@@ -426,6 +437,7 @@ class LLMMap(MapIngredient):
             def make_prediction(
                 value: str,
                 context: str | list[str] | None,
+                context_in_use_type: FeatureType | None,
                 local_options: list[str] | None,
                 gen_f: Callable,
             ) -> str:
@@ -437,21 +449,31 @@ class LLMMap(MapIngredient):
                     return '"""' if any(c in s for c in ["\n", '"']) else '"'
 
                 value_quote = get_quote(value)
-                if isinstance(
-                    context, list
-                ):  # If it's a string, it's already been added in docstring as global context
+                if context_in_use_type in [
+                    FeatureType.LOCAL_SINGLE_VALUE,
+                    FeatureType.LOCAL_MANY_VALUES,
+                ]:
                     gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
-                    json_str = json.dumps(context, ensure_ascii=False, indent=16)[:-1]
-                    gen_str += (
-                        f", \n{INDENT(3)}" + json_str + f"{INDENT(3)}]\n{INDENT(2)}"
-                    )
-                else:
+                    if context_in_use_type == FeatureType.LOCAL_MANY_VALUES:
+                        json_str = json.dumps(context, ensure_ascii=False, indent=16)[
+                            :-1
+                        ]
+                        gen_str += f",\n{INDENT(3)}" + json_str + f"{INDENT(3)}]"
+                    elif context_in_use_type == FeatureType.LOCAL_SINGLE_VALUE:
+                        for c in context:
+                            gen_str += f',\n{INDENT(3)}"{c}"'
+                else:  # Global contexts have already been handled
                     indented_value = value.replace("\n", f"\n{INDENT(2)}")
                     gen_str = (
                         f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
                     )
                 if local_options is not None:
                     gen_str += f",\n{INDENT(2)}{local_options}"
+                if context_in_use_type in [
+                    FeatureType.LOCAL_SINGLE_VALUE,
+                    FeatureType.LOCAL_MANY_VALUES,
+                ]:
+                    gen_str += f"\n{INDENT(2)}"
                 gen_str += f""") == {guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}"""
                 return gen_str
 
@@ -507,11 +529,15 @@ class LLMMap(MapIngredient):
                         continue  # Skip to next item
 
                     # Prepare the prompt only if not cached
-                    if context_in_use_type == FeatureType.LOCAL:
+                    if context_in_use_type in [
+                        FeatureType.LOCAL_SINGLE_VALUE,
+                        FeatureType.LOCAL_MANY_VALUES,
+                    ]:
                         current_example.context = c
 
                     current_example_str = current_example.to_string(
                         list_options=list_options_in_prompt,
+                        local_context_variable_names=local_context_variable_names,
                         add_leading_newlines=True,
                     )
 
@@ -522,6 +548,7 @@ class LLMMap(MapIngredient):
                     prompt_string = make_prediction(
                         value=v,
                         context=c,
+                        context_in_use_type=context_in_use_type,
                         local_options=o,
                         gen_f=gen_f[idx]
                         if self.options_searcher is not None

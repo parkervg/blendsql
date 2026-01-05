@@ -15,7 +15,8 @@ class FeatureType(Enum):
     """
 
     GLOBAL = "global"
-    LOCAL = "local"
+    LOCAL_MANY_VALUES = "local_many_values"
+    LOCAL_SINGLE_VALUE = "local_single_value"
 
 
 @attrs(kw_only=True)
@@ -47,6 +48,7 @@ class ConstrainedMapExample(MapExample):
         list_options: bool = True,
         add_leading_newlines: bool = True,
         use_local_options: bool = False,
+        local_context_variable_names: list[str] | None = None,
         *args,
         **kwargs,
     ) -> str:
@@ -55,7 +57,7 @@ class ConstrainedMapExample(MapExample):
         s = "\n\n" if add_leading_newlines else ""
         s += "```python\n"
         if list_options and self.options is not None:
-            type_annotation = (
+            return_type_annotation = (
                 f"Literal["
                 + ", ".join(
                     [
@@ -68,7 +70,7 @@ class ConstrainedMapExample(MapExample):
                 + "]"
             )
         else:
-            type_annotation = self.return_type.name
+            return_type_annotation = self.return_type.name
 
         if self.table_name and self.column_name:
             args_str = f'Values from the "{self.table_name}" table in a SQL database.'
@@ -76,15 +78,22 @@ class ConstrainedMapExample(MapExample):
             args_str = "Value from a column in a SQL database."
 
         # Create function signature
-        s += f"""def f(s: str"""
-        if self.context_type == FeatureType.LOCAL:
+        var_name = self.column_name or "s"
+        s += f"""def f({var_name}: str"""
+
+        if self.context_type == FeatureType.LOCAL_MANY_VALUES:
             s += f""", context: List[str]"""
-        if self.options_type == FeatureType.LOCAL:
+        elif self.context_type == FeatureType.LOCAL_SINGLE_VALUE:
+            for var_name in local_context_variable_names:
+                s += f""", {var_name}: str"""
+
+        if self.options_type == FeatureType.LOCAL_MANY_VALUES:
             s += f""", options: List[str]"""
         s += ")"
-        s += f" -> {type_annotation}:\n" + indent(
+        s += f" -> {return_type_annotation}:\n" + indent(
             f'"""{self.question}', prefix=INDENT()
         )
+
         if self.context_type == FeatureType.GLOBAL:
             indented_context = self.context.replace("\n", "\n" + INDENT())
             s += (
@@ -93,11 +102,14 @@ class ConstrainedMapExample(MapExample):
             )
         arg_name = self.column_name or "s"
         s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}{arg_name} (str): {args_str}"""
-        if self.context_type == FeatureType.LOCAL:
+        if self.context_type == FeatureType.LOCAL_MANY_VALUES:
             s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
-        if self.options_type == FeatureType.LOCAL:
+        elif self.context_type == FeatureType.LOCAL_SINGLE_VALUE:
+            for var_name in local_context_variable_names:
+                s += f"""\n{INDENT(2)}{var_name} (str): Context to use in answering the question."""
+        if self.options_type == FeatureType.LOCAL_MANY_VALUES:
             s += f"""\n{INDENT(2)}options (List[str]): Candidate strings for use in your response."""
-        s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{self.return_type.name}: Answer to the above question for each value `s`."""
+        s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{return_type_annotation}: Answer to the above question for each value `s`."""
         s += f"""\n\n{INDENT()}Examples:\n{INDENT(2)}```python"""
         _question = '"' + self.question + '"'
         if "\n" in self.question:
