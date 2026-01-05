@@ -51,7 +51,7 @@ DEFAULT_MAP_FEW_SHOT: list[AnnotatedMapExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-CONSTRAINED_MAIN_INSTRUCTION = "Complete the docstring for the provided Python function. The output should correctly answer the question provided for each input value. "
+CONSTRAINED_MAIN_INSTRUCTION = "Complete the docstring for the provided Python function. The output will correctly answer the question provided for each input value, with no mistakes. "
 CONSTRAINED_MAIN_INSTRUCTION = (
     CONSTRAINED_MAIN_INSTRUCTION
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
