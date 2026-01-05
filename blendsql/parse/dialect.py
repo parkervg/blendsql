@@ -128,6 +128,51 @@ class BlendSQLDialect(sqlglot.Dialect):
             # Create a custom AST node to represent our function bracket
             return BlendSQLFunction(this=func_name.name, fn_args=args, fn_kwargs=kwargs)
 
+        def _parse_conjunction(self):
+            """Override conjunction parsing to handle bare BlendSQL functions in boolean context"""
+            left = self._parse_equality()
+
+            # If we have a bare BlendSQLFunction and the next token is AND/OR,
+            # wrap it in = TRUE
+            if isinstance(left, BlendSQLFunction) and self._match_set(
+                (TokenType.AND, TokenType.OR)
+            ):
+                self._retreat(self._index - 1)  # Go back to reprocess the AND/OR
+                left = exp.EQ(this=left, expression=exp.true())
+
+            # Continue with normal conjunction parsing
+            while self._match_set(self.CONJUNCTION):
+                connector = self._prev
+                right = self._parse_equality()
+
+                # If right side is a bare BlendSQLFunction, wrap it
+                if isinstance(right, BlendSQLFunction):
+                    right = exp.EQ(this=right, expression=exp.true())
+
+                left = self.expression(
+                    self.CONJUNCTION.get(connector.token_type),
+                    this=left,
+                    expression=right,
+                    comments=connector.comments,
+                )
+
+            return left
+
+        def _parse_where(self, skip_where_token: bool = False) -> exp.Where | None:
+            """Override WHERE parsing to handle bare BlendSQL functions"""
+            if not skip_where_token and not self._match(TokenType.WHERE):
+                return None
+
+            condition = self._parse_assignment()
+
+            # If the entire WHERE condition is just a bare BlendSQLFunction, wrap it
+            if isinstance(condition, BlendSQLFunction):
+                condition = exp.EQ(this=condition, expression=exp.true())
+
+            return self.expression(
+                exp.Where, comments=self._prev_comments, this=condition
+            )
+
     class Generator(sqlglot.Generator):
         def blendsqlfunction_sql(self, expression: BlendSQLFunction) -> str:
             """Generate SQL for BlendSQLFunction nodes"""
