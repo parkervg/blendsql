@@ -61,20 +61,19 @@ def run_palimpzest_eval(model_config: ModelConfig):
         logger.debug(Color.model_or_data_update("~~~~~ Running palimpzest eval ~~~~~"))
         Color.in_block = True
 
-        pz_config = pz.QueryProcessorConfig(
-            max_workers=SYSTEM_PARAMS["batch_size"],
-            join_parallelism=SYSTEM_PARAMS["batch_size"],
-            verbose=False,
-            progress=False,
-            reasoning_effort=None,
-            # Placeholder model with reasoning
-            # Need a reasoning model due to this bug: https://github.com/mitdbg/palimpzest/issues/268
-            available_models=["openai/gpt-5-2025-08-07"],
-        )
-
         # Run queries
         results = []
         for query_file, query_name in iter_queries("palimpzest"):
+            pz_config = pz.QueryProcessorConfig(
+                max_workers=SYSTEM_PARAMS["batch_size"],
+                join_parallelism=SYSTEM_PARAMS["batch_size"],
+                verbose=False,
+                progress=False,
+                reasoning_effort=None,
+                # Placeholder model with reasoning
+                # Need a reasoning model due to this bug: https://github.com/mitdbg/palimpzest/issues/268
+                available_models=["openai/gpt-5-2025-08-07"],
+            )
             func = load_module(query_file)
             start = time.time()
             result = func.run(con, pz_config).to_df()
