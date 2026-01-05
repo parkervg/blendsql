@@ -1,5 +1,15 @@
 [
       {
+          "question": "Is an NBA team?",
+          "return_type": "bool",
+          "mapping": {
+              "Lakers": true,
+              "Nuggets": true,
+              "Dodgers": false,
+              "Mets": false
+          }
+      },
+      {
           "question": "Total penalty count?",
           "column_name": "Penalties (P+P+S+S)",
           "table_name": "Biathlon World Championships 2013",
@@ -16,16 +26,6 @@
           "mapping": {
               "Lebron James played very well, but Steph Curry struggled.": ["Lebron James", "Steph Curry"],
               "Patty Mills had a great game": ["Patty Mills"]
-          }
-      },
-      {
-          "question": "Basketball team?",
-          "return_type": "bool",
-          "mapping": {
-              "Lakers": true,
-              "Nuggets": true,
-              "Dodgers": false,
-              "Mets": false
           }
       }
   ]
