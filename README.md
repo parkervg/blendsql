@@ -253,7 +253,7 @@ This highlights an important point about the value-add of BlendSQL. While you *c
 - [Search-then-Reduce ](#search-then-map)
 - [Few-Shot Prompting](#few-shot-prompting)
 
-The below examples can use this model initialization logic to define the variable `model`:
+The below examples can use this model initialization logic to define the variable `model`. See [here](https://parkervg.github.io/blendsql/reference/models/models/) for more information on blendsql models.
 
 ```python
 from blendsql.models import LlamaCpp, LiteLLM
