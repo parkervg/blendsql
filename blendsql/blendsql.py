@@ -340,6 +340,8 @@ def get_cascade_filter(
                 )
             return node
 
+        function_node = scm.maybe_resolve_aliased_function(function_node)
+
         binary_expr = None
         if isinstance(function_node.parent.this, exp.Binary):
             binary_expr = function_node.parent.this

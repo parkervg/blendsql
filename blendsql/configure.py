@@ -13,6 +13,9 @@ DEFAULT_MAX_OPTIONS_IN_PROMPT = 50
 MAX_TOKENS_KEY = "BLENDSQL_MAX_TOKENS"
 DEFAULT_MAX_TOKENS = 100
 
+DETERMINISTIC_KEY = "BLENDSQL_DETERMINISTIC"
+DEFAULT_DETERMINISTIC = 0
+
 
 def add_to_global_history(entry: str):
     if len(GLOBAL_HISTORY) >= MAX_HISTORY_SIZE:
@@ -31,3 +34,7 @@ def set_max_options_in_prompt(n: int):
 
 def set_default_max_tokens(n: int):
     os.environ[MAX_TOKENS_KEY] = str(n)
+
+
+def set_deterministic(v: bool):
+    os.environ[DETERMINISTIC_KEY] = str(int(v))

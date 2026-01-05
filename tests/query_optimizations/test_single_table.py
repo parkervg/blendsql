@@ -501,7 +501,7 @@ class TestBasicOperations(TimedTestBase):
             blendsql_query="""
                 SELECT merchant FROM transactions t
                 WHERE {{get_length(t.merchant || ' ' || t.child_category)}} > 50
-                AND {{test_starts_with('C', t.merchant)}} = TRUE
+                AND {{test_starts_with('C', t.merchant)}}
                 AND t.child_category LIKE 'P%'
                 """,
             sql_query="""
@@ -726,7 +726,7 @@ class TestOffsetOperations(TimedTestBase):
             bsql,
             blendsql_query="""
             SELECT merchant FROM transactions t
-            WHERE {{test_starts_with('Z', merchant)}} = TRUE
+            WHERE {{test_starts_with('Z', merchant)}}
             ORDER BY {{get_length(t.merchant)}} LIMIT 1 OFFSET 2
             """,
             sql_query="""

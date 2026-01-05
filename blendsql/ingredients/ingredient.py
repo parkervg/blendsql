@@ -1,3 +1,4 @@
+import os
 import re
 from attr import attrs, attrib
 from abc import abstractmethod
@@ -19,6 +20,7 @@ from blendsql.db.utils import format_tuple, double_quote_escape, LazyTable
 from blendsql.common.utils import get_tablename_colname
 from blendsql.search.searcher import Searcher
 from blendsql.ingredients.few_shot import Example
+from blendsql.configure import DEFAULT_DETERMINISTIC, DETERMINISTIC_KEY
 
 
 def unpack_default_kwargs(**kwargs):
@@ -35,6 +37,7 @@ class Ingredient:
     db: Database = attrib()
     session_uuid: str = attrib()
 
+    deterministic: bool = attrib(default=False)
     few_shot_retriever: Callable[[str], list[Example]] = attrib(default=None)
     list_options_in_prompt: bool = attrib(default=True)
     context_searcher: Searcher | None = attrib(default=None)
@@ -432,6 +435,9 @@ class MapIngredient(Ingredient):
 
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
+        suffix = ""
+        if bool(int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))):
+            suffix = " ORDER BY rowid"
         if temp_session_table_exists:
             temp_session_table = self.db.execute_to_df(
                 f'SELECT * FROM "{double_quote_escape(temp_session_tablename)}" LIMIT 1'
@@ -440,17 +446,20 @@ class MapIngredient(Ingredient):
             #   if a previous subquery already got to certain values
             if new_arg_column in temp_session_table.collect_schema().names():
                 distinct_values = select_distinct_fn(
-                    f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL',
+                    f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL'
+                    + suffix
                 )
             # Base case: this is the first time we've used this particular ingredient
             # BUT, temp_session_tablename still exists
             else:
                 distinct_values = select_distinct_fn(
-                    f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}"',
+                    f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}"'
+                    + suffix
                 )
         else:
             distinct_values = select_distinct_fn(
-                f'SELECT DISTINCT {select_distinct_arg} FROM "{value_source_tablename}"',
+                f'SELECT DISTINCT {select_distinct_arg} FROM "{value_source_tablename}"'
+                + suffix
             )
 
         if cascade_filter is not None:

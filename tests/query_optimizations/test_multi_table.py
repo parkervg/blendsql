@@ -373,7 +373,7 @@ class TestAliasOperations(TimedTestBase):
             bsql,
             blendsql_query="""
             SELECT Symbol FROM portfolio AS w
-                WHERE {{test_starts_with('A', w.Symbol)}} = TRUE
+                WHERE {{test_starts_with('A', w.Symbol)}}
                 AND LENGTH(w.Symbol) > 3
             """,
             sql_query="""
@@ -400,7 +400,7 @@ class TestAliasOperations(TimedTestBase):
                 SELECT DISTINCT Symbol FROM portfolio WHERE Symbol IN (
                     SELECT Symbol FROM portfolio WHERE Quantity > 200
                 )
-            ) AS w WHERE {{test_starts_with('F', w.Symbol)}} = TRUE AND LENGTH(w.Symbol) > 3
+            ) AS w WHERE {{test_starts_with('F', w.Symbol)}} AND LENGTH(w.Symbol) > 3
             """,
             sql_query="""
             SELECT Symbol FROM (
@@ -513,7 +513,7 @@ class TestCTEOperations(TimedTestBase):
             SELECT * FROM portfolio WHERE Quantity > 200
         ), b AS (SELECT Symbol FROM portfolio AS w WHERE w.Symbol LIKE 'A%'),
         c AS (SELECT * FROM geographic)
-        SELECT * FROM a WHERE {{test_starts_with('F', Symbol)}} = TRUE
+        SELECT * FROM a WHERE {{test_starts_with('F', Symbol)}}
         """
         # Need to get the lower level function so we can see what tables got created
         from blendsql.blendsql import _blend

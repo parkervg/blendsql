@@ -124,3 +124,39 @@ class TestGeneralOptimizations(TimedTestBase):
         )
         assert list(smoothie.df.values.flat)[0] in [1, 5]
         assert smoothie.meta.num_values_passed == expected_num_values_passed
+
+    def test_early_exit_with_cascade_and_alias(self, bsql):
+        """
+        f8302b6
+        """
+        bsql_query = """
+        SELECT 
+        customer_id, 
+        {{test_starts_with('C', country)}} AS startsWithC
+        FROM customers
+        WHERE startsWithC
+        AND {{test_starts_with('A', name)}}
+        """
+        expected_num_values_passed: int = bsql.db.execute_to_list(
+            """
+            SELECT (
+                SELECT COUNT(DISTINCT country) FROM customers
+            ) + 1
+            """,
+            to_type=int,
+        )[0]
+        _ = self.assert_blendsql_equals_sql(
+            bsql,
+            blendsql_query=bsql_query,
+            sql_query="""
+            SELECT 
+            customer_id, 
+            country LIKE 'C%' AS startsWithC
+            FROM customers
+            WHERE startsWithC
+            AND name LIKE 'A%'
+          """,
+        )
+        smoothie = bsql.execute(bsql_query + " LIMIT 1")
+        assert list(smoothie.df.values.flat)[0] in [1, 5]
+        assert smoothie.meta.num_values_passed == expected_num_values_passed

@@ -1,6 +1,8 @@
 import pytest
 import pandas as pd
 from blendsql import BlendSQL
+from sqlglot import exp
+
 from tests.query_optimizations.utils import TimedTestBase
 from tests.utils import (
     do_join,
@@ -11,6 +13,14 @@ from tests.utils import (
     select_first_option,
     select_first_sorted,
     test_starts_with,
+)
+from blendsql.parse import SubqueryContextManager
+from blendsql.parse.dialect import (
+    _parse_one,
+    BlendSQLDuckDB,
+    BlendSQLSQLite,
+    BlendSQLPostgres,
+    BlendSQLDialect,
 )
 
 
@@ -161,8 +171,8 @@ class TestEarlyExitOperations(TimedTestBase):
         _ = self.assert_blendsql_equals_sql(
             bsql,
             blendsql_query="""
-            SELECT * FROM customers c 
-            JOIN orders o 
+            SELECT * FROM customers c
+            JOIN orders o
             ON c.customer_id = o.customer_id
             WHERE (
                 o.total_amount > 100
@@ -171,8 +181,8 @@ class TestEarlyExitOperations(TimedTestBase):
             LIMIT 1
             """,
             sql_query="""
-            SELECT * FROM customers c 
-            JOIN orders o 
+            SELECT * FROM customers c
+            JOIN orders o
             ON c.customer_id = o.customer_id
             WHERE (
                 o.total_amount > 100
@@ -217,3 +227,43 @@ class TestEarlyExitOperations(TimedTestBase):
             )
             # Both candidate rows have the same name
             assert list(smoothie.df.values.flat)[0] == "Alice Chen"
+
+    def test_eligible_for_cascade_filter(self):
+        def get_scm(query: str, dialect: BlendSQLDialect) -> SubqueryContextManager:
+            return SubqueryContextManager(
+                dialect=dialect,
+                node=_parse_one(
+                    query,
+                    dialect=dialect,
+                ),
+                prev_subquery_has_ingredient=False,
+                ingredient_alias_to_parsed_dict={
+                    "LLMMap": {"kwargs_dict": {}},
+                },
+            )
+
+        for dialect in [BlendSQLDuckDB, BlendSQLSQLite, BlendSQLPostgres]:
+            scm = get_scm(
+                """
+            SELECT merchant FROM transactions t
+            WHERE {{LLMMap('This is a question', merchant)}} = TRUE
+            LIMIT 1
+            """,
+                dialect,
+            )
+            function_node = scm.node.find(exp.BlendSQLFunction)
+            assert scm.get_exit_condition(function_node) is not None
+
+            # 7b26714
+            scm = get_scm(
+                """
+              SELECT merchant
+              FROM transactions t
+              WHERE {{LLMMap('This is a question', merchant)}} = TRUE
+              AND (t.name = 'Betsy' OR t.year = 2025)
+              LIMIT 1
+              """,
+                dialect,
+            )
+            function_node = scm.node.find(exp.BlendSQLFunction)
+            assert scm.get_exit_condition(function_node) is not None
