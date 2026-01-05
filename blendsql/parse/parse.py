@@ -86,8 +86,9 @@ class SubqueryContextManager:
     alias_to_subquery: dict = attrib(default=None)
     alias_to_tablename: dict = attrib(init=False)
     tablename_to_alias: dict = attrib(init=False)
-    columns_referenced_by_ingredients: dict = attrib(init=False)
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
+    columns_referenced_by_ingredients: dict = attrib(init=False)
+    function_references: list[exp.Expression] = attrib(init=False)
 
     def __attrs_post_init__(self):
         self.alias_to_tablename = dict()
@@ -100,6 +101,7 @@ class SubqueryContextManager:
                 self.ingredient_alias_to_parsed_dict
             )
         )
+        self.function_references = list(self.node.find_all(exp.BlendSQLFunction))
 
     def _reset_root(self):
         self.root = build_scope(self.node)
@@ -375,6 +377,22 @@ class SubqueryContextManager:
             ]
         )
 
+    def maybe_resolve_aliased_function(
+        self, function_node: exp.Expression
+    ) -> exp.Expression:
+        """More specifically, this function takes an exp.BlendSQLFunction, and returns an exp.BlendSQLFunction."""
+        # is this function_node an alias in a `SELECT` statement?
+        if isinstance(function_node.parent, exp.Alias):
+            for _node in self.function_references:
+                if (
+                    isinstance(_node.parent, exp.Binary)
+                    and _node.this == function_node.this
+                ):
+                    return _node
+                    # TODO: this can be made more robust by finding ALL references of this function,
+                    #   and seeing if we can combine them into a single exit_condition.
+        return function_node
+
     def get_exit_condition(self, function_node: exp.Expression) -> Callable | None:
         limit_node = self.node.find(exp.Limit)
         if limit_node is None:
@@ -411,19 +429,7 @@ class SubqueryContextManager:
         if where_clause and _has_unsafe_or(where_clause):
             return None
 
-        # Where is this function being called? This includes aliases.
-        function_references = list(self.node.find_all(exp.BlendSQLFunction))
-
-        # first - is this function_node an alias in a `SELECT` statement?
-        if isinstance(function_node.parent, exp.Alias):
-            for _node in function_references:
-                if (
-                    isinstance(_node.parent, exp.Binary)
-                    and _node.this == function_node.this
-                ):
-                    function_node = _node
-                    # TODO: this can be made more robust by finding ALL references of this function,
-                    #   and seeing if we can combine them into a single exit_condition.
+        function_node = self.maybe_resolve_aliased_function(function_node)
 
         if isinstance(function_node.parent, exp.Binary):
             # We can apply some exit_condition function
@@ -498,6 +504,15 @@ class SubqueryContextManager:
             n for n in where_node.walk() if isinstance(n, exp.BlendSQLFunction)
         ]
 
+        select_node = self.node.find(exp.Select)
+        if select_node is None:
+            return False
+
+        # Count BlendSQL functions in WHERE clause
+        blendsql_functions_in_select = [
+            n for n in select_node.walk() if isinstance(n, exp.BlendSQLFunction)
+        ]
+
         # Need at least 2 functions to cascade
         if len(blendsql_functions_in_where) < 2:
             return False
@@ -517,11 +532,13 @@ class SubqueryContextManager:
             )
             return False
 
-        if len(all_blendsql_functions) > len(blendsql_functions_in_where):
+        if len(all_blendsql_functions) > (
+            len(blendsql_functions_in_where) + len(blendsql_functions_in_select)
+        ):
             logger.debug(
                 Color.error(
                     "Cascade filtering optimization is not yet supported for queries with "
-                    "BlendSQL functions outside the WHERE clause (e.g., in SELECT, ORDER BY, HAVING, etc.)"
+                    "BlendSQL functions outside the WHERE or SELECT clause (e.g., in ORDER BY, HAVING, etc.)"
                 )
             )
             return False
@@ -567,11 +584,14 @@ class SubqueryContextManager:
             "+"  # If we know something is a `List` type, what quantifier should we use?
         )
         added_kwargs: dict[str, Any] = {}
+
+        function_node = self.maybe_resolve_aliased_function(function_node)
         if isinstance(function_node.parent, exp.Select):
             # We don't want to traverse up in cases of `SELECT {{A()}} FROM table WHERE x < y`
             parent_node = function_node
         else:
             parent_node = function_node.parent
+
         predicate_literals: list[str] = []
         quantifier: QuantifierType = None
         # Check for instances like `{column} = {QAIngredient}`
