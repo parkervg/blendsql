@@ -1,14 +1,38 @@
 import pandas as pd
-
 from ..config import ModelConfig
 
 
 def run_palimpzest_eval(model_config: ModelConfig):
+    from ..server_utils import (
+        LLAMA_SERVER_HOST,
+        LLAMA_SERVER_PORT,
+    )
+    from ..config import MODEL_PARAMS
+
+    import litellm
+
+    litellm.drop_params = True
+    litellm.completion_kwargs = {
+        "max_tokens": MODEL_PARAMS["max_tokens"],
+        "temperature": MODEL_PARAMS["temperature"],
+    }
+
+    original_completion = litellm.completion
+
+    def patched_completion(*args, **kwargs):
+        kwargs["api_base"] = f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1"
+        kwargs["supports_system_message"] = False
+
+        return original_completion(*args, **kwargs)
+
+    # Replace the completion function with your patched version
+    litellm.completion = patched_completion
+
+    import palimpzest as pz
     import time
     import duckdb
     import importlib
 
-    import palimpzest as pz
     from blendsql.common.logger import Color, logger
 
     from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS
@@ -18,6 +42,9 @@ def run_palimpzest_eval(model_config: ModelConfig):
     )
     from ..database_utils import iter_queries
     import importlib.util
+    import os
+
+    os.environ["OPENAI_API_KEY"] = "N.A."
 
     def load_module(filename):
         """Load a Python file as a module and execute its run() function."""
@@ -34,26 +61,27 @@ def run_palimpzest_eval(model_config: ModelConfig):
         logger.debug(Color.model_or_data_update("~~~~~ Running palimpzest eval ~~~~~"))
         Color.in_block = True
 
-        config_kwargs = {
-            "policy": pz.MaxQuality(),
-            "execution_strategy": "parallel",
-            "max_workers": SYSTEM_PARAMS["batch_size"],
-            "join_parallelism": SYSTEM_PARAMS["batch_size"],
-            "verbose": False,
-            "progress": True,
-            "available_models": [selected_model],
-        }
+        pz_config = pz.QueryProcessorConfig(
+            max_workers=SYSTEM_PARAMS["batch_size"],
+            join_parallelism=SYSTEM_PARAMS["batch_size"],
+            verbose=False,
+            progress=False,
+            reasoning_effort=None,
+            # Placeholder model with reasoning
+            # Need a reasoning model due to this bug: https://github.com/mitdbg/palimpzest/issues/268
+            available_models=["openai/gpt-5-2025-08-07"],
+        )
 
         # Run queries
         results = []
-        for query_file, query_name in iter_queries("lotus"):
+        for query_file, query_name in iter_queries("palimpzest"):
             func = load_module(query_file)
             start = time.time()
-            result = func.run(con)
+            result = func.run(con, pz_config).to_df()
             latency = time.time() - start
             results.append(
                 {
-                    "system_name": "lotus",
+                    "system_name": "palimpzest",
                     "query_name": query_name,
                     "latency": latency,
                     "prediction": result.to_json(orient="split", index=False),
@@ -61,4 +89,4 @@ def run_palimpzest_eval(model_config: ModelConfig):
             )
     stop_llama_cpp_server()
     Color.in_block = False
-    return pd.DataFrame(result)
+    return pd.DataFrame(results)

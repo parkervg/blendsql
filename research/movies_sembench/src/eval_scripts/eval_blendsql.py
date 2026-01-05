@@ -59,8 +59,6 @@ def run_blendsql_eval(model_config: ModelConfig):
             ),
             ingredients={LLMMap.from_args(batch_size=SYSTEM_PARAMS["batch_size"])},
             verbose=False,
-            enable_early_exit=False,
-            enable_cascade_filter=False,
         )
 
         # Initialize model

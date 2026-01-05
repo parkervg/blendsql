@@ -83,8 +83,8 @@ QUERIES_DIR = BASE_DIR / "queries"
 THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
 
 # Query Filtering
-SKIP_QUERIES = {"Q7"}
-ONLY_USE = {"Q11", "Q12"}
+SKIP_QUERIES = {"Q7", "Q11", "Q12"}
+ONLY_USE = {}
 
 # Server Configuration
 OLLAMA_SERVER_STARTUP_TIMEOUT = 10  # seconds
