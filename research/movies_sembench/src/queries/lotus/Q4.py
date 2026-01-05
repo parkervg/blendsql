@@ -10,7 +10,7 @@ def run(con):
 
     # Use sem_filter to select positive reviews
     positive_reviews = taken_reviews.sem_filter(
-        "Determine if the following review is clearly positive. Review: {reviewText}."
+        "Determine if the following review has a positive sentiment. Review: {reviewText}."
     )
 
     # Compute positivity ratio

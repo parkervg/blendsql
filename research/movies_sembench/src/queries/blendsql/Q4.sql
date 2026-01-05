@@ -1,7 +1,7 @@
 SELECT SUM(
     {{
         LLMMap(
-            'Is the review sentiment clearly positive?',
+            'Does the movie review have a positive sentiment?',
             reviewText
         )
     }} = TRUE

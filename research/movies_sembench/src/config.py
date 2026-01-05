@@ -32,6 +32,14 @@ MODEL_CONFIGS = {
         filename="qwen2.5-3b-instruct-q4_k_m.gguf",
         chat_format="qwen",
     ),
+    "qwen_7b": ModelConfig(
+        model_name_or_path="Qwen/Qwen2.5-7B-Instruct-GGUF",
+        filename=[
+            "qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf",
+            "qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf",
+        ],
+        chat_format="qwen",
+    ),
     "qwen_14b": ModelConfig(
         model_name_or_path="Qwen/Qwen2.5-14B-Instruct-GGUF",
         filename=[
@@ -76,7 +84,7 @@ THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
 
 # Query Filtering
 SKIP_QUERIES = {"Q7"}
-ONLY_USE = {}
+ONLY_USE = {"Q11", "Q12"}
 
 # Server Configuration
 OLLAMA_SERVER_STARTUP_TIMEOUT = 10  # seconds

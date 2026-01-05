@@ -3,7 +3,7 @@ FROM Reviews
 WHERE id = 'taken_3'
 AND {{
     LLMMap(
-        'Is the review sentiment clearly positive?',
+        'Does the movie review have a positive sentiment?',
         reviewText
     )
 }} = TRUE

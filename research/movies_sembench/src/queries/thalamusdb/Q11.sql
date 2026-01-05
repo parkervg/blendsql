@@ -1,6 +1,4 @@
-SELECT reviewId FROM Reviews r
-JOIN Movies m ON m.id = r.id
+SELECT r.reviewId FROM Reviews r
+JOIN Movies m ON r.id = m.id
 WHERE m.originalLanguage = 'Korean'
-AND m.writer = 'Yeon Sang-ho'
-AND NLfilter(r.reviewText, 'this review has the word ''Korean'' in it')
-AND NLfilter(r.reviewText, 'the review sentiment is clearly positive')
+AND NLfilter(r.reviewText, 'The movie review has a positive sentiment')

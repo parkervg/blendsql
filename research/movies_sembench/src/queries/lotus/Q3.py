@@ -7,7 +7,7 @@ def run(con):
 
     # Semantic filter for positive reviews
     positive_reviews = filtered_reviews.sem_filter(
-        "Determine if the following review is clearly positive. Review: {reviewText}"
+        "Determine if the following review has a positive sentiment. Review: {reviewText}"
     )
 
     # Get count

@@ -1,5 +1,5 @@
 WITH self_joined_reviews AS (
-    SELECT DISTINCT
+    SELECT
     r1.reviewText AS reviewText1,
     r2.reviewText AS reviewText2,
     r1.id as id1,
@@ -14,7 +14,7 @@ WITH self_joined_reviews AS (
 ) SELECT id1, reviewId1, reviewId2 FROM self_joined_reviews
 WHERE {{
     LLMMap(
-        'Do the two reviews express opposite sentiments? I.e, one is positive and one is negative.',
-        'Review 1: ' || reviewText1 || '\nReview 2:' || reviewText2
+        'Do the two movie reviews express opposite sentiments? I.e, one is positive and one is negative.',
+        'REVIEW 1: ' || reviewText1 || ' || REVIEW 2:' || reviewText2
     )
 }} = TRUE

@@ -98,9 +98,15 @@ class MovieEvaluator(GenericEvaluator):
     def _evaluate_q11(
         self, system_results: pd.DataFrame, ground_truth: pd.DataFrame
     ) -> QueryMetricRank:
-        """Q11: Return the reviewIds for those reviews about a Korean language movie directed by Yeon Sang-ho. The reviews should be positive, and have the work 'Korean' in them."""
         return self._generic_retrieval_limit_evaluation(
-            system_results, ground_truth, limit=10000
+            system_results, ground_truth, limit=100000
+        )
+
+    def _evaluate_q12(
+        self, system_results: pd.DataFrame, ground_truth: pd.DataFrame
+    ) -> QueryMetricRank:
+        return self._generic_retrieval_limit_evaluation(
+            system_results, ground_truth, limit=2
         )
 
     def _generic_retrieval_limit_evaluation(

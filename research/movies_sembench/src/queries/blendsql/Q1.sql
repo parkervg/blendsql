@@ -2,7 +2,7 @@ SELECT reviewId
 FROM Reviews
 WHERE {{
     LLMMap(
-        'Is the review sentiment clearly positive?',
+        'Is the movie review clearly positive?',
         reviewText
     )
 }} = TRUE

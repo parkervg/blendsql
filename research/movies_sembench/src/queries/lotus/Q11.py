@@ -9,10 +9,7 @@ def run(con):
     merged_df = pd.merge(movies, reviews, left_on="id", right_on="id")
 
     # Then apply filter
-    merged_df = merged_df[
-        (merged_df["originalLanguage"] == "Korean")
-        & (merged_df["writer"] == "Yeon Sang-ho")
-    ]
+    merged_df = merged_df[(merged_df["originalLanguage"] == "Korean")]
 
     # Semantic filter for clearly positive reviews
     filtered_reviews = merged_df.sem_filter(

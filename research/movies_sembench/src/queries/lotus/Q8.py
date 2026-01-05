@@ -8,12 +8,14 @@ def run(con):
 
     # Semantic map to classify sentiment
     sentiment_reviews = filtered_reviews.sem_map(
-        "Classify the sentiment of this review as either 'POSITIVE' or 'NEGATIVE'. "
+        "Classify the sentiment of this movie review as either 'POSITIVE' or 'NEGATIVE'. "
         "Only output the exact word 'POSITIVE' or 'NEGATIVE' with no additional text. "
         "Review: {reviewText}"
     )
 
     # Count sentiment occurrences
+    # Without below, we could have 'POSITIVE\n'
+    sentiment_reviews["_map"] = sentiment_reviews["_map"].apply(lambda x: x.strip("\n"))
     sentiment_counts = sentiment_reviews["_map"].value_counts().reset_index()
     sentiment_counts.columns = ["scoreSentiment", "count"]
 

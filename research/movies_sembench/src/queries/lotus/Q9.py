@@ -1,5 +1,10 @@
 import pandas as pd
 from textwrap import dedent
+import random
+
+random.seed(42)
+
+DEFAULT_VALUE = -100
 
 
 def run(con):
@@ -47,10 +52,10 @@ def run(con):
                     }
                 )
             else:
-                # Default to 3 if score is out of range
-                results.append({"reviewId": row["reviewId"], "reviewScore": 3.0})
+                results.append(
+                    {"reviewId": row["reviewId"], "reviewScore": DEFAULT_VALUE}
+                )
         except (ValueError, TypeError):
-            # Default to 3 if score is not numeric
-            results.append({"reviewId": row["reviewId"], "reviewScore": 3.0})
+            results.append({"reviewId": row["reviewId"], "reviewScore": DEFAULT_VALUE})
     result_df = pd.DataFrame(results)
     return result_df

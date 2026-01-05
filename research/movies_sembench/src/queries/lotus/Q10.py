@@ -1,6 +1,12 @@
 import pandas as pd
 from textwrap import dedent
 
+import random
+
+random.seed(42)
+
+DEFAULT_VALUE = -100
+
 
 def run(con):
     reviews = con.execute("SELECT * FROM Reviews").df()
@@ -34,17 +40,18 @@ def run(con):
             score = row["_map"]
             try:
                 numeric_score = float(score)
-                if 1 <= numeric_score <= 5:
-                    valid_scores.append(numeric_score)
-                else:
-                    valid_scores.append(3.0)  # Default to neutral
+                valid_scores.append(numeric_score)
+                # if 1 <= numeric_score <= 5:
+                #     valid_scores.append(numeric_score)
+                # else:
+                #     valid_scores.append(DEFAULT_VALUE)
             except (ValueError, TypeError):
-                valid_scores.append(3.0)  # Default to neutral
-
+                # valid_scores.append(DEFAULT_VALUE)
+                continue
         if valid_scores:
             avg_score = sum(valid_scores) / len(valid_scores)
         else:
-            avg_score = 3.0  # Default to neutral
+            avg_score = None
 
         movie_scores.append({"movieId": movie_id, "movieScore": round(avg_score, 2)})
 

@@ -13,13 +13,14 @@ def run_blendsql_eval(model_config: ModelConfig):
     from blendsql.db import DuckDB
     from blendsql.ingredients import LLMMap
     from blendsql.common.logger import Color, logger
-    from blendsql.configure import set_default_max_tokens
+    from blendsql.configure import set_default_max_tokens, set_deterministic
 
     from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS, MODEL_PARAMS, DUCKDB_SEED
     from ..server_utils import maybe_download_and_get_local_path
     from ..database_utils import iter_queries
 
     set_default_max_tokens(MODEL_PARAMS["max_tokens"])
+    set_deterministic(True)
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         con.execute(f"SELECT setseed({DUCKDB_SEED})")
@@ -58,6 +59,8 @@ def run_blendsql_eval(model_config: ModelConfig):
             ),
             ingredients={LLMMap.from_args(batch_size=SYSTEM_PARAMS["batch_size"])},
             verbose=False,
+            enable_early_exit=False,
+            enable_cascade_filter=False,
         )
 
         # Initialize model

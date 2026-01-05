@@ -60,6 +60,52 @@ tdb.operators.semantic_filter._filter_completion_wrapper = (
     _modified_filter_completion_wrapper
 )
 
+from tdb.operators.semantic_join import BatchJoin
+
+
+class CustomBatchJoin(BatchJoin):
+    def _find_matches(self, pairs):
+        """Finds pairs satisfying the join condition.
+
+        Args:
+            pairs: List of key pairs to check for matches.
+
+        Returns:
+            list: List of key pairs that satisfy the join condition.
+        """
+        # Get list of unique keys from both tables
+        left_keys = sorted(set(left_key for left_key, _ in pairs))
+        right_keys = sorted(set(right_key for _, right_key in pairs))
+        # Prepare the items for the LLM prompt
+        left_items = [self._encode_item(left_key) for left_key in left_keys]
+        right_items = [self._encode_item(right_key) for right_key in right_keys]
+        # If there are no keys, return empty list
+        nr_left_items = len(left_items)
+        nr_right_items = len(right_items)
+        if nr_left_items == 0 or nr_right_items == 0:
+            return []
+        # print(f'Nr of left items: {nr_left_items}, ')
+        # print(f'Nr of right items: {nr_right_items}')
+        # Construct prompt for LLM
+        prompt = self._create_prompt(left_items, right_items)
+        messages = [prompt]
+        base = self._best_model_args(messages)["join"]
+        kwargs = {**base, "messages": messages}
+        response = completion(**make_llama_compatible(kwargs))
+        model = kwargs["model"]
+        self.update_cost_counters(model, response)
+        matching_keys = []
+        try:
+            matching_keys = self._extract_matches(left_keys, right_keys, response)
+        except:
+            print("Incorrect output format in LLM reply - continuing join.")
+            # traceback.print_exc()
+
+        return matching_keys
+
+
+tdb.operators.semantic_join.BatchJoin = CustomBatchJoin
+
 from tdb.execution.counters import LLMCounters
 
 from ..config import ModelConfig
@@ -175,7 +221,9 @@ def run_thalamusdb_eval(model_config: ModelConfig):
             dop=SYSTEM_PARAMS["batch_size"],
             model_config_path=THALAMUS_CONFIG_PATH,
         )
-        constraints = Constraints(max_calls=1000, max_seconds=6000)
+        constraints = Constraints(
+            max_calls=10000000000, max_seconds=60000000000, max_tokens=60000000000
+        )
 
         # Run queries
         results = []
