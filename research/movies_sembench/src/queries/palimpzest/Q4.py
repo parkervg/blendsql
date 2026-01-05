@@ -22,4 +22,4 @@ def run(con, pz_config: pz.QueryProcessorConfig):
     reviews = reviews.project(["positivity"])
     reviews = reviews.average()
 
-    output = reviews.run(config=pz_config)
+    return reviews.run(config=pz_config)
