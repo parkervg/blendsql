@@ -379,10 +379,38 @@ class SubqueryContextManager:
         limit_node = self.node.find(exp.Limit)
         if limit_node is None:
             return None
-        if self.node.find((exp.Or, exp.Group, exp.Order, exp.Distinct)):
-            # For now, don't try and get an exit condition from a query with an `OR`
-            # or, the other expressions. These change the semantics of the `LIMIT`
+
+        def _has_unsafe_or(node):
+            """
+            An OR is unsafe if it's not contained within parentheses
+            at the WHERE clause level.
+            """
+            for or_node in node.find_all(exp.Or):
+                # Check if this OR has a Paren as an ancestor before hitting WHERE/AND
+                parent = or_node.parent
+                while parent and parent != node:
+                    if isinstance(parent, exp.Paren):
+                        break
+                    if isinstance(parent, (exp.Where, exp.And)):
+                        return True
+                    parent = parent.parent
+            return False
+
+        # First, check for expressions that always invalidate early exit
+        if (
+            self.node.find(exp.Group)
+            or self.node.find(exp.Order)
+            or self.node.find(exp.Distinct)
+        ):
             return None
+
+        # For `OR`, we need to check if it appears at the "top level"
+        # vs being contained within a subexpression
+        # `... {{A()}} AND (x OR y) LIMIT 5` should still be eligible for an exit condition
+        where_clause = self.node.find(exp.Where)
+        if where_clause and _has_unsafe_or(where_clause):
+            return None
+
         # Where is this function being called? This includes aliases.
         function_references = list(self.node.find_all(exp.BlendSQLFunction))
 
