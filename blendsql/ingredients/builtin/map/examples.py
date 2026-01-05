@@ -71,7 +71,7 @@ class ConstrainedMapExample(MapExample):
             type_annotation = self.return_type.name
 
         if self.table_name and self.column_name:
-            args_str = f'Value from the "{self.table_name}"."{self.column_name}" column in a SQL database.'
+            args_str = f'Values from the "{self.table_name}" table in a SQL database.'
         else:
             args_str = "Value from a column in a SQL database."
 
@@ -91,8 +91,8 @@ class ConstrainedMapExample(MapExample):
                 f"""\n{INDENT()}All function outputs are based on the following context:\n{INDENT()}"""
                 + f"\n{INDENT()}{indented_context}"
             )
-
-        s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}s (str): {args_str}"""
+        arg_name = self.column_name or "s"
+        s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}{arg_name} (str): {args_str}"""
         if self.context_type == FeatureType.LOCAL:
             s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
         if self.options_type == FeatureType.LOCAL:
