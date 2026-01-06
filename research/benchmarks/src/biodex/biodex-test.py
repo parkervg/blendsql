@@ -1,51 +1,6 @@
-from datasets import load_dataset
 import pandas as pd
-from typing import Callable
-
-# import lotus
-# from lotus.models import LM, LiteLLMRM
-# from lotus.types import CascadeArgs
-# from lotus.vector_store import FaissVS
-
-
-def compute_recall(gt_ids, ids, cutoff=1000):
-    return len(set(gt_ids).intersection(set(ids[:cutoff]))) / len(gt_ids)
-
-
-def compute_precision(gt_ids, ids, cutoff=1000):
-    if len(ids[:cutoff]) == 0:
-        return 0
-    else:
-        return len(set(gt_ids).intersection(set(ids[:cutoff]))) / len(ids[:cutoff])
-
-
-def compute_rank_precision(gt_ids, ids, cutoff=1000):
-    if len(ids[:cutoff]) == 0:
-        return 0
-    else:
-        divisor = min(len(gt_ids), cutoff)
-        count = 0
-        for i in range(min(cutoff, len(ids))):
-            if ids[i] in gt_ids:
-                count += 1
-        return count / divisor
-
 
 if __name__ == "__main__":
-    df = load_dataset("BioDEX/BioDEX-Reactions", split="test").to_pandas()
-
-    # split and remove trailing or leading whitespace
-    df["reactions_list"] = df["reactions"].apply(lambda x: x.split(","))
-    df["reactions_list"] = df["reactions_list"].apply(
-        lambda x: [r.strip().lower() for r in x]
-    )
-    df["num_labels"] = df["reactions_list"].apply(lambda x: len(x))
-    # truncate the fulltext to 8000 chars
-    df["patient_description"] = df["fulltext_processed"].apply(lambda x: x[:8000])
-    unique_reactions = list(
-        set([item for sublist in df["reactions_list"].tolist() for item in sublist])
-    )
-
     from blendsql import BlendSQL
     from blendsql.models import LlamaCpp
     from blendsql.ingredients import LLMMap
@@ -134,32 +89,6 @@ if __name__ == "__main__":
     res_df = res_df[~pd.isna(res_df["prediction"])]
     print(len(res_df))
     res_df["prediction"] = res_df["prediction"].apply(lambda x: list(set(x)))
-
-    def calculate_metrics(df: pd.DataFrame, f: Callable):
-        df["rank_precision@5"] = df.apply(
-            lambda x: f(x["ground_truth"], x["prediction"], cutoff=5),
-            axis=1,
-        )
-        df["rank-precision@10"] = df.apply(
-            lambda x: f(x["ground_truth"], x["prediction"], cutoff=10),
-            axis=1,
-        )
-
-        df["rank-precision@25"] = df.apply(
-            lambda x: f(x["ground_truth"], x["prediction"], cutoff=25),
-            axis=1,
-        )
-
-        df["num_ids"] = df.apply(lambda x: len(x["prediction"]), axis=1)
-
-        # take subset of df with metrics
-        return df[
-            [
-                col
-                for col in df.columns
-                if "@" in col or "latency" in col or "num_ids" in col
-            ]
-        ]
 
     metrics_df = calculate_metrics(res_df, compute_rank_precision)
     metrics_df.mean().to_csv(f"biodex-results.csv")

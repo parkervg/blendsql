@@ -1,4 +1,0 @@
-blendsql
-grammar-guide
-torch
-transformers

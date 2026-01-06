@@ -1,1 +1,0 @@
-SELECT {{ImageCaption(Image)}} as "Image Description" FROM parks LIMIT 1
