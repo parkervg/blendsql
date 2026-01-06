@@ -13,7 +13,6 @@ The function signatures for each query qi should be:
 
 from __future__ import annotations
 
-import abc
 from dataclasses import dataclass
 from cdlib import NodeClustering, evaluation
 
@@ -82,7 +81,7 @@ class SingleAccuracyScoreWithRetrievalDetails(SingleAccuracyScore):
     f1_score: float = 0.0
 
 
-class GenericEvaluator(abc.ABC):
+class GenericEvaluator:
     """Abstract base class for benchmark evaluators."""
 
     def _discover_ground_truth_impl(self, query_id) -> callable:
@@ -95,7 +94,7 @@ class GenericEvaluator(abc.ABC):
         except AttributeError:
             raise NotImplementedError(
                 f"Query {query_id} not implemented for {self.system_name}."
-            )
+            ) from None
 
     def _discover_evaluate_impl(self, query_id) -> callable:
         method_name = f"_evaluate_q{query_id}"
@@ -107,7 +106,7 @@ class GenericEvaluator(abc.ABC):
         except AttributeError:
             raise NotImplementedError(
                 f"Query {query_id} not implemented for {self.system_name}."
-            )
+            ) from None
 
     def _generic_retrieval_evaluation(
         self, system_results: pd.DataFrame, ground_truth: pd.DataFrame
@@ -485,7 +484,9 @@ class GenericEvaluator(abc.ABC):
         ground truth.
         """
         if ground_truth.shape[0] != query_result.shape[0]:
-            raise "Invalid results. Ground truth and query vectors should be of the same length."
+            raise ValueError(
+                "Invalid results. Ground truth and query vectors should be of the same length."
+            )
 
         gt = ground_truth.sort_values(id_column)[result_column]
         query = query_result.sort_values(id_column)[result_column]
