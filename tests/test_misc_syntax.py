@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 
 from blendsql import BlendSQL, config
+from blendsql.db import DuckDB
 from blendsql.models import LlamaCpp
 from .utils import test_starts_with
 
@@ -114,4 +115,23 @@ def test_llmmap_with_multi_ctes(bsql, model):
         == bsql.db.execute_to_list(
             "SELECT COUNT(DISTINCT name) FROM League", to_type=int
         )[0]
+    )
+
+
+def test_duckdb_read_text(bsql, model):
+    if not isinstance(bsql.db, DuckDB):
+        pytest.skip()
+    _ = bsql.execute(
+        """
+            SELECT {{
+            LLMQA(
+                'Describe BlendSQL in 50 words.',
+                context=(
+                    SELECT content[0:5000] AS "README"
+                    FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
+                )
+            )
+        }} AS answer
+        """,
+        model=model,
     )
