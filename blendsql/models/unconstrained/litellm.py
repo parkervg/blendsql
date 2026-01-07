@@ -1,7 +1,5 @@
 import os
-from asyncio import Semaphore
 import asyncio
-from litellm import acompletion
 
 from blendsql.configure import ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT
 from blendsql.models.model import UnconstrainedModel
@@ -55,6 +53,9 @@ class LiteLLM(UnconstrainedModel):
         stop_at: list[str] | None = None,
         **kwargs,
     ):
+        from litellm import acompletion
+        from asyncio import Semaphore
+
         sem = Semaphore(int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT)))
         async with sem:
             responses = [
