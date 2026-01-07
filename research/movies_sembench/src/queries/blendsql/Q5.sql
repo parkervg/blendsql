@@ -15,7 +15,8 @@ WITH self_joined_reviews AS (
 WHERE {{
     LLMMap(
         'Do the two movie reviews express the same sentiment? I.e, either both positive or both negative.',
-        'REVIEW 1: ' || reviewText1 || ' || REVIEW 2:' || reviewText2
+        reviewText1,
+        reviewText2
     )
 }} = TRUE
 LIMIT 10

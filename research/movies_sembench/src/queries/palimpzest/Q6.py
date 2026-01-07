@@ -2,24 +2,43 @@ import palimpzest as pz
 
 
 def run(con, pz_config: pz.QueryProcessorConfig):
-    reviews_df = (
-        con.execute("SELECT * FROM Reviews").df().rename(columns={"id": "movieId"})
-    )
-    input_df1 = reviews_df[reviews_df["movieId"] == "ant_man_and_the_wasp_quantumania"]
-    input_df2 = reviews_df[reviews_df["movieId"] == "ant_man_and_the_wasp_quantumania"]
-    input_df2 = input_df2.rename(
-        columns={col: f"{col}_right" for col in input_df2.columns}
+    reviews = con.execute("SELECT * FROM Reviews").df()
+    filtered_df = reviews[reviews["id"] == "ant_man_and_the_wasp_quantumania"]
+
+    # Self-join on id
+    merged_df = filtered_df.merge(filtered_df, on="id", suffixes=("_1", "_2"))
+
+    # Apply the condition reviewId1 < reviewId2
+    merged_df = merged_df[merged_df["reviewId_1"] < merged_df["reviewId_2"]]
+
+    # Select and rename columns
+    merged_df = merged_df[
+        ["reviewText_1", "reviewText_2", "id", "reviewId_1", "reviewId_2"]
+    ]
+    merged_df = merged_df.rename(
+        columns={
+            "reviewText_1": "reviewText1",
+            "reviewText_2": "reviewText2",
+            "id": "id1",
+            "reviewId_1": "reviewId1",
+            "reviewId_2": "reviewId2",
+        }
     )
 
-    input1 = pz.MemoryDataset(id="input1", vals=input_df1)
-    input2 = pz.MemoryDataset(id="input2", vals=input_df2)
+    # Remove duplicates (equivalent to DISTINCT)
+    merged_df = merged_df.drop_duplicates()
 
-    input3 = input1.sem_join(
-        input2,
-        condition="These two movie reviews express opposite sentiments - one is positive and the other is negative.",
-        depends_on=["reviewText", "reviewText_right"],
+    # Now create the dataset with pre-filtered pairs
+    merged_df = pz.MemoryDataset(id="merged_df", vals=merged_df)
+
+    # Apply the semantic condition only to the pre-filtered pairs
+    merged_df = merged_df.sem_filter(
+        "These two movie reviews express opposite sentiments - one is positive and the other is negative.",
+        depends_on=["reviewText1", "reviewText2"],
     )
-    input3 = input3.project(["movieId", "reviewId", "reviewId_right"])
-    input3 = input3.limit(10)
 
-    return input3.run(config=pz_config)
+    # Project to get only the columns we need
+    merged_df = merged_df.project(["id1", "reviewId1", "reviewId2"])
+    merged_df = merged_df.limit(10)
+
+    return merged_df.run(config=pz_config)
