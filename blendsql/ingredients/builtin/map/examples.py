@@ -116,7 +116,7 @@ class ConstrainedMapExample(MapExample):
             s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
         if self.options_type == FeatureType.LOCAL:
             s += f"""\n{INDENT(2)}options (List[str]): Candidate strings for use in your response."""
-        s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{return_type_annotation}: Answer to the above question for each value `s`."""
+        s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{return_type_annotation}: Answer to the above question for each input."""
         s += f"""\n\n{INDENT()}Examples:\n{INDENT(2)}```python"""
         _question = '"' + self.question + '"'
         if "\n" in self.question:
