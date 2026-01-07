@@ -43,7 +43,7 @@ def prepare_datatype(
                         f"All passed `options` are the same type, so inferring a return type of `{resolved_return_type.name}`'"
                     )
                 )
-            if resolved_return_type is not None:
+            if return_type is not None:
                 if return_type.name != resolved_return_type.name:
                     if log:
                         logger.debug(
