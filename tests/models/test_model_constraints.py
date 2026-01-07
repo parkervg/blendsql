@@ -103,7 +103,7 @@ def test_alphabet(bsql, constrained_model):
 
     smoothie = bsql.execute(
         """
-            SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options=('α', 'β', 'γ'), quantifie='{3}')}} )
+            SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options=('α', 'β', 'γ'), quantifier='{3}')}} )
             """,
         model=constrained_model,
     )
