@@ -178,7 +178,8 @@ class LLMMap(MapIngredient):
         values: list[str],
         list_options_in_prompt: bool,
         context_formatter: Callable[[pl.DataFrame], str],
-        context: pl.DataFrame | None = None,
+        raw_additional_args: pl.DataFrame | None = None,
+        additional_args_tablenames: list[str] | None = None,
         context_searcher: Searcher | None = None,
         unpacked_questions: list[str] = None,
         options: list[str] | None = None,
@@ -218,50 +219,50 @@ class LLMMap(MapIngredient):
             few_shot_retriever = lambda *_: []
 
         question = dedent(question.removeprefix("\n"))
-        # Resolve context argument
-        # If we explicitly passed `context`, this should take precedence over the vector store.
-        context_in_use: list[str | None] = [None] * len(values)
-        # Only for use with local context
-        local_context_variable_names: list[str] | None = None
+
+        context: list[str | None] = [None] * len(values)
         context_in_use_type: FeatureType = None
-        # If we explicitly passed `context`, this should take precedence over the vector store.
-        if context_searcher is not None and context is None:
-            if (
-                unpacked_questions is not None
-            ):  # Implies we have different context for each value
-                context_in_use = context_searcher(unpacked_questions)
-                local_context_variable_names = ["context"]
-                context_in_use_type = FeatureType.LOCAL_MANY_VALUES
-            else:
-                context_in_use = " | ".join(context_searcher(question)[0])
-                context_in_use_type = FeatureType.GLOBAL
-        elif context is not None:  # If we've passed a table context
-            if all([len(c) == 1 for c in context]):
-                context_in_use = " | ".join([context_formatter(c) for c in context])
+
+        # Only for use with DB passed context
+        additional_args: list[str | None] = [None] * len(values)
+        additional_args_colnames: list[str] | None = None
+
+        if raw_additional_args is not None:
+            if all([len(c) == 1 for c in raw_additional_args]):
+                # If we've passed some DB context, this takes precedence
+                context = " | ".join(
+                    [context_formatter(c) for c in raw_additional_args]
+                )
                 context_in_use_type = FeatureType.GLOBAL
             else:
                 assert all(
-                    len(x) == len(values) for x in context
+                    len(x) == len(values) for x in raw_additional_args
                 ), "Length of scalars passed in LLMMap `context` doesn't match number of values!"
-                context_in_use = [
-                    list(row) for row in pl.concat(context, how="horizontal").rows()
+                additional_args_colnames = [c.columns[0] for c in raw_additional_args]
+                additional_args = [
+                    list(row)
+                    for row in pl.concat(raw_additional_args, how="horizontal").rows()
                 ]
-                local_context_variable_names = [c.columns[0] for c in context]
-                context_in_use_type = FeatureType.LOCAL_SINGLE_VALUE
+
+            if context_searcher is not None and context_in_use_type is None:
+                if (
+                    unpacked_questions is not None
+                ):  # Implies we have different context for each value
+                    context = context_searcher(unpacked_questions)
+                    context_in_use_type = FeatureType.LOCAL
+                else:
+                    context = " | ".join(context_searcher(question)[0])
+                    context_in_use_type = FeatureType.GLOBAL
+
         # Log what we found
         if context_in_use_type == FeatureType.GLOBAL:
             logger.debug(
-                Color.quiet_update(
-                    f"Retrieved global context '{context_in_use[:50]}...'"
-                )
+                Color.quiet_update(f"Retrieved global context '{context[:50]}...'")
             )
-        elif context_in_use_type in [
-            FeatureType.LOCAL_MANY_VALUES,
-            FeatureType.LOCAL_SINGLE_VALUE,
-        ]:
+        elif context_in_use_type == FeatureType.LOCAL:
             logger.debug(
                 Color.quiet_update(
-                    f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context_in_use[:3]]}...'"
+                    f"Retrieved local contexts '{[str(d[:2]) + '...' for d in context[:3]]}...'"
                 )
             )
         elif context_in_use_type is not None:
@@ -302,12 +303,12 @@ class LLMMap(MapIngredient):
                     f"Calling provided `options_searcher` to retrieve {self.options_searcher.k} options for each of the {len(values)} unique values, out of {len(self.options_searcher.documents):,} total options..."
                 )
             )
-            options_in_use_type = FeatureType.LOCAL_MANY_VALUES
+            options_in_use_type = FeatureType.LOCAL
 
         filtered_options: list[str | None] = [None] * len(values)
         if self.options_searcher is not None:
             if context_in_use_type is not None:
-                documents = [f"{v} | {c}" for c, v in zip(values, context_in_use)]
+                documents = [f"{v} | {c}" for c, v in zip(values, context)]
             else:
                 documents = values
             filtered_options = self.options_searcher(documents)
@@ -321,7 +322,7 @@ class LLMMap(MapIngredient):
             options_type=options_in_use_type,
             options=options,
             context_type=context_in_use_type,
-            context=context_in_use,
+            context=context,
         )
 
         if isinstance(model, ConstrainedModel):
@@ -333,7 +334,8 @@ class LLMMap(MapIngredient):
                 else ConstrainedAnnotatedMapExample(**example)
                 for example in few_shot_retriever(
                     current_example.to_string(
-                        local_context_variable_names=local_context_variable_names
+                        additional_arg_colnames=additional_args_colnames,
+                        additional_arg_tablenames=additional_args_tablenames,
                     )
                 )
             ]
@@ -436,6 +438,7 @@ class LLMMap(MapIngredient):
 
             def make_prediction(
                 value: str,
+                additional_args: list[str] | None,
                 context: str | list[str] | None,
                 context_in_use_type: FeatureType | None,
                 local_options: list[str] | None,
@@ -449,30 +452,30 @@ class LLMMap(MapIngredient):
                     return '"""' if any(c in s for c in ["\n", '"']) else '"'
 
                 value_quote = get_quote(value)
-                if context_in_use_type in [
-                    FeatureType.LOCAL_SINGLE_VALUE,
-                    FeatureType.LOCAL_MANY_VALUES,
-                ]:
+                has_more_than_one_arg = bool(
+                    context_in_use_type == FeatureType.LOCAL
+                    or additional_args is not None
+                    or local_options is not None
+                )
+                if has_more_than_one_arg:
+                    # If we pass more than one arg, make them appear on newlines
                     gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
-                    if context_in_use_type == FeatureType.LOCAL_MANY_VALUES:
+                    if additional_args is not None:
+                        for arg in additional_args:
+                            gen_str += f',\n{INDENT(3)}"{arg}"'
+                    if context_in_use_type == FeatureType.LOCAL:
                         json_str = json.dumps(context, ensure_ascii=False, indent=16)[
                             :-1
                         ]
                         gen_str += f",\n{INDENT(3)}" + json_str + f"{INDENT(3)}]"
-                    elif context_in_use_type == FeatureType.LOCAL_SINGLE_VALUE:
-                        for c in context:
-                            gen_str += f',\n{INDENT(3)}"{c}"'
-                else:  # Global contexts have already been handled
+                    if local_options is not None:
+                        gen_str += f",\n{INDENT(2)}{local_options}"
+                else:  # Global contexts have already been handled. We only have a single variable to pass.
                     indented_value = value.replace("\n", f"\n{INDENT(2)}")
                     gen_str = (
                         f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
                     )
-                if local_options is not None:
-                    gen_str += f",\n{INDENT(2)}{local_options}"
-                if context_in_use_type in [
-                    FeatureType.LOCAL_SINGLE_VALUE,
-                    FeatureType.LOCAL_MANY_VALUES,
-                ]:
+                if has_more_than_one_arg:
                     gen_str += f"\n{INDENT(2)}"
                 gen_str += f""") == {guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}"""
                 return gen_str
@@ -488,8 +491,8 @@ class LLMMap(MapIngredient):
             # Generator to yield prompts on-the-fly
             def generate_batch_items():
                 """Generator that yields (identifier, prompt_string, cache_info) tuples"""
-                for idx, (c, v, o) in enumerate(
-                    zip(context_in_use, values, filtered_options)
+                for idx, (v, a, c, o) in enumerate(
+                    zip(values, additional_args, context, filtered_options)
                 ):
                     curr_identifier = v
                     if c is not None:
@@ -510,8 +513,9 @@ class LLMMap(MapIngredient):
                                 "max_tokens",
                                 int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
                             ),
-                            c,
                             v,
+                            a,
+                            c,
                             o,
                             funcs=[
                                 make_prediction,
@@ -529,15 +533,13 @@ class LLMMap(MapIngredient):
                         continue  # Skip to next item
 
                     # Prepare the prompt only if not cached
-                    if context_in_use_type in [
-                        FeatureType.LOCAL_SINGLE_VALUE,
-                        FeatureType.LOCAL_MANY_VALUES,
-                    ]:
+                    if context_in_use_type == FeatureType.LOCAL:
                         current_example.context = c
 
                     current_example_str = current_example.to_string(
                         list_options=list_options_in_prompt,
-                        local_context_variable_names=local_context_variable_names,
+                        additional_arg_colnames=additional_args_colnames,
+                        additional_arg_tablenames=additional_args_tablenames,
                         add_leading_newlines=True,
                     )
 
@@ -547,6 +549,7 @@ class LLMMap(MapIngredient):
 
                     prompt_string = make_prediction(
                         value=v,
+                        additional_args=a,
                         context=c,
                         context_in_use_type=context_in_use_type,
                         local_options=o,
@@ -730,7 +733,7 @@ class LLMMap(MapIngredient):
             }
             sorted_values = [values[i] for i in sorted_indices]
             if context_in_use_type is not None:
-                context_in_use = [context_in_use[i] for i in sorted_indices]
+                context = [context[i] for i in sorted_indices]
 
             messages_list: list[list[dict]] = []
             batch_sizes: list[int] = []
@@ -746,7 +749,7 @@ class LLMMap(MapIngredient):
                 current_example.context = None
             for i in range(0, len(sorted_values), batch_size):
                 curr_batch_values = sorted_values[i : i + batch_size]
-                curr_batch_contexts = context_in_use[i : i + batch_size]
+                curr_batch_contexts = context[i : i + batch_size]
                 self.num_values_passed += len(curr_batch_values)
                 batch_sizes.append(len(curr_batch_values))
                 current_batch_example = copy.deepcopy(current_example)

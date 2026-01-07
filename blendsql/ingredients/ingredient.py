@@ -379,6 +379,7 @@ class MapIngredient(Ingredient):
                 cascade_filter_colnames = set(cascade_filter.collect_schema().names())
 
         all_context_colnames = set()
+        context_source_tables = []
         if context_was_passed:
             for _context in context:
                 if isinstance(_context, ColumnRef):
@@ -386,6 +387,10 @@ class MapIngredient(Ingredient):
                         context_tablename_or_alias,
                         context_colname,
                     ) = utils.get_tablename_colname(_context)
+                    context_tablename = aliases_to_tablenames.get(
+                        context_tablename_or_alias, context_tablename_or_alias
+                    )
+                    context_source_tables.append(context_tablename)
                     # Otherwise - we're just grabbing a different column from the same table
                     # Don't need to modify the original `context_colname`
                     all_context_colnames.add(context_colname)
@@ -525,7 +530,13 @@ class MapIngredient(Ingredient):
             question=question,
             unpacked_questions=unpacked_questions,
             values=unpacked_values,
-            context=context_subtables if len(context_subtables) > 0 else None,
+            # TODO: we should clean up the passing of the two variables below
+            raw_additional_args=context_subtables
+            if len(context_subtables) > 0
+            else None,
+            additional_args_tablenames=context_source_tables
+            if len(context_source_tables) > 0
+            else None,
             options=options,
             tablename=tablename,
             colname=colname,

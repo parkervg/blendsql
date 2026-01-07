@@ -15,8 +15,7 @@ class FeatureType(Enum):
     """
 
     GLOBAL = "global"
-    LOCAL_MANY_VALUES = "local_many_values"
-    LOCAL_SINGLE_VALUE = "local_single_value"
+    LOCAL = "local"
 
 
 @attrs(kw_only=True)
@@ -48,10 +47,17 @@ class ConstrainedMapExample(MapExample):
         list_options: bool = True,
         add_leading_newlines: bool = True,
         use_local_options: bool = False,
-        local_context_variable_names: list[str] | None = None,
+        additional_arg_colnames: list[str] | None = None,
+        additional_arg_tablenames: list[str] | None = None,
         *args,
         **kwargs,
     ) -> str:
+        if additional_arg_colnames is None:
+            additional_arg_colnames = []
+
+        if additional_arg_tablenames is None:
+            additional_arg_tablenames = []
+
         use_context = self.context_type is not None
 
         s = "\n\n" if add_leading_newlines else ""
@@ -81,13 +87,13 @@ class ConstrainedMapExample(MapExample):
         var_name = self.column_name or "s"
         s += f"""def f({var_name}: str"""
 
-        if self.context_type == FeatureType.LOCAL_MANY_VALUES:
-            s += f""", context: List[str]"""
-        elif self.context_type == FeatureType.LOCAL_SINGLE_VALUE:
-            for var_name in local_context_variable_names:
-                s += f""", {var_name}: str"""
+        for var_name in additional_arg_colnames:
+            s += f""", {var_name}: str"""
 
-        if self.options_type == FeatureType.LOCAL_MANY_VALUES:
+        if self.context_type == FeatureType.LOCAL:
+            s += f""", context: List[str]"""
+
+        if self.options_type == FeatureType.LOCAL:
             s += f""", options: List[str]"""
         s += ")"
         s += f" -> {return_type_annotation}:\n" + indent(
@@ -102,12 +108,13 @@ class ConstrainedMapExample(MapExample):
             )
         arg_name = self.column_name or "s"
         s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}{arg_name} (str): {args_str}"""
-        if self.context_type == FeatureType.LOCAL_MANY_VALUES:
+        for var_name, table_name in zip(
+            additional_arg_colnames, additional_arg_tablenames
+        ):
+            s += f"""\n{INDENT(2)}{var_name} (str): Values from the "{table_name}" table in a SQL database."""
+        if self.context_type == FeatureType.LOCAL:
             s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
-        elif self.context_type == FeatureType.LOCAL_SINGLE_VALUE:
-            for var_name in local_context_variable_names:
-                s += f"""\n{INDENT(2)}{var_name} (str): Context to use in answering the question."""
-        if self.options_type == FeatureType.LOCAL_MANY_VALUES:
+        if self.options_type == FeatureType.LOCAL:
             s += f"""\n{INDENT(2)}options (List[str]): Candidate strings for use in your response."""
         s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{return_type_annotation}: Answer to the above question for each value `s`."""
         s += f"""\n\n{INDENT()}Examples:\n{INDENT(2)}```python"""
