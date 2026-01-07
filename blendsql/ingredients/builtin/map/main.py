@@ -437,6 +437,7 @@ class LLMMap(MapIngredient):
                 )
 
             def make_prediction(
+                identifier: str,
                 value: str,
                 additional_args: list[str] | None,
                 context: str | list[str] | None,
@@ -477,7 +478,10 @@ class LLMMap(MapIngredient):
                     )
                 if has_more_than_one_arg:
                     gen_str += f"\n{INDENT(2)}"
-                gen_str += f""") == {guidance.capture(gen_f(value), name=f"{value}_{context}" if context is not None else value)}"""
+                # Below, make sure we set the output to the `identifier` name
+                # If we just did `name=value`, then this would lose the difference between
+                #   identical values with different additional args / context
+                gen_str += f""") == {guidance.capture(gen_f(value), name=identifier)}"""
                 return gen_str
 
             example_str = ""
@@ -495,6 +499,8 @@ class LLMMap(MapIngredient):
                     zip(values, additional_args, context, filtered_options)
                 ):
                     curr_identifier = v
+                    if a is not None:
+                        curr_identifier += f"_{a}"
                     if c is not None:
                         curr_identifier += f"_{c}"
 
@@ -548,6 +554,7 @@ class LLMMap(MapIngredient):
                     )
 
                     prompt_string = make_prediction(
+                        identifier=curr_identifier,
                         value=v,
                         additional_args=a,
                         context=c,
