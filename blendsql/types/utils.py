@@ -29,22 +29,33 @@ def prepare_datatype(
     quantifier: QuantifierType | None = None,
     log: bool = True,
 ) -> DataType:
-    resolved_output_type = None
-    if return_type is None:
-        if options is not None:
-            # We can still infer a return_type from the options we got
-            resolved_output_type: DataType | None = try_infer_datatype_from_collection(
-                options
-            )
-            if resolved_output_type is not None and log:
+    resolved_return_type = None
+    if options is not None:
+        # We can still infer a return_type from the options we got
+        # This should take precedence over the expression-inferred return type
+        resolved_return_type: DataType | None = try_infer_datatype_from_collection(
+            options
+        )
+        if resolved_return_type is not None:
+            if log:
                 logger.debug(
                     Color.quiet_update(
-                        f"All passed `options` are the same type, so inferring a return type of `{resolved_output_type.name}`'"
+                        f"All passed `options` are the same type, so inferring a return type of `{resolved_return_type.name}`'"
                     )
                 )
-        if resolved_output_type is None:
-            # Use default base of `DataTypes.STR`
-            resolved_output_type = DataTypes.STR()
+            if return_type.name != resolved_return_type.name:
+                if log:
+                    logger.debug(
+                        Color.quiet_update(
+                            f"This will override the expression-inferred return type of `{return_type.name}`'"
+                        )
+                    )
+            return_type = None
+
+    if return_type is None and resolved_return_type is None:
+        # Use default base of `DataTypes.STR`
+        resolved_return_type = DataTypes.STR()
+
     elif isinstance(return_type, str):
         # The user has passed us an output type in the BlendSQL query
         # That should take precedence
@@ -53,29 +64,29 @@ def prepare_datatype(
             raise IngredientException(
                 f"{return_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
             )
-        resolved_output_type = STR_TO_DATATYPE[return_type]
+        resolved_return_type = STR_TO_DATATYPE[return_type]
         if quantifier:  # User passed quantifier takes precedence
-            resolved_output_type.quantifier = quantifier
+            resolved_return_type.quantifier = quantifier
     elif isinstance(return_type, DataType):
-        resolved_output_type = return_type
+        resolved_return_type = return_type
 
     if quantifier:
         # The user has passed us a quantifier that should take precedence
-        resolved_output_type.quantifier = quantifier
+        resolved_return_type.quantifier = quantifier
 
-    if resolved_output_type.regex is not None:
+    if resolved_return_type.regex is not None:
         if options is not None:
             if log:
                 logger.debug(
                     Color.quiet_update(
-                        f"Ignoring inferred regex '{resolved_output_type.regex}' and using options '{options}' instead"
+                        f"Ignoring inferred regex '{resolved_return_type.regex}' and using options '{options}' instead"
                     )
                 )
-            resolved_output_type.regex = None
+            resolved_return_type.regex = None
         else:
             if log:
                 logger.debug(
-                    Color.quiet_update(f"Using regex '{resolved_output_type.regex}'")
+                    Color.quiet_update(f"Using regex '{resolved_return_type.regex}'")
                 )
     elif options:
         if log:
@@ -84,7 +95,7 @@ def prepare_datatype(
                     f"Using options '{set(itertools.islice(options, 20))}...'"
                 )
             )
-    return resolved_output_type
+    return resolved_return_type
 
 
 def apply_type_conversion(s: str, return_type: DataType, db: Database):
