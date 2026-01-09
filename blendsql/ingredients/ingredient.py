@@ -110,6 +110,7 @@ class Ingredient:
         self,
         v: ColumnRef,
         aliases_to_tablenames: dict[str, str],
+        deterministic: bool = False,
     ) -> list[str]:
         tablename, colname = get_tablename_colname(v)
         tablename = aliases_to_tablenames.get(tablename, tablename)
@@ -126,11 +127,7 @@ class Ingredient:
             self.num_values_passed += materialized_smoothie.meta.num_values_passed
             unpacked_values = (
                 materialized_smoothie.pl.get_column(colname)
-                .unique(
-                    maintain_order=bool(
-                        int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))
-                    )
-                )
+                .unique(maintain_order=deterministic)
                 .cast(pl.Utf8)
                 .to_list()
             )
@@ -157,10 +154,12 @@ class Ingredient:
         self,
         options: ColumnRef | list,
         aliases_to_tablenames: dict[str, str],
+        deterministic: bool = False,
     ) -> list[str] | None:
-        unpacked_options = options
         if isinstance(options, ColumnRef):
-            unpacked_options = self.unpack_column_ref(options, aliases_to_tablenames)
+            unpacked_options = self.unpack_column_ref(
+                options, aliases_to_tablenames, deterministic
+            )
         else:
             unpacked_options = options
 
@@ -276,6 +275,9 @@ class MapIngredient(Ingredient):
         **kwargs,
     ) -> tuple[str, str, str, pl.LazyFrame]:
         """Returns tuple with format (arg, tablename, colname, new_table)"""
+        in_deterministic_mode = bool(
+            int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))
+        )
         # Unpack kwargs
         # Extract single `context` from kwargs if provided
         if "context" in kwargs:
@@ -442,11 +444,11 @@ class MapIngredient(Ingredient):
         ):
             new_arg_column = "_" + new_arg_column
 
+        suffix = ""
+        if in_deterministic_mode:
+            suffix = " ORDER BY rowid"
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
-        suffix = ""
-        if bool(int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))):
-            suffix = " ORDER BY rowid"
         if temp_session_table_exists:
             temp_session_table = self.db.execute_to_df(
                 f'SELECT * FROM "{double_quote_escape(temp_session_tablename)}" LIMIT 1'
@@ -503,13 +505,7 @@ class MapIngredient(Ingredient):
             df = distinct_values.collect()
             if cascade_filter is not None:
                 unpacked_values = (
-                    df[colname]
-                    .unique(
-                        maintain_order=bool(
-                            int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))
-                        )
-                    )
-                    .to_list()
+                    df[colname].unique(maintain_order=in_deterministic_mode).to_list()
                 )
             else:
                 unpacked_values = df[colname].to_list()
@@ -529,6 +525,7 @@ class MapIngredient(Ingredient):
             options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
+                deterministic=in_deterministic_mode,
             )
 
         unpacked_questions = None
@@ -796,6 +793,9 @@ class QAIngredient(Ingredient):
         options: list | str | None = None,
         **kwargs,
     ) -> tuple[str | int | float | tuple | exp.Expression | None]:
+        in_deterministic_mode = bool(
+            int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))
+        )
         # Unpack kwargs
         # Extract single `context` from kwargs if provided
         if "context" in kwargs:
@@ -838,6 +838,7 @@ class QAIngredient(Ingredient):
             options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
+                deterministic=in_deterministic_mode,
             )
 
         if question is not None and "{}" in question:
