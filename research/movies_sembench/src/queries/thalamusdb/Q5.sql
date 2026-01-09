@@ -1,4 +1,4 @@
-select R1.id, R1.reviewId as reviewId1, R2.reviewId as reviewId2
+select distinct R1.id, R1.reviewId as reviewId1, R2.reviewId as reviewId2
 from Reviews as R1
 join Reviews as R2 on R1.id = R2.id
 where R1.reviewId < R2.reviewId

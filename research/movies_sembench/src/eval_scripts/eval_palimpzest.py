@@ -11,17 +11,13 @@ def run_palimpzest_eval(model_config: ModelConfig):
 
     import litellm
 
-    litellm.drop_params = True
-    litellm.completion_kwargs = {
-        "max_tokens": MODEL_PARAMS["max_tokens"],
-        "temperature": MODEL_PARAMS["temperature"],
-    }
-
     original_completion = litellm.completion
 
     def patched_completion(*args, **kwargs):
+        litellm.drop_params = True
         kwargs["api_base"] = f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1"
         kwargs["supports_system_message"] = False
+        kwargs["temperature"] = MODEL_PARAMS["temperature"]
 
         return original_completion(*args, **kwargs)
 
@@ -70,6 +66,7 @@ def run_palimpzest_eval(model_config: ModelConfig):
                 verbose=False,
                 progress=False,
                 reasoning_effort=None,
+                execution_strategy="pipelined",
                 # Placeholder model with reasoning
                 # Need a reasoning model due to this bug: https://github.com/mitdbg/palimpzest/issues/268
                 available_models=["openai/gpt-5-2025-08-07"],

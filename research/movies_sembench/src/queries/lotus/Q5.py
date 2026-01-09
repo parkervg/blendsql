@@ -28,6 +28,10 @@ def run(con):
     # Remove duplicates (equivalent to DISTINCT)
     merged_df = merged_df.drop_duplicates()
 
+    merged_df = merged_df.sort_values(by=["reviewId1", "reviewId2"]).reset_index(
+        drop=True
+    )
+
     joined_df = merged_df.sem_filter(
         'These two movie reviews express the same sentiments - either both are positive or both are negative. Review 1: "{reviewText1}" Review 2: "{reviewText2}"'
     )

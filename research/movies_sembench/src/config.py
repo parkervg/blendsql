@@ -3,6 +3,7 @@ Configuration settings for model evaluation framework.
 """
 from pathlib import Path
 from dataclasses import dataclass
+from datetime import datetime
 
 BASE_DIR = Path(__file__).resolve().parent
 USE_DATA_SIZE = 2000
@@ -54,7 +55,8 @@ MODEL_CONFIGS = {
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_API_ENDPOINT = f"{OLLAMA_BASE_URL}/api/tags"
 
-BASE_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "results"
+current_date = datetime.now().strftime("%Y-%m-%d")
+BASE_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "results" / current_date
 
 # Model Parameters
 MODEL_PARAMS = {
@@ -83,7 +85,7 @@ QUERIES_DIR = BASE_DIR / "queries"
 THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
 
 # Query Filtering
-SKIP_QUERIES = {"Q7", "Q11", "Q12"}
+SKIP_QUERIES = {"Q7"}
 ONLY_USE = {}
 
 # Server Configuration

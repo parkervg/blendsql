@@ -1,6 +1,7 @@
 import tdb.operators.semantic_filter
 import litellm
 from litellm import completion
+from ..config import MODEL_PARAMS
 
 
 def make_llama_compatible(config):
@@ -46,6 +47,8 @@ def _modified_filter_completion_wrapper(item_text, kwargs):
     """
     # Ensure parameters are dropped for logging where applicable
     litellm.drop_params = True
+    kwargs["temperature"] = MODEL_PARAMS["temperature"]
+    kwargs["supports_system_message"] = False
     response = completion(**make_llama_compatible(kwargs))
     # ThalamusDB does this on their filter:
     # `results.append((item_text, result == '1'))`
@@ -91,6 +94,9 @@ class CustomBatchJoin(BatchJoin):
         messages = [prompt]
         base = self._best_model_args(messages)["join"]
         kwargs = {**base, "messages": messages}
+        litellm.drop_params = True
+        kwargs["temperature"] = MODEL_PARAMS["temperature"]
+        kwargs["supports_system_message"] = False
         response = completion(**make_llama_compatible(kwargs))
         model = kwargs["model"]
         self.update_cost_counters(model, response)
@@ -221,9 +227,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
             dop=SYSTEM_PARAMS["batch_size"],
             model_config_path=THALAMUS_CONFIG_PATH,
         )
-        constraints = Constraints(
-            max_calls=10000000000, max_seconds=60000000000, max_tokens=60000000000
-        )
+        constraints = Constraints(max_calls=1000, max_seconds=6000)
 
         # Run queries
         results = []

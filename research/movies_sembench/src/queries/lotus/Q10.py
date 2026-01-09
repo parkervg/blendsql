@@ -5,8 +5,6 @@ import random
 
 random.seed(42)
 
-DEFAULT_VALUE = -100
-
 
 def run(con):
     reviews = con.execute("SELECT * FROM Reviews").df()
@@ -32,6 +30,7 @@ def run(con):
 
     # Extract scores from the _map column and group by movie to calculate averages
     movie_scores = []
+    num_invalid_types = 0
     grouped_scored = scored_reviews.groupby("id")
 
     for movie_id, movie_scored_reviews in grouped_scored:
@@ -40,13 +39,12 @@ def run(con):
             score = row["_map"]
             try:
                 numeric_score = float(score)
-                valid_scores.append(numeric_score)
-                # if 1 <= numeric_score <= 5:
-                #     valid_scores.append(numeric_score)
-                # else:
-                #     valid_scores.append(DEFAULT_VALUE)
+                if 1 <= numeric_score <= 5:
+                    valid_scores.append(numeric_score)
+                else:
+                    num_invalid_types += 1
             except (ValueError, TypeError):
-                # valid_scores.append(DEFAULT_VALUE)
+                num_invalid_types += 1
                 continue
         if valid_scores:
             avg_score = sum(valid_scores) / len(valid_scores)
@@ -56,4 +54,8 @@ def run(con):
         movie_scores.append({"movieId": movie_id, "movieScore": round(avg_score, 2)})
 
     result_df = pd.DataFrame(movie_scores)
+
+    with open(f"LOTUS_Q10_INVALID_TYPES.txt", "w") as f:
+        f.write(str(num_invalid_types))
+
     return result_df

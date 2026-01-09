@@ -37,6 +37,7 @@ def run(con):
     # Use sem_map for scoring - returns scores directly
     scored_reviews = filtered_reviews.sem_map(scoring_prompt)
 
+    num_invalid_types = 0
     # Extract scores from the _map column
     results = []
     for _, row in scored_reviews.iterrows():
@@ -52,10 +53,12 @@ def run(con):
                     }
                 )
             else:
-                results.append(
-                    {"reviewId": row["reviewId"], "reviewScore": DEFAULT_VALUE}
-                )
+                num_invalid_types += 1
         except (ValueError, TypeError):
-            results.append({"reviewId": row["reviewId"], "reviewScore": DEFAULT_VALUE})
+            num_invalid_types += 1
     result_df = pd.DataFrame(results)
+
+    with open(f"LOTUS_Q9_INVALID_TYPES.txt", "w") as f:
+        f.write(str(num_invalid_types))
+
     return result_df

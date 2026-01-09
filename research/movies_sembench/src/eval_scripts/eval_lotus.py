@@ -4,6 +4,22 @@ from ..config import ModelConfig
 
 
 def run_lotus_eval(model_config: ModelConfig):
+    from ..config import MODEL_PARAMS
+    import litellm
+
+    original_completion = litellm.completion
+
+    def patched_completion(*args, **kwargs):
+        litellm.drop_params = True
+        kwargs["api_base"] = f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1"
+        kwargs["supports_system_message"] = False
+        kwargs["temperature"] = MODEL_PARAMS["temperature"]
+
+        return original_completion(*args, **kwargs)
+
+    # Replace the completion function with your patched version
+    litellm.completion = patched_completion
+
     import time
     import duckdb
     import importlib
@@ -12,7 +28,7 @@ def run_lotus_eval(model_config: ModelConfig):
     from lotus.models import LM
     from blendsql.common.logger import Color, logger
 
-    from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS, MODEL_PARAMS, DUCKDB_SEED
+    from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS, DUCKDB_SEED
     from ..server_utils import (
         start_llama_cpp_server,
         stop_llama_cpp_server,
@@ -21,14 +37,6 @@ def run_lotus_eval(model_config: ModelConfig):
     )
     from ..database_utils import iter_queries
     import importlib.util
-
-    import litellm
-
-    litellm.drop_params = True
-    litellm.completion_kwargs = {
-        "max_tokens": MODEL_PARAMS["max_tokens"],
-        "temperature": MODEL_PARAMS["temperature"],
-    }
 
     def load_module(filename):
         """Load a Python file as a module and execute its run() function."""
