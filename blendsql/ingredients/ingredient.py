@@ -126,7 +126,11 @@ class Ingredient:
             self.num_values_passed += materialized_smoothie.meta.num_values_passed
             unpacked_values = (
                 materialized_smoothie.pl.get_column(colname)
-                .unique()
+                .unique(
+                    maintain_order=bool(
+                        int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))
+                    )
+                )
                 .cast(pl.Utf8)
                 .to_list()
             )
@@ -497,9 +501,18 @@ class MapIngredient(Ingredient):
         context_subtables = []
         if context_was_passed or cascade_filter is not None:
             df = distinct_values.collect()
-            unpacked_values = df[colname].to_list()
             if cascade_filter is not None:
-                unpacked_values = list(set(unpacked_values))
+                unpacked_values = (
+                    df[colname]
+                    .unique(
+                        maintain_order=bool(
+                            int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))
+                        )
+                    )
+                    .to_list()
+                )
+            else:
+                unpacked_values = df[colname].to_list()
             context_subtables = [df.select(c) for c in df.columns if c != colname]
         else:
             unpacked_values: list = distinct_values
