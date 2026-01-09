@@ -37,21 +37,23 @@ def prepare_datatype(
             options
         )
         if resolved_return_type is not None:
-            if log:
-                logger.debug(
-                    Color.quiet_update(
-                        f"All passed `options` are the same type, so inferring a return type of `{resolved_return_type.name}`'"
-                    )
-                )
-            if return_type is not None:
-                if return_type.name != resolved_return_type.name:
-                    if log:
-                        logger.debug(
-                            Color.quiet_update(
-                                f"This will override the expression-inferred return type of `{return_type.name}`'"
-                            )
+            # ._name is atomic type like `str`, .name is collection type like `List[str]` (if exists)
+            if return_type is None or (return_type._name != resolved_return_type._name):
+                if log:
+                    logger.debug(
+                        Color.quiet_update(
+                            f"All passed `options` are the same type, so inferring a return type of `{resolved_return_type.name}`'"
                         )
-                return_type = None
+                    )
+                if return_type is not None:
+                    if return_type.name != resolved_return_type.name:
+                        if log:
+                            logger.debug(
+                                Color.quiet_update(
+                                    f"This will override the expression-inferred return type of `{return_type.name}`'"
+                                )
+                            )
+                    return_type = None
 
     if return_type is None and resolved_return_type is None:
         # Use default base of `DataTypes.STR`
