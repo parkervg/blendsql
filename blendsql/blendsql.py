@@ -812,7 +812,7 @@ def _blend(
                 kwargs_dict["table_to_title"] = table_to_title
 
             # Optionally, recursively call blend() again to get subtable from args
-            # This applies to `context` and `options`, since they can be `Subquery` types.
+            # This applies to `context` and `options`, since they could be `Subquery` types.
             for _i, unpack_kwarg in enumerate(["context", "options"]):
                 unpack_value = kwargs_dict.get(unpack_kwarg, None)
                 if unpack_value is None:
@@ -838,7 +838,7 @@ def _blend(
                             _prev_passed_values=_prev_passed_values,
                         )
                         _prev_passed_values += _smoothie.meta.num_values_passed
-                        subtable = _smoothie.df
+                        subtable = _smoothie.pl
                         if unpack_kwarg == "options":
                             if len(subtable.columns) == 1 or len(subtable) == 1:
                                 # Here, we need to format as a flat set
@@ -850,11 +850,15 @@ def _blend(
                                     f"Invalid subquery passed to `options`!\nNeeds to return exactly one column or row, got {len(subtable.columns)} columns and {len(subtable)} rows instead"
                                 )
                         elif unpack_kwarg == "context":
-                            tup = kwargs_dict[unpack_kwarg]
-                            new_tup = (
-                                tup[:value_idx] + (subtable,) + tup[value_idx + 1 :]
-                            )
-                            kwargs_dict[unpack_kwarg] = new_tup
+                            if curr_ingredient.ingredient_type == IngredientType.QA:
+                                # `QAIngredient` can potentially receive multiple context subtables
+                                tup = kwargs_dict[unpack_kwarg]
+                                new_tup = (
+                                    tup[:value_idx] + (subtable,) + tup[value_idx + 1 :]
+                                )
+                                kwargs_dict[unpack_kwarg] = new_tup
+                            else:
+                                kwargs_dict[unpack_kwarg] = subtable
                         else:
                             raise IngredientException(
                                 f"Invalid kwarg {unpack_kwarg}\nAlso, we should have never hit this error..."

@@ -8,7 +8,7 @@ import polars as pl
 import pandas as pd
 from attr import attrs, attrib
 import copy
-from itertools import islice
+from itertools import islice, repeat
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
 
@@ -20,7 +20,7 @@ from blendsql.models.utils import user
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import IngredientException
-from blendsql.common.typing import DataType, QuantifierType
+from blendsql.common.typing import DataType, QuantifierType, AdditionalMapArg
 from blendsql.ingredients.utils import (
     initialize_retriever,
     partialclass,
@@ -176,10 +176,10 @@ class LLMMap(MapIngredient):
         model: Model,
         question: str,
         values: list[str],
+        additional_args: list[AdditionalMapArg],
         list_options_in_prompt: bool,
         context_formatter: Callable[[pl.DataFrame], str],
-        raw_additional_args: pl.DataFrame | None = None,
-        additional_args_tablenames: list[str] | None = None,
+        global_subtable_context: pl.DataFrame | None = None,
         context_searcher: Searcher | None = None,
         unpacked_questions: list[str] = None,
         options: list[str] | None = None,
@@ -223,36 +223,18 @@ class LLMMap(MapIngredient):
         context: list[str | None] = [None] * len(values)
         context_in_use_type: FeatureType = None
 
-        # Only for use with DB passed context
-        additional_args: list[str | None] = [None] * len(values)
-        additional_args_colnames: list[str] | None = None
-
-        if raw_additional_args is not None:
-            if all([len(c) == 1 for c in raw_additional_args]):
-                # If we've passed some DB context, this takes precedence
-                context = " | ".join(
-                    [context_formatter(c) for c in raw_additional_args]
-                )
-                context_in_use_type = FeatureType.GLOBAL
+        if context_searcher is not None and global_subtable_context is None:
+            if (
+                unpacked_questions is not None
+            ):  # Implies we have different context for each value
+                context = context_searcher(unpacked_questions)
+                context_in_use_type = FeatureType.LOCAL
             else:
-                assert all(
-                    len(x) == len(values) for x in raw_additional_args
-                ), "Length of scalars passed in LLMMap `context` doesn't match number of values!"
-                additional_args_colnames = [c.columns[0] for c in raw_additional_args]
-                additional_args = [
-                    list(row)
-                    for row in pl.concat(raw_additional_args, how="horizontal").rows()
-                ]
-
-            if context_searcher is not None and context_in_use_type is None:
-                if (
-                    unpacked_questions is not None
-                ):  # Implies we have different context for each value
-                    context = context_searcher(unpacked_questions)
-                    context_in_use_type = FeatureType.LOCAL
-                else:
-                    context = " | ".join(context_searcher(question)[0])
-                    context_in_use_type = FeatureType.GLOBAL
+                context = " | ".join(context_searcher(question)[0])
+                context_in_use_type = FeatureType.GLOBAL
+        elif global_subtable_context is not None:
+            context = context_formatter(global_subtable_context)
+            context_in_use_type = FeatureType.GLOBAL
 
         # Log what we found
         if context_in_use_type == FeatureType.GLOBAL:
@@ -334,8 +316,7 @@ class LLMMap(MapIngredient):
                 else ConstrainedAnnotatedMapExample(**example)
                 for example in few_shot_retriever(
                     current_example.to_string(
-                        additional_arg_colnames=additional_args_colnames,
-                        additional_arg_tablenames=additional_args_tablenames,
+                        additional_args=additional_args,
                     )
                 )
             ]
@@ -439,7 +420,7 @@ class LLMMap(MapIngredient):
             def make_prediction(
                 identifier: str,
                 value: str,
-                additional_args: list[str] | None,
+                additional_args: list[AdditionalMapArg] | None,
                 context: str | list[str] | None,
                 context_in_use_type: FeatureType | None,
                 local_options: list[str] | None,
@@ -496,7 +477,14 @@ class LLMMap(MapIngredient):
             def generate_batch_items():
                 """Generator that yields (identifier, prompt_string, cache_info) tuples"""
                 for idx, (v, a, c, o) in enumerate(
-                    zip(values, additional_args, context, filtered_options)
+                    zip(
+                        values,
+                        zip(*[arg.values for arg in additional_args])
+                        if additional_args
+                        else repeat(None),
+                        context,
+                        filtered_options,
+                    )
                 ):
                     curr_identifier = v
                     if a is not None:
@@ -544,8 +532,7 @@ class LLMMap(MapIngredient):
 
                     current_example_str = current_example.to_string(
                         list_options=list_options_in_prompt,
-                        additional_arg_colnames=additional_args_colnames,
-                        additional_arg_tablenames=additional_args_tablenames,
+                        additional_args=additional_args,
                         add_leading_newlines=True,
                     )
 

@@ -1,5 +1,5 @@
 from enum import Enum, EnumMeta
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, Callable, Any
 
 
@@ -53,6 +53,13 @@ class Subquery(IngredientArgType, str):
 class ColumnRef(IngredientArgType, str):
     # '{table}.{column}' syntax
     pass
+
+
+@dataclass
+class AdditionalMapArg:
+    values: list[Any] = field(init=False)
+    columnname: str
+    tablename: str
 
 
 class StringConcatenation(IngredientArgType, list):

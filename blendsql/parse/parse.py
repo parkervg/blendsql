@@ -132,6 +132,7 @@ class SubqueryContextManager:
                 #   state of the filtered database.
                 kwargs_dict.get("context", None),
                 kwargs_dict.get("values", None),
+                kwargs_dict.get("additional_args", None),
                 kwargs_dict.get("left_on", None),
                 kwargs_dict.get("right_on", None),
             }:

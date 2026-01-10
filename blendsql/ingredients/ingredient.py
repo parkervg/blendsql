@@ -14,7 +14,12 @@ import polars as pl
 from blendsql.common.exceptions import IngredientException
 from blendsql.common.logger import logger, Color
 from blendsql.common import utils
-from blendsql.common.typing import IngredientType, ColumnRef, StringConcatenation
+from blendsql.common.typing import (
+    IngredientType,
+    ColumnRef,
+    AdditionalMapArg,
+    StringConcatenation,
+)
 from blendsql.db import Database
 from blendsql.db.utils import format_tuple, double_quote_escape, LazyTable
 from blendsql.common.utils import get_tablename_colname
@@ -270,7 +275,8 @@ class MapIngredient(Ingredient):
         self,
         question: str | None = None,
         values: ColumnRef | None = None,
-        *context: str | pd.DataFrame,
+        *additional_args: ColumnRef,
+        context: str | pd.DataFrame | None = None,
         options: ColumnRef | list | None = None,
         **kwargs,
     ) -> tuple[str, str, str, pl.LazyFrame]:
@@ -278,17 +284,16 @@ class MapIngredient(Ingredient):
         in_deterministic_mode = bool(
             int(os.getenv(DETERMINISTIC_KEY, DEFAULT_DETERMINISTIC))
         )
-        # Unpack kwargs
-        # Extract single `context` from kwargs if provided
-        if "context" in kwargs:
-            context_kwarg = kwargs.pop("context")
+        # Extract single `additional_args` from kwargs if provided
+        if "additional_args" in kwargs:
+            additional_args_kwarg = kwargs.pop("additional_args")
             # Combine positional and keyword context
-            if isinstance(context_kwarg, (list, tuple)):
-                context = context + tuple(context_kwarg)
+            if isinstance(additional_args_kwarg, (list, tuple)):
+                additional_args = additional_args + tuple(additional_args_kwarg)
             else:
-                context = context + (context_kwarg,)
+                additional_args = additional_args + (additional_args_kwarg,)
 
-        context_was_passed = bool(context)
+        additional_args_passed = bool(additional_args)
         aliases_to_tablenames: dict[str, str] = kwargs["aliases_to_tablenames"]
         get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
@@ -384,30 +389,36 @@ class MapIngredient(Ingredient):
             if cascade_filter is not None:
                 cascade_filter_colnames = set(cascade_filter.collect_schema().names())
 
-        all_context_colnames = set()
-        context_source_tables = []
-        if context_was_passed:
-            for _context in context:
-                if isinstance(_context, ColumnRef):
+        # Construct a `SELECT DISTINCT` function to get all unique combinations of values we need to apply the `Map` to
+        # In the most basic case, this is the single column name that was passed
+        # But, we also need to consider distinct pairs of values if `f(column1, column2)` was passed
+        resolved_additional_args: list[AdditionalMapArg] = []
+        if additional_args_passed:
+            for additional_arg in additional_args:
+                if isinstance(additional_arg, ColumnRef):
                     (
-                        context_tablename_or_alias,
-                        context_colname,
-                    ) = utils.get_tablename_colname(_context)
-                    context_tablename = aliases_to_tablenames.get(
-                        context_tablename_or_alias, context_tablename_or_alias
+                        additional_arg_tablename_or_alias,
+                        additional_arg_columnname,
+                    ) = utils.get_tablename_colname(additional_arg)
+                    resolved_additional_args.append(
+                        AdditionalMapArg(
+                            columnname=additional_arg_columnname,
+                            tablename=aliases_to_tablenames.get(
+                                additional_arg_tablename_or_alias,
+                                additional_arg_tablename_or_alias,
+                            ),
+                        )
                     )
-                    context_source_tables.append(context_tablename)
-                    # Otherwise - we're just grabbing a different column from the same table
-                    # Don't need to modify the original `context_colname`
-                    all_context_colnames.add(context_colname)
                 else:
                     raise ValueError(
-                        f"Not sure what to do with context arg passed to MapIngredient: {_context}"
+                        f"`Map` ingredients can only receive `ColumnRef` objects (e.g. `{{tablename}}.{{columnname}}`) as additional args\nDid you try to pass a subquery instead?"
                     )
             select_distinct_arg = ", ".join(
                 f'"{double_quote_escape(c)}"'
                 for c in set(
-                    set([colname]) | all_context_colnames | cascade_filter_colnames
+                    set([colname])
+                    | set([i.columnname for i in resolved_additional_args])
+                    | cascade_filter_colnames
                 )
             )
             select_distinct_fn = lambda q: self.db.execute_to_df(q)
@@ -419,7 +430,7 @@ class MapIngredient(Ingredient):
                 )
                 select_distinct_fn = lambda q: self.db.execute_to_df(q)
             else:
-                # Simplest case
+                # Simplest base case - just a single column's values were passed
                 select_distinct_arg = f'"{double_quote_escape(colname)}"'
                 select_distinct_fn = lambda q: self.db.execute_to_list(q)
 
@@ -497,11 +508,11 @@ class MapIngredient(Ingredient):
             )
             # Remove columns, if they were only needed for the cascade_filter
             distinct_values = distinct_values.select(
-                set([colname]) | all_context_colnames
+                set([colname]) | set([i.columnname for i in resolved_additional_args])
             )
 
-        context_subtables = []
-        if context_was_passed or cascade_filter is not None:
+        if additional_args_passed or cascade_filter is not None:
+            # We have a dataframe object we need to disentangle
             df = distinct_values.collect()
             if cascade_filter is not None:
                 unpacked_values = (
@@ -509,8 +520,12 @@ class MapIngredient(Ingredient):
                 )
             else:
                 unpacked_values = df[colname].to_list()
-            context_subtables = [df.select(c) for c in df.columns if c != colname]
+            for additional_arg in resolved_additional_args:
+                additional_arg.values = df.get_column(
+                    additional_arg.columnname
+                ).to_list()
         else:
+            # Base case: a simple list of unique values from a column
             unpacked_values: list = distinct_values
 
         # No need to run ingredient if we have no values to map onto
@@ -520,14 +535,39 @@ class MapIngredient(Ingredient):
             )
             return (new_arg_column, tablename, colname, original_table)
 
+        unpacked_options = None
         if options is not None:
-            # Override any pattern with our new unpacked options
-            options = self.unpack_options(
+            unpacked_options = self.unpack_options(
                 options=options,
                 aliases_to_tablenames=aliases_to_tablenames,
                 deterministic=in_deterministic_mode,
             )
 
+        global_subtable_context = None
+        if context is not None:
+            if isinstance(context, ColumnRef):
+                tablename, colname = utils.get_tablename_colname(additional_arg)
+                tablename = aliases_to_tablenames.get(tablename, tablename)
+                # Optionally materialize a CTE
+                if tablename in self.db.lazy_tables:
+                    materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
+                    self.num_values_passed += (
+                        materialized_smoothie.meta.num_values_passed
+                    )
+                    global_subtable_context = materialized_smoothie.pl.select([colname])
+                    if isinstance(global_subtable_context, pl.LazyFrame):
+                        global_subtable_context = global_subtable_context.collect()
+                else:
+                    global_subtable_context: pl.DataFrame = self.db.execute_to_df(
+                        f'SELECT "{colname}" FROM "{tablename}"', lazy=False
+                    )
+            elif isinstance(context, pl.DataFrame):
+                global_subtable_context: pl.DataFrame = context
+            else:
+                global_subtable_context = pl.DataFrame({"_col": context})
+            self.num_values_passed += len(global_subtable_context)
+
+        # Unpack questions, to later pass to a `context_searcher` or `options_searcher`
         unpacked_questions = None
         if question is not None and "{}" in question:
             unpacked_questions = [question.format(value) for value in unpacked_values]
@@ -540,14 +580,9 @@ class MapIngredient(Ingredient):
             question=question,
             unpacked_questions=unpacked_questions,
             values=unpacked_values,
-            # TODO: we should clean up the passing of the two variables below
-            raw_additional_args=context_subtables
-            if len(context_subtables) > 0
-            else None,
-            additional_args_tablenames=context_source_tables
-            if len(context_source_tables) > 0
-            else None,
-            options=options,
+            additional_args=resolved_additional_args,
+            global_subtable_context=global_subtable_context,
+            options=unpacked_options,
             tablename=tablename,
             colname=colname,
             **self.__dict__ | kwargs,
@@ -561,7 +596,7 @@ class MapIngredient(Ingredient):
         )  # strict=False allows mixed types
 
         # Add new_table to original table
-        if context_was_passed:
+        if additional_args_passed:
             # _mapped_subtable = distinct_values.collect()
             _mapped_subtable = pl.concat(
                 [distinct_values, mapped_subtable.select(new_arg_column)],
@@ -570,7 +605,9 @@ class MapIngredient(Ingredient):
             new_table = original_table.join(
                 _mapped_subtable,
                 how="left",
-                on=set([colname]) | all_context_colnames | cascade_filter_colnames,
+                on=set([colname])
+                | set([i.columnname for i in resolved_additional_args])
+                | cascade_filter_colnames,
             )
         else:
             new_table = original_table.join(mapped_subtable, how="left", on=colname)
@@ -789,7 +826,7 @@ class QAIngredient(Ingredient):
     def __call__(
         self,
         question: str | None = None,
-        *context: str | pd.DataFrame,
+        *context: str | pl.DataFrame,
         options: list | str | None = None,
         **kwargs,
     ) -> tuple[str | int | float | tuple | exp.Expression | None]:
