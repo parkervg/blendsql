@@ -2,6 +2,9 @@
 hide:
   - toc
 ---
+
+All BlendSQL LM functions (sometimes referred to as `Ingredients` in the codebase) are polymorphic, meaning that can return many different types depending on expression context and user arguments.
+
 # **General Syntax**
 ## `ValueArray`
 
@@ -52,7 +55,7 @@ The following [greedy quantifiers](https://learn.microsoft.com/en-us/dotnet/stan
 # **Functions**
 ## LLMQA
 
-The `LLMQA` is an aggregate function that returns a single scalar value.
+The `LLMQA` is an aggregate function which transforms a subset of data into a single-cell output. This output can be a single atomic type (`return_type='str'`), or a single nested collection (`return_type='List[str]'`). 
 
 ```python
 def LLMQA(
@@ -121,7 +124,8 @@ The `LLMMap` is a unary scalar function, much like `LENGTH` or `ABS` in SQlite. 
 def LLMMap(
     question: str,
     values: ColumnRef,
-    *context: ValueArray,
+    *additional_args: ColumnRef,
+    context: Query = None,
     options: Optional[ValueArray] = None,
     return_type: Optional[ReturnType] = None,
     regex: Optional[str] = None
