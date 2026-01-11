@@ -299,7 +299,7 @@ if __name__ == "__main__":
             LLMMap(
                 'What is the sentiment of this text?',
                 content,
-                options=('positive', 'negative')
+                options=('positive', 'negative', 'neutral')
             )      
         }} AS classification FROM posts
         """
