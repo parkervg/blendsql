@@ -22,7 +22,6 @@ from blendsql.common.utils import (
 )
 from blendsql.common.exceptions import InvalidBlendSQL
 from blendsql.db.database import Database
-from blendsql.db.duckdb import DuckDB
 from blendsql.db.utils import (
     double_quote_escape,
     select_all_from_table_query,
@@ -532,11 +531,13 @@ def _blend(
         # Check to see if there is a table we haven't materialized yet
         # Need to `try`, `except` for cases like DuckDB's `...FROM read_text(x)`
         try:
-            for tablename in [
+            for temp_tablename_to_write in [
                 i.name for i in query_context.node.find_all(exp.Table) if i.name != ""
             ]:
-                if tablename not in db.tables():
-                    materialized_smoothie = db.lazy_tables.pop(tablename).collect()
+                if temp_tablename_to_write not in db.tables():
+                    materialized_smoothie = db.lazy_tables.pop(
+                        temp_tablename_to_write
+                    ).collect()
                     _prev_passed_values += materialized_smoothie.meta.num_values_passed
         except Exception as e:
             logger.error(f"Error while materializing tables: {e}")
@@ -578,12 +579,12 @@ def _blend(
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
     prev_subquery_has_ingredient = False
-    for subquery_idx, subquery in enumerate(
+    for subquery_idx, subquery_node in enumerate(
         get_reversed_subqueries(query_context.node)
     ):
         # At this point, we should have already handled cte statements and created associated tables
-        if subquery.find(exp.With) is not None:
-            subquery = subquery.transform(transform.remove_nodetype, exp.With)
+        if subquery_node.find(exp.With) is not None:
+            subquery_node = subquery_node.transform(transform.remove_nodetype, exp.With)
         # Only cache executed_ingredients within the same subquery
         # The same ingredient may have different results within a different subquery context
         executed_subquery_ingredients: set[str] = set()
@@ -591,16 +592,17 @@ def _blend(
         _get_temp_subquery_table: Callable = partial(
             get_temp_subquery_table, session_uuid, subquery_idx
         )
-        if not isinstance(subquery, exp.Select):
+        if not isinstance(subquery_node, exp.Select):
             # We need to create a select query from this subquery
             # So we find the parent select, and grab that table
             parent_select_tablenames = [
-                i.name for i in subquery.find_ancestor(exp.Select).find_all(exp.Table)
+                i.name
+                for i in subquery_node.find_ancestor(exp.Select).find_all(exp.Table)
             ]
             if len(parent_select_tablenames) == 1:
                 subquery_str = (
                     f"SELECT * FROM {parent_select_tablenames[0]} WHERE "
-                    + get_first_child(subquery).sql(dialect=dialect)
+                    + get_first_child(subquery_node).sql(dialect=dialect)
                 )
 
             else:
@@ -611,113 +613,114 @@ def _blend(
                 )
                 continue
         else:
-            subquery_str = subquery.sql(dialect=dialect)
+            subquery_str = subquery_node.sql(dialect=dialect)
 
         subquery_processed_tablenames = set()
-        in_cte, cte_table_alias_name = check.in_cte(subquery, return_name=True)
+        in_cte, cte_table_alias_name = check.in_cte(subquery_node, return_name=True)
         scm = SubqueryContextManager(
             dialect=dialect,
             node=_parse_one(
                 subquery_str, dialect=dialect
             ),  # Need to do this so we don't track parents into construct_abstracted_selects
             prev_subquery_has_ingredient=prev_subquery_has_ingredient,
-            alias_to_subquery={cte_table_alias_name: subquery} if in_cte else {},
+            alias_to_subquery={cte_table_alias_name: subquery_node} if in_cte else {},
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+            get_temp_subquery_table=_get_temp_subquery_table,
         )
-        for (
-            tablename,
-            postprocess_columns,
-            abstracted_query_str,
-        ) in scm.abstracted_table_selects():
-            if in_cte:  # Don't execute CTEs until we need them
-                continue
-            # # If this table isn't being used in any ingredient calls, there's no
-            # #   need to create a temporary session table
-            # if (tablename not in tables_in_ingredients) and (
-            #     scm.tablename_to_alias.get(tablename, None) not in tables_in_ingredients
-            # ):
-            #     continue
-            aliased_subquery = scm.alias_to_subquery.pop(tablename, None)
-            if aliased_subquery is not None:
-                # First, we need to explicitly create the aliased subquery as a table
-                # For example, `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w WHERE w...`
-                # We can't assign `abstracted_query` for non-existent `w`
-                #   until we set `w` to `SELECT DISTINCT Symbol FROM portfolio`
-                db.lazy_tables.add(
-                    LazyTable(
-                        tablename=tablename,
-                        collect_fn=partial(
-                            materialize_cte,
-                            query_context=query_context,
-                            subquery=aliased_subquery,
-                            aliasname=tablename,
-                            default_model=default_model,
-                            db=db,
-                            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-                            # Below are in case we need to call blend() again
-                            ingredients=ingredients,
-                            infer_gen_constraints=infer_gen_constraints,
-                            table_to_title=table_to_title,
-                            verbose=verbose,
-                            _prev_passed_values=_prev_passed_values,
-                        ),
-                        has_blendsql_function=aliased_subquery.find(
-                            exp.BlendSQLFunction
+        scm.process_abstracted_table_selects()
+
+        if not in_cte:  # Don't execute CTEs until we need them
+            if scm.pushed_temp_tablename is not None:
+                if "_JOIN_" in scm.pushed_temp_tablename:
+                    # Collapse `JOIN` clause from subquery_node
+                    new_subquery = subquery_node.transform(
+                        transform.remove_nodetype, (exp.Join)
+                    )
+
+                    if subquery_node is query_context.node:
+                        # This is the root node - update the reference directly
+                        query_context.node = new_subquery
+                        subquery_node = new_subquery
+                    else:
+                        subquery_node.replace(new_subquery)
+
+                    from_node = new_subquery.find(exp.From, bfs=True)
+                    from_node.replace(
+                        exp.From(
+                            this=exp.Table(
+                                this=exp.Identifier(
+                                    this=scm.pushed_temp_tablename, quoted=True
+                                )
+                            )
                         )
-                        is not None,
                     )
+                    # Turn any `c.name` references to `c_name`
+                    for n in subquery_node.find_all(exp.Column):
+                        if n.table is not None:
+                            n.replace(
+                                exp.Column(
+                                    this=exp.Identifier(this=f"{n.table}_{n.this.this}")
+                                )
+                            )
+                    print()
+                    # TODO: we need to replace at the Table level, and get all tables brought into scope
+                aliased_subquery = scm.alias_to_subquery.pop(
+                    scm.pushed_temp_tablename, None
                 )
-            if abstracted_query_str is not None:
-                if tablename in db.lazy_tables:
-                    materialized_smoothie = db.lazy_tables.pop(tablename).collect()
-                    _prev_passed_values += materialized_smoothie.meta.num_values_passed
-
-                tablename_to_write = _get_temp_subquery_table(tablename)
-                logger.debug(
-                    Color.update("Executing ")
-                    + Color.sql(abstracted_query_str, ignore_prefix=True)
-                    + Color.update(
-                        f" and setting to `{tablename_to_write}`...", ignore_prefix=True
+                if aliased_subquery is not None:
+                    # First, we need to explicitly create the aliased subquery as a table
+                    # For example, `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w WHERE w...`
+                    # We can't assign `abstracted_query` for non-existent `w`
+                    #   until we set `w` to `SELECT DISTINCT Symbol FROM portfolio`
+                    db.lazy_tables.add(
+                        LazyTable(
+                            tablename=scm.pushed_temp_tablename,
+                            collect_fn=partial(
+                                materialize_cte,
+                                query_context=query_context,
+                                subquery=aliased_subquery,
+                                aliasname=scm.pushed_temp_tablename,
+                                default_model=default_model,
+                                db=db,
+                                ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                                # Below are in case we need to call blend() again
+                                ingredients=ingredients,
+                                infer_gen_constraints=infer_gen_constraints,
+                                table_to_title=table_to_title,
+                                verbose=verbose,
+                                _prev_passed_values=_prev_passed_values,
+                            ),
+                            has_blendsql_function=aliased_subquery.find(
+                                exp.BlendSQLFunction
+                            )
+                            is not None,
+                        )
                     )
-                )
-                abstracted_df = db.execute_to_df(abstracted_query_str)
-                if aliased_subquery is None:
-                    if postprocess_columns:
-                        if isinstance(db, DuckDB):
-                            # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
-                            # Gives:
-                            #   id  country_id                    name   id_1   name_1
-                            #   0      1           1  Belgium Jupiler League      1  Belgium
-                            #   1   1729        1729  England Premier League   1729  England
-                            #   2   4769        4769          France Ligue 1   4769   France
-                            #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
-                            #   4  10257       10257           Italy Serie A  10257    Italy
-                            # But, below we remove the columns with underscores. we need those.
-                            set_of_column_names = set(db.sqlglot_schema[tablename])
-                            # In case of a join, duckdb formats columns with 'column_1'
-                            # But some columns (e.g. 'parent_category') just have underscores in them already
-                            current_columns = abstracted_df.collect_schema().names()
+                if scm.abstracted_pushed_query_str is not None:
+                    if scm.pushed_temp_tablename in db.lazy_tables:
+                        materialized_smoothie = db.lazy_tables.pop(
+                            scm.pushed_temp_tablename
+                        ).collect()
+                        _prev_passed_values += (
+                            materialized_smoothie.meta.num_values_passed
+                        )
 
-                            # Build rename mapping
-                            rename_mapping = {
-                                col: re.sub(r"_\d$", "", col)
-                                for col in current_columns
-                                if col not in set_of_column_names
-                                and re.search(r"_\d$", col)
-                            }
-                            if rename_mapping:
-                                # Apply renaming
-                                abstracted_df = abstracted_df.rename(rename_mapping)
+                    logger.debug(
+                        Color.update("Executing ")
+                        + Color.sql(scm.abstracted_pushed_query_str, ignore_prefix=True)
+                        + Color.update(
+                            f" and setting to `{scm.pushed_temp_tablename}`...",
+                            ignore_prefix=True,
+                        )
+                    )
+                    abstracted_df = db.execute_to_df(scm.abstracted_pushed_query_str)
 
-                        # In case of a join, we could have duplicate column names in our pandas dataframe
-                        # This will throw an error when we try to write to the database
-                        abstracted_df = abstracted_df.select(pl.all().name.keep())
-
-                db.to_temp_table(
-                    df=abstracted_df,
-                    tablename=tablename_to_write,
-                )
-                subquery_processed_tablenames.add(tablename)
+                    db.to_temp_table(
+                        df=abstracted_df,
+                        tablename=scm.pushed_temp_tablename,
+                    )
+                    subquery_processed_tablenames.add(scm.pushed_temp_tablename)
+                    # subquery_processed_tablenames.add(temp_tablename_to_write)
 
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
@@ -871,7 +874,7 @@ def _blend(
             function_out = curr_ingredient(
                 **kwargs_dict
                 | {
-                    "get_temp_subquery_table": _get_temp_subquery_table,
+                    "pushed_temp_tablename": scm.pushed_temp_tablename,
                     "get_temp_session_table": _get_temp_session_table,
                     "aliases_to_tablenames": scm.alias_to_tablename,
                     "prev_subquery_map_columns": prev_subquery_map_columns,
@@ -884,23 +887,27 @@ def _blend(
                 # Parse so we replace this function in blendsql with 1st arg
                 #   (new_col, which is the question we asked)
                 #  But also update our underlying table, so we can execute correctly at the end
-                (new_col, tablename, colname, new_table) = function_out
+                (new_col, temp_tablename_to_write, colname, new_table) = function_out
                 prev_subquery_map_columns.add(new_col)
-                if tablename in tablename_to_map_out:
-                    tablename_to_map_out[tablename].append((new_table, new_col))
+                if temp_tablename_to_write in tablename_to_map_out:
+                    tablename_to_map_out[temp_tablename_to_write].append(
+                        (new_table, new_col)
+                    )
                 else:
-                    tablename_to_map_out[tablename] = [(new_table, new_col)]
-                session_modified_tables.add(tablename)
+                    tablename_to_map_out[temp_tablename_to_write] = [
+                        (new_table, new_col)
+                    ]
+                session_modified_tables.add(temp_tablename_to_write)
                 alias_function_name_to_result[
                     function_node.name
-                ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
+                ] = f'"{double_quote_escape(temp_tablename_to_write)}"."{double_quote_escape(new_col)}"'
 
                 if enable_cascade_filter and scm.is_eligible_for_cascade_filter():
                     cascade_filter = LazyTable(
                         collect_fn=partial(
                             get_cascade_filter,
                             function_node=function_node,
-                            tablename=tablename,
+                            tablename=temp_tablename_to_write,
                             new_table=new_table,
                             new_col=new_col,
                             scm=scm,
@@ -937,12 +944,12 @@ def _blend(
         # The below assumes the `mapped_dfs` are in the same row-order!
         # Which is the case for LLMMap, since it does a left-join to make sure
         # the return order is consistent with the input order.
-        for tablename, outputs in tablename_to_map_out.items():
+        for temp_tablename, outputs in tablename_to_map_out.items():
             if not outputs:
                 continue
 
-            temp_name = _get_temp_session_table(tablename)
-            source = temp_name if db.has_temp_table(temp_name) else tablename
+            temp_name = _get_temp_session_table(temp_tablename)
+            source = temp_name if db.has_temp_table(temp_name) else temp_tablename
 
             # Fetch the base table to modify with our new columns.
             # This ensures parity with the existing database once we
@@ -973,7 +980,7 @@ def _blend(
                 base = base.with_columns(new_data.select(to_add))
 
             db.to_temp_table(df=base.collect(), tablename=temp_name)
-            session_modified_tables.add(tablename)
+            session_modified_tables.add(temp_tablename)
 
     # Now insert the function outputs to the original query
     # We need to re-sync if we did some operation on the underlying query,

@@ -81,6 +81,7 @@ class SubqueryContextManager:
     node: exp.Select = attrib()
     prev_subquery_has_ingredient: bool = attrib()
     ingredient_alias_to_parsed_dict: dict = attrib()
+    get_temp_subquery_table: Callable = attrib()
 
     # Keep a running log of what aliases we've initialized so far, per subquery
     alias_to_subquery: dict = attrib(default=None)
@@ -89,6 +90,9 @@ class SubqueryContextManager:
     root: sqlglot.optimizer.scope.Scope = attrib(init=False)
     columns_referenced_by_ingredients: dict = attrib(init=False)
     function_references: list[exp.Expression] = attrib(init=False)
+
+    pushed_temp_tablename: str = attrib(default=None)
+    abstracted_pushed_query_str: str = attrib(default=None)
 
     def __attrs_post_init__(self):
         self.alias_to_tablename = dict()
@@ -150,7 +154,7 @@ class SubqueryContextManager:
                     # If `context` is a subquery, this gets executed on its own later, so we don't handle it here.
         return columns_referenced_by_ingredients
 
-    def abstracted_table_selects(
+    def process_abstracted_table_selects(
         self,
     ) -> Generator[tuple[str, bool, str], None, None]:
         """For each table in a given query, generates a `SELECT *` query where all unneeded predicates
@@ -182,23 +186,41 @@ class SubqueryContextManager:
         # TODO: don't really know how to optimize with 'CASE' queries right now
         if self.node.find(exp.Case):
             return
-        # If we don't have an ingredient at the top-level, we can safely ignore
-        elif (
-            len(
-                list(
-                    get_scope_nodes(
-                        root=self.root,
-                        nodetype=exp.BlendSQLFunction,
-                        restrict_scope=True,
-                    ),
-                )
-            )
-            == 0
-        ):
+
+        # If we don't have any columns referenced by ingredients at the top-level, we can safely ignore
+        if len(self.columns_referenced_by_ingredients) == 0:
             return
 
         self._gather_alias_mappings()
         abstracted_query = self.node.transform(transform.set_ingredient_nodes_to_true)
+
+        all_resolved_tablenames = []
+        all_tablename_or_aliasnames = []
+        all_columnnames = []
+        seen_tablenames = set()
+        for (
+            tablename_or_aliasname,
+            columnnames,
+        ) in self.columns_referenced_by_ingredients.items():
+            tablename = self.alias_to_tablename.get(
+                tablename_or_aliasname, tablename_or_aliasname
+            )
+            if tablename in seen_tablenames:
+                raise NotImplementedError(
+                    "BlendSQL doesn't support self-joins yet\nDefine the self-joined table in a CTE, and then perform some BlendSQL operation on it instead"
+                )
+            seen_tablenames.add(tablename)
+            all_resolved_tablenames.append(tablename)
+            columnnames = list(columnnames)
+            all_tablename_or_aliasnames.extend(
+                [tablename_or_aliasname for _ in range(len(columnnames))]
+            )
+            all_columnnames.extend(columnnames)
+
+        self.pushed_temp_tablename = self.get_temp_subquery_table(
+            "_JOIN_".join(all_resolved_tablenames)
+        )
+
         # Special condition: If we *only* have an ingredient in the top-level `SELECT` clause
         # ... then we should execute entire rest of SQL first and assign to temporary session table.
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
@@ -211,22 +233,11 @@ class SubqueryContextManager:
             and check.ingredients_only_in_top_select(self.node)
             and not check.ingredient_alias_in_query_body(self.node)
         ):
-            for (
-                tablename_or_aliasname,
-                columnnames,
-            ) in self.columns_referenced_by_ingredients.items():
-                resolved_tablename = self.alias_to_tablename.get(
-                    tablename_or_aliasname, tablename_or_aliasname
-                )
-                yield (
-                    resolved_tablename,
-                    self.node.find(exp.Join) is not None,
-                    set_select_to(
-                        abstracted_query,
-                        [tablename_or_aliasname for _ in columnnames],
-                        columnnames,
-                    ).sql(dialect=self.dialect),
-                )
+            self.abstracted_pushed_query_str = set_select_to(
+                node=abstracted_query,
+                tablenames=all_tablename_or_aliasnames,
+                columnnames=all_columnnames,
+            ).sql(dialect=self.dialect)
             return
 
         # Base case is below
@@ -263,48 +274,11 @@ class SubqueryContextManager:
         elif where_node is None and not ignore_join:
             return
 
-        self_join_table_to_data = dict()
-        for (
-            tablename_or_aliasname,
-            columnnames,
-        ) in self.columns_referenced_by_ingredients.items():
-            resolved_tablename = self.alias_to_tablename.get(
-                tablename_or_aliasname, tablename_or_aliasname
-            )
-            if resolved_tablename in self.self_join_tablenames:
-                if resolved_tablename not in self_join_table_to_data:
-                    self_join_table_to_data[resolved_tablename] = {}
-                self_join_table_to_data[resolved_tablename] |= {
-                    tablename_or_aliasname: columnnames
-                }
-                continue
-            yield (
-                resolved_tablename,
-                self.node.find(exp.Join) is not None,
-                set_select_to(
-                    abstracted_query,
-                    [tablename_or_aliasname for _ in columnnames],
-                    columnnames,
-                ).sql(dialect=self.dialect),
-            )
-        for _, _ in self_join_table_to_data.items():
-            raise NotImplementedError(
-                "BlendSQL doesn't support self-joins yet\nDefine the self-joined table in a CTE, and then perform some BlendSQL operation on it instead"
-            )
-            # data = [
-            #     (aliasname, column, f"{aliasname}_{column}")
-            #     for aliasname, columns in aliasname_to_columns.items()
-            #     for column in columns
-            # ]
-            # tablenames, columnnames, aliasnames = zip(*data)
-            #
-            # yield (
-            #     resolved_tablename,
-            #     self.node.find(exp.Join) is not None,
-            #     set_select_to(
-            #         abstracted_query, tablenames, columnnames, aliasnames=aliasnames
-            #     ).sql(dialect=self.dialect),
-            # )
+        self.abstracted_pushed_query_str = set_select_to(
+            node=abstracted_query,
+            tablenames=all_tablename_or_aliasnames,
+            columnnames=all_columnnames,
+        ).sql(dialect=self.dialect)
         return
 
     def _gather_alias_mappings(
@@ -527,11 +501,11 @@ class SubqueryContextManager:
             n for n in self.node.walk() if isinstance(n, exp.BlendSQLFunction)
         ]
 
-        if len(set(list(self.node.find_all(exp.Table)))) > 1:
-            logger.debug(
-                Color.error(f"Can't apply filter cascade on multi-table queries yet ):")
-            )
-            return False
+        # if len(set(list(self.node.find_all(exp.Table)))) > 1:
+        #     logger.debug(
+        #         Color.error(f"Can't apply filter cascade on multi-table queries yet ):")
+        #     )
+        #     return False
 
         if len(all_blendsql_functions) > (
             len(blendsql_functions_in_where) + len(blendsql_functions_in_select)

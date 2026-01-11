@@ -294,8 +294,8 @@ class MapIngredient(Ingredient):
                 additional_args = additional_args + (additional_args_kwarg,)
 
         additional_args_passed = bool(additional_args)
+        pushed_temp_tablename = kwargs["pushed_temp_tablename"]
         aliases_to_tablenames: dict[str, str] = kwargs["aliases_to_tablenames"]
-        get_temp_subquery_table: Callable = kwargs["get_temp_subquery_table"]
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
         prev_subquery_map_columns: set[str] = kwargs["prev_subquery_map_columns"]
         cascade_filter: LazyTable | None = kwargs["cascade_filter"]
@@ -372,10 +372,6 @@ class MapIngredient(Ingredient):
                 tablename_or_aliasname, tablename_or_aliasname
             )
 
-        # Check for previously created temporary tables
-        value_source_tablename, _ = self.maybe_get_temp_table(
-            temp_table_func=get_temp_subquery_table, tablename=tablename
-        )
         (
             temp_session_tablename,
             temp_session_table_exists,
@@ -443,14 +439,13 @@ class MapIngredient(Ingredient):
                 original_table = materialized_smoothie.pl.lazy()
             else:
                 original_table = self.db.execute_to_df(
-                    f"""SELECT {select_distinct_arg} FROM "{tablename}" """
+                    f"""SELECT {select_distinct_arg} FROM "{pushed_temp_tablename}" """
                 )
 
         # Need to be sure the new column doesn't already exist here
         new_arg_column = question or uuid.uuid4().hex[:4]
         while (
             new_arg_column in set(self.db.iter_columns(tablename))
-            # new_arg_column in set(self.db.iter_columns(value_source_tablename))
             or new_arg_column in prev_subquery_map_columns
         ):
             new_arg_column = "_" + new_arg_column
@@ -480,7 +475,7 @@ class MapIngredient(Ingredient):
                 )
         else:
             distinct_values = select_distinct_fn(
-                f'SELECT DISTINCT {select_distinct_arg} FROM "{value_source_tablename}"'
+                f'SELECT DISTINCT {select_distinct_arg} FROM "{pushed_temp_tablename}"'
                 + suffix
             )
 
@@ -612,7 +607,7 @@ class MapIngredient(Ingredient):
         else:
             new_table = original_table.join(mapped_subtable, how="left", on=colname)
         # Now, new table has original columns + column with the name of the question we answered
-        return (new_arg_column, tablename, colname, new_table)
+        return (new_arg_column, pushed_temp_tablename, colname, new_table)
 
     @abstractmethod
     def run(self, *args, **kwargs) -> Iterable[Any]:
