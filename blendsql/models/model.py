@@ -12,7 +12,7 @@ import hashlib
 import inspect
 from textwrap import dedent
 from abc import abstractmethod
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 from functools import cached_property
 
 from ..db.utils import truncate_df_content
@@ -38,33 +38,33 @@ class TokenTimer(threading.Thread):
             self.init_fn()
 
 
-@attrs
+@dataclass
 class Model:
     """Parent class for all BlendSQL Models."""
 
-    model_name_or_path: str = attrib()
-    tokenizer: Any = attrib(default=None)
-    requires_config: bool = attrib(default=False)
-    refresh_interval_min: int | None = attrib(default=None)
-    config: dict = attrib(default=None)
-    env: str = attrib(default=".")
-    caching: bool = attrib(default=True)
+    model_name_or_path: str = field()
+    tokenizer: Any = field(default=None)
+    requires_config: bool = field(default=False)
+    refresh_interval_min: int | None = field(default=None)
+    config: dict = field(default=None)
+    env: str = field(default=".")
+    caching: bool = field(default=True)
 
-    model_obj: Generic[ModelObj] = attrib(init=False)
-    maybe_add_system_prompt: Callable = attrib(
+    model_obj: Generic[ModelObj] = field(init=False)
+    maybe_add_system_prompt: Callable = field(
         default=lambda lm: lm
     )  # For ConstrainedModels only
-    prompts: list[dict] = attrib(factory=list)
-    raw_prompts: list[str] = attrib(factory=list)
-    cache: Cache | None = attrib(default=None)
-    run_setup_on_load: bool = attrib(default=True)
+    prompts: list[dict] = field(default_factory=list)
+    raw_prompts: list[str] = field(default_factory=list)
+    cache: Cache | None = field(default_factory=None)
+    run_setup_on_load: bool = field(default_factory=True)
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
     num_generation_calls: int = 0
     num_cache_hits: int = 0
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         self.cache = Cache(
             Path(platformdirs.user_cache_dir("blendsql"))
             / f"{self.model_name_or_path}.diskcache"

@@ -8,7 +8,6 @@ from typing import Callable, Type, Generator
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
 import sqlglot
-from attr import attrs, attrib
 from functools import partial
 from sqlglot import exp
 import string
@@ -51,16 +50,16 @@ from blendsql.models.model import Model
 format_blendsql_function = lambda name: "{{" + name + "()}}"
 
 
-@attrs
+@dataclass
 class Kitchen(list):
     """Superset of list. A collection of ingredients."""
 
-    db: Database = attrib()
-    session_uuid: str = attrib()
+    db: Database = field()
+    session_uuid: str = field()
 
-    name_to_ingredient: dict[str, Ingredient] = attrib(init=False)
+    name_to_ingredient: dict[str, Ingredient] = field(init=False)
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         self.name_to_ingredient = {}
 
     def get_from_name(self, name: str):

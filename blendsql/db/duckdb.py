@@ -1,7 +1,7 @@
 import importlib.util
 from typing import Callable, Generator
 from collections.abc import Collection
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 from pathlib import Path
 from functools import cached_property
 import polars as pl
@@ -14,7 +14,7 @@ from blendsql.common.logger import logger, Color
 _has_duckdb = importlib.util.find_spec("duckdb") is not None
 
 
-@attrs
+@dataclass
 class DuckDB(Database):
     """An in-memory DuckDB database connection.
     Can be initialized via any of the available class methods.
@@ -52,11 +52,11 @@ class DuckDB(Database):
 
     # Can be either a dict from name -> pd.DataFrame
     # or, a single pd.DataFrame object
-    con: "DuckDBPyConnection" = attrib()
-    db_url: str = attrib(default=None)
+    con: "DuckDBPyConnection" = field()
+    db_url: str = field(default=None)
 
     # We use below to track which tables we should drop on '_reset_connection'
-    temp_tables: set[str] = set()
+    temp_tables: set[str] = field(default_factory=set)
 
     @classmethod
     def from_pandas(
