@@ -5,7 +5,7 @@ from textwrap import indent
 
 from blendsql.ingredients.few_shot import Example
 from blendsql.types import DataTypes, STR_TO_DATATYPE
-from blendsql.common.typing import DataType
+from blendsql.common.typing import DataType, AdditionalMapArg
 from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
 
 
@@ -47,16 +47,12 @@ class ConstrainedMapExample(MapExample):
         list_options: bool = True,
         add_leading_newlines: bool = True,
         use_local_options: bool = False,
-        additional_arg_colnames: list[str] | None = None,
-        additional_arg_tablenames: list[str] | None = None,
+        additional_args: list[AdditionalMapArg] = None,
         *args,
         **kwargs,
     ) -> str:
-        if additional_arg_colnames is None:
-            additional_arg_colnames = []
-
-        if additional_arg_tablenames is None:
-            additional_arg_tablenames = []
+        if additional_args is None:
+            additional_args = []
 
         use_context = self.context_type is not None
 
@@ -87,8 +83,8 @@ class ConstrainedMapExample(MapExample):
         var_name = self.column_name or "s"
         s += f"""def f({var_name}: str"""
 
-        for var_name in additional_arg_colnames:
-            s += f""", {var_name}: str"""
+        for arg in additional_args:
+            s += f""", {arg.columnname}: str"""
 
         if self.context_type == FeatureType.LOCAL:
             s += f""", context: List[str]"""
@@ -108,10 +104,8 @@ class ConstrainedMapExample(MapExample):
             )
         arg_name = self.column_name or "s"
         s += f"""\n\n{INDENT()}Args:\n{INDENT(2)}{arg_name} (str): {args_str}"""
-        for var_name, table_name in zip(
-            additional_arg_colnames, additional_arg_tablenames
-        ):
-            s += f"""\n{INDENT(2)}{var_name} (str): Values from the "{table_name}" table in a SQL database."""
+        for arg in additional_args:
+            s += f"""\n{INDENT(2)}{arg.columnname} (str): Values from the "{arg.tablename}" table in a SQL database."""
         if self.context_type == FeatureType.LOCAL:
             s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
         if self.options_type == FeatureType.LOCAL:
