@@ -4,6 +4,7 @@ import pandas as pd
 from blendsql import BlendSQL, config
 
 config.set_async_limit(1)
+config.set_deterministic(True)
 
 
 @pytest.fixture(scope="module")
@@ -25,10 +26,8 @@ def bsql() -> BlendSQL:
                 }
             ),
             "movie_reviews": pd.DataFrame(
-                {
-                    "review": ["I love this movie!", "This was SO GOOD"]
-                }
-            )
+                {"review": ["I love this movie!", "This was SO GOOD"]}
+            ),
         },
     )
 
@@ -75,6 +74,7 @@ def test_map_context_with_duplicate_values(bsql, model):
     df = smoothie.df
     assert set(df[df["Name"] == "Tommy"]["How old is {}?"].values.tolist()) == {24, 3}
     assert df[df["Description"] == "He's only 3"]["How old is {}?"].values.item() == 3
+
 
 def test_map_options_to_string(bsql, model):
     """cc00959"""

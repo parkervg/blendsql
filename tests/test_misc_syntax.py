@@ -1,12 +1,12 @@
 import pytest
 import pandas as pd
 
-from blendsql import BlendSQL, config
+from blendsql import BlendSQL, config, GLOBAL_HISTORY
 from blendsql.db import DuckDB
-from blendsql.models import LlamaCpp
 from .utils import test_starts_with
 
 config.set_async_limit(1)
+config.set_deterministic(True)
 
 
 @pytest.fixture(scope="module")
@@ -67,7 +67,7 @@ def test_join_with_duplicate_columns(bsql):
 
 
 def test_llmqa_options_precedence(bsql, model):
-    smoothie = bsql.execute(
+    _ = bsql.execute(
         """
         SELECT l.name FROM League l JOIN Country c ON l.id = c.id 
         WHERE l.id < 4769  
@@ -75,8 +75,10 @@ def test_llmqa_options_precedence(bsql, model):
         """,
         model=model,
     )
-    if isinstance(model, LlamaCpp):
-        assert smoothie.df.empty
+    assert (
+        "['Z Belgium Jupiler League', 'England Premier League', 'France Ligue 1', 'Germany 1. Bundesliga', 'The Italy Serie A']"
+        in GLOBAL_HISTORY[-1]
+    )
 
 
 def test_llmjoin_with_alias(bsql, model):

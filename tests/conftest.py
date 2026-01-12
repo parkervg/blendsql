@@ -58,8 +58,8 @@ CONSTRAINED_MODEL_CONFIGS = [
     {
         "name": "llamacpp",
         "class": LlamaCpp,
-        "path": "unsloth/gemma-3-4b-it-GGUF",
-        "filename": "gemma-3-4b-it-Q4_K_M.gguf",
+        "path": "bartowski/SmolLM2-360M-Instruct-GGUF",
+        "filename": "SmolLM2-360M-Instruct-Q6_K.gguf",
         "config": {"n_gpu_layers": -1, "n_ctx": 8000},
         "requires_cuda": True,
     },
