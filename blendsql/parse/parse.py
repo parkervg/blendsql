@@ -6,7 +6,7 @@ from ast import literal_eval
 import re
 from collections import Counter
 from sqlglot.optimizer.scope import find_all_in_scope
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 from functools import partial
 
 from blendsql.common.utils import get_tablename_colname
@@ -14,11 +14,12 @@ from blendsql.common.typing import QuantifierType, ColumnRef, StringConcatenatio
 from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE, prepare_datatype
 from blendsql.types.utils import try_infer_datatype_from_collection
 from blendsql.common.logger import logger, Color
-from .dialect import _parse_one
-from . import checks as check
-from . import transforms as transform
-from .constants import SUBQUERY_EXP
-from .utils import set_select_to
+from blendsql.db import Database
+from blendsql.parse.dialect import _parse_one
+from blendsql.parse import checks as check
+from blendsql.parse import transforms as transform
+from blendsql.parse.constants import SUBQUERY_EXP
+from blendsql.parse.utils import set_select_to
 
 
 def get_reversed_subqueries(node):
@@ -63,10 +64,10 @@ def get_scope_nodes(
             yield tablenode
 
 
-@attrs
+@dataclass
 class QueryContextManager:
-    dialect: sqlglot.Dialect = attrib()
-    node: exp.Expression = attrib(default=None)
+    dialect: sqlglot.Dialect = field()
+    node: exp.Expression = field(default=None)
 
     def parse(self, query: str, schema: dict | Schema | None = None):
         self.node = _parse_one(query, dialect=self.dialect, schema=schema)
@@ -75,33 +76,35 @@ class QueryContextManager:
         return self.node.sql(dialect=self.dialect)
 
 
-@attrs
+@dataclass
 class SubqueryContextManager:
-    dialect: sqlglot.Dialect = attrib()
-    node: exp.Select = attrib()
-    prev_subquery_has_ingredient: bool = attrib()
-    ingredient_alias_to_parsed_dict: dict = attrib()
+    dialect: sqlglot.Dialect = field()
+    node: exp.Select = field()
+    prev_subquery_has_ingredient: bool = field()
+    ingredient_alias_to_parsed_dict: dict = field()
 
     # Keep a running log of what aliases we've initialized so far, per subquery
-    alias_to_subquery: dict = attrib(default=None)
-    alias_to_tablename: dict = attrib(init=False)
-    tablename_to_alias: dict = attrib(init=False)
-    root: sqlglot.optimizer.scope.Scope = attrib(init=False)
-    columns_referenced_by_ingredients: dict = attrib(init=False)
-    function_references: list[exp.Expression] = attrib(init=False)
+    alias_to_subquery: dict = field(default_factory=dict)
+    alias_to_tablename: dict = field(default_factory=dict)
+    tablename_to_alias: dict = field(default_factory=dict)
 
-    def __attrs_post_init__(self):
+    root: sqlglot.optimizer.scope.Scope = field(init=False)
+    stateful_columns_referenced_by_lm_ingredients: dict = field(init=False)
+    function_references: list[exp.Expression] = field(init=False)
+
+    def __post_init__(self):
         self.alias_to_tablename = dict()
         self.tablename_to_alias = dict()
         self.self_join_tablenames = set()
         # https://github.com/tobymao/sqlglot/blob/v20.9.0/posts/ast_primer.md#scope
         self.root = build_scope(self.node)
-        self.columns_referenced_by_ingredients = (
-            self.get_columns_referenced_by_ingredients(
+        self.stateful_columns_referenced_by_lm_ingredients = (
+            self.get_stateful_columns_referenced_by_lm_functions(
                 self.ingredient_alias_to_parsed_dict
             )
         )
         self.function_references = list(self.node.find_all(exp.BlendSQLFunction))
+        self._gather_alias_mappings()
 
     def _reset_root(self):
         self.root = build_scope(self.node)
@@ -110,17 +113,17 @@ class SubqueryContextManager:
         self.node = node
         self._reset_root()
 
-    def get_columns_referenced_by_ingredients(
+    def get_stateful_columns_referenced_by_lm_functions(
         self, ingredient_alias_to_parsed_dict: dict
     ):
-        columns_referenced_by_ingredients = {}
+        stateful_columns_referenced_by_lm_functions = {}
         ingredient_aliases = [i.name for i in check.get_ingredient_nodes(self.node)]
 
         def _process_single(arg: ColumnRef):
             tablename, columnname = get_tablename_colname(arg)
-            if tablename not in columns_referenced_by_ingredients:
-                columns_referenced_by_ingredients[tablename] = set()
-            columns_referenced_by_ingredients[tablename].add(columnname)
+            if tablename not in stateful_columns_referenced_by_lm_functions:
+                stateful_columns_referenced_by_lm_functions[tablename] = set()
+            stateful_columns_referenced_by_lm_functions[tablename].add(columnname)
 
         for ingredient_alias in ingredient_aliases:
             kwargs_dict = ingredient_alias_to_parsed_dict[ingredient_alias][
@@ -148,11 +151,11 @@ class SubqueryContextManager:
                     elif isinstance(arg, ColumnRef):
                         _process_single(arg)
                     # If `context` is a subquery, this gets executed on its own later, so we don't handle it here.
-        return columns_referenced_by_ingredients
+        return stateful_columns_referenced_by_lm_functions
 
     def abstracted_table_selects(
-        self,
-    ) -> Generator[tuple[str, bool, str], None, None]:
+        self, db: Database
+    ) -> Generator[tuple[str, str], None, None]:
         """For each table in a given query, generates a `SELECT *` query where all unneeded predicates
         are set to `TRUE`.
         We say `unneeded` in the sense that to minimize the data that gets passed to an ingredient,
@@ -162,8 +165,7 @@ class SubqueryContextManager:
             node: exp.Select node from which to construct abstracted versions of queries for each table.
 
         Returns:
-            abstracted_queries: Generator with (tablename, postprocess_columns, abstracted_query_str).
-                postprocess_columns tells us if we potentially executed a query with a `JOIN`, and need to apply some extra post-processing.
+            abstracted_queries: Generator with (tablename, abstracted_query_str).
 
         Examples:
             ```python
@@ -176,57 +178,116 @@ class SubqueryContextManager:
             ```
             Returns:
             ```text
-            ('transactions', False, 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
+            ('transactions', 'SELECT * FROM transactions WHERE TRUE AND child_category = \'Restaurants & Dining\'')
             ```
         """
-        # TODO: don't really know how to optimize with 'CASE' queries right now
-        if self.node.find(exp.Case):
-            return
         # If we don't have an ingredient at the top-level, we can safely ignore
-        elif (
-            len(
-                list(
-                    get_scope_nodes(
-                        root=self.root,
-                        nodetype=exp.BlendSQLFunction,
-                        restrict_scope=True,
-                    ),
-                )
-            )
-            == 0
-        ):
+        if len(self.stateful_columns_referenced_by_lm_ingredients) == 0:
             return
 
-        self._gather_alias_mappings()
         abstracted_query = self.node.transform(transform.set_ingredient_nodes_to_true)
-        # Special condition: If we *only* have an ingredient in the top-level `SELECT` clause
-        # ... then we should execute entire rest of SQL first and assign to temporary session table.
+
+        # Prepare join metadata if multiple tables are referenced
+        abstracted_join_temp_tablename = None
+        all_tablename_or_aliasnames = []
+        all_columnnames = []
+
+        if len(self.stateful_columns_referenced_by_lm_ingredients) > 1:
+            all_resolved_tablenames = []
+            seen_tablenames = set()
+
+            for (
+                tablename_or_aliasname,
+                columnnames,
+            ) in self.stateful_columns_referenced_by_lm_ingredients.items():
+                tablename = self.alias_to_tablename.get(
+                    tablename_or_aliasname, tablename_or_aliasname
+                )
+                if tablename in seen_tablenames:
+                    raise NotImplementedError(
+                        "BlendSQL doesn't support self-joins yet\n"
+                        "Define the self-joined table in a CTE, and then perform some BlendSQL operation on it instead"
+                    )
+                seen_tablenames.add(tablename)
+                all_resolved_tablenames.append(tablename)
+                columnnames = list(columnnames)
+                all_tablename_or_aliasnames.extend(
+                    [tablename_or_aliasname] * len(columnnames)
+                )
+                all_columnnames.extend(columnnames)
+
+            abstracted_join_temp_tablename = "_JOIN_".join(all_resolved_tablenames)
+
+        def prepare_joined_temp_table():
+            abstracted_join_str = set_select_to(
+                node=abstracted_query,
+                tablenames=all_tablename_or_aliasnames,
+                columnnames=all_columnnames,
+                aliasnames=[
+                    f"{c}_{t}"
+                    for c, t in zip(all_columnnames, all_tablename_or_aliasnames)
+                ],
+            ).sql(dialect=self.dialect)
+            logger.debug(
+                Color.update("Executing ")
+                + Color.sql(abstracted_join_str, ignore_prefix=True)
+                + Color.update(
+                    f" and setting to `{abstracted_join_temp_tablename}`...",
+                    ignore_prefix=True,
+                )
+            )
+            abstracted_join_df = db.execute_to_df(abstracted_join_str)
+            db.to_temp_table(
+                df=abstracted_join_df, tablename=abstracted_join_temp_tablename
+            )
+
+        def _result(abstracted_query, tablename_or_aliasname, columnnames):
+            resolved_tablename = self.alias_to_tablename.get(
+                tablename_or_aliasname, tablename_or_aliasname
+            )
+            if abstracted_join_temp_tablename is not None:
+                query = set_select_to(
+                    exp.Select(
+                        expressions=[exp.Star()],
+                        from_=exp.From(
+                            this=exp.Table(
+                                this=exp.Identifier(this=abstracted_join_temp_tablename)
+                            )
+                        ),
+                    ),
+                    tablenames=[abstracted_join_temp_tablename] * len(columnnames),
+                    columnnames=[f"{c}_{tablename_or_aliasname}" for c in columnnames],
+                    aliasnames=list(columnnames),
+                )
+            else:
+                query = set_select_to(
+                    abstracted_query,
+                    [tablename_or_aliasname] * len(columnnames),
+                    list(columnnames),
+                )
+            return (resolved_tablename, has_join, query.sql(dialect=self.dialect))
+
+        has_join = self.node.find(exp.Join) is not None
+
+        # Special condition: If we *only* have an ingredient in the top-level `SELECT` clause,
+        #   then we can be more aggressive and execute the ENTIRE rest of SQL first and assign to temporary session table.
         # Example: """SELECT w.title, w."designer ( s )", {{LLMMap('How many animals are in this image?', 'images::title')}}
-        #         FROM images JOIN w ON w.title = images.title
-        #         WHERE "designer ( s )" = 'georgia gerber'"""
-        # Below, we need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
+        #    FROM images JOIN w ON w.title = images.title
+        #    WHERE "designer ( s )" = 'georgia gerber'"""
+        # Below, we also need `self.node.find(exp.Table)` in case we get a QAIngredient on its own
         #   E.g. `SELECT A() AS _col_0` cases should be ignored
         if (
             self.node.find(exp.Table)
             and check.ingredients_only_in_top_select(self.node)
             and not check.ingredient_alias_in_query_body(self.node)
         ):
+            if abstracted_join_temp_tablename is not None:
+                prepare_joined_temp_table()
             for (
                 tablename_or_aliasname,
                 columnnames,
-            ) in self.columns_referenced_by_ingredients.items():
-                resolved_tablename = self.alias_to_tablename.get(
-                    tablename_or_aliasname, tablename_or_aliasname
-                )
-                yield (
-                    resolved_tablename,
-                    self.node.find(exp.Join) is not None,
-                    set_select_to(
-                        abstracted_query,
-                        [tablename_or_aliasname for _ in columnnames],
-                        columnnames,
-                    ).sql(dialect=self.dialect),
-                )
+            ) in self.stateful_columns_referenced_by_lm_ingredients.items():
+                yield _result(abstracted_query, tablename_or_aliasname, columnnames)
             return
 
         # Base case is below
@@ -253,58 +314,26 @@ class SubqueryContextManager:
         # TODO: This cross join is inefficient, make it a union
         is_cross_join = lambda node: node.args.get("on", None) == exp.true()
         ignore_join = bool(not join_node or is_cross_join(join_node))
-        if where_node and ignore_join:
-            if where_node.args["this"] == exp.true():
+
+        if ignore_join and where_node:
+            where_this = where_node.args["this"]
+            if (
+                where_this == exp.true()
+                or isinstance(where_this, exp.Column)
+                or check.all_terminals_are_true(where_node)
+            ):
                 return
-            elif isinstance(where_node.args["this"], exp.Column):
-                return
-            elif check.all_terminals_are_true(where_node):
-                return
-        elif where_node is None and not ignore_join:
+        elif not ignore_join and where_node is None:
             return
 
-        self_join_table_to_data = dict()
+        if abstracted_join_temp_tablename is not None:
+            prepare_joined_temp_table()
+
         for (
             tablename_or_aliasname,
             columnnames,
-        ) in self.columns_referenced_by_ingredients.items():
-            resolved_tablename = self.alias_to_tablename.get(
-                tablename_or_aliasname, tablename_or_aliasname
-            )
-            if resolved_tablename in self.self_join_tablenames:
-                if resolved_tablename not in self_join_table_to_data:
-                    self_join_table_to_data[resolved_tablename] = {}
-                self_join_table_to_data[resolved_tablename] |= {
-                    tablename_or_aliasname: columnnames
-                }
-                continue
-            yield (
-                resolved_tablename,
-                self.node.find(exp.Join) is not None,
-                set_select_to(
-                    abstracted_query,
-                    [tablename_or_aliasname for _ in columnnames],
-                    columnnames,
-                ).sql(dialect=self.dialect),
-            )
-        for _, _ in self_join_table_to_data.items():
-            raise NotImplementedError(
-                "BlendSQL doesn't support self-joins yet\nDefine the self-joined table in a CTE, and then perform some BlendSQL operation on it instead"
-            )
-            # data = [
-            #     (aliasname, column, f"{aliasname}_{column}")
-            #     for aliasname, columns in aliasname_to_columns.items()
-            #     for column in columns
-            # ]
-            # tablenames, columnnames, aliasnames = zip(*data)
-            #
-            # yield (
-            #     resolved_tablename,
-            #     self.node.find(exp.Join) is not None,
-            #     set_select_to(
-            #         abstracted_query, tablenames, columnnames, aliasnames=aliasnames
-            #     ).sql(dialect=self.dialect),
-            # )
+        ) in self.stateful_columns_referenced_by_lm_ingredients.items():
+            yield _result(abstracted_query, tablename_or_aliasname, columnnames)
         return
 
     def _gather_alias_mappings(

@@ -676,7 +676,7 @@ class TestSubqueryOperations(TimedTestBase):
     def test_subquery_alias_with_join_multi_exec(self, bsql: BlendSQL):
         expected_num_values_passed: int = bsql.db.execute_to_list(
             """
-            SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) AND "Percent of Account" < 0.5
+            SELECT COUNT(DISTINCT Symbol) FROM portfolio WHERE (Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) AND "Percent of Account" < 0.2
             """,
             to_type=int,
         )[0]
@@ -690,13 +690,13 @@ class TestSubqueryOperations(TimedTestBase):
                     g.Symbol
                 )
             }} WHERE {{test_starts_with('F', w.Symbol)}}
-            AND w."Percent of Account" < 0.5
+            AND w."Percent of Account" < 0.2
             """,
             sql_query="""
             SELECT w."Percent of Account" FROM (SELECT * FROM "portfolio" WHERE Quantity > 200 OR "Today's Gain/Loss Percent" > 0.05) as w
             JOIN geographic ON w.Symbol = geographic.Symbol
             WHERE w.Symbol LIKE 'F%'
-            AND w."Percent of Account" < 0.5
+            AND w."Percent of Account" < 0.2
             """,
             expected_num_values_passed=expected_num_values_passed,
             args=["F"],

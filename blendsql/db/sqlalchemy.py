@@ -2,6 +2,7 @@ from collections.abc import Collection
 from typing import Generator, Callable
 import pandas as pd
 import polars as pl
+import warnings
 from attr import attrib, attrs
 from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_engine, inspect, MetaData
@@ -155,7 +156,11 @@ class SQLAlchemyDatabase(Database):
         # Polars today just uses `pd.to_sql` if we pass a sqlalchemy connection
         # https://docs.pola.rs/api/python/stable/reference/api/polars.DataFrame.write_database.html
         # So, `polars.DataFrame.write_database` isn't any faster
-        pd_df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message=".*is not found exactly as such in the database.*"
+            )
+            pd_df.to_sql(name=tablename, con=self.con, if_exists="append", index=False)
 
     def execute_to_df(
         self, query: str, params: dict | None = None, lazy: bool = True, **_

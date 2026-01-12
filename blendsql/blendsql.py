@@ -22,7 +22,6 @@ from blendsql.common.utils import (
 )
 from blendsql.common.exceptions import InvalidBlendSQL
 from blendsql.db.database import Database
-from blendsql.db.duckdb import DuckDB
 from blendsql.db.utils import (
     double_quote_escape,
     select_all_from_table_query,
@@ -361,7 +360,7 @@ def get_cascade_filter(
                 + Color.update(" to get cascade filter...", ignore_prefix=True)
             )
             # TODO: below is kind of ugly, any way to clean up?
-            colnames_to_select = scm.columns_referenced_by_ingredients[
+            colnames_to_select = scm.stateful_columns_referenced_by_lm_ingredients[
                 scm.tablename_to_alias.get(tablename, tablename)
             ]
             return new_table.sql(cascade_filter_sql).select(
@@ -626,9 +625,9 @@ def _blend(
         )
         for (
             tablename,
-            postprocess_columns,
+            _postprocess_columns,
             abstracted_query_str,
-        ) in scm.abstracted_table_selects():
+        ) in scm.abstracted_table_selects(db):
             if in_cte:  # Don't execute CTEs until we need them
                 continue
             # # If this table isn't being used in any ingredient calls, there's no
@@ -669,6 +668,9 @@ def _blend(
                 )
             if abstracted_query_str is not None:
                 if tablename in db.lazy_tables:
+                    # We need to materialize here, in the case of something like:
+                    #   `WITH a AS (restrictive_condition) SELECT * FROM a WHERE {{LLMMap(..., a.column)}}`
+                    # We want the LM function to only get the output from the restrictive condition.
                     materialized_smoothie = db.lazy_tables.pop(tablename).collect()
                     _prev_passed_values += materialized_smoothie.meta.num_values_passed
 
@@ -681,37 +683,6 @@ def _blend(
                     )
                 )
                 abstracted_df = db.execute_to_df(abstracted_query_str)
-                if aliased_subquery is None:
-                    if postprocess_columns:
-                        if isinstance(db, DuckDB):
-                            # `self.db.execute_to_df("SELECT * FROM League AS l JOIN Country AS c ON l.country_id = c.id WHERE TRUE")`
-                            # Gives:
-                            #   id  country_id                    name   id_1   name_1
-                            #   0      1           1  Belgium Jupiler League      1  Belgium
-                            #   1   1729        1729  England Premier League   1729  England
-                            #   2   4769        4769          France Ligue 1   4769   France
-                            #   3   7809        7809   Germany 1. Bundesliga   7809  Germany
-                            #   4  10257       10257           Italy Serie A  10257    Italy
-                            # But, below we remove the columns with underscores. we need those.
-                            set_of_column_names = set(db.sqlglot_schema[tablename])
-                            # In case of a join, duckdb formats columns with 'column_1'
-                            # But some columns (e.g. 'parent_category') just have underscores in them already
-                            current_columns = abstracted_df.collect_schema().names()
-
-                            # Build rename mapping
-                            rename_mapping = {
-                                col: re.sub(r"_\d$", "", col)
-                                for col in current_columns
-                                if col not in set_of_column_names
-                                and re.search(r"_\d$", col)
-                            }
-                            if rename_mapping:
-                                # Apply renaming
-                                abstracted_df = abstracted_df.rename(rename_mapping)
-
-                        # In case of a join, we could have duplicate column names in our pandas dataframe
-                        # This will throw an error when we try to write to the database
-                        abstracted_df = abstracted_df.select(pl.all().name.keep())
 
                 db.to_temp_table(
                     df=abstracted_df,
