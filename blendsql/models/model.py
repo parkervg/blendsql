@@ -56,8 +56,8 @@ class Model:
     )  # For ConstrainedModels only
     prompts: list[dict] = field(default_factory=list)
     raw_prompts: list[str] = field(default_factory=list)
-    cache: Cache | None = field(default_factory=None)
-    run_setup_on_load: bool = field(default_factory=True)
+    cache: Cache | None = field(default=None)
+    run_setup_on_load: bool = field(default=True)
 
     prompt_tokens: int = 0
     completion_tokens: int = 0

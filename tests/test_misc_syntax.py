@@ -71,7 +71,7 @@ def test_llmqa_options_precedence(bsql, model):
         """
         SELECT l.name FROM League l JOIN Country c ON l.id = c.id 
         WHERE l.id < 4769  
-        AND l.name = {{LLMQA('Which of these is in Italy?')}}
+        AND l.name = {{LLMQA('Which of these has the word ''Italy''?')}}
         """,
         model=model,
     )

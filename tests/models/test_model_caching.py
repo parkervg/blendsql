@@ -5,6 +5,7 @@ from blendsql.common.utils import fetch_from_hub
 from blendsql.models import ConstrainedModel
 
 config.set_async_limit(1)
+config.set_deterministic(True)
 
 
 @pytest.fixture(scope="module")

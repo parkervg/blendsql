@@ -6,7 +6,7 @@ from pathlib import Path
 import json
 import polars as pl
 import pandas as pd
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 import copy
 from itertools import islice, repeat
 from tqdm.auto import tqdm
@@ -68,24 +68,20 @@ UNCONSTRAINED_MAIN_INSTRUCTION = (
 DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE = 5
 
 
-@attrs
+@dataclass
 class LLMMap(MapIngredient):
     DESCRIPTION = """
     If question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column using the scalar function:
         `{{LLMMap('question', 'table::column')}}`
     """
-    model: Model = attrib(default=None)
-    few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = attrib(
-        default=None
-    )
-    list_options_in_prompt: bool = attrib(default=True)
-    few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = attrib(
-        default=None
-    )
-    context_formatter: Callable[[pl.DataFrame], str] = attrib(
+    model: Model = field(default=None)
+    few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = field(default=None)
+    list_options_in_prompt: bool = field(default=True)
+    few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = field(default=None)
+    context_formatter: Callable[[pl.DataFrame], str] = field(
         default=DEFAULT_CONTEXT_FORMATTER,
     )
-    batch_size: int = attrib(default=None)
+    batch_size: int = field(default=None)
 
     @classmethod
     def from_args(

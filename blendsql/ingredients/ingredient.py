@@ -1,6 +1,6 @@
 import os
 import re
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 from abc import abstractmethod
 import pandas as pd
 from sqlglot import exp
@@ -35,21 +35,21 @@ def unpack_default_kwargs(**kwargs):
     )
 
 
-@attrs
+@dataclass
 class Ingredient:
-    name: str = attrib()
+    name: str = field()
     # Below gets passed via `Kitchen.extend()`
-    db: Database = attrib()
-    session_uuid: str = attrib()
+    db: Database = field()
+    session_uuid: str = field()
 
-    deterministic: bool = attrib(default=False)
-    few_shot_retriever: Callable[[str], list[Example]] = attrib(default=None)
-    list_options_in_prompt: bool = attrib(default=True)
-    context_searcher: Searcher | None = attrib(default=None)
-    options_searcher: Searcher | None = attrib(default=None)
+    deterministic: bool = field(default=False)
+    few_shot_retriever: Callable[[str], list[Example]] = field(default=None)
+    list_options_in_prompt: bool = field(default=True)
+    context_searcher: Searcher | None = field(default=None)
+    options_searcher: Searcher | None = field(default=None)
 
-    ingredient_type: str = attrib(init=False)
-    allowed_output_types: tuple[Type] = attrib(init=False)
+    ingredient_type: str = field(init=False)
+    allowed_output_types: tuple[Type] = field(init=False)
 
     num_values_passed: int = 0
 
@@ -141,6 +141,7 @@ class Ingredient:
                 str(i)
                 for i in self.db.execute_to_list(
                     f'SELECT DISTINCT "{colname}" FROM "{tablename}"'
+                    + (" ORDER BY rowid" if deterministic else "")
                 )
             ]
         return unpacked_values
@@ -178,7 +179,7 @@ class Ingredient:
         return list(unpacked_options)
 
 
-@attrs
+@dataclass
 class AliasIngredient(Ingredient):
     '''This ingredient performs no other function than to act as a stand-in for
     complex chainings of other ingredients. This allows us (or our lms) to write less verbose
@@ -221,7 +222,7 @@ class AliasIngredient(Ingredient):
         return self._run(*args, **kwargs)
 
 
-@attrs
+@dataclass
 class MapIngredient(Ingredient):
     '''For a given table/column pair, maps an external function
     to each of the given values, creating a new column.
@@ -619,7 +620,7 @@ class MapIngredient(Ingredient):
         ...
 
 
-@attrs
+@dataclass
 class JoinIngredient(Ingredient):
     '''Executes an `INNER JOIN` using dict mapping.
     'Join on color of food'
@@ -649,7 +650,7 @@ class JoinIngredient(Ingredient):
         ```
     '''
 
-    use_skrub_joiner: bool = attrib(default=True)
+    use_skrub_joiner: bool = field(default=True)
 
     ingredient_type: str = IngredientType.JOIN.value
     allowed_output_types: tuple[Type] = (dict,)
@@ -811,7 +812,7 @@ class JoinIngredient(Ingredient):
         ...
 
 
-@attrs
+@dataclass
 class QAIngredient(Ingredient):
     """
     Given a table subset in the form of a pd.DataFrame 'context',
@@ -919,7 +920,7 @@ class QAIngredient(Ingredient):
         ...
 
 
-@attrs
+@dataclass
 class StringIngredient(Ingredient):
     """Outputs a string to be placed directly into the SQL query."""
 

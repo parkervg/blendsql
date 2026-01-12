@@ -3,7 +3,7 @@ from typing import Generator, Callable
 import pandas as pd
 import polars as pl
 import warnings
-from attr import attrib, attrs
+from dataclasses import dataclass, field
 from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_engine, inspect, MetaData
 from sqlalchemy.sql import text
@@ -16,14 +16,14 @@ from blendsql.common.logger import logger, Color
 from blendsql.db.utils import double_quote_escape, truncate_df_content, LazyTables
 
 
-@attrs(auto_detect=True)
+@dataclass
 class SQLAlchemyDatabase(Database):
-    db_url: URL = attrib()
+    db_url: URL = field()
 
-    engine: Engine = attrib(init=False)
-    con: Connection = attrib(init=False)
+    engine: Engine = field(init=False)
+    con: Connection = field(init=False)
 
-    def __attrs_post_init__(self):
+    def __post_init__(self):
         self.lazy_tables = LazyTables()
         self.engine = create_engine(self.db_url)
         self.con = self.engine.connect()

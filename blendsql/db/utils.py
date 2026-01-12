@@ -1,21 +1,21 @@
 import re
 import polars as pl
 from typing import Callable
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 
 from blendsql.common.logger import logger, Color
 
 
-@attrs(frozen=True)
+@dataclass(frozen=True)
 class LazyTable:
     """A non-materialized reference to a table.
     Allows us to delay execution of things like materialized a CTE
     until we actually interact with that table.
     """
 
-    collect_fn: Callable[..., pl.DataFrame | pl.LazyFrame] = attrib()
-    has_blendsql_function: bool = attrib()
-    tablename: str | None = attrib(default=None)
+    collect_fn: Callable[..., pl.DataFrame | pl.LazyFrame] = field()
+    has_blendsql_function: bool = field()
+    tablename: str | None = field(default=None)
 
     def __str__(self):
         return self.tablename or "N.A."

@@ -6,7 +6,7 @@ from typing import Callable
 import pandas as pd
 import polars as pl
 import json
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 from textwrap import dedent
 
 from blendsql.configure import add_to_global_history
@@ -65,15 +65,15 @@ def get_option_aliases(options: list[str] | None):
     return options_with_aliases or options, options_alias_to_original
 
 
-@attrs
+@dataclass
 class LLMQA(QAIngredient):
-    model: Model = attrib(default=None)
-    context_formatter: Callable[[pd.DataFrame], str] = attrib(
+    model: Model = field(default=None)
+    context_formatter: Callable[[pd.DataFrame], str] = field(
         default=DEFAULT_CONTEXT_FORMATTER,
     )
-    list_options_in_prompt: bool = attrib(default=True)
-    few_shot_retriever: Callable[[str], list[AnnotatedQAExample]] = attrib(default=None)
-    k: int | None = attrib(default=None)
+    list_options_in_prompt: bool = field(default=True)
+    few_shot_retriever: Callable[[str], list[AnnotatedQAExample]] = field(default=None)
+    k: int | None = field(default=None)
 
     @classmethod
     def from_args(

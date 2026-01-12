@@ -1,4 +1,4 @@
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 from collections.abc import Collection
 from enum import Enum
 from textwrap import indent
@@ -7,6 +7,10 @@ from blendsql.ingredients.few_shot import Example
 from blendsql.types import DataTypes, STR_TO_DATATYPE
 from blendsql.common.typing import DataType, AdditionalMapArg
 from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
+
+
+def _return_type_converter(value):
+    return STR_TO_DATATYPE[value.lower()] if isinstance(value, str) else value
 
 
 class FeatureType(Enum):
@@ -18,26 +22,27 @@ class FeatureType(Enum):
     LOCAL = "local"
 
 
-@attrs(kw_only=True)
+@dataclass(kw_only=True)
 class MapExample(Example):
-    question: str = attrib(default=None)
-    context: str | list[str] | None = attrib(default=None)
-    context_type: FeatureType = attrib(default=None)
-    table_name: str = attrib(default=None)
-    column_name: str = attrib(default=None)
-    options: Collection[str] | None = attrib(default=None)
-    options_type: FeatureType = attrib(default=None)
-    example_outputs: list[str] | None = attrib(default=None)
-    mapping: dict[str, str] | None = attrib(default=None)
-    return_type: DataType = attrib(
-        converter=lambda s: STR_TO_DATATYPE[s.lower()] if isinstance(s, str) else s,
-        default=DataTypes.ANY(),
-    )
+    question: str = field(default=None)
+    context: str | list[str] | None = field(default=None)
+    context_type: FeatureType = field(default=None)
+    table_name: str = field(default=None)
+    column_name: str = field(default=None)
+    options: Collection[str] | None = field(default=None)
+    options_type: FeatureType = field(default=None)
+    example_outputs: list[str] | None = field(default=None)
+    mapping: dict[str, str] | None = field(default=None)
+    return_type: DataType = field(default_factory=lambda: DataTypes.ANY())
+
+    def __post_init__(self):
+        # Apply converters
+        self.return_type = _return_type_converter(self.return_type)
 
 
-@attrs(kw_only=True)
+@dataclass(kw_only=True)
 class AnnotatedMapExample(MapExample):
-    mapping: dict[str, str] = attrib()
+    mapping: dict[str, str] = field()
 
 
 # Below are for use with constrained models

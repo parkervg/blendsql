@@ -1,4 +1,4 @@
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 
 from blendsql.models import Model, TransformersVisionModel
 from blendsql.ingredients.ingredient import MapIngredient
@@ -6,13 +6,13 @@ from blendsql.common.exceptions import IngredientException
 from blendsql.ingredients.utils import partialclass
 
 
-@attrs
+@dataclass
 class ImageCaption(MapIngredient):
     DESCRIPTION = """
     If we need to generate a caption for an image stored in the database, we can use the scalar function to map to a new column:
         `{{ImageCaption('table::column')}}`
     """
-    model: Model = attrib(default=None)
+    model: Model = field(default=None)
 
     @classmethod
     def from_args(cls, model: Model = None):

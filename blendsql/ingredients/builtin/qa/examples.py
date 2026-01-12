@@ -1,4 +1,4 @@
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 import polars as pl
 from typing import Callable
 from collections.abc import Collection
@@ -8,18 +8,27 @@ from blendsql.common.typing import DataType
 from blendsql.types import DataTypes, STR_TO_DATATYPE
 
 
-@attrs(kw_only=True)
+def _context_converter(value):
+    if value is None:
+        return None
+    return [pl.from_dict(value)] if isinstance(value, dict) else value
+
+
+def _return_type_converter(value):
+    return STR_TO_DATATYPE[value.lower()] if isinstance(value, str) else value
+
+
+@dataclass(kw_only=True)
 class QAExample(Example):
-    question: str = attrib()
-    context: list[pl.DataFrame] = attrib(
-        converter=lambda d: [pl.from_dict(d)] if isinstance(d, dict) else d,
-        default=None,
-    )
-    options: Collection[str] | None = attrib(default=None)
-    return_type: DataType = attrib(
-        converter=lambda s: STR_TO_DATATYPE[s.lower()] if isinstance(s, str) else s,
-        default=DataTypes.ANY(),
-    )
+    question: str
+    context: list[pl.DataFrame] | None = None
+    options: Collection[str] | None = None
+    return_type: DataType = field(default_factory=lambda: DataTypes.ANY())
+
+    def __post_init__(self):
+        # Apply converters
+        self.context = _context_converter(self.context)
+        self.return_type = _return_type_converter(self.return_type)
 
     def to_string(
         self,
@@ -34,8 +43,7 @@ class QAExample(Example):
                 s += f"Output datatype: {self.return_type.name}\n"
         if list_options:
             if self.options is not None:
-                # s += f"Options: {', '.join(sorted(self.options))}\n"
-                s += f"Options: {list(sorted(self.options))}\n"
+                s += f"Options: {list(self.options)}\n"
         if self.return_type is not None:
             quantifier = self.return_type.quantifier
             if quantifier is not None:
@@ -63,9 +71,9 @@ class QAExample(Example):
         return s
 
 
-@attrs(kw_only=True)
+@dataclass(kw_only=True)
 class AnnotatedQAExample(QAExample):
-    answer: str = attrib()
+    answer: str = field(default="")
 
     def to_string(
         self,

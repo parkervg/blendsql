@@ -30,6 +30,7 @@ class test_starts_with(MapIngredient):
             d[value] = bool(value.startswith(question))
             self.num_values_passed += 1
             if exit_condition is not None and exit_condition(d):
+                print("Early exit applied!")
                 break
         mapped_values = [d.get(value) for value in values]
         return mapped_values

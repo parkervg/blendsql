@@ -2,7 +2,7 @@ import os
 from typing import Callable
 import json
 from pathlib import Path
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 from textwrap import dedent
 
 from blendsql.configure import add_to_global_history
@@ -28,14 +28,14 @@ DEFAULT_JOIN_FEW_SHOT: list[AnnotatedJoinExample] = [
 MAIN_INSTRUCTION = "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user.f\nIf a given left value has no corresponding right value, give '-' as a response. Stop responding as soon as all left values have been accounted for in the JSON mapping.\n"
 
 
-@attrs
+@dataclass
 class LLMJoin(JoinIngredient):
     DESCRIPTION = """
     If we need to do a `join` operation where there is imperfect alignment between table values, use the new function:
         `{{LLMJoin(left_on='table::column', right_on='table::column')}}`
     """
-    model: Model = attrib(default=None)
-    few_shot_retriever: Callable[[str], list[AnnotatedJoinExample]] = attrib(
+    model: Model = field(default=None)
+    few_shot_retriever: Callable[[str], list[AnnotatedJoinExample]] = field(
         default=None
     )
 

@@ -1,14 +1,14 @@
-from attr import attrs, attrib
+from dataclasses import dataclass, field
 
 from blendsql.common.utils import newline_dedent
 from blendsql.ingredients.few_shot import Example
 
 
-@attrs(kw_only=True)
+@dataclass(kw_only=True)
 class JoinExample(Example):
-    join_criteria: str = attrib(default="Join to the same topics.")
-    left_values: list[str] = attrib()
-    right_values: list[str] = attrib()
+    join_criteria: str = field(default="Join to the same topics.")
+    left_values: list[str] = field()
+    right_values: list[str] = field()
 
     def to_string(self, *args, **kwargs) -> str:
         return newline_dedent(
@@ -20,6 +20,6 @@ class JoinExample(Example):
         )
 
 
-@attrs(kw_only=True)
+@dataclass(kw_only=True)
 class AnnotatedJoinExample(JoinExample):
-    mapping: dict[str, str] = attrib()
+    mapping: dict[str, str] = field()

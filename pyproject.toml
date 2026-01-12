@@ -35,7 +35,6 @@ dependencies = [
     "sentence_transformers",
     "huggingface_hub",
     "platformdirs",
-    "attrs",
     "tqdm",
     "typeguard",
     "httpx",
