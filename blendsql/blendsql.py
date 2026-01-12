@@ -721,6 +721,7 @@ def _blend(
         #   only at the end of parsing a subquery, we can merge to the original session_uuid table
         tablename_to_map_out: dict[str, tuple[pd.DataFrame, str]] = {}
         cascade_filter: pl.LazyFrame = None
+        previous_cascade_filter_failed = False
         for function_node, is_final_map in get_sorted_blendsql_nodes(
             node=scm.node,
             ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
@@ -748,12 +749,14 @@ def _blend(
             ):
                 # We can ONLY apply this exit condition if we're executing the final Map function of the subquery
                 if is_final_map:
-                    # Fetch an exit condition, if we can extract one from the expression context
-                    # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
-                    # The exit condition would be at least 5 `a()` evaluate to `TRUE`
-                    kwargs_dict["exit_condition"] = scm.get_exit_condition(
-                        function_node
-                    )
+                    # We can't apply exit conditions if a previous cascade filter application failed
+                    if not previous_cascade_filter_failed:
+                        # Fetch an exit condition, if we can extract one from the expression context
+                        # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
+                        # The exit condition would be at least 5 `a()` evaluate to `TRUE`
+                        kwargs_dict["exit_condition"] = scm.get_exit_condition(
+                            function_node
+                        )
 
             logger.debug(
                 Color.update("\nExecuting ")
@@ -865,18 +868,22 @@ def _blend(
                     function_node.name
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
 
-                if enable_cascade_filter and scm.is_eligible_for_cascade_filter():
-                    cascade_filter = LazyTable(
-                        collect_fn=partial(
-                            get_cascade_filter,
-                            function_node=function_node,
-                            tablename=tablename,
-                            new_table=new_table,
-                            new_col=new_col,
-                            scm=scm,
-                        ),
-                        has_blendsql_function=True,
-                    )
+                previous_cascade_filter_failed = True
+                if enable_cascade_filter:
+                    if scm.is_eligible_for_cascade_filter():
+                        previous_cascade_filter_failed = False
+                        cascade_filter = LazyTable(
+                            collect_fn=partial(
+                                get_cascade_filter,
+                                function_node=function_node,
+                                tablename=tablename,
+                                new_table=new_table,
+                                new_col=new_col,
+                                scm=scm,
+                            ),
+                            has_blendsql_function=True,
+                        )
+
             elif curr_ingredient.ingredient_type in (
                 IngredientType.STRING,
                 IngredientType.QA,
