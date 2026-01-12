@@ -5,7 +5,7 @@ from rich.highlighter import NullHighlighter
 from rich.console import Console
 from rich.markup import escape
 
-console = Console(force_terminal=True)
+console = Console(force_terminal=True, width=120)
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
