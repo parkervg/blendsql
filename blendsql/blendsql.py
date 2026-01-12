@@ -404,8 +404,8 @@ def get_sorted_blendsql_nodes(
     """
     ooo = [
         IngredientType.STRING,
-        IngredientType.MAP,
         IngredientType.QA,
+        IngredientType.MAP,
         IngredientType.JOIN,
     ]
 
@@ -757,6 +757,8 @@ def _blend(
                         kwargs_dict["exit_condition"] = scm.get_exit_condition(
                             function_node
                         )
+            # Immediately set false, unless proven otherwise
+            previous_cascade_filter_failed = True
 
             logger.debug(
                 Color.update("\nExecuting ")
@@ -868,7 +870,6 @@ def _blend(
                     function_node.name
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
 
-                previous_cascade_filter_failed = True
                 if enable_cascade_filter:
                     if scm.is_eligible_for_cascade_filter():
                         previous_cascade_filter_failed = False
