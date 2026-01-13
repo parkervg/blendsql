@@ -48,7 +48,7 @@ class Model:
     refresh_interval_min: int | None = field(default=None)
     config: dict = field(default=None)
     env: str = field(default=".")
-    caching: bool = field(default=True)
+    caching: bool = field(default=False)
 
     model_obj: Generic[ModelObj] = field(init=False)
     maybe_add_system_prompt: Callable = field(

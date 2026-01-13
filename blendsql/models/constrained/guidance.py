@@ -35,7 +35,7 @@ class TransformersLLM(ConstrainedModel):
         self,
         model_name_or_path: str,
         config: dict | None = None,
-        caching: bool = True,
+        caching: bool = False,
         **kwargs,
     ):
         import transformers
@@ -104,7 +104,7 @@ class LlamaCpp(ConstrainedModel):
         filename: str,
         model_name_or_path: str | None = None,
         config: dict | None = None,
-        caching: bool = True,
+        caching: bool = False,
         **kwargs,
     ):
         if config is None:
@@ -185,9 +185,10 @@ class ConstrainedLiteLLM(ConstrainedModel):
         self,
         model_name_or_path: str,
         config: dict | None = None,
-        caching: bool = True,
+        caching: bool = False,
         **kwargs,
     ):
+        print("This guidance model is experimental! Use with caution.")
         if config is None:
             config = {}
 

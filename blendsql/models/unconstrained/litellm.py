@@ -31,7 +31,7 @@ class LiteLLM(UnconstrainedModel):
         model_name_or_path: str,
         env: str = ".",
         config: dict | None = None,
-        caching: bool = True,
+        caching: bool = False,
         **kwargs,
     ):
         if config is None:

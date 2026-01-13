@@ -16,7 +16,7 @@ class TransformersVisionModel(UnconstrainedModel):
         self,
         model_name_or_path: str,
         config: dict | None = None,
-        caching: bool = True,
+        caching: bool = False,
         **kwargs,
     ):
         if not _has_transformers and _has_torch:
