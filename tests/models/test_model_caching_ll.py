@@ -22,6 +22,7 @@ class DummyModel(Model):
             model_name_or_path=model_name_or_path,
             requires_config=False,
             tokenizer=None,
+            caching=True,
             **kwargs,
         )
 
