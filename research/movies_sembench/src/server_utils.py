@@ -66,6 +66,7 @@ def start_llama_cpp_server(
     host: str = LLAMA_SERVER_HOST,
     port: int = LLAMA_SERVER_PORT,
     verbose=False,
+    **kwargs,
 ) -> subprocess.Popen:
     """
     Start llama-cpp-server.
@@ -113,6 +114,9 @@ def start_llama_cpp_server(
         "--chat_format",
         model_config.chat_format,
     ]
+    for k, v in kwargs.items():
+        cmd.extend(["--{}".format(k), str(v)])
+
     # Start server
     _llama_server_process = subprocess.Popen(
         cmd,
