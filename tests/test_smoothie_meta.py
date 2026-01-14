@@ -63,7 +63,7 @@ def test_num_values_passed_map(bsql, model):
             model=model,
         )
         assert smoothie.meta.num_values_passed == total_num_values_to_process
-        assert smoothie.meta.num_generation_calls == total_num_values_to_process // bs
+        assert smoothie.meta.num_generation_calls == total_num_values_to_process
         if isinstance(
             model, ConstrainedModel
         ):  # Unconstrained models will add 'SEP', messing up exact token counts
