@@ -316,12 +316,31 @@ def materialize_cte(
     return materialized_smoothie
 
 
-def get_cascade_filter(
+def get_qa_cascade_filter(
     function_node: exp.Exp,
     tablename: str,
+    scm: SubqueryContextManager,
+    db: Database,
+    function_result: str | int | float | tuple | bool,
+):
+    try:
+
+        def t(node, replacement_val):
+            if isinstance(node, exp.BlendSQLFunction):
+                return exp.Literal(this=replacement_val)
+            return node
+
+    except:
+        pass
+    ...
+
+
+def get_map_cascade_filter(
+    function_node: exp.Exp,
+    tablename: str,
+    scm: SubqueryContextManager,
     new_col: str,
     new_table: pl.LazyFrame,
-    scm: SubqueryContextManager,
 ) -> pl.LazyFrame | None:
     """
     Add a cascade filter.
@@ -331,10 +350,10 @@ def get_cascade_filter(
     """
     try:
 
-        def t(node, new_col):
+        def t(node, new_val):
             if isinstance(node, exp.BlendSQLFunction):
                 return exp.Column(
-                    this=exp.Identifier(this=double_quote_escape(new_col), quoted=True)
+                    this=exp.Identifier(this=double_quote_escape(new_val), quoted=True)
                 )
             return node
 
@@ -352,7 +371,7 @@ def get_cascade_filter(
             and binary_expr.find(exp.BlendSQLFunction) == function_node
         ):
             # Second condition is for when we get a little lost in the AST trying to find the right binary node
-            cascade_filter_sql = f"SELECT * FROM self AS {tablename} WHERE {binary_expr.transform(t, new_col=new_col).sql()}"
+            cascade_filter_sql = f"SELECT * FROM self AS {tablename} WHERE {binary_expr.transform(t, new_col=new_col,).sql()}"
             logger.debug(
                 Color.update("Executing ")
                 + Color.sql(cascade_filter_sql, ignore_prefix=True)
@@ -871,11 +890,14 @@ def _blend(
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
 
                 if enable_cascade_filter:
-                    if scm.is_eligible_for_cascade_filter():
+                    if (
+                        scm.is_eligible_for_cascade_filter()
+                        and len(scm.stateful_columns_referenced_by_lm_ingredients) == 1
+                    ):
                         previous_cascade_filter_failed = False
                         cascade_filter = LazyTable(
                             collect_fn=partial(
-                                get_cascade_filter,
+                                get_map_cascade_filter,
                                 function_node=function_node,
                                 tablename=tablename,
                                 new_table=new_table,
@@ -891,6 +913,23 @@ def _blend(
             ):
                 # Here, we can simply insert the function's output
                 alias_function_name_to_result[function_node.name] = function_out
+                if enable_cascade_filter:
+                    if (
+                        scm.is_eligible_for_cascade_filter()
+                        and len(scm.stateful_columns_referenced_by_lm_ingredients) == 1
+                    ):
+                        previous_cascade_filter_failed = False
+                        cascade_filter = LazyTable(
+                            collect_fn=partial(
+                                get_qa_cascade_filter,
+                                function_node=function_node,
+                                tablename=tablename,
+                                function_result=function_out,
+                                scm=scm,
+                                db=db,
+                            ),
+                            has_blendsql_function=True,
+                        )
             elif curr_ingredient.ingredient_type == IngredientType.JOIN:
                 # 1) Get the `JOIN` clause containing function
                 # 2) Replace with just the function alias
