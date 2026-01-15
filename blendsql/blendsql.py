@@ -589,8 +589,10 @@ def _blend(
         _get_temp_subquery_table: Callable = partial(
             get_temp_subquery_table, session_uuid, subquery_idx
         )
+        if subquery is None:
+            continue
         if not isinstance(subquery, exp.Select):
-            # We need to create a select query from this subquery
+            # We need to create a select query from this parentheses expression
             # So we find the parent select, and grab that table
             parent_select_tablenames = [
                 i.name for i in subquery.find_ancestor(exp.Select).find_all(exp.Table)

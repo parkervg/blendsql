@@ -2,7 +2,6 @@
 from sqlglot import exp
 from functools import lru_cache
 
-from .constants import SUBQUERY_EXP
 from .utils import get_first_child
 
 
@@ -58,9 +57,9 @@ def ingredients_only_in_top_select(node: exp.Expression) -> bool:
 
 
 def in_subquery(node: exp.Expression) -> bool:
-    _ancestor = node.find_ancestor(SUBQUERY_EXP)
+    _ancestor = node.find_ancestor(exp.Select)
     if _ancestor is not None:
-        return _ancestor.find_ancestor(SUBQUERY_EXP) is not None
+        return _ancestor.find_ancestor(exp.Select) is not None
     return False
 
 

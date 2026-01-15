@@ -18,7 +18,6 @@ from blendsql.db import Database
 from blendsql.parse.dialect import _parse_one
 from blendsql.parse import checks as check
 from blendsql.parse import transforms as transform
-from blendsql.parse.constants import SUBQUERY_EXP
 from blendsql.parse.utils import set_select_to
 
 
@@ -27,12 +26,28 @@ def get_reversed_subqueries(node):
     Reverses all EXCEPT for CTEs, which should remain in order.
     """
     # First, fetch all common table expressions
-    r = [i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if check.in_cte(i)]
+    r = [
+        i
+        for i in node.find_all(
+            (
+                exp.Select,
+                exp.Paren,
+            )
+        )
+        if check.in_cte(i)
+    ]
     # Then, add (reversed) other subqueries
     return (
         r
         + [
-            i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,)) if not check.in_cte(i)
+            i
+            for i in node.find_all(
+                (
+                    exp.Select,
+                    exp.Paren,
+                )
+            )
+            if not check.in_cte(i)
         ][::-1]
     )
 
