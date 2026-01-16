@@ -55,49 +55,52 @@ def str_to_str(s: str | None, _: Database | None) -> str | None:
 @dataclass
 class DataTypes:
     STR = lambda quantifier=None: DataType(
-        _name="str",
+        atomic_type="str",
         regex=None,
         quantifier=quantifier,
         _coerce_fn=str_to_str,
         requires_quotes=True,
     )
     SUBSTRING = lambda quantifier=None: DataType(
-        _name="substring",
+        atomic_type="substring",
         regex=None,
         quantifier=quantifier,
         _coerce_fn=str_to_str,
         requires_quotes=True,
     )
     BOOL = lambda quantifier=None: DataType(
-        _name="bool",
+        atomic_type="bool",
         regex=r"(t|f|true|false|True|False)",
         quantifier=quantifier,
         _coerce_fn=str_to_bool,
     )
     INT = lambda quantifier=None: DataType(
-        _name="int", regex=r"-?(\d+)", quantifier=quantifier, _coerce_fn=str_to_numeric
+        atomic_type="int",
+        regex=r"-?(\d+)",
+        quantifier=quantifier,
+        _coerce_fn=str_to_numeric,
     )
     FLOAT = lambda quantifier=None: DataType(
-        _name="float",
+        atomic_type="float",
         regex="-?(\d+(\.\d+)?)",
         quantifier=quantifier,
         _coerce_fn=str_to_numeric,
     )
     NUMERIC = lambda quantifier=None: DataType(
-        _name="Union[int, float]",
+        atomic_type="Union[int, float]",
         regex=r"(\d+(\.\d+)?)",
         quantifier=quantifier,
         _coerce_fn=str_to_numeric,
     )
     ISO_8601_DATE = lambda quantifier=None: DataType(
-        _name="NewType(DateString_YYYY_MM_DD, str)",
+        atomic_type="NewType(DateString_YYYY_MM_DD, str)",
         regex=r"\d{4}-\d{2}-\d{2}",
         quantifier=quantifier,
         _coerce_fn=str_to_date,
         requires_quotes=True,
     )
     ANY = lambda quantifier=None: DataType(
-        _name="Any",
+        atomic_type="Any",
         regex=None,
         quantifier=quantifier,
         _coerce_fn=lambda s, _: s,  # Let the DBMS transform, if it allows

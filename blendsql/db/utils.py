@@ -60,7 +60,7 @@ def escape(s):
 
 
 def format_tuple(value: tuple, wrap_in_parentheses: bool | None = True):
-    formatted = ",".join(repr(v) for v in value)
+    formatted = ", ".join(f"'{single_quote_escape(v)}'" for v in value)
     if wrap_in_parentheses:
         formatted = "(" + formatted + ")"
     return formatted

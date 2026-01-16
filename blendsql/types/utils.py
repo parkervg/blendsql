@@ -94,7 +94,7 @@ def _resolve_final_type(
     """Resolve final type using precedence: options > parsed > default."""
     # If we have an inferred type from options, check if it should override
     if inferred_type is not None:
-        if parsed_type is None or parsed_type._name != inferred_type._name:
+        if parsed_type is None or parsed_type.atomic_type != inferred_type.atomic_type:
             if (
                 parsed_type is not None
                 and parsed_type.name != inferred_type.name
@@ -155,12 +155,10 @@ def apply_type_conversion(s: str, return_type: DataType, db: Database):
         except Exception:
             # Sometimes we need to first escape single quotes
             # E.g. in ['Something's wrong here']
-            if return_type.name == "str":
+            if return_type.atomic_type == "str":
                 return [
-                    [
-                        return_type.coerce_fn(c, db)
-                        for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))
-                    ]
+                    return_type.coerce_fn(c, db)
+                    for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))
                 ]
 
     else:

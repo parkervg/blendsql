@@ -23,7 +23,7 @@ QuantifierType = Literal["*", "+"] | str | None
 
 @dataclass
 class DataType:
-    _name: str
+    atomic_type: str
     regex: str | None
     quantifier: QuantifierType | None
     _coerce_fn: Callable
@@ -31,9 +31,9 @@ class DataType:
 
     @property
     def name(self) -> str:
-        if self._name != "list" and self.quantifier is not None:
-            return f"List[{self._name}]"
-        return self._name
+        if self.atomic_type != "list" and self.quantifier is not None:
+            return f"List[{self.atomic_type}]"
+        return self.atomic_type
 
     def coerce_fn(self, s: str | None, db: "Database | None") -> Any:
         """Language models output strings.
