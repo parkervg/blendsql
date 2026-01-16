@@ -422,10 +422,6 @@ class LLMMap(MapIngredient):
                 local_options: list[str] | None,
                 gen_f: Callable,
             ) -> str:
-                """If `context` is a string, it is a serialized table subset.
-                Else, it's a list of documents.
-                """
-
                 def get_quote(s: str):
                     return '"""' if any(c in s for c in ["\n", '"']) else '"'
 
@@ -594,10 +590,12 @@ class LLMMap(MapIngredient):
                 current_batch_cache_keys.append(cache_key)
 
                 if len(current_batch_strings) >= batch_size:
-                    model.num_generation_calls += 1
                     with guidance.assistant():
                         batch_lm = lm + "\n".join(current_batch_strings)
 
+                    # With guidance, each value is still getting its own generation call
+                    # This logic is just wrapped up inside the single `batch_lm = lm  ...` call.
+                    model.num_generation_calls += len(current_batch_strings)
                     self.num_values_passed += len(current_batch_strings)
 
                     model.completion_tokens += sum(

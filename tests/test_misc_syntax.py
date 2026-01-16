@@ -137,3 +137,21 @@ def test_duckdb_read_text(bsql, model):
         """,
         model=model,
     )
+
+
+def test_options_with_return_type(bsql, model):
+    """327a17c"""
+    smoothie = bsql.execute(
+        """
+            SELECT * FROM VALUES {{
+                LLMQA(
+                    'List some countries.', 
+                    return_type='List[str]', 
+                    options=(SELECT name FROM Country),
+                    quantifier='{2}'
+                )
+            }}
+        """,
+        model=model,
+    )
+    assert len(smoothie.df.columns) == 2

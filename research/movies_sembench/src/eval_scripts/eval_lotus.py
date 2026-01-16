@@ -46,7 +46,7 @@ def run_lotus_eval(model_config: ModelConfig):
 
         return module
 
-    start_llama_cpp_server(model_config, parallel=SYSTEM_PARAMS["batch_size"])
+    start_llama_cpp_server(model_config)
 
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         con.execute(f"SELECT setseed({DUCKDB_SEED})")

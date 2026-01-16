@@ -29,76 +29,119 @@ def prepare_datatype(
     quantifier: QuantifierType | None = None,
     log: bool = True,
 ) -> DataType:
-    resolved_return_type = None
-    if options is not None:
-        # We can still infer a return_type from the options we got
-        # This should take precedence over the expression-inferred return type
-        resolved_return_type: DataType | None = try_infer_datatype_from_collection(
-            options
-        )
-        if resolved_return_type is not None:
-            # ._name is atomic type like `str`, .name is collection type like `List[str]` (if exists)
-            if return_type is None or (return_type._name != resolved_return_type._name):
-                if log:
-                    logger.debug(
-                        Color.quiet_update(
-                            f"All passed `options` are the same type, so inferring a return type of `{resolved_return_type.name}`'"
-                        )
-                    )
-                if return_type is not None:
-                    if return_type.name != resolved_return_type.name:
-                        if log:
-                            logger.debug(
-                                Color.quiet_update(
-                                    f"This will override the expression-inferred return type of `{return_type.name}`'"
-                                )
-                            )
-                    return_type = None
+    # Step 1: Parse string return_type to DataType
+    parsed_return_type = _parse_return_type(return_type, quantifier)
 
-    if return_type is None and resolved_return_type is None:
-        # Use default base of `DataTypes.STR`
-        resolved_return_type = DataTypes.STR()
+    # Step 2: Infer type from options if available
+    inferred_from_options = _infer_type_from_options(options, log)
 
-    elif isinstance(return_type, str):
-        # The user has passed us an output type in the BlendSQL query
-        # That should take precedence
-        return_type = return_type.lower()
-        if return_type not in STR_TO_DATATYPE:
-            raise IngredientException(
-                f"{return_type} is not a recognized datatype!\nValid options are {list(STR_TO_DATATYPE.keys())}"
-            )
-        resolved_return_type = STR_TO_DATATYPE[return_type]
-        if quantifier:  # User passed quantifier takes precedence
-            resolved_return_type.quantifier = quantifier
-    elif isinstance(return_type, DataType):
-        resolved_return_type = return_type
+    # Step 3: Resolve final type with precedence rules
+    resolved_type = _resolve_final_type(parsed_return_type, inferred_from_options, log)
 
+    # Step 4: Apply quantifier override if provided
     if quantifier:
-        # The user has passed us a quantifier that should take precedence
-        resolved_return_type.quantifier = quantifier
+        resolved_type.quantifier = quantifier
 
-    if resolved_return_type.regex is not None:
-        if options is not None:
-            if log:
+    # Step 5: Handle regex/options conflict
+    _handle_regex_options_conflict(resolved_type, options, log)
+
+    return resolved_type
+
+
+def _parse_return_type(
+    return_type: str | DataType | None, quantifier: QuantifierType | None
+) -> DataType | None:
+    """Convert string return_type to DataType object."""
+    if not isinstance(return_type, str):
+        return return_type
+
+    return_type = return_type.lower()
+    if return_type not in STR_TO_DATATYPE:
+        raise IngredientException(
+            f"{return_type} is not a recognized datatype!\n"
+            f"Valid options are {list(STR_TO_DATATYPE.keys())}"
+        )
+
+    data_type = STR_TO_DATATYPE[return_type]
+    if quantifier:
+        data_type.quantifier = quantifier
+
+    return data_type
+
+
+def _infer_type_from_options(
+    options: Collection[str] | None, log: bool
+) -> DataType | None:
+    """Infer DataType from the provided options collection."""
+    if options is None:
+        return None
+
+    inferred_type = try_infer_datatype_from_collection(options)
+    if inferred_type and log:
+        logger.debug(
+            Color.quiet_update(
+                f"All passed `options` are the same type, so inferring "
+                f"a return type of `{inferred_type.name}`"
+            )
+        )
+
+    return inferred_type
+
+
+def _resolve_final_type(
+    parsed_type: DataType | None, inferred_type: DataType | None, log: bool
+) -> DataType:
+    """Resolve final type using precedence: options > parsed > default."""
+    # If we have an inferred type from options, check if it should override
+    if inferred_type is not None:
+        if parsed_type is None or parsed_type.atomic_type != inferred_type.atomic_type:
+            if (
+                parsed_type is not None
+                and parsed_type.name != inferred_type.name
+                and log
+            ):
                 logger.debug(
                     Color.quiet_update(
-                        f"Ignoring inferred regex '{resolved_return_type.regex}' and using options '{options}' instead"
+                        f"This will override the expression-inferred "
+                        f"return type of `{parsed_type.name}`"
                     )
                 )
-            resolved_return_type.regex = None
-        else:
-            if log:
-                logger.debug(
-                    Color.quiet_update(f"Using regex '{resolved_return_type.regex}'")
-                )
-    elif options:
-        if log:
+            return inferred_type
+
+    # Fall back to parsed type or default
+    if parsed_type is not None:
+        return parsed_type
+
+    if inferred_type is not None:
+        return inferred_type
+
+    return DataTypes.STR()
+
+
+def _handle_regex_options_conflict(
+    resolved_type: DataType, options: Collection[str] | None, log: bool
+) -> None:
+    """Handle mutual exclusivity between regex and options."""
+    if not log:
+        return
+
+    if resolved_type.regex is not None:
+        if options is not None:
             logger.debug(
                 Color.quiet_update(
-                    f"Using options '{set(itertools.islice(options, 20))}...'"
+                    f"Ignoring inferred regex '{resolved_type.regex}' "
+                    f"and using options '{options}' instead"
                 )
             )
-    return resolved_return_type
+            resolved_type.regex = None
+        else:
+            logger.debug(Color.quiet_update(f"Using regex '{resolved_type.regex}'"))
+    elif options:
+        logger.debug(
+            Color.quiet_update(
+                f"Using options '{set(itertools.islice(options, 20))}...'"
+            )
+        )
 
 
 def apply_type_conversion(s: str, return_type: DataType, db: Database):
@@ -112,12 +155,10 @@ def apply_type_conversion(s: str, return_type: DataType, db: Database):
         except Exception:
             # Sometimes we need to first escape single quotes
             # E.g. in ['Something's wrong here']
-            if return_type.name == "str":
+            if return_type.atomic_type == "str":
                 return [
-                    [
-                        return_type.coerce_fn(c, db)
-                        for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))
-                    ]
+                    return_type.coerce_fn(c, db)
+                    for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))
                 ]
 
     else:

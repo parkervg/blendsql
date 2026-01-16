@@ -9,7 +9,6 @@ from typing import Type
 from sqlglot import exp
 
 from . import checks as check
-from .constants import SUBQUERY_EXP
 
 
 def set_subqueries_to_true(node) -> exp.Expression | None:
@@ -27,9 +26,23 @@ def set_subqueries_to_true(node) -> exp.Expression | None:
                     return None
         if check.in_subquery(node):
             return None
-    if isinstance(node, SUBQUERY_EXP + (exp.Paren,)) and node.parent is not None:
+    if (
+        isinstance(
+            node,
+            (
+                exp.Select,
+                exp.Paren,
+            ),
+        )
+        and node.parent is not None
+    ):
         return exp.true()
-    parent_select = node.find_ancestor(SUBQUERY_EXP)
+    parent_select = node.find_ancestor(
+        (
+            exp.Select,
+            exp.Paren,
+        )
+    )
     if parent_select and parent_select.parent is not None:
         return None
     return node
@@ -104,7 +117,20 @@ def remove_nodetype(node, nodetype: Type[exp.Expression] | tuple[Type[exp.Expres
 
 
 def maybe_set_subqueries_to_true(node):
-    if len([i for i in node.find_all(SUBQUERY_EXP + (exp.Paren,))]) == 1:
+    if (
+        len(
+            [
+                i
+                for i in node.find_all(
+                    (
+                        exp.Select,
+                        exp.Paren,
+                    )
+                )
+            ]
+        )
+        == 1
+    ):
         return node
     return node.transform(set_subqueries_to_true).transform(prune_empty_where)
 
