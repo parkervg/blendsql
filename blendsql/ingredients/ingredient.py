@@ -444,9 +444,8 @@ class MapIngredient(Ingredient):
                 original_table = materialized_smoothie.pl.lazy()
             else:
                 original_table = self.db.execute_to_df(
-                    f"""SELECT {select_distinct_arg} FROM "{tablename}" """
+                    f"""SELECT {select_distinct_arg} FROM "{tablename}" ORDER BY rowid"""
                 )
-
         # Need to be sure the new column doesn't already exist here
         new_arg_column = question or uuid.uuid4().hex[:4]
         while (
@@ -501,7 +500,7 @@ class MapIngredient(Ingredient):
             # ...means we only take values where `Name`, `Known_For` columns are present in the above.
             logger.debug(
                 Color.optimization(
-                    f"[ 🌊 ] Applying cascade filter from previous map function..."
+                    f"[ 🌊 ] Applying cascade filter from previous LM function..."
                 )
             )
             distinct_values = distinct_values.join(
@@ -598,7 +597,6 @@ class MapIngredient(Ingredient):
 
         # Add new_table to original table
         if additional_args_passed:
-            # _mapped_subtable = distinct_values.collect()
             _mapped_subtable = pl.concat(
                 [distinct_values, mapped_subtable.select(new_arg_column)],
                 how="horizontal",
