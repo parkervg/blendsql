@@ -178,7 +178,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         # Disable all Rich console output
         rich.console.Console.is_terminal = False
 
-        start_llama_cpp_server(model_config, parallel=SYSTEM_PARAMS["batch_size"])
+        start_llama_cpp_server(model_config)
 
         class CustomDatabase(Database):
             def __init__(self, con):
