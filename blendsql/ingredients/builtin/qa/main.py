@@ -461,4 +461,7 @@ class LLMQA(QAIngredient):
             if response == "False":
                 return False
             return response.lower()
+        logger.debug(
+            lambda: Color.warning(f"Finished LLMQA with value: {str(response)[:50]}")
+        )
         return response  # type: ignore

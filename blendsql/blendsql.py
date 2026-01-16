@@ -36,6 +36,7 @@ from blendsql.parse import (
     get_reversed_subqueries,
     get_first_child,
 )
+from blendsql.parse.cascade_filter import get_qa_cascade_filter, get_map_cascade_filter
 from blendsql.parse.constants import MODIFIERS
 from blendsql.ingredients.ingredient import Ingredient, IngredientException
 from blendsql.smoothie import Smoothie, SmoothieMeta
@@ -314,74 +315,6 @@ def materialize_cte(
                         # Just replace the current node
                         _n.replace(None)
     return materialized_smoothie
-
-
-def get_cascade_filter(
-    function_node: exp.Exp,
-    tablename: str,
-    new_col: str,
-    new_table: pl.LazyFrame,
-    scm: SubqueryContextManager,
-) -> pl.LazyFrame | None:
-    """
-    Add a cascade filter.
-    Something like `'"Is this a singer?" = TRUE'`
-    This will get applied to the value_source_table on the next ingredient execution to further filter
-      the subset of data that gets passed to the LLM function.
-    """
-    try:
-
-        def t(node, new_col):
-            if isinstance(node, exp.BlendSQLFunction):
-                return exp.Column(
-                    this=exp.Identifier(this=double_quote_escape(new_col), quoted=True)
-                )
-            return node
-
-        function_node = scm.maybe_resolve_aliased_function(function_node)
-
-        binary_expr = None
-        if isinstance(function_node.parent.this, exp.Binary):
-            binary_expr = function_node.parent.this
-        elif isinstance(function_node.parent, exp.Binary):
-            if len(list(function_node.parent.find_all(exp.BlendSQLFunction))) == 1:
-                binary_expr = function_node.parent
-
-        if (
-            binary_expr is not None
-            and binary_expr.find(exp.BlendSQLFunction) == function_node
-        ):
-            # Second condition is for when we get a little lost in the AST trying to find the right binary node
-            cascade_filter_sql = f"SELECT * FROM self AS {tablename} WHERE {binary_expr.transform(t, new_col=new_col).sql()}"
-            logger.debug(
-                Color.update("Executing ")
-                + Color.sql(cascade_filter_sql, ignore_prefix=True)
-                + Color.update(" to get cascade filter...", ignore_prefix=True)
-            )
-            # TODO: below is kind of ugly, any way to clean up?
-            colnames_to_select = scm.stateful_columns_referenced_by_lm_ingredients[
-                scm.tablename_to_alias.get(tablename, tablename)
-            ]
-            return new_table.sql(cascade_filter_sql).select(
-                [
-                    pl.col(col)
-                    for col in colnames_to_select
-                    if col in new_table.collect_schema().names()
-                ]
-            )
-        else:
-            logger.debug(
-                Color.warning(f"Can't find filter cascade condition for context ")
-                + Color.light_warning(
-                    "`" + function_node.parent.sql(dialect=scm.dialect) + "`"
-                )
-            )
-    except Exception as e:
-        logger.debug(
-            Color.warning(f"Cascade filter logic failed with error: ")
-            + Color.error(str(e))
-        )
-    return None
 
 
 def get_sorted_blendsql_nodes(
@@ -873,11 +806,14 @@ def _blend(
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
 
                 if enable_cascade_filter:
-                    if scm.is_eligible_for_cascade_filter():
+                    if (
+                        scm.is_eligible_for_cascade_filter()
+                        and len(scm.stateful_columns_referenced_by_lm_ingredients) == 1
+                    ):
                         previous_cascade_filter_failed = False
                         cascade_filter = LazyTable(
                             collect_fn=partial(
-                                get_cascade_filter,
+                                get_map_cascade_filter,
                                 function_node=function_node,
                                 tablename=tablename,
                                 new_table=new_table,
@@ -893,6 +829,22 @@ def _blend(
             ):
                 # Here, we can simply insert the function's output
                 alias_function_name_to_result[function_node.name] = function_out
+                if enable_cascade_filter:
+                    if (
+                        scm.is_eligible_for_cascade_filter()
+                        and len(scm.stateful_columns_referenced_by_lm_ingredients) == 1
+                    ):
+                        previous_cascade_filter_failed = False
+                        cascade_filter = LazyTable(
+                            collect_fn=partial(
+                                get_qa_cascade_filter,
+                                function_node=function_node,
+                                function_result=function_out,
+                                scm=scm,
+                                db=db,
+                            ),
+                            has_blendsql_function=True,
+                        )
             elif curr_ingredient.ingredient_type == IngredientType.JOIN:
                 # 1) Get the `JOIN` clause containing function
                 # 2) Replace with just the function alias
