@@ -10,7 +10,7 @@ from blendsql.models import Model, ConstrainedModel
 from blendsql.models.utils import user, assistant
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.common.logger import logger, Color
-from blendsql.ingredients.ingredient import JoinIngredient, IngredientException
+from blendsql.ingredients.ingredient import JoinIngredient, LMFunctionException
 from blendsql.ingredients.utils import initialize_retriever, partialclass
 from blendsql.configure import (
     MAX_TOKENS_KEY,
@@ -133,7 +133,7 @@ class LLMJoin(JoinIngredient):
             )
 
         if model is None:
-            raise IngredientException(
+            raise LMFunctionException(
                 "LLMJoin requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
 

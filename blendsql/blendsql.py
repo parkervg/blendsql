@@ -38,7 +38,7 @@ from blendsql.parse import (
 )
 from blendsql.parse.cascade_filter import get_qa_cascade_filter, get_map_cascade_filter
 from blendsql.parse.constants import MODIFIERS
-from blendsql.ingredients.ingredient import Ingredient, IngredientException
+from blendsql.ingredients.ingredient import Ingredient, LMFunctionException
 from blendsql.smoothie import Smoothie, SmoothieMeta
 from blendsql.common.typing import (
     IngredientType,
@@ -75,11 +75,11 @@ class Kitchen(list):
         """Initializes ingredients class with base attributes, for use in later operations."""
         try:
             if not all(issubclass(x, Ingredient) for x in ingredients):
-                raise IngredientException(
+                raise LMFunctionException(
                     "All arguments passed to `Kitchen` must be ingredients!"
                 )
         except TypeError:
-            raise IngredientException(
+            raise LMFunctionException(
                 "All arguments passed to `Kitchen` must be ingredients!"
             ) from None
         for ingredient in ingredients:
@@ -770,7 +770,7 @@ def _blend(
                             else:
                                 kwargs_dict[unpack_kwarg] = subtable
                         else:
-                            raise IngredientException(
+                            raise LMFunctionException(
                                 f"Invalid kwarg {unpack_kwarg}\nAlso, we should have never hit this error..."
                             )
 
@@ -1048,12 +1048,12 @@ class BlendSQL:
         try:
             _ingredient_names = [i.__name__.upper() for i in ingredients]
         except AttributeError as e:
-            raise IngredientException(
+            raise LMFunctionException(
                 "All arguments passed to `ingredients` should be `Ingredient` classes!"
             ) from e
         ingredient_names = set(_ingredient_names)
         if len(ingredient_names) != len(_ingredient_names):
-            raise IngredientException(
+            raise LMFunctionException(
                 f"Duplicate ingredient names passed! These are case insensitive, be careful.\n{_ingredient_names=}"
             )
         ingredients = set(ingredients)

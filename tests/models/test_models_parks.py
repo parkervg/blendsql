@@ -4,7 +4,7 @@ from blendsql import BlendSQL
 from blendsql.ingredients import ImageCaption
 from blendsql.smoothie import Smoothie
 from blendsql.common.utils import fetch_from_hub
-from blendsql.common.exceptions import IngredientException
+from blendsql.common.exceptions import LMFunctionException
 
 
 @pytest.fixture(scope="session")
@@ -65,7 +65,7 @@ def test_mixed_models_no_default_error(bsql, vision_model):
     we should raise the appropriate IngredientException error.
     """
     ingredients = {ImageCaption.from_args(model=vision_model)}
-    with pytest.raises(IngredientException):
+    with pytest.raises(LMFunctionException):
         _ = bsql.execute(
             """
             SELECT "Name",

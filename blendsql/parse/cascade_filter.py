@@ -30,9 +30,9 @@ def find_binary_expression(
     function_node = scm.maybe_resolve_aliased_function(function_node)
 
     binary_expr = None
-    if isinstance(function_node.parent.this, exp.Binary):
+    if isinstance(function_node.parent.this, (exp.Binary, exp.In)):
         binary_expr = function_node.parent.this
-    elif isinstance(function_node.parent, exp.Binary):
+    elif isinstance(function_node.parent, (exp.Binary, exp.In)):
         if len(list(function_node.parent.find_all(exp.BlendSQLFunction))) == 1:
             binary_expr = function_node.parent
 

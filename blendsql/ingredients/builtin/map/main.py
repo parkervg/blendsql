@@ -19,7 +19,7 @@ from blendsql.models import Model, ConstrainedModel
 from blendsql.models.utils import user
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql.common.exceptions import IngredientException
+from blendsql.common.exceptions import LMFunctionException
 from blendsql.common.typing import DataType, QuantifierType, AdditionalMapArg
 from blendsql.ingredients.utils import (
     initialize_retriever,
@@ -208,7 +208,7 @@ class LLMMap(MapIngredient):
             Iterable[Any] containing the output of the Model for each value.
         """
         if model is None:
-            raise IngredientException(
+            raise LMFunctionException(
                 "LLMMap requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
         if few_shot_retriever is None:
@@ -338,7 +338,7 @@ class LLMMap(MapIngredient):
             lm = LMString()  # type: ignore
 
             if all(x is not None for x in [options, regex]):
-                raise IngredientException(
+                raise LMFunctionException(
                     "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
                 )
 

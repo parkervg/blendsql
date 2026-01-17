@@ -1,7 +1,7 @@
 import itertools
 from collections.abc import Collection
 
-from blendsql.common.exceptions import IngredientException
+from blendsql.common.exceptions import LMFunctionException, TypeResolutionException
 from blendsql.types.types import (
     DataTypes,
     STR_TO_DATATYPE,
@@ -24,8 +24,8 @@ def try_infer_datatype_from_collection(collection: Collection) -> DataType:
 
 
 def prepare_datatype(
-    options: Collection[str] | None,
     return_type: str | DataType | None = None,
+    options: Collection[str] | None = None,
     quantifier: QuantifierType | None = None,
     log: bool = True,
 ) -> DataType:
@@ -57,7 +57,7 @@ def _parse_return_type(
 
     return_type = return_type.lower()
     if return_type not in STR_TO_DATATYPE:
-        raise IngredientException(
+        raise LMFunctionException(
             f"{return_type} is not a recognized datatype!\n"
             f"Valid options are {list(STR_TO_DATATYPE.keys())}"
         )
@@ -95,16 +95,9 @@ def _resolve_final_type(
     # If we have an inferred type from options, check if it should override
     if inferred_type is not None:
         if parsed_type is None or parsed_type.atomic_type != inferred_type.atomic_type:
-            if (
-                parsed_type is not None
-                and parsed_type.name != inferred_type.name
-                and log
-            ):
-                logger.debug(
-                    Color.quiet_update(
-                        f"This will override the expression-inferred "
-                        f"return type of `{parsed_type.name}`"
-                    )
+            if parsed_type is not None and parsed_type.name != inferred_type.name:
+                raise TypeResolutionException(
+                    f"LM function type resolution failed!\nExpression context expects `{parsed_type.name}`, but passed options restrict to `{inferred_type.name}`."
                 )
             return inferred_type
 
@@ -124,13 +117,12 @@ def _handle_regex_options_conflict(
     """Handle mutual exclusivity between regex and options."""
     if not log:
         return
-
     if resolved_type.regex is not None:
         if options is not None:
             logger.debug(
-                Color.quiet_update(
+                Color.warning(
                     f"Ignoring inferred regex '{resolved_type.regex}' "
-                    f"and using options '{options}' instead"
+                    f"and using options '{options}' instead!"
                 )
             )
             resolved_type.regex = None

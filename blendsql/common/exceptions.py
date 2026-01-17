@@ -2,5 +2,9 @@ class InvalidBlendSQL(ValueError):
     pass
 
 
-class IngredientException(ValueError):
+class LMFunctionException(ValueError):
+    pass
+
+
+class TypeResolutionException(LMFunctionException):
     pass

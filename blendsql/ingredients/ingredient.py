@@ -11,7 +11,7 @@ import uuid
 from typeguard import check_type
 import polars as pl
 
-from blendsql.common.exceptions import IngredientException
+from blendsql.common.exceptions import LMFunctionException
 from blendsql.common.logger import logger, Color
 from blendsql.common import utils
 from blendsql.common.typing import (
@@ -308,7 +308,7 @@ class MapIngredient(Ingredient):
             )
             _original_tablenames = set(_original_tablenames)
             if len(_original_tablenames) > 1:
-                raise IngredientException(
+                raise LMFunctionException(
                     "Can only concatenate two columns from the same table for now!"
                 )
 
@@ -576,7 +576,7 @@ class MapIngredient(Ingredient):
                 Color.quiet_update(f"Unpacked question to '{unpacked_questions[:10]}'")
             )
 
-        mapped_values: Collection[Any] = self._run(
+        mapped_values = self._run(
             question=question,
             unpacked_questions=unpacked_questions,
             values=unpacked_values,
@@ -604,9 +604,9 @@ class MapIngredient(Ingredient):
             new_table = original_table.join(
                 _mapped_subtable,
                 how="left",
+                # We DON'T need to join on cascade_filter_colnames, since these weren't neccesarily operated on in the map call.
                 on=set([colname])
-                | set([i.columnname for i in resolved_additional_args])
-                | cascade_filter_colnames,
+                | set([i.columnname for i in resolved_additional_args]),
             )
         else:
             new_table = original_table.join(mapped_subtable, how="left", on=colname)
@@ -866,7 +866,7 @@ class QAIngredient(Ingredient):
             else:
                 subtable = pl.DataFrame({"_col": _context})
             if subtable.is_empty():
-                raise IngredientException("Empty subtable passed to QAIngredient!")
+                raise LMFunctionException("Empty subtable passed to QAIngredient!")
             self.num_values_passed += len(subtable)
             subtables.append(subtable)
 
@@ -879,7 +879,7 @@ class QAIngredient(Ingredient):
 
         if question is not None and "{}" in question:
             if len(subtables) == 0:
-                raise IngredientException(
+                raise LMFunctionException(
                     f"Passed question with string template '{question}', but no context was passed to fill!"
                 )
             unpacked_values = []
@@ -936,7 +936,7 @@ class StringIngredient(Ingredient):
         args = tuple()
         new_str = self._run(*args, **kwargs)
         if not isinstance(new_str, str):
-            raise IngredientException(
+            raise LMFunctionException(
                 f"{self.name}.run() should return str\nGot{type(new_str)}"
             )
         return new_str

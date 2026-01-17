@@ -2,7 +2,11 @@ import pytest
 import pandas as pd
 from blendsql import BlendSQL
 from blendsql.db import Pandas
-from blendsql.common.exceptions import IngredientException, InvalidBlendSQL
+from blendsql.common.exceptions import (
+    LMFunctionException,
+    InvalidBlendSQL,
+    TypeResolutionException,
+)
 from blendsql.ingredients import LLMQA, LLMMap
 from tests.utils import select_first_option
 
@@ -45,7 +49,7 @@ def test_error_on_delete2(bsql):
 
 
 def test_error_on_duplicate_ingredient_names(bsql, model):
-    with pytest.raises(IngredientException):
+    with pytest.raises(LMFunctionException):
         _ = bsql.execute(
             """
             SELECT {{LLMMap('Will this fail with the duplicate ingredient names?', c.Title)}} AS "answer" FROM classes c LIMIT 1
@@ -64,7 +68,7 @@ def test_vanilla_sql_no_ingredients(bsql):
 
 
 def test_error_on_invalid_ingredient(bsql):
-    with pytest.raises(IngredientException):
+    with pytest.raises(LMFunctionException):
         _ = bsql.execute(
             query="""
             SELECT * w WHERE {{ingredient()}} = TRUE
@@ -233,3 +237,19 @@ def test_prompt_type_annotation(bsql, constrained_model):
         model=constrained_model,
     )
     assert "Literal[21, 14, 12]" in GLOBAL_HISTORY[-1]
+
+
+def test_raises_type_resolution_error(bsql, constrained_model):
+    with pytest.raises(TypeResolutionException):
+        _ = bsql.execute(
+            """
+            SELECT * FROM w WHERE {{
+                LLMMap(
+                    'What letter does the name start with?',
+                    Name,
+                    options=(1, 2, 3)
+                )
+            }} = 'D'
+            """,
+            model=constrained_model,
+        )

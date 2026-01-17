@@ -11,5 +11,5 @@ from .ingredient import (
     StringIngredient,
     QAIngredient,
     AliasIngredient,
-    IngredientException,
+    LMFunctionException,
 )

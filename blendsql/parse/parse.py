@@ -1,8 +1,7 @@
 import sqlglot
 from sqlglot import exp, Schema
 from sqlglot.optimizer.scope import build_scope
-from typing import Callable, Type, Generator, Any
-from ast import literal_eval
+from typing import Callable, Type, Generator
 import re
 from collections import Counter
 from sqlglot.optimizer.scope import find_all_in_scope
@@ -10,15 +9,14 @@ from dataclasses import dataclass, field
 from functools import partial
 
 from blendsql.common.utils import get_tablename_colname
-from blendsql.common.typing import QuantifierType, ColumnRef, StringConcatenation
-from blendsql.types import DataTypes, DB_TYPE_TO_STR, STR_TO_DATATYPE, prepare_datatype
-from blendsql.types.utils import try_infer_datatype_from_collection
+from blendsql.common.typing import ColumnRef, StringConcatenation
 from blendsql.common.logger import logger, Color
 from blendsql.db import Database
 from blendsql.parse.dialect import _parse_one
 from blendsql.parse import checks as check
 from blendsql.parse import transforms as transform
 from blendsql.parse.utils import set_select_to
+from blendsql.parse.return_type_inferrer import ReturnTypeInferrer
 
 
 def get_reversed_subqueries(node):
@@ -120,6 +118,7 @@ class SubqueryContextManager:
         )
         self.function_references = list(self.node.find_all(exp.BlendSQLFunction))
         self._gather_alias_mappings()
+        self.return_type_inferrer = ReturnTypeInferrer()
 
     def _reset_root(self):
         self.root = build_scope(self.node)
@@ -476,7 +475,7 @@ class SubqueryContextManager:
 
         function_node = self.maybe_resolve_aliased_function(function_node)
 
-        if isinstance(function_node.parent, exp.Binary):
+        if isinstance(function_node.parent, (exp.Binary, exp.In)):
             # We can apply some exit_condition function
             limit_arg: int = limit_node.expression.to_py()
             offset_node = self.node.find(exp.Offset)
@@ -506,6 +505,10 @@ class SubqueryContextManager:
                 return partial(_exit_condition, op=lambda v: re.search(re_pattern, v))
             elif isinstance(parent_node, exp.Is):
                 return partial(_exit_condition, op=lambda v: v is arg)
+            elif isinstance(parent_node, exp.Not):
+                return partial(_exit_condition, op=lambda v: not v)
+            elif isinstance(parent_node, exp.In):
+                print()
             # TODO: add more
 
     def is_eligible_for_cascade_filter(self) -> bool:
@@ -597,187 +600,24 @@ class SubqueryContextManager:
         alias_to_tablename: dict,
         has_user_regex: bool,
     ) -> dict:
-        """Given syntax of BlendSQL query, infers a regex pattern (if possible) to guide
-            downstream Model generations.
+        """
+        Convenience function matching the original method signature.
 
-        For example:
-
-        ```sql
-        SELECT * FROM w WHERE {{LLMMap('Is this true?', 'w::colname')}}
-        ```
-
-        We can infer given the structure above that we expect `LLMMap` to return a boolean.
-        This function identifies that.
-
-        Arguments:
-            indices: The string indices pointing to the span within the overall BlendSQL query
-                containing our ingredient in question.
+        Args:
+            function_node: The expression node containing the BlendSQL function
+            schema: Database schema mapping table names to column types
+            alias_to_tablename: Mapping of table aliases to actual table names
+            has_user_regex: Whether the user has provided a custom regex
 
         Returns:
-            dict, with keys:
-
-                - return_type
-                    - 'boolean' | 'integer' | 'float' | 'string'
-
-                - regex: regular expression pattern lambda to use in constrained decoding with Model
-                    - See `create_regex` for more info on these regex lambdas
-
-                - options: Optional str default to pass to `options` argument in a QAIngredient
-                    - Will have the form '{table}.{column}'
+            Dict with inferred generation constraints
         """
-        DEFAULT_QUANTIFIER = (
-            "+"  # If we know something is a `List` type, what quantifier should we use?
+        return self.return_type_inferrer(
+            function_node=self.maybe_resolve_aliased_function(function_node),
+            schema=schema,
+            alias_to_tablename=alias_to_tablename,
+            has_user_regex=has_user_regex,
         )
-        added_kwargs: dict[str, Any] = {}
-
-        function_node = self.maybe_resolve_aliased_function(function_node)
-        if isinstance(function_node.parent, exp.Select):
-            # We don't want to traverse up in cases of `SELECT {{A()}} FROM table WHERE x < y`
-            parent_node = function_node
-        else:
-            parent_node = function_node.parent
-
-        predicate_literals: list[str] = []
-        quantifier: QuantifierType = None
-        # Check for instances like `{column} = {QAIngredient}`
-        # where we can infer the space of possible options for QAIngredient
-        if isinstance(parent_node, (exp.EQ, exp.In)):
-            if isinstance(parent_node.args["this"], exp.Column):
-                if "table" not in parent_node.args["this"].args:
-                    if not isinstance(parent_node, exp.BlendSQLFunction):
-                        logger.debug(
-                            f"When inferring `options` in infer_gen_kwargs, encountered column node with "
-                            "no table specified!\nShould probably mark `schema_qualify` arg as True"
-                        )
-                else:
-                    # This is valid for a default `options` set
-                    added_kwargs["options"] = ColumnRef(
-                        f"{parent_node.args['this'].args['table'].name}.{parent_node.args['this'].args['this'].name}"
-                    )
-
-        return_type = None
-        # First check - is this predicate referencing an existing column with a non-TEXT datatype?
-        # If so, we adopt that type as our generation
-        column_in_predicate = parent_node.find(exp.Column)
-        if column_in_predicate is not None:
-            tablename = alias_to_tablename.get(
-                column_in_predicate.table, column_in_predicate.table
-            )
-            native_db_type = schema.get(tablename, {}).get(
-                column_in_predicate.this.name, None
-            )
-            if native_db_type is not None:
-                if native_db_type in DB_TYPE_TO_STR:
-                    resolved_type = DB_TYPE_TO_STR[native_db_type]
-                    if resolved_type != "str":
-                        return_type = STR_TO_DATATYPE[DB_TYPE_TO_STR[native_db_type]]
-                        if not has_user_regex:
-                            logger.debug(
-                                Color.quiet_update(
-                                    f"The column in this predicate (`{column_in_predicate.this.name}`) has type `{native_db_type}`, so using regex for {resolved_type}..."
-                                )
-                            )
-                else:
-                    logger.debug(
-                        Color.warning(
-                            f"No type logic for native DB type {native_db_type}!"
-                        )
-                    )
-        if return_type is None:
-            if isinstance(parent_node, (exp.In, exp.Tuple, exp.Values)):
-                if isinstance(parent_node, (exp.Tuple, exp.Values)):
-                    added_kwargs["wrap_tuple_in_parentheses"] = False
-                if isinstance(parent_node, exp.In):
-                    # If the ingredient is in the 2nd arg place
-                    # E.g. not `{{LLMMap()}} IN ('a', 'b')`
-                    # Only `column IN {{LLMQA()}}`
-                    # AST will look like:
-                    # In(
-                    #     this=Column(
-                    #         this=Identifier(this=name, quoted=False),
-                    #         table=Identifier(this=c, quoted=False)),
-                    #     field=BlendSQLFunction(
-                    #         this=A))
-                    field_val = parent_node.args.get("field", None)
-                    if field_val is not None:
-                        if parent_node == field_val:
-                            quantifier = DEFAULT_QUANTIFIER
-                    if isinstance(field_val, exp.BlendSQLFunction):
-                        quantifier = DEFAULT_QUANTIFIER
-                else:
-                    quantifier = DEFAULT_QUANTIFIER
-            elif isinstance(parent_node, exp.Unnest):
-                quantifier = DEFAULT_QUANTIFIER
-
-            if parent_node is not None and parent_node.expression is not None:
-                # Get predicate args
-                predicate_literals = []
-                # Literals
-                predicate_literals.extend(
-                    [
-                        literal_eval(i.this) if not i.is_string else i.this
-                        for i in parent_node.expression.find_all(exp.Literal)
-                    ]
-                )
-                # Booleans
-                predicate_literals.extend(
-                    [
-                        i.args["this"]
-                        for i in parent_node.expression.find_all(exp.Boolean)
-                    ]
-                )
-            # Try to infer output type given the literals we've been given
-            # E.g. {{LLMap()}} IN ('John', 'Parker', 'Adam')
-            if len(predicate_literals) > 0:
-                logger.debug(
-                    Color.quiet_update(
-                        f"Extracted predicate literals `{predicate_literals}`"
-                    )
-                )
-                _return_type = try_infer_datatype_from_collection(predicate_literals)
-                if _return_type is not None:
-                    return_type = _return_type
-                    return_type.quantifier = quantifier
-                else:
-                    predicate_literals = [str(i) for i in predicate_literals]
-                    added_kwargs["return_type"] = DataTypes.ANY(quantifier)
-                    if len(predicate_literals) == 1:
-                        predicate_literals = predicate_literals + [
-                            predicate_literals[0]
-                        ]
-                    added_kwargs["example_outputs"] = predicate_literals
-                    return added_kwargs
-            elif len(predicate_literals) == 0 and isinstance(
-                parent_node,
-                (
-                    exp.Order,
-                    exp.Ordered,
-                    exp.AggFunc,
-                    exp.GT,
-                    exp.GTE,
-                    exp.LT,
-                    exp.LTE,
-                    exp.Sum,
-                ),
-            ):
-                return_type = DataTypes.NUMERIC(quantifier)  # `Numeric` = `int | float`
-            elif quantifier:
-                # Fallback to a generic list datatype
-                return_type = DataTypes.STR(quantifier)
-        added_kwargs["return_type"] = return_type
-        if return_type is not None:
-            logger.debug(
-                lambda: Color.quiet_update(
-                    f"""Inferred return_type='{
-                    prepare_datatype(
-                        return_type=return_type, 
-                        options=added_kwargs.get('options'), 
-                        quantifier=quantifier,
-                        log=False
-                    ).name}' given expression context"""
-                )
-            )
-        return added_kwargs
 
     def sql(self):
         return self.node.sql(dialect=self.dialect)

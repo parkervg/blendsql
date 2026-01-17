@@ -17,7 +17,7 @@ from blendsql.models import Model, ConstrainedModel
 from blendsql.models.constrained.utils import maybe_load_lm, LMString
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
-from blendsql.common.exceptions import IngredientException
+from blendsql.common.exceptions import LMFunctionException
 from blendsql.common.typing import DataType, QuantifierType
 from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
 from blendsql.configure import (
@@ -196,7 +196,7 @@ class LLMQA(QAIngredient):
                 Response will only be a tuple if `quantifier` is not None.
         """
         if model is None:
-            raise IngredientException(
+            raise LMFunctionException(
                 "LLMQA requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
         if few_shot_retriever is None:
@@ -462,6 +462,8 @@ class LLMQA(QAIngredient):
                 return False
             return response.lower()
         logger.debug(
-            lambda: Color.warning(f"Finished LLMQA with value: {str(response)[:50]}")
+            lambda: Color.warning(
+                f"Finished LLMQA with value: {str(response)[:200]}{'...' if len(str(response)) > 200 else ''}"
+            )
         )
         return response  # type: ignore

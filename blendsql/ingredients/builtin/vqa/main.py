@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from blendsql.models import Model, TransformersVisionModel
 from blendsql.ingredients.ingredient import MapIngredient
-from blendsql.common.exceptions import IngredientException
+from blendsql.common.exceptions import LMFunctionException
 from blendsql.ingredients.utils import partialclass
 
 
@@ -34,15 +34,15 @@ class ImageCaption(MapIngredient):
     def run(self, model: Model, values: list[bytes], **kwargs):
         """Generates a caption for all byte images passed to it."""
         if model is None:
-            raise IngredientException(
+            raise LMFunctionException(
                 "ImageCaption requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `model` argument in either `BlendSQL(...)` or `BlendSQL().blend()`?"
             )
         if not isinstance(model, TransformersVisionModel):
-            raise IngredientException(
+            raise LMFunctionException(
                 "The VQA ingredient currently only supports the `TransformersVisionModel` class!"
             )
         if not all(isinstance(value, bytes) for value in values):
-            raise IngredientException(
+            raise LMFunctionException(
                 f"All values must be 'byte' type for ImageCaption!"
             )
         from io import BytesIO
