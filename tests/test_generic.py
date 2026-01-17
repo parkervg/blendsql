@@ -240,6 +240,7 @@ def test_prompt_type_annotation(bsql, constrained_model):
 
 
 def test_raises_type_resolution_error(bsql, constrained_model):
+    """965d8fd"""
     with pytest.raises(TypeResolutionException):
         _ = bsql.execute(
             """
