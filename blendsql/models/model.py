@@ -247,4 +247,7 @@ class ConstrainedModel(Model):
 
 
 class UnconstrainedModel(Model):
-    pass
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError(
+            "`UnconstrainedModel` classes (OpenAI, Anthropic) are currently not functioning.\nUse a local ConstrainedModel (llama.cpp, transformers) instead! Contributions to the UnconstrainedModel class are welcome."
+        )
