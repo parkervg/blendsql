@@ -12,7 +12,6 @@ from blendsql.models import (
     TransformersVisionModel,
     Model,
     LlamaCpp,
-    LiteLLM,
 )
 from litellm.exceptions import APIConnectionError
 
@@ -66,30 +65,30 @@ CONSTRAINED_MODEL_CONFIGS = [
 ]
 
 UNCONSTRAINED_MODEL_CONFIGS = [
-    {
-        "name": "ollama",
-        "class": LiteLLM,
-        "path": "ollama/qwen:0.5b",
-        "requires_api": False,
-    },
-    {
-        "name": "openai",
-        "class": LiteLLM,
-        "path": "openai/gpt-4o-mini",
-        "requires_env": "OPENAI_API_KEY",
-    },
-    {
-        "name": "anthropic",
-        "class": LiteLLM,
-        "path": "anthropic/claude-3-haiku-20240307",
-        "requires_env": "ANTHROPIC_API_KEY",
-    },
-    {
-        "name": "gemini",
-        "class": LiteLLM,
-        "path": "gemini/gemini-2.0-flash-exp",
-        "requires_env": "GEMINI_API_KEY",
-    },
+    # {
+    #     "name": "ollama",
+    #     "class": LiteLLM,
+    #     "path": "ollama/qwen:0.5b",
+    #     "requires_api": False,
+    # },
+    # {
+    #     "name": "openai",
+    #     "class": LiteLLM,
+    #     "path": "openai/gpt-4o-mini",
+    #     "requires_env": "OPENAI_API_KEY",
+    # },
+    # {
+    #     "name": "anthropic",
+    #     "class": LiteLLM,
+    #     "path": "anthropic/claude-3-haiku-20240307",
+    #     "requires_env": "ANTHROPIC_API_KEY",
+    # },
+    # {
+    #     "name": "gemini",
+    #     "class": LiteLLM,
+    #     "path": "gemini/gemini-2.0-flash-exp",
+    #     "requires_env": "GEMINI_API_KEY",
+    # },
 ]
 
 
