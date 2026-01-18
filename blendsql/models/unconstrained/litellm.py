@@ -34,6 +34,9 @@ class LiteLLM(UnconstrainedModel):
         caching: bool = False,
         **kwargs,
     ):
+        raise NotImplementedError(
+            "`UnconstrainedModel` classes (LiteLLM endpoints like OpenAI, Anthropic) are currently not functioning.\nUse a local ConstrainedModel (llama.cpp, transformers) instead! Contributions to the UnconstrainedModel class are welcome."
+        )
         if config is None:
             config = {}
         super().__init__(
