@@ -208,8 +208,6 @@ class SubqueryContextManager:
 
         if len(self.stateful_columns_referenced_by_lm_ingredients) > 1:
             all_resolved_tablenames = []
-            seen_tablenames = set()
-
             for (
                 tablename_or_aliasname,
                 columnnames,
@@ -217,12 +215,6 @@ class SubqueryContextManager:
                 tablename = self.alias_to_tablename.get(
                     tablename_or_aliasname, tablename_or_aliasname
                 )
-                if tablename in seen_tablenames:
-                    raise NotImplementedError(
-                        "BlendSQL doesn't support self-joins yet\n"
-                        "Define the self-joined table in a CTE, and then perform some BlendSQL operation on it instead"
-                    )
-                seen_tablenames.add(tablename)
                 all_resolved_tablenames.append(tablename)
                 columnnames = list(columnnames)
                 all_tablename_or_aliasnames.extend(
