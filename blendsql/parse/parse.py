@@ -512,6 +512,28 @@ class SubqueryContextManager:
         4. There are no BlendSQL functions outside the WHERE clause (not yet supported)
         """
 
+        where_node = self.node.find(exp.Where)
+        if where_node is None:
+            return False
+
+        # Count BlendSQL functions in WHERE clause
+        blendsql_functions_in_where = [
+            n for n in where_node.walk() if isinstance(n, exp.BlendSQLFunction)
+        ]
+
+        # Need at least 2 functions to cascade
+        if len(blendsql_functions_in_where) < 2:
+            return False
+
+        select_node = self.node.find(exp.Select)
+        if select_node is None:
+            return False
+
+        # Count BlendSQL functions in WHERE clause
+        blendsql_functions_in_select = [
+            n for n in select_node.walk() if isinstance(n, exp.BlendSQLFunction)
+        ]
+
         def has_or_with_blendsql(node):
             """Check if node is/contains OR with BlendSQL functions in different branches"""
             if node is None:
@@ -535,28 +557,6 @@ class SubqueryContextManager:
                     return True
             return False
 
-        where_node = self.node.find(exp.Where)
-        if where_node is None:
-            return False
-
-        # Count BlendSQL functions in WHERE clause
-        blendsql_functions_in_where = [
-            n for n in where_node.walk() if isinstance(n, exp.BlendSQLFunction)
-        ]
-
-        select_node = self.node.find(exp.Select)
-        if select_node is None:
-            return False
-
-        # Count BlendSQL functions in WHERE clause
-        blendsql_functions_in_select = [
-            n for n in select_node.walk() if isinstance(n, exp.BlendSQLFunction)
-        ]
-
-        # Need at least 2 functions to cascade
-        if len(blendsql_functions_in_where) < 2:
-            return False
-
         # Check if there's an OR that makes cascading unsafe
         if has_or_with_blendsql(where_node):
             return False
@@ -565,12 +565,6 @@ class SubqueryContextManager:
         all_blendsql_functions = [
             n for n in self.node.walk() if isinstance(n, exp.BlendSQLFunction)
         ]
-
-        # if len(set(list(self.node.find_all(exp.Table)))) > 1:
-        #     logger.debug(
-        #         Color.error(f"Can't apply filter cascade on multi-table queries yet ):")
-        #     )
-        #     return False
 
         if len(all_blendsql_functions) > (
             len(blendsql_functions_in_where) + len(blendsql_functions_in_select)
