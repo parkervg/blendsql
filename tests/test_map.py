@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 
 from blendsql import BlendSQL, config
+from blendsql.db import DuckDB
 
 config.set_async_limit(1)
 config.set_deterministic(True)
@@ -88,6 +89,26 @@ def test_map_options_to_string(bsql, model):
                 options=('POSITIVE', 'NEGATIVE')
             )
         }} = 'POSITIVE'
+        """,
+        model=model,
+    )
+    assert not smoothie.df.empty
+
+
+def test_map_options_to_string(bsql, model):
+    """6bcff72"""
+    if not isinstance(bsql.db, DuckDB):
+        pytest.skip()
+    smoothie = bsql.execute(
+        """
+         SELECT * FROM movie_reviews 
+         WHERE {{
+            LLMMap(
+                'What is the sentiment of this review?',
+                review,
+                options=('POSITIVE', 'NEGATIVE')
+            )
+        }} = 'POSITIVE' ORDER BY RANDOM()
         """,
         model=model,
     )
