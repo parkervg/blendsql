@@ -1,4 +1,3 @@
-import ast
 import logging
 import os
 from typing import Callable
@@ -7,7 +6,6 @@ import json
 import polars as pl
 import pandas as pd
 from dataclasses import dataclass, field
-import copy
 from itertools import islice, repeat
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
@@ -16,7 +14,6 @@ from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger, Color
 from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT, DEFAULT_CONTEXT_FORMATTER
 from blendsql.models import Model, ConstrainedModel
-from blendsql.models.utils import user
 from blendsql.models.constrained.utils import LMString, maybe_load_lm
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import LMFunctionException
@@ -32,6 +29,8 @@ from blendsql.configure import (
     DEFAULT_MAX_OPTIONS_IN_PROMPT,
     MAX_TOKENS_KEY,
     DEFAULT_MAX_TOKENS,
+    ASYNC_LIMIT_KEY,
+    DEFAULT_ASYNC_LIMIT,
 )
 from blendsql.types import prepare_datatype, apply_type_conversion, unquote
 from .examples import (
@@ -332,330 +331,262 @@ class LLMMap(MapIngredient):
         regex = regex or resolved_return_type.regex
         quantifier = resolved_return_type.quantifier
 
-        if isinstance(model, ConstrainedModel):
-            import guidance
+        if all(x is not None for x in [options, regex]):
+            raise LMFunctionException(
+                "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
+            )
 
-            lm = LMString()  # type: ignore
+        import guidance
 
-            if all(x is not None for x in [options, regex]):
-                raise LMFunctionException(
-                    "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
-                )
+        n_parallel = (
+            int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT))
+            if model._allows_parallel_requests
+            else 1
+        )
+        lm = LMString()  # type: ignore
 
-            gen_f = None
-            if enable_constrained_decoding:
-                if is_list_output:
-                    if self.options_searcher is not None:
-                        # Need to create separate gen_f for each set of filtered_options
-                        gen_f = [
-                            lambda _, o=o: gen_list(
-                                force_quotes=resolved_return_type.requires_quotes,
-                                quantifier=quantifier,
-                                options=o,
-                                regex=regex,
-                            )
-                            for o in filtered_options
-                        ]
-                    else:
-                        gen_f = lambda _: gen_list(
+        gen_f = None
+        if enable_constrained_decoding:
+            if is_list_output:
+                if self.options_searcher is not None:
+                    # Need to create separate gen_f for each set of filtered_options
+                    gen_f = [
+                        lambda _, o=o: gen_list(
                             force_quotes=resolved_return_type.requires_quotes,
                             quantifier=quantifier,
-                            options=options,
+                            options=o,
                             regex=regex,
                         )
+                        for o in filtered_options
+                    ]
                 else:
-                    if self.options_searcher is not None:
-                        # Need to create separate gen_f for each set of filtered_options
-                        gen_f = [
-                            lambda _, o=o: _wrap_with_quotes(
-                                guidance.select(options=o),
-                                has_options_or_regex=bool(o or regex),
-                                force_quotes=resolved_return_type.requires_quotes,
-                            )
-                            for o in filtered_options
-                        ]
-                    elif options is not None:
-                        select_fn = guidance.select(options=options)
-                        gen_f = lambda _: _wrap_with_quotes(
-                            select_fn,
-                            has_options_or_regex=bool(options or regex),
-                            force_quotes=resolved_return_type.requires_quotes,
-                        )
-                    elif resolved_return_type.name == "substring":
-                        # Special case for substring datatypes
-                        gen_f = lambda s: _wrap_with_quotes(
-                            guidance.substring(target_string=s),
-                            has_options_or_regex=bool(options or regex),
-                            force_quotes=resolved_return_type.requires_quotes,
-                        )
-            else:
-                logger.debug(
-                    Color.warning(
-                        "Not applying constraints, since `enable_constrained_decoding==False`"
+                    gen_f = lambda _: gen_list(
+                        force_quotes=resolved_return_type.requires_quotes,
+                        quantifier=quantifier,
+                        options=options,
+                        regex=regex,
                     )
+            else:
+                if self.options_searcher is not None:
+                    # Need to create separate gen_f for each set of filtered_options
+                    gen_f = [
+                        lambda _, o=o: _wrap_with_quotes(
+                            guidance.select(options=o),
+                            has_options_or_regex=bool(o or regex),
+                            force_quotes=resolved_return_type.requires_quotes,
+                        )
+                        for o in filtered_options
+                    ]
+                elif options is not None:
+                    select_fn = guidance.select(options=options)
+                    gen_f = lambda _: _wrap_with_quotes(
+                        select_fn,
+                        has_options_or_regex=bool(options or regex),
+                        force_quotes=resolved_return_type.requires_quotes,
+                    )
+                elif resolved_return_type.name == "substring":
+                    # Special case for substring datatypes
+                    gen_f = lambda s: _wrap_with_quotes(
+                        guidance.substring(target_string=s),
+                        has_options_or_regex=bool(options or regex),
+                        force_quotes=resolved_return_type.requires_quotes,
+                    )
+        else:
+            logger.debug(
+                Color.warning(
+                    "Not applying constraints, since `enable_constrained_decoding==False`"
                 )
-            if gen_f is None:
-                # Create base gen_f function
-                gen_f = lambda _: _wrap_with_quotes(
-                    guidance.gen(
-                        max_tokens=kwargs.get(
+            )
+        if gen_f is None:
+            # Create base gen_f function
+            gen_f = lambda _: _wrap_with_quotes(
+                guidance.gen(
+                    max_tokens=kwargs.get(
+                        "max_tokens",
+                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                    ),
+                    # guidance>=0.2.1 doesn't allow both `stop` and `regex` to be passed
+                    stop=None
+                    if regex is not None
+                    else [")", f"\n{INDENT()}"]
+                    + (['"'] if resolved_return_type.requires_quotes else []),
+                    regex=regex if enable_constrained_decoding else None,
+                ),
+                has_options_or_regex=bool(options or regex),
+                force_quotes=resolved_return_type.requires_quotes,
+            )
+
+        def make_prediction(
+            identifier: str,
+            value: str,
+            additional_args: list[AdditionalMapArg] | None,
+            context: str | list[str] | None,
+            context_in_use_type: FeatureType | None,
+            local_options: list[str] | None,
+            gen_f: Callable,
+        ) -> str:
+            def get_quote(s: str):
+                return '"""' if any(c in s for c in ["\n", '"']) else '"'
+
+            value_quote = get_quote(value)
+            has_more_than_one_arg = bool(
+                context_in_use_type == FeatureType.LOCAL
+                or additional_args is not None
+                or local_options is not None
+            )
+            if has_more_than_one_arg:
+                # If we pass more than one arg, make them appear on newlines
+                gen_str = (
+                    f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
+                )
+                if additional_args is not None:
+                    for arg in additional_args:
+                        gen_str += f',\n{INDENT(3)}"{arg}"'
+                if context_in_use_type == FeatureType.LOCAL:
+                    json_str = json.dumps(context, ensure_ascii=False, indent=16)[:-1]
+                    gen_str += f",\n{INDENT(3)}" + json_str + f"{INDENT(3)}]"
+                if local_options is not None:
+                    gen_str += f",\n{INDENT(2)}{local_options}"
+            else:  # Global contexts have already been handled. We only have a single variable to pass.
+                indented_value = value.replace("\n", f"\n{INDENT(2)}")
+                gen_str = f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
+            if has_more_than_one_arg:
+                gen_str += f"\n{INDENT(2)}"
+            # Below, make sure we set the output to the `identifier` name
+            # If we just did `name=value`, then this would lose the difference between
+            #   identical values with different additional args / context
+            gen_str += f""") == {guidance.capture(gen_f(value), name=identifier)}"""
+            return gen_str
+
+        example_str = ""
+        if len(few_shot_examples) > 0:
+            for example in few_shot_examples:
+                example_str += example.to_string()
+
+        lm_mapping = {}  # Where we store the final type-cast results
+        loaded_lm = False
+
+        # Generator to yield prompts on-the-fly
+        def generate_batch_items():
+            """Generator that yields (identifier, prompt_string, cache_info) tuples"""
+            for idx, (v, a, c, o) in enumerate(
+                zip(
+                    values,
+                    zip(*[arg.values for arg in additional_args])
+                    if additional_args
+                    else repeat(None),
+                    context,
+                    filtered_options,
+                )
+            ):
+                curr_identifier = v
+                if a is not None:
+                    curr_identifier += f"_{a}"
+                if c is not None:
+                    curr_identifier += f"_{c}"
+
+                # Check cache first
+                in_cache = False
+                cache_key = None
+                if model.caching:
+                    cached_response, cache_key = model.check_cache(
+                        CONSTRAINED_MAIN_INSTRUCTION,
+                        example_str,
+                        question,
+                        regex,
+                        options,
+                        quantifier,
+                        kwargs.get(
                             "max_tokens",
                             int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
                         ),
-                        # guidance>=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                        stop=None
-                        if regex is not None
-                        else [")", f"\n{INDENT()}"]
-                        + (['"'] if resolved_return_type.requires_quotes else []),
-                        regex=regex if enable_constrained_decoding else None,
-                    ),
-                    has_options_or_regex=bool(options or regex),
-                    force_quotes=resolved_return_type.requires_quotes,
+                        v,
+                        a,
+                        c,
+                        o,
+                        funcs=[
+                            make_prediction,
+                            gen_f[idx]
+                            if self.options_searcher is not None
+                            and enable_constrained_decoding
+                            else gen_f,
+                        ],
+                    )
+                    if cached_response is not None:
+                        lm_mapping[curr_identifier] = cached_response
+                        in_cache = True
+
+                if in_cache:
+                    continue  # Skip to next item
+
+                prompt_string = make_prediction(
+                    identifier=curr_identifier,
+                    value=v,
+                    additional_args=a,
+                    context=c,
+                    context_in_use_type=context_in_use_type,
+                    local_options=o,
+                    gen_f=gen_f[idx]
+                    if self.options_searcher is not None and enable_constrained_decoding
+                    else gen_f,
                 )
 
-            def make_prediction(
-                identifier: str,
-                value: str,
-                additional_args: list[AdditionalMapArg] | None,
-                context: str | list[str] | None,
-                context_in_use_type: FeatureType | None,
-                local_options: list[str] | None,
-                gen_f: Callable,
-            ) -> str:
-                def get_quote(s: str):
-                    return '"""' if any(c in s for c in ["\n", '"']) else '"'
-
-                value_quote = get_quote(value)
-                has_more_than_one_arg = bool(
-                    context_in_use_type == FeatureType.LOCAL
-                    or additional_args is not None
-                    or local_options is not None
-                )
-                if has_more_than_one_arg:
-                    # If we pass more than one arg, make them appear on newlines
-                    gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
-                    if additional_args is not None:
-                        for arg in additional_args:
-                            gen_str += f',\n{INDENT(3)}"{arg}"'
-                    if context_in_use_type == FeatureType.LOCAL:
-                        json_str = json.dumps(context, ensure_ascii=False, indent=16)[
-                            :-1
-                        ]
-                        gen_str += f",\n{INDENT(3)}" + json_str + f"{INDENT(3)}]"
-                    if local_options is not None:
-                        gen_str += f",\n{INDENT(2)}{local_options}"
-                else:  # Global contexts have already been handled. We only have a single variable to pass.
-                    indented_value = value.replace("\n", f"\n{INDENT(2)}")
-                    gen_str = (
-                        f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
-                    )
-                if has_more_than_one_arg:
-                    gen_str += f"\n{INDENT(2)}"
-                # Below, make sure we set the output to the `identifier` name
-                # If we just did `name=value`, then this would lose the difference between
-                #   identical values with different additional args / context
-                gen_str += f""") == {guidance.capture(gen_f(value), name=identifier)}"""
-                return gen_str
-
-            example_str = ""
-            if len(few_shot_examples) > 0:
-                for example in few_shot_examples:
-                    example_str += example.to_string()
-
-            lm_mapping = {}  # Where we store the final type-cast results
-            loaded_lm = False
-
-            # Generator to yield prompts on-the-fly
-            def generate_batch_items():
-                """Generator that yields (identifier, prompt_string, cache_info) tuples"""
-                for idx, (v, a, c, o) in enumerate(
-                    zip(
-                        values,
-                        zip(*[arg.values for arg in additional_args])
-                        if additional_args
-                        else repeat(None),
-                        context,
-                        filtered_options,
-                    )
-                ):
-                    curr_identifier = v
-                    if a is not None:
-                        curr_identifier += f"_{a}"
-                    if c is not None:
-                        curr_identifier += f"_{c}"
-
-                    # Check cache first
-                    in_cache = False
-                    cache_key = None
-                    if model.caching:
-                        cached_response, cache_key = model.check_cache(
-                            CONSTRAINED_MAIN_INSTRUCTION,
-                            example_str,
-                            question,
-                            regex,
-                            options,
-                            quantifier,
-                            kwargs.get(
-                                "max_tokens",
-                                int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
-                            ),
-                            v,
-                            a,
-                            c,
-                            o,
-                            funcs=[
-                                make_prediction,
-                                gen_f[idx]
-                                if self.options_searcher is not None
-                                and enable_constrained_decoding
-                                else gen_f,
-                            ],
-                        )
-                        if cached_response is not None:
-                            lm_mapping[curr_identifier] = cached_response
-                            in_cache = True
-
-                    if in_cache:
-                        continue  # Skip to next item
-
-                    # Prepare the prompt only if not cached
-                    if context_in_use_type == FeatureType.LOCAL:
-                        current_example.context = c
-
-                    current_example_str = current_example.to_string(
-                        list_options=list_options_in_prompt,
-                        additional_args=additional_args,
-                        add_leading_newlines=True,
-                    )
-
-                    model.prompt_tokens += len(
-                        model.tokenizer.encode(current_example_str)
-                    )
-
-                    prompt_string = make_prediction(
-                        identifier=curr_identifier,
-                        value=v,
-                        additional_args=a,
-                        context=c,
-                        context_in_use_type=context_in_use_type,
-                        local_options=o,
-                        gen_f=gen_f[idx]
-                        if self.options_searcher is not None
-                        and enable_constrained_decoding
-                        else gen_f,
-                    )
-
-                    yield (
-                        curr_identifier,
-                        current_example_str,
-                        prompt_string,
-                        cache_key,
-                    )
-
-            batch_generator = generate_batch_items()
-            current_batch_identifiers = []
-            current_batch_strings = []
-            current_batch_cache_keys = []
-            processed_items = 0
-            total_items = len(values)
-            all_processed_identifiers = []
-
-            if logger.level <= logging.DEBUG:
-                pbar = tqdm(
-                    desc=(Color.prefix if Color.in_block else "")
-                    + f"LLMMap with `{batch_size=}` and `{len(few_shot_examples)=}`",
-                    total=total_items,
+                yield (
+                    curr_identifier,
+                    prompt_string,
+                    cache_key,
                 )
 
-            for (
-                identifier,
-                current_example_str,
-                prompt_string,
-                cache_key,
-            ) in batch_generator:
-                # Load LM on first non-cached item
-                if not loaded_lm:
-                    lm: guidance.models.Model = maybe_load_lm(model, lm)
-                    loaded_lm = True
-                    lm = model.maybe_add_system_prompt(lm)
-                    with guidance.user():
-                        lm += CONSTRAINED_MAIN_INSTRUCTION
-                        if example_str != "":
-                            lm += example_str
-                            lm += "\n\nNow, complete the docstring for the following example:"
-                        lm += current_example_str
+        current_batch_identifiers = []  # n_parallel x batch_size
+        current_batch_strings = []  # n_parallel x batch_size
+        current_batch_cache_keys = []  # n_parallel x batch_size
+        processed_items = 0
+        total_items = len(values)
+        all_processed_identifiers = []
 
-                current_batch_identifiers.append(identifier)
-                current_batch_strings.append(prompt_string)
-                current_batch_cache_keys.append(cache_key)
+        curr_function_signature_str = current_example.to_string(
+            list_options=list_options_in_prompt,
+            additional_args=additional_args,
+            add_leading_newlines=True,
+        )
 
-                if len(current_batch_strings) >= batch_size:
-                    with guidance.assistant():
-                        batch_lm = lm + "\n".join(current_batch_strings)
+        lm: guidance.models.Model = maybe_load_lm(model, lm)
+        lm = model.maybe_add_system_prompt(lm)
+        with guidance.user():
+            lm += CONSTRAINED_MAIN_INSTRUCTION
+            if example_str != "":
+                lm += example_str
+                lm += "\n\nNow, complete the docstring for the following example:"
+            lm += curr_function_signature_str
+            model.prompt_tokens += len(
+                model.tokenizer.encode(curr_function_signature_str)
+            )  # Add this once
 
-                    # With guidance, each value is still getting its own generation call
-                    # This logic is just wrapped up inside the single `batch_lm = lm  ...` call.
-                    model.num_generation_calls += len(current_batch_strings)
-                    self.num_values_passed += len(current_batch_strings)
+        batch_generator = generate_batch_items()
 
-                    model.completion_tokens += sum(
-                        [
-                            len(
-                                model.tokenizer_encode(
-                                    unquote(result_payload["value"])
-                                    if resolved_return_type.requires_quotes
-                                    else result_payload["value"]
-                                )
-                            )
-                            for result_payload in batch_lm._interpreter.state.captures.values()
-                        ]
-                    )
+        if logger.level <= logging.DEBUG:
+            pbar = tqdm(
+                desc=(Color.prefix if Color.in_block else "")
+                + f"LLMMap with `{batch_size=}`, `{n_parallel=}`, and `{len(few_shot_examples)=}`",
+                total=total_items,
+            )
 
-                    batch_lm_mapping = {
-                        value: apply_type_conversion(
-                            result_payload["value"],
-                            return_type=resolved_return_type,
-                            db=self.db,
-                        )
-                        for value, result_payload in batch_lm._interpreter.state.captures.items()
-                    }
-                    lm_mapping.update(batch_lm_mapping)
-                    add_to_global_history(str(batch_lm))
+        for (
+            identifier,
+            prompt_string,
+            cache_key,
+        ) in batch_generator:
+            current_batch_identifiers.append(identifier)
+            current_batch_strings.append(prompt_string)
+            current_batch_cache_keys.append(cache_key)
 
-                    if model.caching:
-                        for i, identifier in enumerate(current_batch_identifiers):
-                            if current_batch_cache_keys[i] is not None:
-                                model.cache[current_batch_cache_keys[i]] = lm_mapping[
-                                    identifier
-                                ]
-
-                    processed_items += len(current_batch_strings)
-                    if logger.level <= logging.DEBUG:
-                        pbar.update(len(current_batch_strings))
-
-                    all_processed_identifiers.extend(current_batch_identifiers)
-
-                    # Clear batch
-                    current_batch_identifiers = []
-                    current_batch_strings = []
-                    current_batch_cache_keys = []
-
-                    # Check exit condition
-                    if exit_condition is not None and exit_condition(lm_mapping):
-                        logger.debug(
-                            Color.optimization(
-                                f"[ 🚪] Exit condition satisfied. Exiting early after processing {processed_items:,} out of {total_items:,} items."
-                            )
-                        )
-                        break
-
-            # Process any remaining items in the last partial batch
-            if current_batch_strings and (
-                exit_condition is None or not exit_condition(lm_mapping)
-            ):
-                model.num_generation_calls += 1
+            if len(current_batch_strings) >= batch_size:
                 with guidance.assistant():
                     batch_lm = lm + "\n".join(current_batch_strings)
+
+                # With guidance, each value is still getting its own generation call
+                # This logic is just wrapped up inside the single `batch_lm = lm  ...` call.
+                model.num_generation_calls += len(current_batch_strings)
                 self.num_values_passed += len(current_batch_strings)
 
                 model.completion_tokens += sum(
@@ -695,126 +626,79 @@ class LLMMap(MapIngredient):
 
                 all_processed_identifiers.extend(current_batch_identifiers)
 
-            if loaded_lm:
-                model.prompt_tokens += lm._get_usage().input_tokens
-                lm._reset_usage()
+                # Clear batch
+                current_batch_identifiers = []
+                current_batch_strings = []
+                current_batch_cache_keys = []
 
-            mapped_values = [
-                lm_mapping.get(identifier, None)
-                for identifier in all_processed_identifiers
-            ]
-            # Find difference in length, and fill `None`
-            mapped_values.extend(
-                [None] * (len(values) - len(all_processed_identifiers))
-            )
-
-            logger.debug(
-                lambda: Color.warning(
-                    f"Finished LLMMap with {len(lm_mapping)} total values{' (10 shown)' if len(lm_mapping) > 10 else ''}:\n{indent(json.dumps({str(k): str(v) for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
-                )
-            )
-            return mapped_values
-        else:
-            sorted_indices = sorted(range(len(values)), key=lambda i: values[i])
-            sorted_indices_to_original = {
-                k: idx for idx, k in enumerate(sorted_indices)
-            }
-            sorted_values = [values[i] for i in sorted_indices]
-            if context_in_use_type is not None:
-                context = [context[i] for i in sorted_indices]
-
-            messages_list: list[list[dict]] = []
-            batch_sizes: list[int] = []
-            if current_example.context_type == FeatureType.LOCAL:
-                if batch_size != 1:
+                # Check exit condition
+                if exit_condition is not None and exit_condition(lm_mapping):
                     logger.debug(
-                        Color.warning(
-                            f"Overriding batch_size={batch_size} to 1, since UnconstrainedModels with LLMMap don't support local context for now"
+                        Color.optimization(
+                            f"[ 🚪] Exit condition satisfied. Exiting early after processing {processed_items:,} out of {total_items:,} items."
                         )
                     )
-                batch_size = 1
-                current_example.context_type = FeatureType.GLOBAL
-                current_example.context = None
-            for i in range(0, len(sorted_values), batch_size):
-                curr_batch_values = sorted_values[i : i + batch_size]
-                curr_batch_contexts = context[i : i + batch_size]
-                self.num_values_passed += len(curr_batch_values)
-                batch_sizes.append(len(curr_batch_values))
-                current_batch_example = copy.deepcopy(current_example)
-                user_msg_str = ""
-                user_msg_str += UNCONSTRAINED_MAIN_INSTRUCTION
-                # Add few-shot examples
-                for example in few_shot_examples:
-                    user_msg_str += example.to_string()
-                # Add the current question + context for inference
-                if current_batch_example.context_type == FeatureType.GLOBAL:
-                    str_context = "\n".join(curr_batch_contexts[0])
-                    current_batch_example.context = str_context
-                user_msg_str += current_batch_example.to_string(
-                    values=curr_batch_values,
-                    list_options=list_options_in_prompt,
-                )
-                messages_list.append([user(user_msg_str)])
-            add_to_global_history(messages_list)
-            responses: list[str] = model.generate(
-                messages_list=messages_list,
-                max_tokens=kwargs.get(
-                    "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
-                ),
-            )
-            model.num_generation_calls += len(messages_list)
+                    break
 
-            # Post-process language model response
-            mapped_values = []
-            total_missing_values = 0
-            for idx, r in enumerate(responses):
-                expected_len = batch_sizes[idx]
-                predictions: list[t.Union[str, None]] = r.split(DEFAULT_ANS_SEP)  # type: ignore
-                # Add null values, if we under-predicted
-                while len(predictions) < expected_len:
-                    total_missing_values += 1
-                    predictions.append(None)
-                # Cutoff, if we over-predicted
-                predictions = predictions[:expected_len]
-                if is_list_output:
-                    curr_converted_preds = []
-                    for pred in predictions:
-                        try:
-                            list_converted = ast.literal_eval(pred)
-                        except (ValueError, SyntaxError):
-                            logger.debug(
-                                Color.error(
-                                    f"Error casting prediction '{pred}' to a list"
-                                )
-                            )
-                            curr_converted_preds.append([])
-                            continue
-                        for item in list_converted:
-                            curr_converted_preds.append(
-                                current_example.return_type.coerce_fn(item, self.db)
-                            )
-                    mapped_values.append(curr_converted_preds)
-                else:
-                    mapped_values.extend(
-                        [
-                            current_example.return_type.coerce_fn(s, self.db)
-                            for s in predictions
+        # Process any remaining items in the last partial batch
+        if current_batch_strings and (
+            exit_condition is None or not exit_condition(lm_mapping)
+        ):
+            model.num_generation_calls += 1
+            with guidance.assistant():
+                batch_lm = lm + "\n".join(current_batch_strings)
+            self.num_values_passed += len(current_batch_strings)
+
+            model.completion_tokens += sum(
+                [
+                    len(
+                        model.tokenizer_encode(
+                            unquote(result_payload["value"])
+                            if resolved_return_type.requires_quotes
+                            else result_payload["value"]
+                        )
+                    )
+                    for result_payload in batch_lm._interpreter.state.captures.values()
+                ]
+            )
+
+            batch_lm_mapping = {
+                value: apply_type_conversion(
+                    result_payload["value"],
+                    return_type=resolved_return_type,
+                    db=self.db,
+                )
+                for value, result_payload in batch_lm._interpreter.state.captures.items()
+            }
+            lm_mapping.update(batch_lm_mapping)
+            add_to_global_history(str(batch_lm))
+
+            if model.caching:
+                for i, identifier in enumerate(current_batch_identifiers):
+                    if current_batch_cache_keys[i] is not None:
+                        model.cache[current_batch_cache_keys[i]] = lm_mapping[
+                            identifier
                         ]
-                    )
-            mapped_values = [
-                mapped_values[sorted_indices_to_original[i]]
-                for i in range(len(mapped_values))
-            ]
 
-            if total_missing_values > 0:
-                logger.debug(
-                    Color.error(
-                        f"LLMMap with {type(model).__name__}({model.model_name_or_path}) only returned {len(mapped_values) - total_missing_values} out of {len(mapped_values)} values"
-                    )
-                )
-            logger.debug(
-                lambda: Color.warning(
-                    f"Finished LLMMap with {len(mapped_values)} values{' (10 shown)' if len(mapped_values) > 10 else ''}:\n{json.dumps(dict(islice(dict(zip(values, mapped_values)).items(), 10)), indent=4)}"
-                )
+            processed_items += len(current_batch_strings)
+            if logger.level <= logging.DEBUG:
+                pbar.update(len(current_batch_strings))
+
+            all_processed_identifiers.extend(current_batch_identifiers)
+
+        if loaded_lm:
+            model.prompt_tokens += lm._get_usage().input_tokens
+            lm._reset_usage()
+
+        mapped_values = [
+            lm_mapping.get(identifier, None) for identifier in all_processed_identifiers
+        ]
+        # Find difference in length, and fill `None`
+        mapped_values.extend([None] * (len(values) - len(all_processed_identifiers)))
+
+        logger.debug(
+            lambda: Color.warning(
+                f"Finished LLMMap with {len(lm_mapping)} total values{' (10 shown)' if len(lm_mapping) > 10 else ''}:\n{indent(json.dumps({str(k): str(v) for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
             )
-            return mapped_values
+        )
+        return mapped_values
