@@ -6,7 +6,7 @@ from blendsql.models.model import ConstrainedModel, ModelObj
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-DEFAULT_KWARGS = {"do_sample": False}
+DEFAULT_KWARGS = {}
 
 _has_transformers = importlib.util.find_spec("transformers") is not None
 _has_torch = importlib.util.find_spec("torch") is not None
@@ -30,6 +30,8 @@ class TransformersLLM(ConstrainedModel):
         )
         ```
     """
+
+    _allows_parallel_requests = False
 
     def __init__(
         self,
@@ -98,6 +100,8 @@ class LlamaCpp(ConstrainedModel):
         )
         ```
     """
+
+    _allows_parallel_requests = False
 
     def __init__(
         self,
@@ -180,10 +184,13 @@ class LlamaCpp(ConstrainedModel):
         return lm
 
 
-class ConstrainedLiteLLM(ConstrainedModel):
+class ConstrainedVLLM(ConstrainedModel):
+    _allows_parallel_requests = True
+
     def __init__(
         self,
         model_name_or_path: str,
+        base_url: str,
         config: dict | None = None,
         caching: bool = False,
         **kwargs,
@@ -199,6 +206,7 @@ class ConstrainedLiteLLM(ConstrainedModel):
             caching=caching,
             **kwargs,
         )
+        self.base_url = base_url
 
         class DummyTokenizer:
             def encode(self, *args, **kwargs):
@@ -209,11 +217,10 @@ class ConstrainedLiteLLM(ConstrainedModel):
     def _load_model(self, *args, **kwargs) -> ModelObj:
         import guidance
 
-        lm = guidance.models.experimental.LiteLLM(
-            {
-                "model_name": self.model_name_or_path,
-                "litellm_params": self.config,
-            },
+        lm = guidance.models.experimental.VLLMModel(
+            model=self.model_name_or_path,
+            base_url=self.base_url,
+            api_key="N/A",
             echo=False,
         )
         return lm
