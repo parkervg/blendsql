@@ -56,7 +56,7 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     CONSTRAINED_MAIN_INSTRUCTION
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
-DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 3
+DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 1
 
 UNCONSTRAINED_MAIN_INSTRUCTION = (
     "Given a set of values from a database, answer the question for each value. "
@@ -416,7 +416,7 @@ class LLMMap(MapIngredient):
             def make_prediction(
                 identifier: str,
                 value: str,
-                additional_args: list[AdditionalMapArg] | None,
+                additional_args: tuple[str] | None,
                 context: str | list[str] | None,
                 context_in_use_type: FeatureType | None,
                 local_options: list[str] | None,
@@ -431,26 +431,31 @@ class LLMMap(MapIngredient):
                     or additional_args is not None
                     or local_options is not None
                 )
+                arg_prefix = " "
+                newline_args = False
                 if has_more_than_one_arg:
-                    # If we pass more than one arg, make them appear on newlines
-                    gen_str = f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
+                    if all(len(x) > 20 for x in additional_args + (value,)):
+                        arg_prefix = f"\n{INDENT(3)}"  # If we pass more than one arg, and they are long, make them appear on newlines
+                        newline_args = True
+                    gen_str = f"""{INDENT(2)}f({arg_prefix if newline_args else ''}{value_quote}{value}{value_quote}"""
                     if additional_args is not None:
                         for arg in additional_args:
-                            gen_str += f',\n{INDENT(3)}"{arg}"'
+                            gen_str += f',{arg_prefix}"{arg}"'
                     if context_in_use_type == FeatureType.LOCAL:
                         json_str = json.dumps(context, ensure_ascii=False, indent=16)[
                             :-1
                         ]
-                        gen_str += f",\n{INDENT(3)}" + json_str + f"{INDENT(3)}]"
+                        gen_str += f",{arg_prefix}" + json_str + f"{INDENT(3)}]"
                     if local_options is not None:
-                        gen_str += f",\n{INDENT(2)}{local_options}"
+                        gen_str += f",{arg_prefix}{local_options}"
                 else:  # Global contexts have already been handled. We only have a single variable to pass.
                     indented_value = value.replace("\n", f"\n{INDENT(2)}")
                     gen_str = (
                         f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
                     )
                 if has_more_than_one_arg:
-                    gen_str += f"\n{INDENT(2)}"
+                    if newline_args:
+                        gen_str += f"\n{INDENT(2)}"
                 # Below, make sure we set the output to the `identifier` name
                 # If we just did `name=value`, then this would lose the difference between
                 #   identical values with different additional args / context
