@@ -1,10 +1,11 @@
 SELECT SUM(
     {{
         LLMMap(
-            'Does the movie review have a positive sentiment?',
-            reviewText
+            'Is the score, as a fraction, greater than 0.5?',
+            originalScore
         )
     }} = TRUE
 ) / COUNT(*) AS positive_reviews_ratio
 FROM Reviews
 WHERE id = 'taken_3'
+AND originalScore IS NOT NULL AND originalScore LIKE '%/%' AND CAST(split_part(originalScore, '/', 1) AS FLOAT) / CAST(split_part(originalScore, '/', 2) AS FLOAT) <> 0.5

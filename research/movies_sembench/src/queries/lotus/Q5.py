@@ -3,6 +3,20 @@ import pandas as pd
 
 def run(con):
     reviews = con.execute("SELECT * FROM Reviews").df()
+
+    def is_valid_fraction_not_half(score):
+        if pd.isna(score) or "/" not in str(score):
+            return False
+        try:
+            parts = str(score).split("/")
+            numerator = float(parts[0])
+            denominator = float(parts[1])
+            return denominator != 0 and (numerator / denominator) != 0.5
+        except (ValueError, IndexError):
+            return False
+
+    mask = reviews["originalScore"].apply(is_valid_fraction_not_half)
+    reviews = reviews[mask]
     filtered_df = reviews[reviews["id"] == "ant_man_and_the_wasp_quantumania"]
 
     # Self-join on id
@@ -13,12 +27,12 @@ def run(con):
 
     # Select and rename columns
     merged_df = merged_df[
-        ["reviewText_1", "reviewText_2", "id", "reviewId_1", "reviewId_2"]
+        ["originalScore_1", "originalScore_2", "id", "reviewId_1", "reviewId_2"]
     ]
     merged_df = merged_df.rename(
         columns={
-            "reviewText_1": "reviewText1",
-            "reviewText_2": "reviewText2",
+            "originalScore_1": "originalScore1",
+            "originalScore_2": "originalScore2",
             "id": "id1",
             "reviewId_1": "reviewId1",
             "reviewId_2": "reviewId2",
@@ -33,7 +47,7 @@ def run(con):
     )
 
     joined_df = merged_df.sem_filter(
-        'These two movie reviews express the same sentiments - either both are positive or both are negative. Review 1: "{reviewText1}" Review 2: "{reviewText2}"'
+        'Are both scores greater than 0.5? Score 1: "{originalScore1}" Score 2: "{originalScore2}"'
     )
 
     # Check if we got any results

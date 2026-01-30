@@ -1,4 +1,5 @@
 select reviewId from Reviews
 where id = 'taken_3'
-and NLfilter(reviewText, 'The movie review is clearly positive')
+and NLfilter(originalScore, 'The score, as a fraction, is greater than 0.5.')
+AND originalScore IS NOT NULL AND originalScore LIKE '%/%' AND CAST(split_part(originalScore, '/', 1) AS FLOAT) / CAST(split_part(originalScore, '/', 2) AS FLOAT) <> 0.5
 limit 5

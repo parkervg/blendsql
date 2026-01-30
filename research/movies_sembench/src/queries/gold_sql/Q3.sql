@@ -1,1 +1,2 @@
-SELECT COUNT(*) AS positive_review_cnt FROM Reviews WHERE id = 'taken_3' AND scoreSentiment = 'POSITIVE';
+SELECT COUNT(*) AS positive_review_cnt FROM Reviews WHERE id = 'taken_3' AND scoreSentiment = 'POSITIVE'
+AND originalScore IS NOT NULL AND originalScore LIKE '%/%' AND CAST(split_part(originalScore, '/', 1) AS FLOAT) / CAST(split_part(originalScore, '/', 2) AS FLOAT) <> 0.5
