@@ -180,10 +180,11 @@ class LlamaCpp(ConstrainedModel):
         return lm
 
 
-class ConstrainedLiteLLM(ConstrainedModel):
+class ConstrainedVLLM(ConstrainedModel):
     def __init__(
         self,
         model_name_or_path: str,
+        base_url: str,
         config: dict | None = None,
         caching: bool = False,
         **kwargs,
@@ -197,6 +198,7 @@ class ConstrainedLiteLLM(ConstrainedModel):
             requires_config=False,
             config=config,
             caching=caching,
+            _allows_parallel_requests=True,
             **kwargs,
         )
 
@@ -205,15 +207,16 @@ class ConstrainedLiteLLM(ConstrainedModel):
                 return ["test"]
 
         self.tokenizer = DummyTokenizer()
+        self.base_url = base_url
 
     def _load_model(self, *args, **kwargs) -> ModelObj:
         import guidance
 
-        lm = guidance.models.experimental.LiteLLM(
-            {
-                "model_name": self.model_name_or_path,
-                "litellm_params": self.config,
-            },
+        lm = guidance.models.experimental.VLLMModel(
+            model=self.model_name_or_path,
+            base_url=self.base_url,
+            api_key="N/A",
             echo=False,
         )
+
         return lm

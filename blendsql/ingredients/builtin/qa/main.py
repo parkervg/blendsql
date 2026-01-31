@@ -346,16 +346,18 @@ class LLMQA(QAIngredient):
                 lm: guidance.models.Model = maybe_load_lm(model, lm)
                 model.num_generation_calls += 1
                 lm = model.maybe_add_system_prompt(lm)
-                with guidance.user():
-                    lm += instruction_str
                 if len(few_shot_examples) > 0:
                     for example in few_shot_examples:
-                        with guidance.user():
-                            lm += example.to_string(context_formatter)
-                        with guidance.assistant():
-                            lm += example.answer
+                        instruction_str += (
+                            example.to_string(context_formatter)
+                            + "\n"
+                            + "Answer: "
+                            + example.answer
+                        )
+                instruction_str += curr_example_str
+
                 with guidance.user():
-                    lm += curr_example_str
+                    lm += instruction_str
 
                 with guidance.assistant():
                     lm += gen_f(question)

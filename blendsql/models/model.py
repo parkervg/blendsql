@@ -58,6 +58,7 @@ class Model:
     raw_prompts: list[str] = field(default_factory=list)
     cache: Cache | None = field(default=None)
     run_setup_on_load: bool = field(default=True)
+    _allows_parallel_requests: bool = field(default=False)
 
     prompt_tokens: int = 0
     completion_tokens: int = 0

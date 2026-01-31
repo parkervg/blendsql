@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from typing import Callable
 from pathlib import Path
 import json
@@ -419,7 +420,7 @@ class LLMMap(MapIngredient):
         def make_prediction(
             identifier: str,
             value: str,
-            additional_args: list[AdditionalMapArg] | None,
+            additional_args: tuple[str] | None,
             context: str | list[str] | None,
             context_in_use_type: FeatureType | None,
             local_options: list[str] | None,
@@ -434,24 +435,27 @@ class LLMMap(MapIngredient):
                 or additional_args is not None
                 or local_options is not None
             )
+            arg_prefix = " "
+            newline_args = False
             if has_more_than_one_arg:
-                # If we pass more than one arg, make them appear on newlines
-                gen_str = (
-                    f"""{INDENT(2)}f(\n{INDENT(3)}{value_quote}{value}{value_quote}"""
-                )
+                if all(len(x) > 20 for x in additional_args + (value,)):
+                    arg_prefix = f"\n{INDENT(3)}"  # If we pass more than one arg, and they are long, make them appear on newlines
+                    newline_args = True
+                gen_str = f"""{INDENT(2)}f({arg_prefix if newline_args else ''}{value_quote}{value}{value_quote}"""
                 if additional_args is not None:
                     for arg in additional_args:
-                        gen_str += f',\n{INDENT(3)}"{arg}"'
+                        gen_str += f',{arg_prefix}"{arg}"'
                 if context_in_use_type == FeatureType.LOCAL:
                     json_str = json.dumps(context, ensure_ascii=False, indent=16)[:-1]
-                    gen_str += f",\n{INDENT(3)}" + json_str + f"{INDENT(3)}]"
+                    gen_str += f",{arg_prefix}" + json_str + f"{INDENT(3)}]"
                 if local_options is not None:
-                    gen_str += f",\n{INDENT(2)}{local_options}"
+                    gen_str += f",{arg_prefix}{local_options}"
             else:  # Global contexts have already been handled. We only have a single variable to pass.
                 indented_value = value.replace("\n", f"\n{INDENT(2)}")
                 gen_str = f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
             if has_more_than_one_arg:
-                gen_str += f"\n{INDENT(2)}"
+                if newline_args:
+                    gen_str += f"\n{INDENT(2)}"
             # Below, make sure we set the output to the `identifier` name
             # If we just did `name=value`, then this would lose the difference between
             #   identical values with different additional args / context
@@ -537,13 +541,6 @@ class LLMMap(MapIngredient):
                     cache_key,
                 )
 
-        current_batch_identifiers = []  # n_parallel x batch_size
-        current_batch_strings = []  # n_parallel x batch_size
-        current_batch_cache_keys = []  # n_parallel x batch_size
-        processed_items = 0
-        total_items = len(values)
-        all_processed_identifiers = []
-
         curr_function_signature_str = current_example.to_string(
             list_options=list_options_in_prompt,
             additional_args=additional_args,
@@ -562,6 +559,27 @@ class LLMMap(MapIngredient):
                 model.tokenizer.encode(curr_function_signature_str)
             )  # Add this once
 
+        def guidance_gen(current_batch_strings: list[str]) -> dict:
+            with guidance.assistant():
+                batch_lm = lm + "\n".join(current_batch_strings)
+            add_to_global_history(str(batch_lm))
+            # TODO: we're not using logprobs right now, but guidance returns them. Something to keep in mind for later.
+            return {
+                k: result_payload["value"]
+                for k, result_payload in batch_lm._interpreter.state.captures.items()
+            }
+
+        batch_level_identifiers = []  # batch_size
+        job_level_identifiers = []  # n_parallel x batch_size
+        batch_level_strings = []  # batch_size
+        batch_level_cache_keys = []  # batch_size
+        job_level_cache_keys = []  # n_parallel x batch_size
+        job_level_gen_funcs: list[Callable] = []
+
+        processed_items = 0
+        total_items = len(values)
+        all_processed_identifiers = []
+
         batch_generator = generate_batch_items()
 
         if logger.level <= logging.DEBUG:
@@ -571,65 +589,103 @@ class LLMMap(MapIngredient):
                 total=total_items,
             )
 
+        def process_jobs() -> int:
+            """Process all queued jobs and return the number of items processed."""
+            nonlocal job_level_gen_funcs, job_level_identifiers, job_level_cache_keys
+
+            if not job_level_gen_funcs:
+                return 0
+
+            async def run_gen_func(gen_func):
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(None, gen_func)
+
+            async def run_all_parallel():
+                """Currently not using a semaphore here, since we may need to intervene in the middle
+                of the task and check for early exits."""
+                tasks = [run_gen_func(gen_func) for gen_func in job_level_gen_funcs]
+                results = await asyncio.gather(*tasks)
+                combined_captures = {}
+                for result in results:
+                    combined_captures.update(result)
+                return combined_captures
+
+            combined_captures = asyncio.run(run_all_parallel())
+
+            model.completion_tokens += sum(
+                len(
+                    model.tokenizer_encode(
+                        unquote(response)
+                        if resolved_return_type.requires_quotes
+                        else response
+                    )
+                )
+                for response in combined_captures.values()
+            )
+
+            job_lm_mapping = {
+                value: apply_type_conversion(
+                    response,
+                    return_type=resolved_return_type,
+                    db=self.db,
+                )
+                for value, response in combined_captures.items()
+            }
+            lm_mapping.update(job_lm_mapping)
+
+            if model.caching:
+                for b in range(len(job_level_identifiers)):
+                    for j in range(len(job_level_identifiers[b])):
+                        if job_level_cache_keys[b][j] is not None:
+                            model.cache[job_level_cache_keys[b][j]] = lm_mapping[
+                                job_level_identifiers[b][j]
+                            ]
+
+            items_processed = sum(len(sublist) for sublist in job_level_identifiers)
+
+            # Reset job-level state
+            job_level_gen_funcs = []
+            job_level_identifiers = []
+            job_level_cache_keys = []
+
+            return items_processed
+
+        def flush_batch_to_jobs():
+            """Add current batch to job queue and reset batch-level state."""
+            nonlocal batch_level_identifiers, batch_level_strings, batch_level_cache_keys
+
+            if not batch_level_strings:
+                return
+
+            batch_copy = batch_level_strings.copy()
+            job_level_gen_funcs.append(lambda batch=batch_copy: guidance_gen(batch))
+            job_level_identifiers.append(batch_level_identifiers.copy())
+            job_level_cache_keys.append(batch_level_cache_keys.copy())
+
+            batch_level_identifiers = []
+            batch_level_strings = []
+            batch_level_cache_keys = []
+
         for (
             identifier,
             prompt_string,
             cache_key,
         ) in batch_generator:
-            current_batch_identifiers.append(identifier)
-            current_batch_strings.append(prompt_string)
-            current_batch_cache_keys.append(cache_key)
+            batch_level_identifiers.append(identifier)
+            batch_level_strings.append(prompt_string)
+            batch_level_cache_keys.append(cache_key)
+            all_processed_identifiers.append(identifier)
 
-            if len(current_batch_strings) >= batch_size:
-                with guidance.assistant():
-                    batch_lm = lm + "\n".join(current_batch_strings)
+            if len(batch_level_strings) >= batch_size:
+                flush_batch_to_jobs()
 
-                # With guidance, each value is still getting its own generation call
-                # This logic is just wrapped up inside the single `batch_lm = lm  ...` call.
-                model.num_generation_calls += len(current_batch_strings)
-                self.num_values_passed += len(current_batch_strings)
-
-                model.completion_tokens += sum(
-                    [
-                        len(
-                            model.tokenizer_encode(
-                                unquote(result_payload["value"])
-                                if resolved_return_type.requires_quotes
-                                else result_payload["value"]
-                            )
-                        )
-                        for result_payload in batch_lm._interpreter.state.captures.values()
-                    ]
-                )
-
-                batch_lm_mapping = {
-                    value: apply_type_conversion(
-                        result_payload["value"],
-                        return_type=resolved_return_type,
-                        db=self.db,
-                    )
-                    for value, result_payload in batch_lm._interpreter.state.captures.items()
-                }
-                lm_mapping.update(batch_lm_mapping)
-                add_to_global_history(str(batch_lm))
-
-                if model.caching:
-                    for i, identifier in enumerate(current_batch_identifiers):
-                        if current_batch_cache_keys[i] is not None:
-                            model.cache[current_batch_cache_keys[i]] = lm_mapping[
-                                identifier
-                            ]
-
-                processed_items += len(current_batch_strings)
+            if len(job_level_gen_funcs) == n_parallel:
+                items = process_jobs()
+                processed_items += items
+                model.num_generation_calls += items
+                self.num_values_passed += items
                 if logger.level <= logging.DEBUG:
-                    pbar.update(len(current_batch_strings))
-
-                all_processed_identifiers.extend(current_batch_identifiers)
-
-                # Clear batch
-                current_batch_identifiers = []
-                current_batch_strings = []
-                current_batch_cache_keys = []
+                    pbar.update(items)
 
                 # Check exit condition
                 if exit_condition is not None and exit_condition(lm_mapping):
@@ -641,54 +697,17 @@ class LLMMap(MapIngredient):
                     break
 
         # Process any remaining items in the last partial batch
-        if current_batch_strings and (
-            exit_condition is None or not exit_condition(lm_mapping)
-        ):
-            model.num_generation_calls += 1
-            with guidance.assistant():
-                batch_lm = lm + "\n".join(current_batch_strings)
-            self.num_values_passed += len(current_batch_strings)
-
-            model.completion_tokens += sum(
-                [
-                    len(
-                        model.tokenizer_encode(
-                            unquote(result_payload["value"])
-                            if resolved_return_type.requires_quotes
-                            else result_payload["value"]
-                        )
-                    )
-                    for result_payload in batch_lm._interpreter.state.captures.values()
-                ]
-            )
-
-            batch_lm_mapping = {
-                value: apply_type_conversion(
-                    result_payload["value"],
-                    return_type=resolved_return_type,
-                    db=self.db,
-                )
-                for value, result_payload in batch_lm._interpreter.state.captures.items()
-            }
-            lm_mapping.update(batch_lm_mapping)
-            add_to_global_history(str(batch_lm))
-
-            if model.caching:
-                for i, identifier in enumerate(current_batch_identifiers):
-                    if current_batch_cache_keys[i] is not None:
-                        model.cache[current_batch_cache_keys[i]] = lm_mapping[
-                            identifier
-                        ]
-
-            processed_items += len(current_batch_strings)
+        flush_batch_to_jobs()
+        items = process_jobs()
+        if items > 0:
+            processed_items += items
+            model.num_generation_calls += items
+            self.num_values_passed += items
             if logger.level <= logging.DEBUG:
-                pbar.update(len(current_batch_strings))
+                pbar.update(items)
 
-            all_processed_identifiers.extend(current_batch_identifiers)
-
-        if loaded_lm:
-            model.prompt_tokens += lm._get_usage().input_tokens
-            lm._reset_usage()
+        if logger.level <= logging.DEBUG:
+            pbar.close()
 
         mapped_values = [
             lm_mapping.get(identifier, None) for identifier in all_processed_identifiers
