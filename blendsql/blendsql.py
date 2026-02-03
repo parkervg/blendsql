@@ -689,9 +689,11 @@ def _blend(
                         # Fetch an exit condition, if we can extract one from the expression context
                         # i.e. `SELECT * FROM t WHERE a() = TRUE LIMIT 5`
                         # The exit condition would be at least 5 `a()` evaluate to `TRUE`
-                        kwargs_dict["exit_condition"] = scm.get_exit_condition(
-                            function_node
-                        )
+                        (
+                            kwargs_dict["exit_condition_func"],
+                            kwargs_dict["exit_condition_required_values"],
+                        ) = scm.get_exit_condition(function_node)
+
             # Immediately set false, unless proven otherwise
             previous_cascade_filter_failed = True
 

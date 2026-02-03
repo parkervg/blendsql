@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from itertools import islice, repeat
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
+import threading
 
 from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger, Color
@@ -189,7 +190,8 @@ class LLMMap(MapIngredient):
         return_type: DataType | str | None = None,
         regex: str | None = None,
         batch_size: int = None,
-        exit_condition: Callable = None,
+        exit_condition_func: Callable = None,
+        exit_condition_required_values: int = None,
         enable_constrained_decoding: bool = True,
         **kwargs,
     ) -> list[float | int | str | bool]:
@@ -344,6 +346,7 @@ class LLMMap(MapIngredient):
             if model._allows_parallel_requests
             else 1
         )
+        has_exit_condition = exit_condition_func is not None
         lm = LMString()  # type: ignore
 
         gen_f = None
@@ -558,28 +561,79 @@ class LLMMap(MapIngredient):
                 model.tokenizer.encode(curr_function_signature_str)
             )  # Add this once
 
-        def guidance_gen(current_batch_strings: list[str]) -> dict:
-            with guidance.assistant():
-                batch_lm = lm + "\n".join(current_batch_strings)
-            add_to_global_history(str(batch_lm))
-            # TODO: we're not using logprobs right now, but guidance returns them. Something to keep in mind for later.
-            return {
-                k: result_payload["value"]
-                for k, result_payload in batch_lm._interpreter.state.captures.items()
-            }
-
         batch_level_identifiers = []  # batch_size
         job_level_identifiers = []  # n_parallel x batch_size
         batch_level_strings = []  # batch_size
         batch_level_cache_keys = []  # batch_size
         job_level_cache_keys = []  # n_parallel x batch_size
         job_level_gen_funcs: list[Callable] = []
+        n_satisfied_exit_condition = 0
+        exit_condition_satisfied = False
+        exit_condition_lock = threading.Lock()
 
         processed_items = 0
         total_items = len(values)
         all_processed_identifiers = []
 
         batch_generator = generate_batch_items()
+
+        def guidance_gen(current_batch_strings: list[str]) -> dict:
+            nonlocal n_satisfied_exit_condition, exit_condition_satisfied
+
+            if exit_condition_satisfied:  # NEW: Check the flag instead
+                return dict()
+
+            with guidance.assistant():
+                batch_lm = lm + "\n".join(current_batch_strings)
+            add_to_global_history(str(batch_lm))
+
+            if has_exit_condition:
+                with exit_condition_lock:
+                    newly_satisfied = sum(
+                        [
+                            exit_condition_func(v)
+                            for v in batch_lm._interpreter.state.captures.values()
+                        ]
+                    )
+                    n_satisfied_exit_condition += newly_satisfied
+
+                    if n_satisfied_exit_condition >= exit_condition_required_values:
+                        exit_condition_satisfied = True
+
+            # TODO: we're not using logprobs right now, but guidance returns them. Something to keep in mind for later.
+            curr_job_lm_mapping = {
+                k: result_payload["value"]
+                for k, result_payload in batch_lm._interpreter.state.captures.items()
+            }
+
+            model.completion_tokens += sum(
+                len(
+                    model.tokenizer_encode(
+                        unquote(response)
+                        if resolved_return_type.requires_quotes
+                        else response
+                    )
+                )
+                for response in curr_job_lm_mapping.values()
+            )
+
+            curr_job_lm_mapping = {
+                value: apply_type_conversion(
+                    response, return_type=resolved_return_type, db=self.db
+                )
+                for value, response in curr_job_lm_mapping.items()
+            }
+
+            if has_exit_condition:
+                newly_satisfied = sum(
+                    [exit_condition_func(v) for v in curr_job_lm_mapping.values()]
+                )
+                n_satisfied_exit_condition += newly_satisfied
+
+                if n_satisfied_exit_condition >= exit_condition_required_values:
+                    exit_condition_satisfied = True
+
+            return curr_job_lm_mapping
 
         if logger.level <= logging.DEBUG:
             pbar = tqdm(
@@ -590,7 +644,7 @@ class LLMMap(MapIngredient):
 
         def process_jobs() -> int:
             """Process all queued jobs and return the number of items processed."""
-            nonlocal job_level_gen_funcs, job_level_identifiers, job_level_cache_keys
+            nonlocal job_level_gen_funcs, job_level_identifiers, job_level_cache_keys, n_satisfied_exit_condition
 
             if not job_level_gen_funcs:
                 return 0
@@ -610,32 +664,13 @@ class LLMMap(MapIngredient):
                 return combined_captures
 
             if n_parallel > 1:
-                combined_captures = asyncio.run(run_all_parallel())
+                job_lm_mapping = asyncio.run(run_all_parallel())
             else:
                 # Don't run as async, this adds overhead
                 assert len(job_level_gen_funcs) == 1
                 func = job_level_gen_funcs[0]
-                combined_captures = func()
+                job_lm_mapping = func()
 
-            model.completion_tokens += sum(
-                len(
-                    model.tokenizer_encode(
-                        unquote(response)
-                        if resolved_return_type.requires_quotes
-                        else response
-                    )
-                )
-                for response in combined_captures.values()
-            )
-
-            job_lm_mapping = {
-                value: apply_type_conversion(
-                    response,
-                    return_type=resolved_return_type,
-                    db=self.db,
-                )
-                for value, response in combined_captures.items()
-            }
             lm_mapping.update(job_lm_mapping)
 
             if model.caching:
@@ -646,13 +681,12 @@ class LLMMap(MapIngredient):
                                 job_level_identifiers[b][j]
                             ]
 
-            items_processed = sum(len(sublist) for sublist in job_level_identifiers)
+            items_processed = len(job_lm_mapping)
 
             # Reset job-level state
             job_level_gen_funcs = []
             job_level_identifiers = []
             job_level_cache_keys = []
-
             return items_processed
 
         def flush_batch_to_jobs():
@@ -693,7 +727,7 @@ class LLMMap(MapIngredient):
                     pbar.update(items)
 
                 # Check exit condition
-                if exit_condition is not None and exit_condition(lm_mapping):
+                if exit_condition_satisfied:
                     logger.debug(
                         Color.optimization(
                             f"[ 🚪] Exit condition satisfied. Exiting early after processing {processed_items:,} out of {total_items:,} items."
