@@ -468,7 +468,6 @@ class LLMMap(MapIngredient):
                 example_str += example.to_string()
 
         lm_mapping = {}  # Where we store the final type-cast results
-        loaded_lm = False
 
         # Generator to yield prompts on-the-fly
         def generate_batch_items():
@@ -610,7 +609,13 @@ class LLMMap(MapIngredient):
                     combined_captures.update(result)
                 return combined_captures
 
-            combined_captures = asyncio.run(run_all_parallel())
+            if n_parallel > 1:
+                combined_captures = asyncio.run(run_all_parallel())
+            else:
+                # Don't run as async, this adds overhead
+                assert len(job_level_gen_funcs) == 1
+                func = job_level_gen_funcs[0]
+                combined_captures = func()
 
             model.completion_tokens += sum(
                 len(
