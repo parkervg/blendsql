@@ -322,50 +322,68 @@ class LLMMap(MapIngredient):
         )
 
         gen_f = None
+        grammar_prefix = " == "
+        grammar_suffix = f"\n{INDENT()}" if regex is not None else ""
         if enable_constrained_decoding:
             if is_list_output:
                 if self.options_searcher is not None:
                     # Need to create separate gen_f for each set of filtered_options
                     gen_f = [
-                        lambda _, o=o: gen_list(
+                        lambda _, o=o: grammar_prefix
+                        + gen_list(
                             force_quotes=resolved_return_type.requires_quotes,
                             quantifier=quantifier,
                             options=o,
                             regex=regex,
                         )
+                        + grammar_suffix
                         for o in filtered_options
                     ]
                 else:
-                    gen_f = lambda _: gen_list(
-                        force_quotes=resolved_return_type.requires_quotes,
-                        quantifier=quantifier,
-                        options=options,
-                        regex=regex,
+                    gen_f = (
+                        lambda _: grammar_prefix
+                        + gen_list(
+                            force_quotes=resolved_return_type.requires_quotes,
+                            quantifier=quantifier,
+                            options=options,
+                            regex=regex,
+                        )
+                        + grammar_suffix
                     )
             else:
                 if self.options_searcher is not None:
                     # Need to create separate gen_f for each set of filtered_options
                     gen_f = [
-                        lambda _, o=o: _wrap_with_quotes(
+                        lambda _, o=o: grammar_prefix
+                        + _wrap_with_quotes(
                             guidance.select(options=o),
                             has_options_or_regex=bool(o or regex),
                             force_quotes=resolved_return_type.requires_quotes,
                         )
+                        + grammar_suffix
                         for o in filtered_options
                     ]
                 elif options is not None:
                     select_fn = guidance.select(options=options)
-                    gen_f = lambda _: _wrap_with_quotes(
-                        select_fn,
-                        has_options_or_regex=bool(options or regex),
-                        force_quotes=resolved_return_type.requires_quotes,
+                    gen_f = (
+                        lambda _: grammar_prefix
+                        + _wrap_with_quotes(
+                            select_fn,
+                            has_options_or_regex=bool(options or regex),
+                            force_quotes=resolved_return_type.requires_quotes,
+                        )
+                        + grammar_suffix
                     )
                 elif resolved_return_type.name == "substring":
                     # Special case for substring datatypes
-                    gen_f = lambda s: _wrap_with_quotes(
-                        guidance.substring(target_string=s),
-                        has_options_or_regex=bool(options or regex),
-                        force_quotes=resolved_return_type.requires_quotes,
+                    gen_f = (
+                        lambda s: grammar_prefix
+                        + _wrap_with_quotes(
+                            guidance.substring(target_string=s),
+                            has_options_or_regex=bool(options or regex),
+                            force_quotes=resolved_return_type.requires_quotes,
+                        )
+                        + grammar_suffix
                     )
         else:
             logger.debug(
@@ -375,7 +393,7 @@ class LLMMap(MapIngredient):
             )
         if gen_f is None:
             # Create base gen_f function
-            gen_f = lambda _: _wrap_with_quotes(
+            gen_f = lambda _: grammar_prefix + _wrap_with_quotes(
                 guidance.gen(
                     max_tokens=kwargs.get(
                         "max_tokens",
@@ -387,7 +405,8 @@ class LLMMap(MapIngredient):
                     else [")", f"\n{INDENT()}"]
                     + (['"'] if resolved_return_type.requires_quotes else []),
                     regex=regex if enable_constrained_decoding else None,
-                ),
+                )
+                + grammar_suffix,
                 has_options_or_regex=bool(options or regex),
                 force_quotes=resolved_return_type.requires_quotes,
             )
@@ -429,7 +448,7 @@ class LLMMap(MapIngredient):
             if has_more_than_one_arg:
                 if newline_args:
                     gen_str += f"\n{INDENT(2)}"
-            gen_str += ") == "
+            gen_str += ")"
             return gen_str
 
         example_str = ""
@@ -599,7 +618,7 @@ class LLMMap(MapIngredient):
 
                 # Type conversion
                 converted_value = apply_type_conversion(
-                    result.value,
+                    result.value.removeprefix(" == ").removesuffix(f"\n{INDENT()}"),
                     return_type=resolved_return_type,
                     db=self.db,
                 )
