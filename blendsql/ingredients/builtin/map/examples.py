@@ -6,7 +6,7 @@ from textwrap import indent
 from blendsql.ingredients.few_shot import Example
 from blendsql.types import DataTypes, STR_TO_DATATYPE
 from blendsql.common.typing import DataType, AdditionalMapArg
-from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT
+from blendsql.common.constants import INDENT
 
 
 def _return_type_converter(value):
@@ -39,14 +39,6 @@ class MapExample(Example):
         # Apply converters
         self.return_type = _return_type_converter(self.return_type)
 
-
-@dataclass(kw_only=True)
-class AnnotatedMapExample(MapExample):
-    mapping: dict[str, str] = field()
-
-
-# Below are for use with constrained models
-class ConstrainedMapExample(MapExample):
     def to_string(
         self,
         list_options: bool = True,
@@ -129,7 +121,10 @@ class ConstrainedMapExample(MapExample):
         return s
 
 
-class ConstrainedAnnotatedMapExample(ConstrainedMapExample):
+@dataclass(kw_only=True)
+class AnnotatedMapExample(MapExample):
+    mapping: dict[str, str] = field()
+
     def to_string(
         self,
         list_options: bool = True,
@@ -149,35 +144,3 @@ class ConstrainedAnnotatedMapExample(ConstrainedMapExample):
             )
         s += f'''\n{INDENT(2)}```\n{INDENT()}"""\n{INDENT()}...\n```'''
         return s
-
-
-# Below are for use with unconstrained models
-class UnconstrainedMapExample(MapExample):
-    def to_string(
-        self, values: list[str] = None, list_options: bool = True, *args, **kwargs
-    ) -> str:
-        s = f"\n\nQuestion: {self.question}\n"
-        if self.table_name and self.column_name:
-            s += f'Source column: "{self.table_name}"."{self.column_name}"\n'
-        if self.return_type is not None:
-            if self.return_type.name != "Any":
-                s += f"Output datatype: {self.return_type.name}\n"
-        if list_options:
-            if self.options is not None:
-                s += f"Options: {','.join(sorted(self.options))}\n"
-        if self.context_type == FeatureType.GLOBAL:
-            s += f"Context: {self.context}"
-        s += "\nValues:\n"
-        if values is None:
-            values = self.mapping.keys()
-        for _idx, k in enumerate(values):
-            s += f"{k}\n"
-        s += "\nAnswer: "
-        return s
-
-
-class UnconstrainedAnnotatedMapExample(UnconstrainedMapExample):
-    def to_string(self, list_options: bool = True, *args, **kwargs) -> str:
-        s = super().to_string(list_options=list_options, *args, **kwargs)
-        s += DEFAULT_ANS_SEP.join([str(i) for i in self.mapping.values()])
-        return s + "\n\n---"

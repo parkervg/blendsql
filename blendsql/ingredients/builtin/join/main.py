@@ -4,16 +4,15 @@ import json
 from pathlib import Path
 from dataclasses import dataclass, field
 from textwrap import dedent
+import asyncio
+from guidance._grammar import select
 
-from blendsql.configure import add_to_global_history
+from blendsql.configure import DEFAULT_ASYNC_LIMIT, ASYNC_LIMIT_KEY
 from blendsql.models.model_base import ModelBase
 from blendsql.common.logger import logger, Color
+from blendsql.common.typing import GenerationResult, GenerationItem
 from blendsql.ingredients.ingredient import JoinIngredient, LMFunctionException
 from blendsql.ingredients.utils import initialize_retriever, partialclass
-from blendsql.configure import (
-    MAX_TOKENS_KEY,
-    DEFAULT_MAX_TOKENS,
-)
 
 from .examples import AnnotatedJoinExample, JoinExample
 
@@ -23,15 +22,11 @@ DEFAULT_JOIN_FEW_SHOT: list[AnnotatedJoinExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-MAIN_INSTRUCTION = "You are a database expert in charge of performing a modified `LEFT JOIN` operation. This `LEFT JOIN` is based on a semantic criteria given by the user.f\nIf a given left value has no corresponding right value, give '-' as a response. Stop responding as soon as all left values have been accounted for in the JSON mapping.\n"
+MAIN_INSTRUCTION = "You are a database expert in charge of performing a modified `JOIN` operation. This `JOIN` is based on a semantic criteria given by the user.\nGiven the provided right values, generate a left value and give its alignment. If no alignment is present, use '-' as a placeholder for `NULL`.\n"
 
 
 @dataclass
 class LLMJoin(JoinIngredient):
-    DESCRIPTION = """
-    If we need to do a `join` operation where there is imperfect alignment between table values, use the new function:
-        `{{LLMJoin(left_on='table::column', right_on='table::column')}}`
-    """
     model: ModelBase = field(default=None)
     few_shot_retriever: Callable[[str], list[AnnotatedJoinExample]] = field(
         default=None
@@ -104,7 +99,7 @@ class LLMJoin(JoinIngredient):
             )
         )
 
-    def run(
+    async def run(
         self,
         model: ModelBase,
         left_values: list[str],
@@ -144,142 +139,142 @@ class LLMJoin(JoinIngredient):
             # Default to 1 few-shot example in LLMJoin
             few_shot_retriever = lambda *_: DEFAULT_JOIN_FEW_SHOT[:1]
 
+        n_parallel = (
+            int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT))
+            if model._allows_parallel_requests
+            else 1
+        )
+        cancel_event = asyncio.Event()
+        semaphore = asyncio.Semaphore(n_parallel)
+        left_values = sorted(list(left_values))
+        right_values = sorted(list(right_values))
         current_example = JoinExample(
             **{
                 "join_criteria": join_criteria,
-                "left_values": sorted(left_values),
-                "right_values": sorted(right_values),
+                "left_values": left_values,
+                "right_values": right_values,
             }
         )
+        curr_example_str = current_example.to_string()
         few_shot_examples: list[AnnotatedJoinExample] = few_shot_retriever(
-            current_example.to_string()
+            curr_example_str
+        )
+        few_shot_str = "\n".join(
+            [
+                f"{example.to_string()}\n{example.mapping}"
+                for example in few_shot_examples
+            ]
         )
 
-        if isinstance(model, ConstrainedModel):
-            import guidance
+        mapping: dict[str, str] = {}
+        base_prompt = MAIN_INSTRUCTION
+        if len(few_shot_examples) > 0:
+            for example in few_shot_examples:
+                base_prompt += "\n" + example.to_string()
+                base_prompt += (
+                    "\n```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
+                )
+        base_prompt += "\n" + curr_example_str
 
-            lm = LMString()
+        grammar_prefix = '": '
+        select_grammar = grammar_prefix + select(options=right_values + ["-"])
 
-            @guidance(stateless=True, dedent=False)
-            def make_predictions(lm, left_values, right_values):
-                lm += "```json\n{"
-                gen_f = guidance.select(options=right_values + ["-"])
-                for idx, value in enumerate(left_values):
-                    lm += (
-                        f'\n\t"{value}": '
-                        + '"'
-                        + guidance.capture(gen_f, name=value)
-                        + '"'
-                        + ("," if idx + 1 != len(left_values) else "")
-                    )  # Default to 1 few-shot example in LLMJoin
+        items_to_process: list[GenerationItem] = []
 
-                lm += "\n}\n```"
-                return lm
-
-            curr_example_str = current_example.to_string()
-
-            # First check - do we need to load the model?
-            in_cache = False
+        for left_value in left_values:
+            cache_key = None
             if model.caching:
-                mapping, key = model.check_cache(
+                cache_key = model.make_cache_key(
                     MAIN_INSTRUCTION,
                     curr_example_str,
-                    "\n".join(
-                        [
-                            f"{example.to_string()}\n{example.mapping}"
-                            for example in few_shot_examples
-                        ]
-                    ),
-                    funcs=[make_predictions],
+                    few_shot_str,
+                    left_value=left_value,
                 )
-                if mapping is not None:
-                    in_cache = True
-            model.prompt_tokens += len(
-                model.tokenizer.encode(
-                    MAIN_INSTRUCTION
-                    + "\n".join(
-                        [
-                            f"{example.to_string()}{json.dumps(example.mapping, indent=4)}"
-                            for example in few_shot_examples
-                        ]
-                    )
-                    + curr_example_str
+                if cache_key in model.cache:
+                    mapping[left_value] = model.cache[cache_key]
+                    continue
+
+            items_to_process.append(
+                GenerationItem(
+                    prompt=base_prompt,
+                    assistant_continuation=f'\n```json\n{{\n\t"{left_value}"',
+                    identifier=left_value,
+                    cache_key=cache_key,
+                    grammar=select_grammar.ll_grammar(),
                 )
             )
-            if not in_cache:
-                # Load our underlying guidance model, if we need to
-                lm: guidance.models.Model = maybe_load_lm(model, lm)
-                lm = model.maybe_add_system_prompt(lm)
-                with guidance.user():
-                    lm += MAIN_INSTRUCTION
-                if len(few_shot_examples) > 0:
-                    # Add few-shot examples
-                    for example in few_shot_examples:
-                        with guidance.user():
-                            lm += example.to_string()
-                        with guidance.assistant():
-                            lm += (
-                                "```json\n"
-                                + json.dumps(example.mapping, indent=4)
-                                + "\n```"
-                            )
-                with guidance.user():
-                    lm += curr_example_str
 
-                with guidance.assistant():
-                    lm += make_predictions(
-                        left_values=current_example.left_values,
-                        right_values=current_example.right_values,
-                    )  # type: ignore
-                    model.num_generation_calls += 1
-                mapping: dict = {
-                    left_value: lm[left_value] for left_value in left_values
-                }
-                add_to_global_history(str(lm))
-                if model.caching:
-                    model.cache[key] = mapping  # type: ignore
-            model.completion_tokens += sum(
-                [len(model.tokenizer_encode(v)) for v in mapping.values()]  # type: ignore
-            )
+        if not items_to_process:
+            # All values were cached
+            return {k: v for k, v in mapping.items() if v != "-"}
 
-        else:
-            # Use 'old' style prompt for remote models
-            messages = []
-            messages.append(user(MAIN_INSTRUCTION))
-            # Add few-shot examples
-            for example in few_shot_examples:
-                messages.append(user(example.to_string()))
-                messages.append(
-                    assistant(
-                        "```json\n" + json.dumps(example.mapping, indent=4) + "\n```"
-                    )
-                )
-            messages.append(user(current_example.to_string()))
-            "".join([i["content"] for i in messages])
-            response = (
-                model.generate(
-                    messages_list=[messages],
-                    max_tokens=kwargs.get(
-                        "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
-                    ),
-                )[0]
-                .removeprefix("```json")
-                .removesuffix("```")
-            )
-            model.num_generation_calls += 1
-            add_to_global_history(messages)
-            # Post-process language model response
-            try:
-                mapping: dict = json.loads(response)
-            except json.decoder.JSONDecodeError:
-                mapping = {}
-                logger.debug(
-                    Color.error(
-                        f"LLMJoin failed to return valid JSON!\nGot back '{response}'"
-                    )
+        # Track active tasks
+        active_tasks: dict[asyncio.Task, GenerationItem] = {}
+        items_submitted = 0
+        items_completed = 0
+
+        async def process_item(item: GenerationItem) -> GenerationResult | None:
+            async with semaphore:
+                if cancel_event.is_set():
+                    return None
+
+                # Generate with constrained grammar
+                return await model.generate(
+                    item,
+                    cancel_event=cancel_event,
                 )
 
-        final_mapping = {k: v for k, v in mapping.items() if v != "-"}  # type: ignore
+        def submit_next_items():
+            """Submit items up to n_parallel concurrency."""
+            nonlocal items_submitted
+
+            while (
+                len(active_tasks) < n_parallel
+                and items_submitted < len(items_to_process)
+                and not cancel_event.is_set()
+            ):
+                item = items_to_process[items_submitted]
+                task = asyncio.create_task(process_item(item))
+                active_tasks[task] = item
+                items_submitted += 1
+
+        # Initial submission
+        submit_next_items()
+
+        # Process as tasks complete
+        while active_tasks:
+            done, _ = await asyncio.wait(
+                active_tasks.keys(),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            for task in done:
+                item = active_tasks.pop(task)
+
+                try:
+                    result = task.result()
+                except asyncio.CancelledError:
+                    continue
+
+                if result is None:
+                    continue
+
+                items_completed += 1
+
+                mapping[result.identifier] = result.value.removeprefix(grammar_prefix)
+
+                # Cache the result
+                if model.caching and item.cache_key is not None:
+                    model.cache[item.cache_key] = result.matched_value
+
+            if cancel_event.is_set():
+                break
+
+            submit_next_items()
+
+        model.num_generation_calls += items_completed
+
+        final_mapping = {k: v for k, v in mapping.items() if v != "-"}
         logger.debug(
             Color.warning(
                 f"Finished LLMJoin with values:\n{json.dumps({k: final_mapping[k] for k in list(final_mapping.keys())[:10]}, indent=4)}"

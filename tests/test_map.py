@@ -1,9 +1,7 @@
 import pytest
 import pandas as pd
 
-from blendsql import BlendSQL, config
-
-config.set_deterministic(True)
+from blendsql import BlendSQL
 
 
 @pytest.fixture(scope="module")

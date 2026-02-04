@@ -7,6 +7,7 @@ import polars as pl
 import json
 from dataclasses import dataclass, field
 from textwrap import dedent
+from guidance._grammar import select, gen
 
 from blendsql.common.logger import logger, Color
 from blendsql.common.constants import DEFAULT_CONTEXT_FORMATTER
@@ -29,7 +30,7 @@ from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the context, if provided.\n"
 LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire context.\n"
-SHORT_ANSWER_INSTRUCTION = "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
+SHORT_ANSWER_INSTRUCTION = "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'. Your response format should match the specified 'Return type', if provided.\n"
 DEFAULT_QA_FEW_SHOT: list[AnnotatedQAExample] = [
     AnnotatedQAExample(**d)
     for d in json.loads(
@@ -268,7 +269,6 @@ class LLMQA(QAIngredient):
                 if context is not None
                 else self.options_searcher(question)[0]
             )
-        import guidance
 
         instruction_str = MAIN_INSTRUCTION
         if long_answer:
@@ -283,17 +283,14 @@ class LLMQA(QAIngredient):
         gen_f = None
         if enable_constrained_decoding:
             if is_list_output:
-                gen_f = lambda _: guidance.capture(
-                    gen_list(
-                        force_quotes=bool("str" in resolved_return_type.name),
-                        regex=regex,
-                        options=options_with_aliases,
-                        quantifier=quantifier,
-                    ),
-                    name="response",
+                gen_f = lambda _: gen_list(
+                    force_quotes=bool("str" in resolved_return_type.name),
+                    regex=regex,
+                    options=options_with_aliases,
+                    quantifier=quantifier,
                 )
             elif options:
-                gen_f = lambda _: guidance.select(options=options, name="response")
+                gen_f = lambda _: select(options=options)
         else:
             logger.debug(
                 Color.warning(
@@ -302,13 +299,13 @@ class LLMQA(QAIngredient):
             )
 
         if gen_f is None:
-            gen_f = lambda _: guidance.gen(
+            gen_f = lambda _: gen(
                 max_tokens=kwargs.get(
                     "max_tokens",
                     int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
                 ),
                 regex=regex if enable_constrained_decoding else None,
-                name="response",
+                stop="\n" if regex is None else None,
             )
 
         # First check - do we need to load the model?

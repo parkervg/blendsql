@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from itertools import islice, repeat
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
+from guidance._grammar import select, gen
+from guidance.library import substring
 
 from blendsql.models.model_base import ModelBase
 from blendsql.common.logger import logger, Color
@@ -41,8 +43,6 @@ from blendsql.types import prepare_datatype, apply_type_conversion
 from .examples import (
     MapExample,
     AnnotatedMapExample,
-    ConstrainedMapExample,
-    ConstrainedAnnotatedMapExample,
     FeatureType,
 )
 from blendsql.search.searcher import Searcher
@@ -62,10 +62,6 @@ CONSTRAINED_MAIN_INSTRUCTION = (
 
 @dataclass
 class LLMMap(MapIngredient):
-    DESCRIPTION = """
-    If question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column using the scalar function:
-        `{{LLMMap('question', 'table::column')}}`
-    """
     model: ModelBase = field(default=None)
     few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = field(default=None)
     list_options_in_prompt: bool = field(default=True)
@@ -172,9 +168,7 @@ class LLMMap(MapIngredient):
         unpacked_questions: list[str] = None,
         options: list[str] | None = None,
         options_searcher: Searcher | None = None,
-        few_shot_retriever: Callable[
-            [str], list[ConstrainedAnnotatedMapExample]
-        ] = None,
+        few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = None,
         value_limit: int | None = None,
         example_outputs: str | None = None,
         quantifier: QuantifierType = None,
@@ -292,11 +286,11 @@ class LLMMap(MapIngredient):
             context=context,
         )
 
-        current_example = ConstrainedMapExample(**current_example.__dict__)
-        few_shot_examples: list[ConstrainedAnnotatedMapExample] = [
-            ConstrainedAnnotatedMapExample(**example.__dict__)
+        current_example = MapExample(**current_example.__dict__)
+        few_shot_examples: list[AnnotatedMapExample] = [
+            AnnotatedMapExample(**example.__dict__)
             if not isinstance(example, dict)
-            else ConstrainedAnnotatedMapExample(**example)
+            else AnnotatedMapExample(**example)
             for example in few_shot_retriever(
                 current_example.to_string(
                     additional_args=additional_args,
@@ -313,8 +307,6 @@ class LLMMap(MapIngredient):
                 "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
             )
 
-        import guidance
-
         n_parallel = (
             int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT))
             if model._allows_parallel_requests
@@ -323,7 +315,7 @@ class LLMMap(MapIngredient):
 
         gen_f = None
         grammar_prefix = " == "
-        grammar_suffix = f"\n{INDENT()}" if regex is not None else ""
+        grammar_suffix = f"\n"
         if enable_constrained_decoding:
             if is_list_output:
                 if self.options_searcher is not None:
@@ -356,7 +348,7 @@ class LLMMap(MapIngredient):
                     gen_f = [
                         lambda _, o=o: grammar_prefix
                         + _wrap_with_quotes(
-                            guidance.select(options=o),
+                            select(options=o),
                             has_options_or_regex=bool(o or regex),
                             force_quotes=resolved_return_type.requires_quotes,
                         )
@@ -364,7 +356,7 @@ class LLMMap(MapIngredient):
                         for o in filtered_options
                     ]
                 elif options is not None:
-                    select_fn = guidance.select(options=options)
+                    select_fn = select(options=options)
                     gen_f = (
                         lambda _: grammar_prefix
                         + _wrap_with_quotes(
@@ -379,7 +371,7 @@ class LLMMap(MapIngredient):
                     gen_f = (
                         lambda s: grammar_prefix
                         + _wrap_with_quotes(
-                            guidance.substring(target_string=s),
+                            substring(target_string=s),
                             has_options_or_regex=bool(options or regex),
                             force_quotes=resolved_return_type.requires_quotes,
                         )
@@ -394,16 +386,14 @@ class LLMMap(MapIngredient):
         if gen_f is None:
             # Create base gen_f function
             gen_f = lambda _: grammar_prefix + _wrap_with_quotes(
-                guidance.gen(
+                gen(
                     max_tokens=kwargs.get(
                         "max_tokens",
                         int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
                     ),
                     # guidance>=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    stop=None
-                    if regex is not None
-                    else [")", f"\n{INDENT()}"]
-                    + (['"'] if resolved_return_type.requires_quotes else []),
+                    # guidance 0.3.0 raises a serialization error if this is a list, not a tuple
+                    stop=None if regex is not None else '"\n',
                     regex=regex if enable_constrained_decoding else None,
                 )
                 + grammar_suffix,
@@ -627,7 +617,7 @@ class LLMMap(MapIngredient):
 
                 # Type conversion
                 converted_value = apply_type_conversion(
-                    result.value.removeprefix(" == ").removesuffix(f"\n{INDENT()}"),
+                    result.value.removeprefix(grammar_prefix).split(grammar_suffix)[0],
                     return_type=resolved_return_type,
                     db=self.db,
                 )

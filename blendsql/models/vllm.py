@@ -1,10 +1,12 @@
 import asyncio
+import os
 
+from blendsql.configure import MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS
 from blendsql.models.model_base import ModelBase
 from blendsql.common.typing import GenerationResult, GenerationItem
 from blendsql.configure import add_to_global_history
 
-DEFAULT_BODY = {"temperature": 0.0, "max_tokens": 4096}
+DEFAULT_BODY = {"temperature": 0.0}
 
 
 class VLLM(ModelBase):
@@ -36,7 +38,11 @@ class VLLM(ModelBase):
         self, item: GenerationItem, cancel_event: asyncio.Event | None = None
     ):
         buffer = ""
-        extra_body = DEFAULT_BODY | self.extra_body
+        extra_body = (
+            DEFAULT_BODY
+            | {"max_tokens": int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))}
+            | self.extra_body
+        )
         if item.grammar:
             extra_body |= {
                 "guided_decoding_backend": "guidance",

@@ -6,9 +6,11 @@ import pandas as pd
 from blendsql.db import Database
 from blendsql.models import VLLM
 from blendsql.models.model_base import ModelBase
-
+from blendsql.configure import set_deterministic
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
 from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
+
+set_deterministic(True)
 
 
 def pytest_make_parametrize_id(config, val, argname):
@@ -23,7 +25,7 @@ def pytest_make_parametrize_id(config, val, argname):
 def get_available_models():
     return [
         VLLM(
-            model_name_or_path="Qwen/Qwen3-4B-Instruct-2507",
+            model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
             base_url="http://localhost:8000/v1",
         )
     ]

@@ -40,7 +40,7 @@ class QAExample(Example):
         s = f"Question: {self.question}\n"
         if self.return_type is not None:
             if self.return_type.atomic_type not in {"Any"}:
-                s += f"Output datatype: {self.return_type.name}\n"
+                s += f"Return type: {self.return_type.name}\n"
         if list_options:
             if self.options is not None:
                 s += f"Options: {list(self.options)}\n"
