@@ -13,8 +13,6 @@ class SmoothieMeta:
     num_generation_calls: int = field()  # Number of generation calls made to the model
     prompt_tokens: int = field()
     completion_tokens: int = field()
-    prompts: list[dict] = field()  # Log of prompts submitted to model
-    raw_prompts: list[str] = field()
     ingredients: Iterable[Type[Ingredient]] = field()
     query: str = field()
     db_url: str = field()
@@ -65,7 +63,6 @@ class Smoothie:
         table = Table(show_header=True, header_style="bold")
         table.add_column("Time (s)")
         table.add_column("# Generation Calls")
-        table.add_column("# DB Values Passed")
         table.add_column("Prompt Tokens")
         table.add_column("Completion Tokens")
 
@@ -78,7 +75,6 @@ class Smoothie:
         table.add_row(
             time_value,
             str(self.meta.num_generation_calls),
-            str(self.meta.num_values_passed),
             str(self.meta.prompt_tokens),
             str(self.meta.completion_tokens),
         )

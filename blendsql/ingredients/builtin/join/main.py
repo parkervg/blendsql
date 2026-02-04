@@ -6,9 +6,7 @@ from dataclasses import dataclass, field
 from textwrap import dedent
 
 from blendsql.configure import add_to_global_history
-from blendsql.models import Model, ConstrainedModel
-from blendsql.models.utils import user, assistant
-from blendsql.models.constrained.utils import LMString, maybe_load_lm
+from blendsql.models.model_base import ModelBase
 from blendsql.common.logger import logger, Color
 from blendsql.ingredients.ingredient import JoinIngredient, LMFunctionException
 from blendsql.ingredients.utils import initialize_retriever, partialclass
@@ -34,7 +32,7 @@ class LLMJoin(JoinIngredient):
     If we need to do a `join` operation where there is imperfect alignment between table values, use the new function:
         `{{LLMJoin(left_on='table::column', right_on='table::column')}}`
     """
-    model: Model = field(default=None)
+    model: ModelBase = field(default=None)
     few_shot_retriever: Callable[[str], list[AnnotatedJoinExample]] = field(
         default=None
     )
@@ -42,7 +40,7 @@ class LLMJoin(JoinIngredient):
     @classmethod
     def from_args(
         cls,
-        model: Model | None = None,
+        model: ModelBase | None = None,
         use_skrub_joiner: bool = True,
         few_shot_examples: list[dict] | list[AnnotatedJoinExample] | None = None,
         num_few_shot_examples: int | None = 1,
@@ -108,7 +106,7 @@ class LLMJoin(JoinIngredient):
 
     def run(
         self,
-        model: Model,
+        model: ModelBase,
         left_values: list[str],
         right_values: list[str],
         join_criteria: str | None = None,

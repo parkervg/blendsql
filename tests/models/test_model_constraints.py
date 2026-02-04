@@ -84,12 +84,12 @@ def test_singers(bsql, model):
     )
 
 
-def test_alphabet(bsql, constrained_model):
+def test_alphabet(bsql, model):
     smoothie = bsql.execute(
         """
         SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options=('A', 'B', 'C'))}} )
         """,
-        model=constrained_model,
+        model=model,
     )
     assert "A" in list(smoothie.df.values.flat)
 
@@ -97,7 +97,7 @@ def test_alphabet(bsql, constrained_model):
         """
             SELECT * FROM ( VALUES {{LLMQA('What are the first capital letters of the alphabet?', options=('A', 'B', 'C'), quantifier='{2}')}} )
             """,
-        model=constrained_model,
+        model=model,
     )
     assert list(smoothie.df.values.flat) == ["A", "B"]
 
@@ -105,7 +105,7 @@ def test_alphabet(bsql, constrained_model):
         """
             SELECT * FROM ( VALUES {{LLMQA('What are the first letters of the alphabet?', options=('α', 'β', 'γ'), quantifier='{3}')}} )
             """,
-        model=constrained_model,
+        model=model,
     )
     assert set(smoothie.df.values.flat) == {"α", "β", "γ"}
 
@@ -118,7 +118,7 @@ def test_alphabet(bsql, constrained_model):
                 )
             }} AS 'response'
             """,
-        model=constrained_model,
+        model=model,
     )
     assert list(smoothie.df.values.flat)[0].lower() == "alpha"
 
@@ -132,12 +132,12 @@ def test_alphabet(bsql, constrained_model):
                     options=(SELECT * FROM greek_letters)
                 )}}
             """,
-        model=constrained_model,
+        model=model,
     )
     assert list(smoothie.df.values.flat)[0].lower() == "alpha"
 
 
-def test_templates(bsql, constrained_model):
+def test_templates(bsql, model):
     _ = bsql.execute(
         """
             SELECT {{
@@ -155,11 +155,11 @@ def test_templates(bsql, constrained_model):
                 )
             }}
             """,
-        model=constrained_model,
+        model=model,
     )
 
 
-def test_unnest(bsql, constrained_model):
+def test_unnest(bsql, model):
     _ = bsql.execute(
         """
             SELECT {{
@@ -177,5 +177,5 @@ def test_unnest(bsql, constrained_model):
                 )
             }}
             """,
-        model=constrained_model,
+        model=model,
     )

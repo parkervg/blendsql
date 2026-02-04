@@ -121,8 +121,10 @@ class ConstrainedMapExample(MapExample):
         if "\n" in self.question:
             _question = "\n" + indent(self.question, prefix=INDENT(2))
             _question = '"""' + _question + INDENT(2) + '"""'
-        s += f"\n{INDENT(2)}# f() returns the output to the question {_question}" + (
-            "" if not use_context else f" given the supplied context"
+        s += (
+            f"\n{INDENT(2)}# f() returns the output to the question {_question}"
+            + ("" if not use_context else f" given the supplied context")
+            + "\n"
         )
         return s
 

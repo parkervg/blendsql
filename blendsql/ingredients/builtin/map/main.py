@@ -1,7 +1,7 @@
 import logging
 import os
 import asyncio
-from typing import Callable
+from typing import Callable, Generator
 from pathlib import Path
 import json
 import polars as pl
@@ -10,16 +10,19 @@ from dataclasses import dataclass, field
 from itertools import islice, repeat
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
-import threading
 
-from blendsql.configure import add_to_global_history
+from blendsql.models.model_base import ModelBase
 from blendsql.common.logger import logger, Color
-from blendsql.common.constants import DEFAULT_ANS_SEP, INDENT, DEFAULT_CONTEXT_FORMATTER
-from blendsql.models import Model, ConstrainedModel
-from blendsql.models.constrained.utils import LMString, maybe_load_lm
+from blendsql.common.constants import INDENT, DEFAULT_CONTEXT_FORMATTER
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import LMFunctionException
-from blendsql.common.typing import DataType, QuantifierType, AdditionalMapArg
+from blendsql.common.typing import (
+    DataType,
+    QuantifierType,
+    AdditionalMapArg,
+    GenerationItem,
+    GenerationResult,
+)
 from blendsql.ingredients.utils import (
     initialize_retriever,
     partialclass,
@@ -34,14 +37,12 @@ from blendsql.configure import (
     ASYNC_LIMIT_KEY,
     DEFAULT_ASYNC_LIMIT,
 )
-from blendsql.types import prepare_datatype, apply_type_conversion, unquote
+from blendsql.types import prepare_datatype, apply_type_conversion
 from .examples import (
     MapExample,
     AnnotatedMapExample,
     ConstrainedMapExample,
     ConstrainedAnnotatedMapExample,
-    UnconstrainedMapExample,
-    UnconstrainedAnnotatedMapExample,
     FeatureType,
 )
 from blendsql.search.searcher import Searcher
@@ -57,16 +58,6 @@ CONSTRAINED_MAIN_INSTRUCTION = (
     CONSTRAINED_MAIN_INSTRUCTION
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
-DEFAULT_CONSTRAINED_MAP_BATCH_SIZE = 3
-
-UNCONSTRAINED_MAIN_INSTRUCTION = (
-    "Given a set of values from a database, answer the question for each value. "
-)
-UNCONSTRAINED_MAIN_INSTRUCTION = (
-    UNCONSTRAINED_MAIN_INSTRUCTION
-    + f" Your output should be separated by '{DEFAULT_ANS_SEP}', answering for each of the values left-to-right.\n"
-)
-DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE = 5
 
 
 @dataclass
@@ -75,7 +66,7 @@ class LLMMap(MapIngredient):
     If question-relevant column(s) contents are not suitable for SQL comparisons or calculations, map it to a new column using the scalar function:
         `{{LLMMap('question', 'table::column')}}`
     """
-    model: Model = field(default=None)
+    model: ModelBase = field(default=None)
     few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = field(default=None)
     list_options_in_prompt: bool = field(default=True)
     few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = field(default=None)
@@ -87,7 +78,7 @@ class LLMMap(MapIngredient):
     @classmethod
     def from_args(
         cls,
-        model: Model | None = None,
+        model: ModelBase | None = None,
         few_shot_examples: list[dict] | list[AnnotatedMapExample] | None = None,
         list_options_in_prompt: bool = True,
         options_searcher: Searcher | None = None,
@@ -168,9 +159,9 @@ class LLMMap(MapIngredient):
             )
         )
 
-    def run(
+    async def run(
         self,
-        model: Model,
+        model: ModelBase,
         question: str,
         values: list[str],
         additional_args: list[AdditionalMapArg],
@@ -274,10 +265,6 @@ class LLMMap(MapIngredient):
                     )
                     list_options_in_prompt = False
         else:
-            if not isinstance(model, ConstrainedModel):
-                raise NotImplementedError(
-                    "`options_searcher` logic not yet implemented for `UnconstrainedModel` classes.\nUse a `ConstrainedModel` class for now (`LlamaCpp` or `TransformersLLM`)."
-                )
             logger.debug(
                 Color.warning(
                     f"Calling provided `options_searcher` to retrieve {self.options_searcher.k} options for each of the {len(values)} unique values, out of {len(self.options_searcher.documents):,} total options..."
@@ -305,30 +292,17 @@ class LLMMap(MapIngredient):
             context=context,
         )
 
-        if isinstance(model, ConstrainedModel):
-            batch_size = batch_size or DEFAULT_CONSTRAINED_MAP_BATCH_SIZE
-            current_example = ConstrainedMapExample(**current_example.__dict__)
-            few_shot_examples: list[ConstrainedAnnotatedMapExample] = [
-                ConstrainedAnnotatedMapExample(**example.__dict__)
-                if not isinstance(example, dict)
-                else ConstrainedAnnotatedMapExample(**example)
-                for example in few_shot_retriever(
-                    current_example.to_string(
-                        additional_args=additional_args,
-                    )
+        current_example = ConstrainedMapExample(**current_example.__dict__)
+        few_shot_examples: list[ConstrainedAnnotatedMapExample] = [
+            ConstrainedAnnotatedMapExample(**example.__dict__)
+            if not isinstance(example, dict)
+            else ConstrainedAnnotatedMapExample(**example)
+            for example in few_shot_retriever(
+                current_example.to_string(
+                    additional_args=additional_args,
                 )
-            ]
-        else:
-            batch_size = batch_size or DEFAULT_UNCONSTRAINED_MAP_BATCH_SIZE
-            current_example = UnconstrainedMapExample(**current_example.__dict__)
-            few_shot_examples: list[UnconstrainedAnnotatedMapExample] = [
-                UnconstrainedAnnotatedMapExample(**example.__dict__)
-                if not isinstance(example, dict)
-                else UnconstrainedMapExample(**example)
-                for example in few_shot_retriever(
-                    current_example.to_string(values=values)
-                )
-            ]
+            )
+        ]
 
         is_list_output = resolved_return_type.quantifier is not None
         regex = regex or resolved_return_type.regex
@@ -346,8 +320,6 @@ class LLMMap(MapIngredient):
             if model._allows_parallel_requests
             else 1
         )
-        has_exit_condition = exit_condition_func is not None
-        lm = LMString()  # type: ignore
 
         gen_f = None
         if enable_constrained_decoding:
@@ -420,14 +392,12 @@ class LLMMap(MapIngredient):
                 force_quotes=resolved_return_type.requires_quotes,
             )
 
-        def make_prediction(
-            identifier: str,
+        def format_current_prompt(
             value: str,
             additional_args: tuple[str] | None,
             context: str | list[str] | None,
             context_in_use_type: FeatureType | None,
             local_options: list[str] | None,
-            gen_f: Callable,
         ) -> str:
             def get_quote(s: str):
                 return '"""' if any(c in s for c in ["\n", '"']) else '"'
@@ -459,10 +429,7 @@ class LLMMap(MapIngredient):
             if has_more_than_one_arg:
                 if newline_args:
                     gen_str += f"\n{INDENT(2)}"
-            # Below, make sure we set the output to the `identifier` name
-            # If we just did `name=value`, then this would lose the difference between
-            #   identical values with different additional args / context
-            gen_str += f""") == {guidance.capture(gen_f(value), name=identifier)}"""
+            gen_str += ") == "
             return gen_str
 
         example_str = ""
@@ -472,9 +439,23 @@ class LLMMap(MapIngredient):
 
         lm_mapping = {}  # Where we store the final type-cast results
 
-        # Generator to yield prompts on-the-fly
-        def generate_batch_items():
-            """Generator that yields (identifier, prompt_string, cache_info) tuples"""
+        curr_function_signature_str = current_example.to_string(
+            list_options=list_options_in_prompt,
+            additional_args=additional_args,
+            add_leading_newlines=True,
+        )
+
+        base_prompt = CONSTRAINED_MAIN_INSTRUCTION
+        if example_str:
+            base_prompt += example_str
+            base_prompt += "\n\nNow, complete the docstring for the following example:"
+        base_prompt += curr_function_signature_str
+
+        lm_mapping: dict = {}  # Final type-cast results
+        all_processed_identifiers: list[str] = []
+
+        def generate_items() -> Generator[GenerationItem, None, None]:
+            """Lazily yields items, checking cache as we go."""
             for idx, (v, a, c, o) in enumerate(
                 zip(
                     values,
@@ -485,14 +466,16 @@ class LLMMap(MapIngredient):
                     filtered_options,
                 )
             ):
+                # Build identifier
                 curr_identifier = v
                 if a is not None:
                     curr_identifier += f"_{a}"
                 if c is not None:
                     curr_identifier += f"_{c}"
 
-                # Check cache first
-                in_cache = False
+                all_processed_identifiers.append(curr_identifier)
+
+                # Check cache
                 cache_key = None
                 if model.caching:
                     cached_response, cache_key = model.check_cache(
@@ -511,239 +494,153 @@ class LLMMap(MapIngredient):
                         c,
                         o,
                         funcs=[
-                            make_prediction,
+                            format_current_prompt,
                             gen_f[idx]
-                            if self.options_searcher is not None
+                            if hasattr(gen_f, "__getitem__")
                             and enable_constrained_decoding
                             else gen_f,
                         ],
                     )
                     if cached_response is not None:
                         lm_mapping[curr_identifier] = cached_response
-                        in_cache = True
+                        continue  # Skip - already cached
 
-                if in_cache:
-                    continue  # Skip to next item
-
-                prompt_string = make_prediction(
-                    identifier=curr_identifier,
+                # Build prompt
+                assistant_continuation = format_current_prompt(
                     value=v,
                     additional_args=a,
                     context=c,
                     context_in_use_type=context_in_use_type,
                     local_options=o,
-                    gen_f=gen_f[idx]
-                    if self.options_searcher is not None and enable_constrained_decoding
-                    else gen_f,
                 )
 
-                yield (
-                    curr_identifier,
-                    prompt_string,
-                    cache_key,
+                # Get grammar
+                if hasattr(gen_f, "__getitem__") and enable_constrained_decoding:
+                    # Different grammars for each item
+                    grammar = gen_f[idx](v).ll_grammar()
+                else:
+                    grammar = gen_f(v).ll_grammar()
+
+                yield GenerationItem(
+                    identifier=curr_identifier,
+                    prompt=base_prompt,
+                    assistant_continuation=assistant_continuation,
+                    grammar=grammar,
+                    cache_key=cache_key,
                 )
 
-        curr_function_signature_str = current_example.to_string(
-            list_options=list_options_in_prompt,
-            additional_args=additional_args,
-            add_leading_newlines=True,
-        )
+        cancel_event = asyncio.Event()
+        semaphore = asyncio.Semaphore(n_parallel)
+        n_satisfied = 0
+        items_submitted = 0
+        items_completed = 0
 
-        lm: guidance.models.Model = maybe_load_lm(model, lm)
-        lm = model.maybe_add_system_prompt(lm)
-        with guidance.user():
-            lm += CONSTRAINED_MAIN_INSTRUCTION
-            if example_str != "":
-                lm += example_str
-                lm += "\n\nNow, complete the docstring for the following example:"
-            lm += curr_function_signature_str
-            model.prompt_tokens += len(
-                model.tokenizer.encode(curr_function_signature_str)
-            )  # Add this once
+        # Track active tasks and their items
+        active_tasks: dict[asyncio.Task, GenerationItem] = {}
+        item_generator = generate_items()
+        generator_exhausted = False
 
-        batch_level_identifiers = []  # batch_size
-        job_level_identifiers = []  # n_parallel x batch_size
-        batch_level_strings = []  # batch_size
-        batch_level_cache_keys = []  # batch_size
-        job_level_cache_keys = []  # n_parallel x batch_size
-        job_level_gen_funcs: list[Callable] = []
-        n_satisfied_exit_condition = 0
-        exit_condition_satisfied = False
-        exit_condition_lock = threading.Lock()
+        async def process_item(item: GenerationItem) -> GenerationResult | None:
+            async with semaphore:
+                if cancel_event.is_set():
+                    return None
+                self.num_values_passed += 1
+                return await model.generate(item, cancel_event)
 
-        processed_items = 0
-        total_items = len(values)
-        all_processed_identifiers = []
+        def submit_next_items():
+            """Submit items up to n_parallel concurrency."""
+            nonlocal generator_exhausted, items_submitted
 
-        batch_generator = generate_batch_items()
-
-        def guidance_gen(current_batch_strings: list[str]) -> dict:
-            nonlocal n_satisfied_exit_condition, exit_condition_satisfied
-
-            if exit_condition_satisfied:  # NEW: Check the flag instead
-                return dict()
-
-            with guidance.assistant():
-                batch_lm = lm + "\n".join(current_batch_strings)
-            add_to_global_history(str(batch_lm))
-
-            if has_exit_condition:
-                with exit_condition_lock:
-                    newly_satisfied = sum(
-                        [
-                            exit_condition_func(v)
-                            for v in batch_lm._interpreter.state.captures.values()
-                        ]
-                    )
-                    n_satisfied_exit_condition += newly_satisfied
-
-                    if n_satisfied_exit_condition >= exit_condition_required_values:
-                        exit_condition_satisfied = True
-
-            # TODO: we're not using logprobs right now, but guidance returns them. Something to keep in mind for later.
-            curr_job_lm_mapping = {
-                k: result_payload["value"]
-                for k, result_payload in batch_lm._interpreter.state.captures.items()
-            }
-
-            model.completion_tokens += sum(
-                len(
-                    model.tokenizer_encode(
-                        unquote(response)
-                        if resolved_return_type.requires_quotes
-                        else response
-                    )
-                )
-                for response in curr_job_lm_mapping.values()
-            )
-
-            curr_job_lm_mapping = {
-                value: apply_type_conversion(
-                    response, return_type=resolved_return_type, db=self.db
-                )
-                for value, response in curr_job_lm_mapping.items()
-            }
-
-            if has_exit_condition:
-                newly_satisfied = sum(
-                    [exit_condition_func(v) for v in curr_job_lm_mapping.values()]
-                )
-                n_satisfied_exit_condition += newly_satisfied
-
-                if n_satisfied_exit_condition >= exit_condition_required_values:
-                    exit_condition_satisfied = True
-
-            return curr_job_lm_mapping
+            while (
+                len(active_tasks) < n_parallel
+                and not generator_exhausted
+                and not cancel_event.is_set()
+            ):
+                try:
+                    item = next(item_generator)
+                    task = asyncio.create_task(process_item(item))
+                    active_tasks[task] = item
+                    items_submitted += 1
+                except StopIteration:
+                    generator_exhausted = True
+                    break
 
         if logger.level <= logging.DEBUG:
             pbar = tqdm(
-                desc=(Color.prefix if Color.in_block else "")
-                + f"LLMMap with `{batch_size=}`, `{n_parallel=}`, and `{len(few_shot_examples)=}`",
-                total=total_items,
+                desc=f"LLMMap with n_parallel={n_parallel}",
+                total=len(values),
+            )
+            # Update for cached items
+            pbar.update(len(lm_mapping))
+
+        # Initial submission
+        submit_next_items()
+
+        # Process as tasks complete
+        while active_tasks:
+            # Wait for at least one task to complete
+            done, _ = await asyncio.wait(
+                active_tasks.keys(),
+                return_when=asyncio.FIRST_COMPLETED,
             )
 
-        def process_jobs() -> int:
-            """Process all queued jobs and return the number of items processed."""
-            nonlocal job_level_gen_funcs, job_level_identifiers, job_level_cache_keys, n_satisfied_exit_condition
+            for task in done:
+                item = active_tasks.pop(task)
 
-            if not job_level_gen_funcs:
-                return 0
+                try:
+                    result = task.result()
+                except asyncio.CancelledError:
+                    continue
 
-            async def run_gen_func(gen_func):
-                loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(None, gen_func)
+                if result is None:
+                    continue
 
-            async def run_all_parallel():
-                """Currently not using a semaphore here, since we may need to intervene in the middle
-                of the task and check for early exits."""
-                tasks = [run_gen_func(gen_func) for gen_func in job_level_gen_funcs]
-                results = await asyncio.gather(*tasks)
-                combined_captures = {}
-                for result in results:
-                    combined_captures.update(result)
-                return combined_captures
+                items_completed += 1
 
-            if n_parallel > 1:
-                job_lm_mapping = asyncio.run(run_all_parallel())
-            else:
-                # Don't run as async, this adds overhead
-                assert len(job_level_gen_funcs) == 1
-                func = job_level_gen_funcs[0]
-                job_lm_mapping = func()
+                # Type conversion
+                converted_value = apply_type_conversion(
+                    result.value,
+                    return_type=resolved_return_type,
+                    db=self.db,
+                )
 
-            lm_mapping.update(job_lm_mapping)
+                lm_mapping[result.identifier] = converted_value
 
-            if model.caching:
-                for b in range(len(job_level_identifiers)):
-                    for j in range(len(job_level_identifiers[b])):
-                        if job_level_cache_keys[b][j] is not None:
-                            model.cache[job_level_cache_keys[b][j]] = lm_mapping[
-                                job_level_identifiers[b][j]
-                            ]
+                # Cache result
+                if model.caching and item.cache_key is not None:
+                    model.cache[item.cache_key] = converted_value
 
-            items_processed = len(job_lm_mapping)
-
-            # Reset job-level state
-            job_level_gen_funcs = []
-            job_level_identifiers = []
-            job_level_cache_keys = []
-            return items_processed
-
-        def flush_batch_to_jobs():
-            """Add current batch to job queue and reset batch-level state."""
-            nonlocal batch_level_identifiers, batch_level_strings, batch_level_cache_keys
-
-            if not batch_level_strings:
-                return
-
-            batch_copy = batch_level_strings.copy()
-            job_level_gen_funcs.append(lambda batch=batch_copy: guidance_gen(batch))
-            job_level_identifiers.append(batch_level_identifiers.copy())
-            job_level_cache_keys.append(batch_level_cache_keys.copy())
-
-            batch_level_identifiers = []
-            batch_level_strings = []
-            batch_level_cache_keys = []
-
-        for (
-            identifier,
-            prompt_string,
-            cache_key,
-        ) in batch_generator:
-            batch_level_identifiers.append(identifier)
-            batch_level_strings.append(prompt_string)
-            batch_level_cache_keys.append(cache_key)
-            all_processed_identifiers.append(identifier)
-
-            if len(batch_level_strings) >= batch_size:
-                flush_batch_to_jobs()
-
-            if len(job_level_gen_funcs) == n_parallel:
-                items = process_jobs()
-                processed_items += items
-                model.num_generation_calls += items
-                self.num_values_passed += items
                 if logger.level <= logging.DEBUG:
-                    pbar.update(items)
+                    pbar.update(1)
 
                 # Check exit condition
-                if exit_condition_satisfied:
-                    logger.debug(
-                        Color.optimization(
-                            f"[ 🚪] Exit condition satisfied. Exiting early after processing {processed_items:,} out of {total_items:,} items."
-                        )
-                    )
-                    break
+                if exit_condition_func and result.completed:
+                    if exit_condition_func(converted_value):
+                        n_satisfied += 1
 
-        # Process any remaining items in the last partial batch
-        flush_batch_to_jobs()
-        items = process_jobs()
-        if items > 0:
-            processed_items += items
-            model.num_generation_calls += items
-            self.num_values_passed += items
-            if logger.level <= logging.DEBUG:
-                pbar.update(items)
+                        if n_satisfied >= exit_condition_required_values:
+                            logger.debug(
+                                f"Exit condition satisfied. "
+                                f"Processed {items_completed}/{items_submitted} submitted, "
+                                f"{len(lm_mapping)} total (including cached)."
+                            )
+                            cancel_event.set()
+
+                            # Cancel pending tasks
+                            for t in active_tasks:
+                                t.cancel()
+
+                            # Wait for cancellations
+                            if active_tasks:
+                                await asyncio.gather(
+                                    *active_tasks.keys(), return_exceptions=True
+                                )
+                            active_tasks.clear()
+                            break
+            if cancel_event.is_set():
+                break
+
+            submit_next_items()
 
         if logger.level <= logging.DEBUG:
             pbar.close()

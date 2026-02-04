@@ -1,5 +1,6 @@
 import os
 import re
+import asyncio
 from dataclasses import dataclass, field
 from abc import abstractmethod
 import pandas as pd
@@ -576,16 +577,18 @@ class MapIngredient(Ingredient):
                 Color.quiet_update(f"Unpacked question to '{unpacked_questions[:10]}'")
             )
 
-        mapped_values = self._run(
-            question=question,
-            unpacked_questions=unpacked_questions,
-            values=unpacked_values,
-            additional_args=resolved_additional_args,
-            global_subtable_context=global_subtable_context,
-            options=unpacked_options,
-            tablename=tablename,
-            colname=colname,
-            **self.__dict__ | kwargs,
+        mapped_values = asyncio.run(
+            self.run(
+                question=question,
+                unpacked_questions=unpacked_questions,
+                values=unpacked_values,
+                additional_args=resolved_additional_args,
+                global_subtable_context=global_subtable_context,
+                options=unpacked_options,
+                tablename=tablename,
+                colname=colname,
+                **self.__dict__ | kwargs,
+            )
         )
         df_as_dict = {
             colname: list(unpacked_values),
@@ -901,11 +904,13 @@ class QAIngredient(Ingredient):
             # This will now override whatever context we passed
             subtables = []
 
-        response: [str | int | float | tuple] = self._run(
-            question=question,
-            context=subtables if subtables else None,
-            options=options,
-            **self.__dict__ | kwargs,
+        response: [str | int | float | tuple] = asyncio.run(
+            self.run(
+                question=question,
+                context=subtables if subtables else None,
+                options=options,
+                **self.__dict__ | kwargs,
+            )
         )
         if isinstance(response, tuple):
             response = format_tuple(

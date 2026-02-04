@@ -28,6 +28,21 @@ MODEL_CONFIGS = {
         filename="gemma-3-12b-it-Q4_K_M.gguf",
         chat_format="gemma",
     ),
+    "llama_3b": ModelConfig(
+        model_name_or_path="unsloth/Llama-3.2-3B-Instruct-GGUF",
+        filename="Llama-3.2-3B-Instruct-Q3_K_M.gguf",
+        chat_format="llama-3",
+    ),
+    "llama_8b": ModelConfig(
+        model_name_or_path="unsloth/Llama-3.1-8B-Instruct-GGUF",
+        filename="Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        chat_format="llama-3",
+    ),
+    "smollm_3b": ModelConfig(
+        model_name_or_path="unsloth/SmolLM3-3B-GGUF",
+        filename="SmolLM3-3B-Q4_K_M.gguf",
+        chat_format="chatml",
+    ),
     "qwen_3b": ModelConfig(
         model_name_or_path="Qwen/Qwen2.5-3B-Instruct-GGUF",
         filename="qwen2.5-3b-instruct-q4_k_m.gguf",
@@ -85,7 +100,7 @@ QUERIES_DIR = BASE_DIR / "queries"
 THALAMUS_CONFIG_PATH = "../thalamus_db_model_config.json"
 
 # Query Filtering
-SKIP_QUERIES = {"Q7"}
+SKIP_QUERIES = {"Q9", "Q10", "Q11", "Q12"}
 ONLY_USE = {}
 
 # Server Configuration

@@ -46,7 +46,7 @@ from blendsql.common.typing import (
     ColumnRef,
     StringConcatenation,
 )
-from blendsql.models.model import Model
+from blendsql.models.model_base import ModelBase
 
 format_blendsql_function = lambda name: "{{" + name + "()}}"
 
@@ -131,7 +131,7 @@ def preprocess_blendsql(
     dialect: sqlglot.Dialect,
     kitchen: Kitchen,
     ingredients: Collection[Ingredient],
-    default_model: Model,
+    default_model: ModelBase,
 ) -> tuple[str, dict, set, Kitchen, set[Ingredient]]:
     """Parses BlendSQL string with our pyparsing grammar and returns objects
     required for interpretation and execution.
@@ -277,7 +277,7 @@ def materialize_cte(
     query_context: QueryContextManager,
     aliasname: str,
     db: Database,
-    default_model: Model,
+    default_model: ModelBase,
     ingredient_alias_to_parsed_dict: dict[str, dict],
     **kwargs,
 ) -> pd.DataFrame:
@@ -404,7 +404,7 @@ def _blend(
     query: str,
     db: Database,
     ingredients: Collection[Type[Ingredient]],
-    default_model: Model | None = None,
+    default_model: ModelBase | None = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
     enable_cascade_filter: bool = True,
@@ -489,10 +489,6 @@ def _blend(
                 completion_tokens=(
                     default_model.completion_tokens if default_model is not None else 0
                 ),
-                prompts=default_model.prompts if default_model is not None else [],
-                raw_prompts=default_model.raw_prompts
-                if default_model is not None
-                else [],
                 ingredients=[],
                 query=original_query,
                 db_url=str(db.db_url),
@@ -976,8 +972,6 @@ def _blend(
             completion_tokens=(
                 default_model.completion_tokens if default_model is not None else 0
             ),
-            prompts=default_model.prompts if default_model is not None else [],
-            raw_prompts=default_model.raw_prompts if default_model is not None else [],
             ingredients=ingredients,
             query=original_query,
             db_url=str(db.db_url),
@@ -1000,7 +994,7 @@ class BlendSQL:
             - PostgreSQL connection string
 
             - `Database` object
-        model (Optional[Model]): Model instance to use for LLM operations. Can also be
+        model (Optional[ModelBase]): Model instance to use for LLM operations. Can also be
             provided during query execution.
         ingredients (Optional[Collection[Type[Ingredient]]]): Collection of ingredients to
             make available for queries. Can also be
@@ -1013,7 +1007,7 @@ class BlendSQL:
     """
 
     db: pd.DataFrame | dict | str | Path | Database = field(default=None)
-    model: Model | None = field(default=None)
+    model: ModelBase | None = field(default=None)
     ingredients: Collection[Type[Ingredient]] | None = field(default_factory=list)
 
     verbose: bool = field(default=False)
