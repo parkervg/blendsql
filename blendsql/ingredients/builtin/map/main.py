@@ -430,9 +430,18 @@ class LLMMap(MapIngredient):
             arg_prefix = " "
             newline_args = False
             if has_more_than_one_arg:
-                if all(len(x) > 20 for x in additional_args + (value,)):
-                    arg_prefix = f"\n{INDENT(3)}"  # If we pass more than one arg, and they are long, make them appear on newlines
+                newline_args = False
+                if len(value) > 20:
                     newline_args = True
+                elif local_options is not None:
+                    if len(str(local_options)) > 20:
+                        newline_args = True
+                elif additional_args is not None:
+                    for a in additional_args:
+                        if len(a) > 20:
+                            newline_args = True
+                if newline_args:
+                    arg_prefix = f"\n{INDENT(3)}"  # If we pass more than one arg, and they are long, make them appear on newlines
                 gen_str = f"""{INDENT(2)}f({arg_prefix if newline_args else ''}{value_quote}{value}{value_quote}"""
                 if additional_args is not None:
                     for arg in additional_args:

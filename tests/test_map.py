@@ -3,7 +3,6 @@ import pandas as pd
 
 from blendsql import BlendSQL, config
 
-config.set_async_limit(1)
 config.set_deterministic(True)
 
 

@@ -4,7 +4,7 @@ from blendsql.models.model_base import ModelBase
 from blendsql.common.typing import GenerationResult, GenerationItem
 from blendsql.configure import add_to_global_history
 
-DEFAULT_BODY = {"temperature": 0.0, "max_tokens": 512}
+DEFAULT_BODY = {"temperature": 0.0, "max_tokens": 4096}
 
 
 class VLLM(ModelBase):
