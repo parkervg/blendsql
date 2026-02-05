@@ -36,7 +36,6 @@ dependencies = [
     "tqdm",
     "typeguard",
     "httpx",
-    "setuptools",            # For python 3.12
     "bm25s",
     "diskcache",
     "rich"
