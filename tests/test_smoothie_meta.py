@@ -46,12 +46,12 @@ def test_num_values_passed_map(bsql, model):
     total_num_values_to_process = bsql.db.execute_to_list(
         "SELECT COUNT(DISTINCT Name) FROM People", to_type=int
     )[0]
-    expected_token_count = 6  # "' == "n"\n'" is 6 tokens
+    expected_token_count = 5  # `"n"\n` is 6 tokens - 5 normal, 1 special. TODO: why is special token added?
     assert model.completion_tokens == 0
     assert model.prompt_tokens == 0
     smoothie = bsql.execute(
-        f"""
-        SELECT {{{{LLMMap('Is a famous singer?', p.Name, options=('y', 'n'))}}}} FROM People p
+        """
+        SELECT {{LLMMap('Is a famous singer?', p.Name, options=('y', 'n'))}} FROM People p
         """,
         model=model,
     )

@@ -80,7 +80,7 @@ class Smoothie:
             str(f"{self.meta.prompt_tokens:,}"),
             str(f"{self.meta.completion_tokens:,}"),
             str(
-                f"{self.meta.cached_tokens:,} ({round(self.meta.cached_tokens / self.meta.prompt_tokens, 2) * 100}%)"
+                f"{self.meta.cached_tokens:,} ({round(self.meta.cached_tokens / self.meta.prompt_tokens, 2) * 100 if self.meta.prompt_tokens else 0}%)"
             ),
         )
 
