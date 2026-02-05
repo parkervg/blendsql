@@ -1,6 +1,5 @@
 import os
 import copy
-from ast import literal_eval
 from pathlib import Path
 from typing import Callable
 import pandas as pd
@@ -8,13 +7,12 @@ import polars as pl
 import json
 from dataclasses import dataclass, field
 from textwrap import dedent
+from guidance._grammar import select, gen
 
-from blendsql.configure import add_to_global_history
 from blendsql.common.logger import logger, Color
 from blendsql.common.constants import DEFAULT_CONTEXT_FORMATTER
-from blendsql.models.utils import user, assistant
-from blendsql.models import Model, ConstrainedModel
-from blendsql.models.constrained.utils import maybe_load_lm, LMString
+from blendsql.common.typing import GenerationItem
+from blendsql.models.model_base import ModelBase
 from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 from blendsql.common.exceptions import LMFunctionException
@@ -32,7 +30,7 @@ from .examples import QAExample, AnnotatedQAExample
 
 MAIN_INSTRUCTION = "Answer the question given the context, if provided.\n"
 LONG_ANSWER_INSTRUCTION = "Make the answer as concrete as possible, providing more context and reasoning using the entire context.\n"
-SHORT_ANSWER_INSTRUCTION = "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'.\n"
+SHORT_ANSWER_INSTRUCTION = "Keep the answers as short as possible, without leading context. For example, do not say 'The answer is 2', simply say '2'. Your response format should match the specified 'Return type', if provided.\n"
 DEFAULT_QA_FEW_SHOT: list[AnnotatedQAExample] = [
     AnnotatedQAExample(**d)
     for d in json.loads(
@@ -67,7 +65,7 @@ def get_option_aliases(options: list[str] | None):
 
 @dataclass
 class LLMQA(QAIngredient):
-    model: Model = field(default=None)
+    model: ModelBase = field(default=None)
     context_formatter: Callable[[pd.DataFrame], str] = field(
         default=DEFAULT_CONTEXT_FORMATTER,
     )
@@ -78,7 +76,7 @@ class LLMQA(QAIngredient):
     @classmethod
     def from_args(
         cls,
-        model: Model | None = None,
+        model: ModelBase | None = None,
         few_shot_examples: list[dict] | list[AnnotatedQAExample] | None = None,
         context_formatter: Callable[[pd.DataFrame], str] = DEFAULT_CONTEXT_FORMATTER,
         list_options_in_prompt: bool = True,
@@ -156,9 +154,9 @@ class LLMQA(QAIngredient):
             )
         )
 
-    def run(
+    async def run(
         self,
-        model: Model,
+        model: ModelBase,
         question: str,
         context_formatter: Callable[[pd.DataFrame], str],
         list_options_in_prompt: bool,
@@ -272,198 +270,122 @@ class LLMQA(QAIngredient):
                 else self.options_searcher(question)[0]
             )
 
-        if isinstance(model, ConstrainedModel):
-            import guidance
+        instruction_str = MAIN_INSTRUCTION
+        if long_answer:
+            instruction_str += LONG_ANSWER_INSTRUCTION
+        else:
+            instruction_str += SHORT_ANSWER_INSTRUCTION
 
-            lm = LMString()  # type: ignore
+        curr_example_str = current_example.to_string(
+            context_formatter, list_options=list_options_in_prompt
+        )
 
-            instruction_str = MAIN_INSTRUCTION
-            if long_answer:
-                instruction_str += LONG_ANSWER_INSTRUCTION
-            else:
-                instruction_str += SHORT_ANSWER_INSTRUCTION
-
-            curr_example_str = current_example.to_string(
-                context_formatter, list_options=list_options_in_prompt
+        gen_f = None
+        grammar_suffix = "\n"
+        if enable_constrained_decoding:
+            if is_list_output:
+                gen_f = (
+                    lambda _: gen_list(
+                        force_quotes=bool("str" in resolved_return_type.name),
+                        regex=regex,
+                        options=options_with_aliases,
+                        quantifier=quantifier,
+                    )
+                    + grammar_suffix
+                )
+            elif options:
+                gen_f = lambda _: select(options=options)
+        else:
+            logger.debug(
+                Color.warning(
+                    "Not applying constraints, since `enable_constrained_decoding==False`"
+                )
             )
 
-            gen_f = None
-            if enable_constrained_decoding:
-                if is_list_output:
-                    gen_f = lambda _: guidance.capture(
-                        gen_list(
-                            force_quotes=bool("str" in resolved_return_type.name),
-                            regex=regex,
-                            options=options_with_aliases,
-                            quantifier=quantifier,
-                        ),
-                        name="response",
-                    )
-                elif options:
-                    gen_f = lambda _: guidance.select(options=options, name="response")
-            else:
-                logger.debug(
-                    Color.warning(
-                        "Not applying constraints, since `enable_constrained_decoding==False`"
-                    )
-                )
-
-            if gen_f is None:
-                gen_f = lambda _: guidance.gen(
+        if gen_f is None:
+            gen_f = (
+                lambda _: gen(
                     max_tokens=kwargs.get(
                         "max_tokens",
                         int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
                     ),
                     regex=regex if enable_constrained_decoding else None,
-                    name="response",
+                    stop=None if regex is not None else grammar_suffix,
                 )
-
-            # First check - do we need to load the model?
-            in_cache = False
-            if model.caching:
-                response, key = model.check_cache(
-                    instruction_str,
-                    curr_example_str,
-                    "\n".join(
-                        [
-                            f"{example.to_string(context_formatter)}\n {example.answer}"
-                            for example in few_shot_examples
-                        ]
-                    ),
-                    regex,
-                    options,
-                    quantifier,
-                    kwargs.get(
-                        "max_tokens",
-                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
-                    ),
-                    funcs=[gen_f],
-                )
-                if response is not None:
-                    in_cache = True
-            if not in_cache:
-                # Load our underlying guidance model, if we need to
-                lm: guidance.models.Model = maybe_load_lm(model, lm)
-                model.num_generation_calls += 1
-                lm = model.maybe_add_system_prompt(lm)
-                with guidance.user():
-                    lm += instruction_str
-                if len(few_shot_examples) > 0:
-                    for example in few_shot_examples:
-                        with guidance.user():
-                            lm += example.to_string(context_formatter)
-                        with guidance.assistant():
-                            lm += example.answer
-                with guidance.user():
-                    lm += curr_example_str
-
-                with guidance.assistant():
-                    lm += gen_f(question)
-                add_to_global_history(str(lm))
-
-                response = apply_type_conversion(
-                    lm["response"],
-                    return_type=resolved_return_type,
-                    db=self.db,
-                )
-
-                if model.caching:
-                    model.cache[key] = response  # type: ignore
-
-                model.completion_tokens += lm._get_usage().output_tokens
-                model.prompt_tokens += lm._get_usage().input_tokens
-                lm._reset_usage()
-        else:
-            messages = []
-            intro_prompt = MAIN_INSTRUCTION
-            if long_answer:
-                intro_prompt += LONG_ANSWER_INSTRUCTION
-            else:
-                intro_prompt += SHORT_ANSWER_INSTRUCTION
-            messages.append(user(intro_prompt))
-            # Add few-shot examples
-            for example in few_shot_examples:
-                messages.append(user(example.to_string(context_formatter)))
-                messages.append(assistant(example.answer))
-            # Add current question + context for inference
-            messages.append(
-                user(
-                    current_example.to_string(
-                        context_formatter, list_options=list_options_in_prompt
-                    )
-                )
+                + grammar_suffix
             )
-            response = model.generate(
-                messages_list=[messages],
-                max_tokens=kwargs.get(
-                    "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
-                ),
-            )[0].strip()
-            model.num_generation_calls += 1
-            add_to_global_history(messages)
 
-            if isinstance(response, str):  # type: ignore
-                # If we have specified a quantifier, we try to parse it to a tuple
-                if is_list_output:
-                    try:
-                        response = response.strip("'")
-                        response = literal_eval(response)
-                        assert isinstance(response, (list, tuple))
-                        response = tuple(response)
-                    except (ValueError, SyntaxError, AssertionError):
-                        response = [
-                            i.strip() for i in response.strip("[]()").split(",")
-                        ]
-                        response = [
-                            current_example.return_type.coerce_fn(r, self.db)
-                            for r in response
-                        ]
-                        response = tuple(
-                            [
-                                single_quote_escape(val)
-                                if isinstance(val, str)
-                                else val
-                                for val in response
-                            ]
-                        )
-                else:
-                    if isinstance(response, str):
-                        response = current_example.return_type.coerce_fn(
-                            response, self.db
-                        )
-                    elif isinstance(response, list):
-                        response = [
-                            current_example.return_type.coerce_fn(r, self.db)
-                            for r in response
-                        ]
+        # First check - do we need to load the model?
+        few_shot_str = "\n".join(
+            [
+                f"{example.to_string(context_formatter)}\n {example.answer}"
+                for example in few_shot_examples
+            ]
+        )
+        cache_key = None
+        if model.caching:
+            cached_response, cache_key = model.check_cache(
+                instruction_str,
+                curr_example_str,
+                few_shot_str,
+                regex,
+                options,
+                quantifier,
+                kwargs.get(
+                    "max_tokens",
+                    int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                ),
+                funcs=[gen_f],
+            )
+            if cached_response is not None:
+                return cached_response
+
+        full_instruction = instruction_str
+        if len(few_shot_examples) > 0:
+            for example in few_shot_examples:
+                full_instruction += (
+                    example.to_string(context_formatter)
+                    + "\n"
+                    + "Answer: "
+                    + example.answer
+                )
+        full_instruction += curr_example_str
+        grammar = gen_f(question).ll_grammar()
+
+        result = await model.generate(
+            GenerationItem(prompt=full_instruction, grammar=grammar)
+        )
+        converted_value = apply_type_conversion(
+            result.value.removesuffix(grammar_suffix),
+            return_type=resolved_return_type,
+            db=self.db,
+        )
+
+        if model.caching:
+            model.cache[cache_key] = converted_value  # type: ignore
+
         # Map from modified options to original, as they appear in DB
-        if not isinstance(response, (list, tuple, set)):
-            response = [response]
-        response: list[str] = [
-            options_alias_to_original.get(str(r), r) for r in response
+        if not isinstance(converted_value, (list, tuple, set)):
+            converted_value = [converted_value]
+
+        converted_value: list[str] = [
+            options_alias_to_original.get(str(r), r) for r in converted_value
         ]
-        if len(response) == 1 and not is_list_output:
-            response = response[0]  # type: ignore
-            if options and response not in options:
+        if len(converted_value) == 1 and not is_list_output:
+            converted_value = converted_value[0]  # type: ignore
+            if options and converted_value not in options:
                 logger.debug(
                     Color.error(
-                        f"Model did not select from a valid option!\nExpected one of {options}, got '{response}'"
+                        f"Model did not select from a valid option!\nExpected one of {options}, got '{converted_value}'"
                     )
                 )
             if resolved_return_type.name.lower() in ["str", "any"]:
-                response = f"'{single_quote_escape(response)}'"  # type: ignore
+                converted_value = f"'{single_quote_escape(converted_value)}'"  # type: ignore
         else:
-            response = tuple(response)  # type: ignore
-        if os.getenv("BLENDSQL_ALWAYS_LOWERCASE_RESPONSE") == "1":
-            # Basic transforms not handled by SQLite type affinity
-            if response == "True":
-                return True
-            if response == "False":
-                return False
-            return response.lower()
+            converted_value = tuple(converted_value)  # type: ignore
         logger.debug(
             lambda: Color.warning(
-                f"Finished LLMQA with value: {str(response)[:200]}{'...' if len(str(response)) > 200 else ''}"
+                f"Finished LLMQA with value: {str(converted_value)[:200]}{'...' if len(str(converted_value)) > 200 else ''}"
             )
         )
-        return response  # type: ignore
+        return converted_value  # type: ignore

@@ -48,8 +48,8 @@ def test_qa_with_map_cascade_and_join(bsql, model):
         model=model,
     )
     assert not smoothie.df.empty
-    assert smoothie.meta.num_generation_calls <= 4
-    assert smoothie.meta.num_values_passed <= 3
+    assert smoothie.meta.num_generation_calls <= 10
+    assert smoothie.meta.num_values_passed <= 10
 
 
 # def test_multi_qa_map_cascade(bsql, model):

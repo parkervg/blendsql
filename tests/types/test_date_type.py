@@ -79,7 +79,7 @@ def bsql() -> BlendSQL:
     )
 
 
-def test_date_type_infer(bsql, constrained_model):
+def test_date_type_infer(bsql, model):
     _ = bsql.execute(
         """
         SELECT * FROM customers c 
@@ -87,5 +87,5 @@ def test_date_type_infer(bsql, constrained_model):
         WHERE status = 'completed'
         AND order_date > {{LLMQA('When was the first case of COVID-19?')}}
         """,
-        model=constrained_model,
+        model=model,
     )

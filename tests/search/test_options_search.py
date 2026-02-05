@@ -79,7 +79,7 @@ def bsql() -> BlendSQL:
 
 
 @pytest.mark.skipif(sys.platform == "darwin", reason="faiss tests skipped on MacOS")
-def test_faiss_options_search(bsql, constrained_model):
+def test_faiss_options_search(bsql, model):
     _ = bsql.execute(
         f"""
             SELECT patient_description, 
@@ -94,5 +94,5 @@ def test_faiss_options_search(bsql, constrained_model):
             reactions_list AS ground_truth 
             FROM w ORDER BY patient_description LIMIT 5
             """,
-        model=constrained_model,
+        model=model,
     )

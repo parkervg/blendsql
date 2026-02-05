@@ -1,11 +1,7 @@
 import pytest
 import pandas as pd
 
-from blendsql import BlendSQL, config
-from blendsql.models import ConstrainedModel
-
-config.set_async_limit(1)
-config.set_deterministic(True)
+from blendsql import BlendSQL
 
 
 @pytest.fixture(scope="module")
@@ -28,8 +24,6 @@ def bsql() -> BlendSQL:
 
 
 def test_qa_tuple_with_single_quotes(bsql, model):
-    if not isinstance(model, ConstrainedModel):
-        pytest.skip()
     smoothie = bsql.execute(
         """
             SELECT * FROM (

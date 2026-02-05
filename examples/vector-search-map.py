@@ -1,8 +1,8 @@
-from blendsql.ingredients import LLMMap
 import pandas as pd
 from blendsql import BlendSQL
-from blendsql.search import ColbertWikipediaSearch
-from blendsql.models import TransformersLLM
+from blendsql.models import LlamaCpp
+
+import psutil
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -59,37 +59,52 @@ if __name__ == "__main__":
                 ]
             )
         },
-        model=TransformersLLM("HuggingFaceTB/SmolLM2-135M-Instruct"),
+        model=LlamaCpp(
+            model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
+            filename="gemma-3-4b-it-Q4_K_M.gguf",
+            # model_name_or_path="bartowski/SmolLM2-135M-Instruct-GGUF",
+            # filename="SmolLM2-135M-Instruct-Q4_K_M.gguf",
+            config={
+                "n_gpu_layers": -1,
+                "n_ctx": 1028,
+                "seed": 100,
+                "n_threads": psutil.cpu_count(logical=False),
+            },
+            caching=False,
+        ),
         verbose=True,
     )
     _ = bsql.model.model_obj
 
-    WikipediaSearchMap = LLMMap.from_args(
-        context_searcher=ColbertWikipediaSearch(
-            k=1,  # Retrieve 1 document for each scalar value on the map call
-        ),
-    )
-    bsql.ingredients = {
-        WikipediaSearchMap,
-    }
+    from blendsql.search import FaissVectorStore
+    from blendsql.ingredients import LLMMap
 
-    # What is the name of the oldest person?
-    # The `WikipediaSearchMap` will aggregate context for each entry using the ColbertWikipediaSearch,
-    #   passing it as context to yield an integer
+    # We can also define a local FAISS vector store
+    context_searcher = FaissVectorStore(
+        model_name_or_path="sentence-transformers/all-mpnet-base-v2",
+        documents=[
+            "Ryan Steven Lochte (/ˈlɒkti/ LOK-tee; born August 3, 1984) is an American former[2] competition swimmer and 12-time Olympic medalist.",
+            "Rebecca Soni (born March 18, 1987) is an American former competition swimmer and breaststroke specialist.",
+            "Elizabeth Lyon Beisel (/ˈbaɪzəl/; born August 18, 1992) is an American competition swimmer who specializes in backstroke and individual medley events.",
+        ],
+        k=1,
+    )
+
+    DocumentSearchMap = LLMMap.from_args(context_searcher=context_searcher)
+
+    # This line registers our new function in our `BlendSQL` connection context
+    # Replacement scans allow us to now reference the function by the variable name we initialized it to (`DocumentSearchMap`)
+    bsql.ingredients = {DocumentSearchMap}
+
+    # Define a blendsql program to answer: 'What is the name of the oldest person who won gold?'
     smoothie = bsql.execute(
         """
-        SELECT Name FROM world_aquatic_championships w
-        WHERE event NOT LIKE '%team%'
-        ORDER BY {{WikipediaSearchMap('What year was {} born?', w.Name)}} ASC LIMIT 1
+       WITH t AS (
+            SELECT Name FROM "world_aquatic_championships"
+            WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE
+            AND {{LLMMap('Is this time over 2 minutes?', "Time/Score")}} = TRUE
+        ) SELECT Name FROM t
+        ORDER BY {{LLMMap('What year was {} born?', t.Name)}} ASC LIMIT 1
         """
     )
-
-    print(smoothie.df)
-    # ┌─────────────┐
-    # │ Name        │
-    # ├─────────────┤
-    # │ Ryan Lochte │
-    # └─────────────┘
-    from blendsql.configure import GLOBAL_HISTORY
-
-    print(GLOBAL_HISTORY)
+    smoothie.print_summary()

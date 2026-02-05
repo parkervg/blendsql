@@ -1,12 +1,9 @@
 import pytest
 import pandas as pd
 
-from blendsql import BlendSQL, config, GLOBAL_HISTORY
+from blendsql import BlendSQL, GLOBAL_HISTORY
 from blendsql.db import DuckDB
 from .utils import test_starts_with
-
-config.set_async_limit(1)
-config.set_deterministic(True)
 
 
 @pytest.fixture(scope="module")

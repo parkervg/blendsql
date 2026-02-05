@@ -18,7 +18,8 @@ class test_starts_with(MapIngredient):
         self,
         question: str,
         values: list[str],
-        exit_condition: Callable | None = None,
+        exit_condition_func: Callable | None = None,
+        exit_condition_required_values: int | None = None,
         **kwargs,
     ) -> list[bool]:
         """Simple test function, equivalent to the following in SQL:
@@ -26,12 +27,16 @@ class test_starts_with(MapIngredient):
         This allows us to compare the output of a BlendSQL script with a SQL script easily.
         """
         d = {}
+        n_satisfied = 0
         for value in values:
             d[value] = bool(value.startswith(question))
             self.num_values_passed += 1
-            if exit_condition is not None and exit_condition(d):
-                print("Early exit applied!")
-                break
+            if exit_condition_func is not None:
+                if exit_condition_func(d[value]):
+                    n_satisfied += 1
+                if n_satisfied >= exit_condition_required_values:
+                    print("Early exit applied!")
+                    break
         mapped_values = [d.get(value) for value in values]
         return mapped_values
 
@@ -46,18 +51,27 @@ class get_length(MapIngredient):
         return super().__call__(question="length", values=values, *args, **kwargs)
 
     def run(
-        self, values: list[str], exit_condition: Callable | None = None, **kwargs
+        self,
+        values: list[str],
+        exit_condition_func: Callable | None = None,
+        exit_condition_required_values: int | None = None,
+        **kwargs,
     ) -> Iterable[int]:
         """Simple test function, equivalent to the following in SQL:
             `LENGTH '{arg}%`
         This allows us to compare the output of a BlendSQL script with a SQL script easily.
         """
         d = {}
+        n_satisfied = 0
         for value in values:
             d[value] = len(value)
             self.num_values_passed += 1
-            if exit_condition is not None and exit_condition(d):
-                break
+            if exit_condition_func is not None:
+                if exit_condition_func(d[value]):
+                    n_satisfied += 1
+                if n_satisfied >= exit_condition_required_values:
+                    print("Early exit applied!")
+                    break
         mapped_values = [d.get(value) for value in values]
         return mapped_values
 
@@ -84,14 +98,23 @@ class return_true(QAIngredient):
 
 class return_true_map(MapIngredient):
     def run(
-        self, values: list[str], exit_condition: Callable | None = None, **kwargs
+        self,
+        values: list[str],
+        exit_condition_func: Callable | None = None,
+        exit_condition_required_values: int | None = None,
+        **kwargs,
     ) -> bool:
         d = {}
+        n_satisfied = 0
         for value in values:
             d[value] = True
             self.num_values_passed += 1
-            if exit_condition is not None and exit_condition(d):
-                break
+            if exit_condition_func is not None:
+                if exit_condition_func(d[value]):
+                    n_satisfied += 1
+                if n_satisfied >= exit_condition_required_values:
+                    print("Early exit applied!")
+                    break
         mapped_values = [d.get(value) for value in values]
         return mapped_values
 

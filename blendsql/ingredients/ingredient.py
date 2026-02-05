@@ -1,5 +1,6 @@
 import os
 import re
+import asyncio
 from dataclasses import dataclass, field
 from abc import abstractmethod
 import pandas as pd
@@ -8,8 +9,8 @@ import json
 from typing import Type, Callable, Any
 from collections.abc import Collection, Iterable
 import uuid
-from typeguard import check_type
 import polars as pl
+import inspect
 
 from blendsql.common.exceptions import LMFunctionException
 from blendsql.common.logger import logger, Color
@@ -68,7 +69,8 @@ class Ingredient:
         ...
 
     def _run(self, *args, **kwargs):
-        return check_type(self.run(*args, **kwargs), self.allowed_output_types)
+        result = self.run(*args, **kwargs)
+        return asyncio.run(result) if inspect.iscoroutinefunction(self.run) else result
 
     @staticmethod
     def _maybe_set_name_to_var_name(partial_cls):

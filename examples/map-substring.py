@@ -2,7 +2,7 @@ import pandas as pd
 import torch.cuda
 
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp, TransformersLLM
+from blendsql.models import LlamaCpp, Transformers
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -23,7 +23,7 @@ if __name__ == "__main__":
             config={"n_gpu_layers": -1},
         )
         if torch.cuda.is_available()
-        else TransformersLLM("HuggingFaceTB/SmolLM2-135M-Instruct"),
+        else Transformers("HuggingFaceTB/SmolLM2-135M-Instruct"),
         verbose=True,
     )
     smoothie = bsql.execute(

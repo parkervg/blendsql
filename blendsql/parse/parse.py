@@ -6,7 +6,6 @@ import re
 from collections import Counter
 from sqlglot.optimizer.scope import find_all_in_scope
 from dataclasses import dataclass, field
-from functools import partial
 
 from blendsql.common.utils import get_tablename_colname
 from blendsql.common.typing import ColumnRef, StringConcatenation
@@ -429,10 +428,12 @@ class SubqueryContextManager:
                     #   and seeing if we can combine them into a single exit_condition.
         return function_node
 
-    def get_exit_condition(self, function_node: exp.Expression) -> Callable | None:
+    def get_exit_condition(
+        self, function_node: exp.Expression
+    ) -> tuple[Callable, int] | tuple[None, None]:
         limit_node = self.node.find(exp.Limit)
         if limit_node is None:
-            return None
+            return (None, None)
 
         def _has_unsafe_or(node):
             """
@@ -456,14 +457,14 @@ class SubqueryContextManager:
             or self.node.find(exp.Order)
             or self.node.find(exp.Distinct)
         ):
-            return None
+            return (None, None)
 
         # For `OR`, we need to check if it appears at the "top level"
         # vs being contained within a subexpression
         # `... {{A()}} AND (x OR y) LIMIT 5` should still be eligible for an exit condition
         where_clause = self.node.find(exp.Where)
         if where_clause and _has_unsafe_or(where_clause):
-            return None
+            return (None, None)
 
         function_node = self.maybe_resolve_aliased_function(function_node)
 
@@ -474,34 +475,35 @@ class SubqueryContextManager:
             offset_arg = 0
             if offset_node:
                 offset_arg: int = offset_node.expression.to_py()
+
             parent_node = function_node.parent
             arg = parent_node.expression.to_py()
-            _exit_condition = (
-                lambda d, op: sum(op(v) for v in d.values()) >= limit_arg + offset_arg
-            )
+            num_required_values = limit_arg + offset_arg
+
             if arg == function_node:
-                return None
+                return (None, None)
             if isinstance(parent_node, exp.EQ):
-                return partial(_exit_condition, op=lambda v: v == arg)
+                return (lambda v: v == arg, num_required_values)
             elif isinstance(parent_node, exp.GT):
-                return partial(_exit_condition, op=lambda v: v > arg)
+                return (lambda v: v > arg, num_required_values)
             elif isinstance(parent_node, exp.GTE):
-                return partial(_exit_condition, op=lambda v: v >= arg)
+                return (lambda v: v >= arg, num_required_values)
             elif isinstance(parent_node, exp.LT):
-                return partial(_exit_condition, op=lambda v: v < arg)
+                return (lambda v: v < arg, num_required_values)
             elif isinstance(parent_node, exp.LTE):
-                return partial(_exit_condition, op=lambda v: v <= arg)
+                return (lambda v: v <= arg, num_required_values)
             elif isinstance(parent_node, exp.Like):
                 # First we need to convert SQL pattern to regex
                 re_pattern = re.escape(arg).replace(r"\%", ".*")
-                return partial(_exit_condition, op=lambda v: re.search(re_pattern, v))
+                return (lambda v: re.search(re_pattern, v), num_required_values)
             elif isinstance(parent_node, exp.Is):
-                return partial(_exit_condition, op=lambda v: v is arg)
+                return (lambda v: v is arg, num_required_values)
             elif isinstance(parent_node, exp.Not):
-                return partial(_exit_condition, op=lambda v: not v)
+                return (lambda v: not v, num_required_values)
             elif isinstance(parent_node, exp.In):
                 print()
             # TODO: add more
+        return (None, None)
 
     def is_eligible_for_cascade_filter(self) -> bool:
         """

@@ -94,7 +94,7 @@ def test_error_on_bad_options_subquery(bsql):
         )
 
 
-def test_replacement_scan(bsql, constrained_model):
+def test_replacement_scan(bsql, model):
     """ad94437"""
     NewIngredient = LLMQA.from_args(num_few_shot_examples=2)
     _ = bsql.execute(
@@ -103,7 +103,7 @@ def test_replacement_scan(bsql, constrained_model):
         WHERE w.Name = {{NewIngredient('Will this work?')}}
         """,
         ingredients={NewIngredient},
-        model=constrained_model,
+        model=model,
     )
 
 
@@ -219,14 +219,14 @@ def test_llmmap_concatenation_pipes_with_alias(bsql, model):
     )
 
 
-def test_prompt_type_annotation(bsql, constrained_model):
+def test_prompt_type_annotation(bsql, model):
     from blendsql import GLOBAL_HISTORY
 
     _ = bsql.execute(
         """
         SELECT {{LLMMap('Is a famous singer?', Name, options=('yes', 'no'))}} FROM w LIMIT 1
         """,
-        model=constrained_model,
+        model=model,
     )
     assert 'Literal["yes", "no"]' in GLOBAL_HISTORY[-1]
 
@@ -234,12 +234,12 @@ def test_prompt_type_annotation(bsql, constrained_model):
         """
         SELECT {{LLMMap('How old are they, probably', Name, options=(21, 14, 12))}} FROM w LIMIT 1
         """,
-        model=constrained_model,
+        model=model,
     )
     assert "Literal[21, 14, 12]" in GLOBAL_HISTORY[-1]
 
 
-def test_raises_type_resolution_error(bsql, constrained_model):
+def test_raises_type_resolution_error(bsql, model):
     """965d8fd"""
     with pytest.raises(TypeResolutionException):
         _ = bsql.execute(
@@ -252,5 +252,5 @@ def test_raises_type_resolution_error(bsql, constrained_model):
                 )
             }} = 'D'
             """,
-            model=constrained_model,
+            model=model,
         )

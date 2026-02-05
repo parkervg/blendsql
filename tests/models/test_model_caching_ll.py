@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Callable
 
-from blendsql.models import Model
+from blendsql.models import ModelBase
 
 TEST_QUESTION = "The quick brown fox jumps over the lazy dog"
 TEST_FUNC = lambda x: x.lower().strip()
@@ -16,12 +16,10 @@ class DummyModelOutput:
     _variables: dict
 
 
-class DummyModel(Model):
+class DummyModel(ModelBase):
     def __init__(self, model_name_or_path: str, **kwargs):
         super().__init__(
             model_name_or_path=model_name_or_path,
-            requires_config=False,
-            tokenizer=None,
             caching=True,
             **kwargs,
         )

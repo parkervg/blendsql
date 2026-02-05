@@ -76,3 +76,19 @@ class StringConcatenation(IngredientArgType, list):
         if isinstance(other, StringConcatenation):
             return list.__eq__(self, other)
         return NotImplemented
+
+
+@dataclass
+class GenerationItem:
+    prompt: str
+    grammar: str
+    identifier: str | None = None
+    cache_key: str | None = None
+    assistant_continuation: str | None = None
+
+
+@dataclass
+class GenerationResult:
+    identifier: str
+    value: str
+    completed: bool
