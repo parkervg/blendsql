@@ -182,7 +182,7 @@ As a result, we can *Blend* together...
 
 ### Core Design Principle: Be Lazy 😴
 
-This is embodied in a few different ways - [early exit LLM functions when `LIMIT` clauses are used](https://github.com/parkervg/blendsql/pull/57), [use the outputs of previous LLM functions to filter the input of future LLM functions](https://github.com/parkervg/blendsql/pull/61), [don't eagerly materialize CTEs unless we need to](https://github.com/parkervg/blendsql/pull/19), etc.
+This is embodied in a few different ways - [early exit LLM functions when `LIMIT` clauses are used](https://github.com/parkervg/blendsql/pull/57), [use the outputs of previous LLM functions to filter the input of future LLM functions](https://github.com/parkervg/blendsql/pull/61), etc.
 
 But, at a higher level: Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data into memory that is *logically required* to pass to the language model functions. We then prep the database state via temporary tables, and finally sync back to the native SQL dialect and execute. In this way, BlendSQL 'compiles to SQL'.
 
@@ -201,11 +201,11 @@ For more info on query execution in BlendSQL, see Section 2.4 [here](https://arx
 
 - Supports many DBMS 💾
   - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
-- Specialized support for local language models models ✨
+- Optimized async-based parallelism with vLLM ✨
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
   - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-  - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
+  - We only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
 # Benchmarks 

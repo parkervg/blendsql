@@ -204,7 +204,7 @@ For more info on query execution in BlendSQL, see Section 2.4 [here](https://arx
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
       - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-      - When using local models, we only generate syntactically valid outputs according to query syntax + database contents
+      - We only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
 
 # Benchmarks 
