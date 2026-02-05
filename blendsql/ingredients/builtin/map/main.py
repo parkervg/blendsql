@@ -585,7 +585,7 @@ class LLMMap(MapIngredient):
 
         if logger.level <= logging.DEBUG:
             pbar = tqdm(
-                desc=f"LLMMap with n_parallel={n_parallel}",
+                desc=Color.prefix + f"LLMMap with n_parallel={n_parallel}",
                 total=len(values),
             )
             # Update for cached items
@@ -638,9 +638,9 @@ class LLMMap(MapIngredient):
 
                         if n_satisfied >= exit_condition_required_values:
                             logger.debug(
-                                f"Exit condition satisfied. "
-                                f"Processed {items_completed}/{items_submitted} submitted, "
-                                f"{len(lm_mapping)} total (including cached)."
+                                Color.optimization(
+                                    f"[ 🚪] Exit condition satisfied. Exiting early after processing {items_completed:,} out of {items_submitted:,} items, {len(lm_mapping)} total (including cached)."
+                                )
                             )
                             cancel_event.set()
 

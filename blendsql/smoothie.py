@@ -13,6 +13,7 @@ class SmoothieMeta:
     num_generation_calls: int = field()  # Number of generation calls made to the model
     prompt_tokens: int = field()
     completion_tokens: int = field()
+    cached_tokens: int = field()
     ingredients: Iterable[Type[Ingredient]] = field()
     query: str = field()
     db_url: str = field()
@@ -65,6 +66,7 @@ class Smoothie:
         table.add_column("# Generation Calls")
         table.add_column("Prompt Tokens")
         table.add_column("Completion Tokens")
+        table.add_column("Cached Tokens")
 
         time_value = (
             str(self.meta.process_time_seconds)
@@ -74,9 +76,12 @@ class Smoothie:
 
         table.add_row(
             time_value,
-            str(self.meta.num_generation_calls),
-            str(self.meta.prompt_tokens),
-            str(self.meta.completion_tokens),
+            str(f"{self.meta.num_generation_calls:,}"),
+            str(f"{self.meta.prompt_tokens:,}"),
+            str(f"{self.meta.completion_tokens:,}"),
+            str(
+                f"{self.meta.cached_tokens:,} ({round(self.meta.cached_tokens / self.meta.prompt_tokens, 2) * 100}%)"
+            ),
         )
 
         # Create side-by-side panels for query and result

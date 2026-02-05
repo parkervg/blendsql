@@ -489,6 +489,9 @@ def _blend(
                 completion_tokens=(
                     default_model.completion_tokens if default_model is not None else 0
                 ),
+                cached_tokens=(
+                    default_model.cached_tokens if default_model is not None else 0
+                ),
                 ingredients=[],
                 query=original_query,
                 db_url=str(db.db_url),
@@ -971,6 +974,9 @@ def _blend(
             ),
             completion_tokens=(
                 default_model.completion_tokens if default_model is not None else 0
+            ),
+            cached_tokens=(
+                default_model.cached_tokens if default_model is not None else 0
             ),
             ingredients=ingredients,
             query=original_query,

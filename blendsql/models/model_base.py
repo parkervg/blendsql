@@ -24,7 +24,7 @@ class ModelBase:
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
-    cached_tokens: int = "N.A."
+    cached_tokens: int = 0
     num_generation_calls: int = 0
     num_cache_hits: int = 0
 

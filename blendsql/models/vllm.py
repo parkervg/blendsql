@@ -82,6 +82,10 @@ class VLLM(ModelBase):
                 if hasattr(chunk, "usage") and chunk.usage is not None:
                     self.prompt_tokens += chunk.usage.prompt_tokens
                     self.completion_tokens += chunk.usage.completion_tokens
+                    if chunk.usage.prompt_tokens_details is not None:
+                        self.cached_tokens += (
+                            chunk.usage.prompt_tokens_details.cached_tokens
+                        )
 
         finally:
             await stream.close()

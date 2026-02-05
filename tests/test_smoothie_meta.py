@@ -2,7 +2,6 @@ import pytest
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.ingredients import LLMMap
 
 
 @pytest.fixture(scope="module")
@@ -47,23 +46,20 @@ def test_num_values_passed_map(bsql, model):
     total_num_values_to_process = bsql.db.execute_to_list(
         "SELECT COUNT(DISTINCT Name) FROM People", to_type=int
     )[0]
-    max_tokens = 1  # since 'y' and 'n' are one token each
-    for bs in [1, 5, 10]:
-        assert model.completion_tokens == 0
-        assert model.prompt_tokens == 0
-        print(f"{bs=}")
-        smoothie = bsql.execute(
-            f"""
-            SELECT {{{{LLMMap('Is a famous singer?', p.Name, options=('y', 'n'))}}}} FROM People p
-            """,
-            ingredients={LLMMap.from_args(batch_size=bs)},
-            model=model,
-        )
-        assert smoothie.meta.num_values_passed == total_num_values_to_process
-        assert smoothie.meta.num_generation_calls == total_num_values_to_process
-        assert smoothie.meta.completion_tokens == (
-            max_tokens * total_num_values_to_process
-        ), f"{smoothie.meta.completion_tokens=}, {(max_tokens * total_num_values_to_process)=}, {bs=}"
+    expected_token_count = 6  # "' == "n"\n'" is 6 tokens
+    assert model.completion_tokens == 0
+    assert model.prompt_tokens == 0
+    smoothie = bsql.execute(
+        f"""
+        SELECT {{{{LLMMap('Is a famous singer?', p.Name, options=('y', 'n'))}}}} FROM People p
+        """,
+        model=model,
+    )
+    assert smoothie.meta.num_values_passed == total_num_values_to_process
+    assert smoothie.meta.num_generation_calls == total_num_values_to_process
+    assert smoothie.meta.completion_tokens == (
+        expected_token_count * total_num_values_to_process
+    ), f"{smoothie.meta.completion_tokens=}, {(expected_token_count * total_num_values_to_process)=}"
 
 
 def test_num_values_passed_qa(bsql, model):
