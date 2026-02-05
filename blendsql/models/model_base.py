@@ -77,5 +77,6 @@ class ModelBase:
     def reset_stats(self):
         self.prompt_tokens = 0
         self.completion_tokens = 0
+        self.cached_tokens = 0
         self.num_generation_calls = 0
         self.num_cache_hits = 0
