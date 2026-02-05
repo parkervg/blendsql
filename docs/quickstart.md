@@ -8,21 +8,9 @@ hide:
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp, LiteLLM
+from blendsql.models import VLLM
 
-USE_LOCAL_CONSTRAINED_MODEL = False
-
-# Load model, either a local LlamaCpp model, or remote provider via LiteLLM
-if USE_LOCAL_CONSTRAINED_MODEL:
-    # Local models enable BlendSQL's expression-guided constrained decoding
-    # https://arxiv.org/abs/2509.20208    
-    model = LlamaCpp(
-        model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
-        filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
-        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-    ) 
-else:
-    model = LiteLLM("openai/gpt-4o-mini")
+model = VLLM("RedHatAI/gemma-3-12b-it-quantized.w4a16", base_url="http://localhost:8000/v1/")
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(

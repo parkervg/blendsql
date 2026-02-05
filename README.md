@@ -48,6 +48,8 @@ import pandas as pd
 from blendsql import BlendSQL
 from blendsql.models import VLLM
 
+model = VLLM("RedHatAI/gemma-3-12b-it-quantized.w4a16", base_url="http://localhost:8000/v1/")
+
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
     {
