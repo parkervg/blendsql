@@ -196,11 +196,25 @@ class BlendSQLDialect(sqlglot.Dialect):
 
 
 class BlendSQLDuckDB(BlendSQLDialect, DuckDB):
-    pass
+    class Tokenizer(BlendSQLDialect.Tokenizer, DuckDB.Tokenizer):
+        pass
+
+    class Parser(BlendSQLDialect.Parser, DuckDB.Parser):
+        pass
+
+    class Generator(BlendSQLDialect.Generator, DuckDB.Generator):
+        pass
 
 
 class BlendSQLPostgres(BlendSQLDialect, Postgres):
-    pass
+    class Tokenizer(BlendSQLDialect.Tokenizer, Postgres.Tokenizer):
+        pass
+
+    class Parser(BlendSQLDialect.Parser, Postgres.Parser):
+        pass
+
+    class Generator(BlendSQLDialect.Generator, Postgres.Generator):
+        pass
 
 
 def glob_to_match(self: SQLite.Generator, expression: exp.Where) -> str:
@@ -219,6 +233,9 @@ class BlendSQLSQLite(BlendSQLDialect, SQLite):
                 "MATCH": TokenType.GLOB,
             },
         }
+
+    class Parser(BlendSQLDialect.Parser, SQLite.Parser):
+        pass
 
     class Generator(BlendSQLDialect.Generator, SQLite.Generator):
         TRANSFORMS = {
@@ -266,7 +283,7 @@ def _parse_one(
             #  SELECT content[0:5000] AS "README"
             #  FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
             #  ``` becomes `"".content[0:5000]`
-            if "read_" in sql.lower():
+            if " read_" in sql.lower():
 
                 def remove_empty_quoted_identifiers(node):
                     if (
