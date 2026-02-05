@@ -20,7 +20,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "vllm",
     "guidance==0.3.1",
     "polars[pyarrow]",
     "pandas>=2.0.0",
