@@ -281,13 +281,17 @@ class LLMQA(QAIngredient):
         )
 
         gen_f = None
+        grammar_suffix = "\n"
         if enable_constrained_decoding:
             if is_list_output:
-                gen_f = lambda _: gen_list(
-                    force_quotes=bool("str" in resolved_return_type.name),
-                    regex=regex,
-                    options=options_with_aliases,
-                    quantifier=quantifier,
+                gen_f = (
+                    lambda _: gen_list(
+                        force_quotes=bool("str" in resolved_return_type.name),
+                        regex=regex,
+                        options=options_with_aliases,
+                        quantifier=quantifier,
+                    )
+                    + grammar_suffix
                 )
             elif options:
                 gen_f = lambda _: select(options=options)
@@ -299,13 +303,16 @@ class LLMQA(QAIngredient):
             )
 
         if gen_f is None:
-            gen_f = lambda _: gen(
-                max_tokens=kwargs.get(
-                    "max_tokens",
-                    int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
-                ),
-                regex=regex if enable_constrained_decoding else None,
-                stop="\n" if regex is None else None,
+            gen_f = (
+                lambda _: gen(
+                    max_tokens=kwargs.get(
+                        "max_tokens",
+                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                    ),
+                    regex=regex if enable_constrained_decoding else None,
+                    stop=None if regex is not None else grammar_suffix,
+                )
+                + grammar_suffix
             )
 
         # First check - do we need to load the model?
@@ -349,7 +356,7 @@ class LLMQA(QAIngredient):
             GenerationItem(prompt=full_instruction, grammar=grammar)
         )
         converted_value = apply_type_conversion(
-            result.value,
+            result.value.removesuffix(grammar_suffix),
             return_type=resolved_return_type,
             db=self.db,
         )

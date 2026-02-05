@@ -393,7 +393,7 @@ class LLMMap(MapIngredient):
                     ),
                     # guidance>=0.2.1 doesn't allow both `stop` and `regex` to be passed
                     # guidance 0.3.0 raises a serialization error if this is a list, not a tuple
-                    stop=None if regex is not None else '"\n',
+                    stop=None if regex is not None else grammar_suffix,
                     regex=regex if enable_constrained_decoding else None,
                 )
                 + grammar_suffix,
