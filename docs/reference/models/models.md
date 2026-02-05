@@ -4,12 +4,13 @@ hide:
 ---
 # Models
 
-We enable integration with many existing LLMs by building on top of [`guidance` models](https://github.com/guidance-ai/guidance).
-
-Certain models may be better geared towards some BlendSQL tasks than others, so choose carefully!
-
-
 ## `Model`
-::: blendsql.models.model.Model
+::: blendsql.models.model_base.ModelBase
+    handler: python
+    show_source: true
+
+
+## `VLLM`
+::: blendsql.models.vllm.VLLM
     handler: python
     show_source: true

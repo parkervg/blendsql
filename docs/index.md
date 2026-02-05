@@ -46,21 +46,10 @@ pip install uv && uv pip install blendsql
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp, LiteLLM
+from blendsql.models import VLLM
 
-USE_LOCAL_CONSTRAINED_MODEL = False
-
-# Load model, either a local LlamaCpp model, or remote provider via LiteLLM
-if USE_LOCAL_CONSTRAINED_MODEL:
-    # Local models enable BlendSQL's expression-guided constrained decoding
-    # https://arxiv.org/abs/2509.20208    
-    model = LlamaCpp(
-        model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
-        filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
-        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-    ) 
-else:
-    model = LiteLLM("openai/gpt-4o-mini")
+# Define model 
+model = VLLM("RedHatAI/gemma-3-12b-it-quantized.w4a16", base_url="http://localhost:8000/v1/")
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
@@ -205,17 +194,13 @@ For more info on query execution in BlendSQL, see Section 2.4 [here](https://arx
 - (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
 - (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
 - (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
-- (3/16/25) Use BlendSQL with 100+ LLM APIs, using [LiteLLM](https://github.com/BerriAI/litellm)!
 - (10/26/24) New tutorial! [blendsql-by-example.ipynb](https://github.com/parkervg/blendsql/blob/main/examples/blendsql-by-example.ipynb)
-- (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
-  - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
 
 # Features
 
 - Supports many DBMS 💾
       - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
-- Supports local & remote models ✨
-      - LlamaCpp, Transformers, OpenAI, Anthropic, Ollama, and 100+ more!
+- Optimized async-based parallelism with vLLM ✨
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
       - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
@@ -256,20 +241,9 @@ This highlights an important point about the value-add of BlendSQL. While you *c
 The below examples can use this model initialization logic to define the variable `model`:
 
 ```python
-from blendsql.models import LlamaCpp, LiteLLM
+from blendsql.models import VLLM 
 
-USE_LOCAL_CONSTRAINED_MODEL = True 
-if USE_LOCAL_CONSTRAINED_MODEL:
-    # Local models enable BlendSQL's expression-guided constrained decoding
-    # https://arxiv.org/abs/2509.20208    
-    import psutil
-    model = LlamaCpp(
-        model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
-        filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
-        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": psutil.cpu_count(logical=False)},
-    ) 
-else:
-    model = LiteLLM("openai/gpt-4o-mini")
+model = VLLM("RedHatAI/gemma-3-12b-it-quantized.w4a16", base_url="http://localhost:8000/v1/")
 ```
 
 For all the below examples, use `smoothie.print_summary()` to get an overview of the inputs and outputs.

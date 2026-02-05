@@ -68,9 +68,7 @@ nav:
       - Execute a BlendSQL Query: reference/execute-blendsql.md
       - Language Models:
           - reference/models/models.md
-          - LiteLLM: reference/models/litellm.md
-          - Transformers: reference/models/transformers.md
-          - LlamaCpp: reference/models/llamacpp.md
+          - vLLM: reference/models/vllm.md
       - Databases:
           - reference/databases/databases.md
           - DuckDB: reference/databases/duckdb.md

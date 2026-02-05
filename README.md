@@ -46,16 +46,7 @@ pip install uv && uv pip install blendsql
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp
-
-# Local models enable BlendSQL's expression-guided constrained decoding
-# LlamaCpp and Transformers are currently supported
-# https://arxiv.org/abs/2509.20208    
-model = LlamaCpp(
-    model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
-    filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
-    config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-) 
+from blendsql.models import VLLM
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
