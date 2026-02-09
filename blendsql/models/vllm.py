@@ -29,6 +29,7 @@ class VLLM(ModelBase):
         model_name_or_path: str,
         base_url: str,
         api_key: str = "N/A",
+        tokenizer: "BaseTokenizer" = None,
         extra_body: dict | None = None,
         caching: bool = False,
         **kwargs,
@@ -45,7 +46,11 @@ class VLLM(ModelBase):
             **kwargs,
         )
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
+        if tokenizer is None:
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
+        else:
+            self.tokenizer = tokenizer
+
         self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
     async def generate(
