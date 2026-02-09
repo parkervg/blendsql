@@ -189,13 +189,13 @@ But, at a higher level: Existing DBMS (database management systems) are already 
 For more info on query execution in BlendSQL, see Section 2.4 [here](https://arxiv.org/pdf/2509.20208). 
 
 # 📰 News
+- (2/4/26) Optimized VLLM integration, particularly for `LLMMap`
+  - Define max concurrent async calls via `blendsql.config.set_async_limit(32)`
 - (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
 - (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
 - (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
 - (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
 - (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
-- (10/18/24) Concurrent async requests in 0.0.29! OpenAI and Anthropic `LLMMap` calls are speedy now.
-  - Customize max concurrent async calls via `blendsql.config.set_async_limit(10)`
 
 # Features
 
@@ -242,16 +242,9 @@ This highlights an important point about the value-add of BlendSQL. While you *c
 The below examples can use this model initialization logic to define the variable `model`. See [here](https://parkervg.github.io/blendsql/reference/models/models/) for more information on blendsql models.
 
 ```python
-from blendsql.models import LlamaCpp
+from blendsql.models import VLLM
 
-# Local models enable BlendSQL's expression-guided constrained decoding
-# https://arxiv.org/abs/2509.20208    
-import psutil
-model = LlamaCpp(
-    model_name_or_path="bartowski/Llama-3.2-3B-Instruct-GGUF",
-    filename="Llama-3.2-3B-Instruct-Q6_K.gguf", 
-    config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": psutil.cpu_count(logical=False)},
-)
+model = VLLM("RedHatAI/gemma-3-12b-it-quantized.w4a16", base_url="http://localhost:8000/v1/")
 ```
 
 For all the below examples, use `smoothie.print_summary()` to get an overview of the inputs and outputs.

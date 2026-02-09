@@ -190,11 +190,13 @@ But, at a higher level: Existing DBMS (database management systems) are already 
 For more info on query execution in BlendSQL, see Section 2.4 [here](https://arxiv.org/pdf/2509.20208). 
 
 # 📰 News
+- (2/4/26) Optimized VLLM integration, particularly for `LLMMap`
+      - Define max concurrent async calls via `blendsql.config.set_async_limit(32)`
 - (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
 - (5/30/25) Created a [Discord server](https://discord.gg/vCv7ak3WrU)
 - (5/6/25): New blog post: [Language Models, SQL, and Types, Oh My!](https://parkervg.github.io/misc/2025/05/05/sql-llms.html)
 - (5/1/15): Single-page [function documentation](https://parkervg.github.io/blendsql/reference/functions/)
-- (10/26/24) New tutorial! [blendsql-by-example.ipynb](https://github.com/parkervg/blendsql/blob/main/examples/blendsql-by-example.ipynb)
+- (10/26/24) New tutorial! [blendsql-by-example.ipynb](examples/blendsql-by-example.ipynb)
 
 # Features
 
