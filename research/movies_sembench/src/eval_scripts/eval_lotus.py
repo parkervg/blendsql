@@ -11,7 +11,6 @@ def run_lotus_eval(model_config: ModelConfig):
 
     def patched_completion(*args, **kwargs):
         litellm.drop_params = True
-        kwargs["api_base"] = f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1"
         kwargs["supports_system_message"] = False
         kwargs["temperature"] = MODEL_PARAMS["temperature"]
 
@@ -28,13 +27,8 @@ def run_lotus_eval(model_config: ModelConfig):
     from lotus.models import LM
     from blendsql.common.logger import Color, logger
 
-    from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS, DUCKDB_SEED
-    from ..server_utils import (
-        start_llama_cpp_server,
-        stop_llama_cpp_server,
-        LLAMA_SERVER_HOST,
-        LLAMA_SERVER_PORT,
-    )
+    from ..config import DUCKDB_DB_PATH, BASE_URL, DUCKDB_SEED
+
     from ..database_utils import iter_queries
     import importlib.util
 
@@ -46,8 +40,6 @@ def run_lotus_eval(model_config: ModelConfig):
 
         return module
 
-    start_llama_cpp_server(model_config)
-
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         con.execute(f"SELECT setseed({DUCKDB_SEED})")
         logger.debug(Color.horizontal_line())
@@ -56,13 +48,12 @@ def run_lotus_eval(model_config: ModelConfig):
 
         lotus.settings.configure(
             lm=LM(
-                model=f"openai/local-model",
-                api_base=f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
+                model=f"hosted_vllm/{model_config.model_name_or_path}",
+                api_base=BASE_URL,
                 api_key="N.A.",
                 # https://docs.litellm.ai/docs/providers/openai_compatible#advanced---disable-system-messages
                 supports_system_message=False,  # lotus uses system prompts. Gemma3 doesn't listen to those.
                 temperature=MODEL_PARAMS["temperature"],
-                max_batch_size=SYSTEM_PARAMS["batch_size"],
                 max_tokens=MODEL_PARAMS["max_tokens"],
             )
         )
@@ -87,6 +78,5 @@ def run_lotus_eval(model_config: ModelConfig):
                 }
             )
 
-    stop_llama_cpp_server()
     Color.in_block = False
     return pd.DataFrame(results)

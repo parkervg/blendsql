@@ -1,172 +1,176 @@
 import subprocess
-import atexit
+import signal
+import os
 import time
-import requests
-from huggingface_hub import hf_hub_download
 
-from .config import MODEL_PARAMS, ModelConfig
+from .config import ModelConfig
 
-LLAMA_SERVER_HOST = "127.0.0.1"
-LLAMA_SERVER_PORT = 8080
-LLAMA_SERVER_BASE_URL = f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}"
-LLAMA_SERVER_COMPLETION_ENDPOINT = f"{LLAMA_SERVER_BASE_URL}/v1/completions"
+# Global variable to store the server process
+_vllm_process = None
 
 
-def maybe_download_and_get_local_path(model_config: ModelConfig) -> str:
-    if isinstance(model_config.filename, list):
-        for f in model_config.filename[::-1]:
-            model_path = hf_hub_download(
-                repo_id=model_config.model_name_or_path,
-                filename=f,
-            )
-    else:
-        model_path = hf_hub_download(
-            repo_id=model_config.model_name_or_path,
-            filename=model_config.filename,
-        )
-    return model_path
-
-
-def stop_llama_cpp_server(verbose: bool = True):
-    """
-    Stop llama-cpp-server.
-
-    Args:
-        verbose: Print status messages
-    """
-    global _llama_server_process
-
-    if _llama_server_process is None:
-        return
-
-    if verbose:
-        print("\nStopping llama-cpp-server...")
-
-    try:
-        # Try graceful shutdown first
-        _llama_server_process.terminate()
-        try:
-            _llama_server_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            # Force kill if graceful shutdown fails
-            _llama_server_process.kill()
-            _llama_server_process.wait()
-
-        if verbose:
-            print("✓ llama-cpp-server stopped")
-    except Exception as e:
-        if verbose:
-            print(f"⚠ Error stopping server: {e}")
-    finally:
-        _llama_server_process = None
-
-
-def start_llama_cpp_server(
+def start_vllm_server(
     model_config: ModelConfig,
-    host: str = LLAMA_SERVER_HOST,
-    port: int = LLAMA_SERVER_PORT,
-    verbose=False,
-    **kwargs,
+    host: str = "0.0.0.0",
+    port: int = 8000,
+    max_model_len: int = 4096,
+    gpu_memory_utilization: float = 0.8,
+    enable_prefix_caching: bool = True,
+    enable_prompt_tokens_details: bool = True,
+    structured_outputs_backend: str = "guidance",
+    wait_for_ready: bool = True,
+    timeout: int = 300,
 ) -> subprocess.Popen:
     """
-    Start llama-cpp-server.
+    Start a vLLM server in the background.
 
     Args:
-        model_path: Path to the GGUF model file
-        host: Server host
-        port: Server port
-        n_gpu_layers: Number of layers to offload to GPU (-1 for all)
-        n_ctx: Context size
-        n_threads: Number of threads
-        flash_attn: Enable flash attention
-        verbose: Print server output
+        model_name_or_path: The model to serve
+        host: Host address to bind to
+        port: Port to listen on
+        max_model_len: Maximum model context length
+        gpu_memory_utilization: Fraction of GPU memory to use
+        enable_prefix_caching: Enable prefix caching optimization
+        enable_prompt_tokens_details: Enable prompt token details in response
+        structured_outputs_backend: Backend for structured outputs
+        wait_for_ready: Wait for server to be ready before returning
+        timeout: Timeout in seconds when waiting for server
 
     Returns:
-        Server process
+        The subprocess.Popen object for the server process
     """
-    global _llama_server_process
+    global _vllm_process
 
-    model_path = maybe_download_and_get_local_path(model_config)
+    if _vllm_process is not None and _vllm_process.poll() is None:
+        print("vLLM server is already running")
+        return _vllm_process
 
-    # Build command
     cmd = [
-        "python",
-        "-m",
-        "llama_cpp.server",
-        "--model",
-        model_path,
+        "vllm",
+        "serve",
+        model_config.model_name_or_path,
         "--host",
         host,
         "--port",
         str(port),
-        "--n_gpu_layers",
-        "-1",
-        "--n_ctx",
-        str(MODEL_PARAMS["num_ctx"]),
-        "--n_threads",
-        str(MODEL_PARAMS["num_threads"]),
-        "--flash_attn",
-        str(MODEL_PARAMS["flash_attn"]).lower(),
-        "--seed",
-        str(MODEL_PARAMS["seed"]),
-        "--n_batch",
-        str(MODEL_PARAMS["n_batch"]),
-        "--chat_format",
-        model_config.chat_format,
+        "--max-model-len",
+        str(max_model_len),
+        "--gpu_memory_utilization",
+        str(gpu_memory_utilization),
+        "--structured-outputs-config.backend",
+        structured_outputs_backend,
     ]
-    for k, v in kwargs.items():
-        cmd.extend(["--{}".format(k), str(v)])
 
-    # Start server
-    _llama_server_process = subprocess.Popen(
+    if enable_prefix_caching:
+        cmd.append("--enable-prefix-caching")
+
+    if enable_prompt_tokens_details:
+        cmd.append("--enable-prompt-tokens-details")
+
+    print(f"Starting vLLM server with command: {' '.join(cmd)}")
+
+    _vllm_process = subprocess.Popen(
         cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        preexec_fn=os.setsid,  # Create new process group for clean shutdown
     )
 
-    # Register cleanup on exit
-    atexit.register(stop_llama_cpp_server, verbose=verbose)
+    if wait_for_ready:
+        import urllib.request
+        import urllib.error
 
-    # Wait for server to be ready
-    max_wait = 15  # seconds
-    start_time = time.time()
-    while time.time() - start_time < max_wait:
-        try:
-            # Try the models endpoint which should be available when server is ready
-            response = requests.get(f"{LLAMA_SERVER_BASE_URL}/v1/models", timeout=1)
-            if response.status_code == 200:
-                if verbose:
-                    print("✓ llama-cpp-server is ready")
-                break
-        except requests.exceptions.RequestException:
-            pass
-        time.sleep(1)
-    else:
-        raise RuntimeError("llama-cpp-server failed to start within timeout period")
-
-    # Warmup call to completions endpoint
-    if verbose:
-        print("Running warmup call...")
-
-    try:
-        warmup_response = requests.post(
-            f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
-            json={
-                "model": "local-model",
-                "messages": [{"role": "user", "content": "Hello"}],
-                "max_tokens": 5,
-                "temperature": 0.0,
-            },
-            timeout=30,
+        health_url = (
+            f"http://{host if host != '0.0.0.0' else 'localhost'}:{port}/health"
         )
-        if warmup_response.status_code == 200:
-            if verbose:
-                print("✓ Warmup call completed successfully")
-        else:
-            if verbose:
-                print(f"⚠ Warmup call returned status {warmup_response.status_code}")
-    except requests.exceptions.RequestException as e:
-        if verbose:
-            print(f"⚠ Warmup call failed: {e}")
+        start_time = time.time()
 
-    return _llama_server_process
+        print(f"Waiting for server to be ready at {health_url}...")
+        while time.time() - start_time < timeout:
+            # Check if process died
+            if _vllm_process.poll() is not None:
+                stdout, _ = _vllm_process.communicate()
+                raise RuntimeError(
+                    f"vLLM server process died. Output:\n{stdout.decode()}"
+                )
+
+            try:
+                with urllib.request.urlopen(health_url, timeout=5) as response:
+                    if response.status == 200:
+                        print("vLLM server is ready!")
+                        return _vllm_process
+            except (
+                urllib.error.URLError,
+                urllib.error.HTTPError,
+                ConnectionRefusedError,
+            ):
+                pass
+
+            time.sleep(2)
+
+        raise TimeoutError(f"vLLM server did not become ready within {timeout} seconds")
+
+    return _vllm_process
+
+
+def stop_vllm_server(timeout: int = 30) -> bool:
+    """
+    Stop the vLLM server that was started by start_vllm_server.
+
+    Args:
+        timeout: Timeout in seconds to wait for graceful shutdown
+
+    Returns:
+        True if server was stopped, False if no server was running
+    """
+    global _vllm_process
+
+    if _vllm_process is None:
+        print("No vLLM server process to stop")
+        return False
+
+    if _vllm_process.poll() is not None:
+        print("vLLM server process already terminated")
+        _vllm_process = None
+        return False
+
+    print("Stopping vLLM server...")
+
+    # Send SIGTERM to the process group for graceful shutdown
+    try:
+        os.killpg(os.getpgid(_vllm_process.pid), signal.SIGTERM)
+    except ProcessLookupError:
+        print("Process already terminated")
+        _vllm_process = None
+        return True
+
+    # Wait for graceful shutdown
+    try:
+        _vllm_process.wait(timeout=timeout)
+        print("vLLM server stopped gracefully")
+    except subprocess.TimeoutExpired:
+        print(f"Server did not stop within {timeout}s, sending SIGKILL...")
+        try:
+            os.killpg(os.getpgid(_vllm_process.pid), signal.SIGKILL)
+            _vllm_process.wait(timeout=5)
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            pass
+        print("vLLM server killed")
+
+    _vllm_process = None
+    return True
+
+
+# Example usage
+if __name__ == "__main__":
+    try:
+        # Start the server
+        process = start_vllm_server(wait_for_ready=True)
+        print(f"Server running with PID: {process.pid}")
+
+        # Keep it running for a bit (or do your work here)
+        time.sleep(10)
+
+    finally:
+        # Always stop the server
+        stop_vllm_server()

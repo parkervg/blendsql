@@ -145,19 +145,12 @@ def run_thalamusdb_eval(model_config: ModelConfig):
 
     from ..config import (
         DUCKDB_DB_PATH,
-        THALAMUS_CONFIG_PATH,
-        SYSTEM_PARAMS,
-        MODEL_PARAMS,
+        N_PARALLEL,
+        BASE_URL,
         DUCKDB_SEED,
+        THALAMUS_CONFIG_PATH,
     )
     from ..database_utils import iter_queries
-    from ..server_utils import (
-        start_llama_cpp_server,
-        stop_llama_cpp_server,
-        LLAMA_SERVER_HOST,
-        LLAMA_SERVER_PORT,
-    )
-
     import litellm
 
     litellm.drop_params = True
@@ -178,8 +171,6 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         # Disable all Rich console output
         rich.console.Console.is_terminal = False
 
-        start_llama_cpp_server(model_config)
-
         class CustomDatabase(Database):
             def __init__(self, con):
                 self.con = con
@@ -188,7 +179,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         #################################################
 
         # Create model configuration file
-        tdb_model_name = "openai/local-model"
+        tdb_model_name = f"hosted_vllm/{model_config.model_name_or_path}"
         with open(THALAMUS_CONFIG_PATH, "w") as f:
             json.dump(
                 {
@@ -199,19 +190,19 @@ def run_thalamusdb_eval(model_config: ModelConfig):
                             "kwargs": {
                                 "filter": {
                                     "model": tdb_model_name,
-                                    "api_base": f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
+                                    "api_base": BASE_URL,
                                     "api_key": "N.A.",
                                     "temperature": MODEL_PARAMS["temperature"],
                                     "max_tokens": 1,
-                                    "reasoning_effort": "disable",
+                                    # "reasoning_effort": "disable",
                                 },
                                 "join": {
                                     "model": tdb_model_name,
-                                    "api_base": f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1",
+                                    "api_base": BASE_URL,
                                     "api_key": "N.A.",
                                     "temperature": MODEL_PARAMS["temperature"],
                                     "stop": ["."],
-                                    "reasoning_effort": "disable",
+                                    # "reasoning_effort": "disable",
                                 },
                             },
                         }
@@ -224,7 +215,7 @@ def run_thalamusdb_eval(model_config: ModelConfig):
         db = CustomDatabase(con)
         engine = ExecutionEngine(
             db=db,
-            dop=SYSTEM_PARAMS["batch_size"],
+            dop=N_PARALLEL,
             model_config_path=THALAMUS_CONFIG_PATH,
         )
         constraints = Constraints(max_calls=1000, max_seconds=6000)
@@ -252,6 +243,5 @@ def run_thalamusdb_eval(model_config: ModelConfig):
             )
 
     Color.in_block = False
-    stop_llama_cpp_server()
 
     return pd.DataFrame(results)
