@@ -14,6 +14,7 @@ def run_blendsql_eval(model_config: ModelConfig):
 
     from ..config import DUCKDB_DB_PATH, N_PARALLEL, BASE_URL, DUCKDB_SEED, MODEL_PARAMS
     from ..database_utils import iter_queries
+    from ..gpu_util_tracker import track_gpu
 
     config.set_deterministic(True)
     config.set_async_limit(N_PARALLEL)
@@ -57,10 +58,13 @@ def run_blendsql_eval(model_config: ModelConfig):
 
             # Run queries
             results = []
+            all_gpu_data = []
             for query_file, query_name in iter_queries("blendsql"):
                 query = open(query_file).read()
                 start = time.time()
-                smoothie = bsql.execute(query)
+                with track_gpu() as gpu_data:
+                    smoothie = bsql.execute(query)
+                all_gpu_data.append(gpu_data.copy())
                 result = (
                     smoothie.df
                 )  # Count this, since conversion to pd from pl takes a small bit of latency
@@ -77,6 +81,7 @@ def run_blendsql_eval(model_config: ModelConfig):
                     }
                 )
         Color.in_block = False
+        pd.DataFrame(all_gpu_data).to_csv("blendsql_gpu_usage.csv", index=False)
         return pd.DataFrame(results)
     finally:
         # stop_vllm_server()

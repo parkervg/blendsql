@@ -1,6 +1,6 @@
 import pandas as pd
 
-from ..config import ModelConfig
+from ..config import ModelConfig, N_PARALLEL
 
 
 def run_lotus_eval(model_config: ModelConfig):
@@ -28,7 +28,7 @@ def run_lotus_eval(model_config: ModelConfig):
     from blendsql.common.logger import Color, logger
 
     from ..config import DUCKDB_DB_PATH, BASE_URL, DUCKDB_SEED
-
+    from ..gpu_util_tracker import track_gpu
     from ..database_utils import iter_queries
     import importlib.util
 
@@ -55,16 +55,20 @@ def run_lotus_eval(model_config: ModelConfig):
                 supports_system_message=False,  # lotus uses system prompts. Gemma3 doesn't listen to those.
                 temperature=MODEL_PARAMS["temperature"],
                 max_tokens=MODEL_PARAMS["max_tokens"],
+                max_batch_size=N_PARALLEL,
             )
         )
 
         # Run queries
         results = []
+        all_gpu_data = []
         for query_file, query_name in iter_queries("lotus"):
             lotus.settings.lm.reset_stats()
             func = load_module(query_file)
             start = time.time()
-            result = func.run(con)
+            with track_gpu() as gpu_data:
+                result = func.run(con)
+            all_gpu_data.append(gpu_data.copy())
             latency = time.time() - start
             results.append(
                 {
@@ -79,4 +83,5 @@ def run_lotus_eval(model_config: ModelConfig):
             )
 
     Color.in_block = False
+    pd.DataFrame(all_gpu_data).to_csv("lotus_gpu_usage.csv", index=False)
     return pd.DataFrame(results)

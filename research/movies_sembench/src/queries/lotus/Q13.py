@@ -1,0 +1,22 @@
+import pandas as pd
+
+
+def run(con):
+    reviews = con.execute("SELECT * FROM Reviews").df()
+
+    # Semantic filter for clearly positive reviews
+    filtered_reviews = reviews.sem_filter(
+        'Determine if the following movie review is clearly positive. Review: "{reviewText}".'
+    )
+
+    # Check if we got any results
+    if len(filtered_reviews) == 0:
+        print("  Warning: No positive reviews found")
+        return pd.DataFrame()
+
+    # Format output - evaluator only needs reviewId (first column)
+    results = []
+    for _, row in filtered_reviews.iterrows():
+        results.append({"reviewId": row["reviewId"]})
+
+    return pd.DataFrame(results)
