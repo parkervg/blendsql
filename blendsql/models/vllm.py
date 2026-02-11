@@ -79,7 +79,7 @@ class VLLM(ModelBase):
             )
         else:
             prompt_to_send = self.tokenizer.apply_chat_template(
-                messages=messages,
+                messages,
                 tokenize=False,
                 continue_final_message=item.assistant_continuation is not None,
                 add_generation_prompt=item.assistant_continuation is None,
