@@ -562,7 +562,7 @@ class LLMMap(MapIngredient):
             nonlocal generator_exhausted, items_submitted
 
             while (
-                len(active_tasks) < n_parallel
+                len(active_tasks) < n_parallel * 3
                 and not generator_exhausted
                 and not cancel_event.is_set()
             ):
