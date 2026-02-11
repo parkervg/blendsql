@@ -107,6 +107,7 @@ def bsql() -> BlendSQL:
     )
 
 
+@pytest.mark.cpu_only
 class TestCascadeFilter(TimedTestBase):
     def test_basic_cascade_filter(self, bsql):
         expected_num_values_passed_with_filter: int = bsql.db.execute_to_list(

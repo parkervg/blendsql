@@ -40,6 +40,7 @@ bsql_connections = [
 ]
 
 
+@pytest.mark.cpu_only
 class TestBasicOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_exec(self, bsql: BlendSQL):
@@ -514,6 +515,7 @@ class TestBasicOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestSelectOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_ingredient_in_select_stmt(self, bsql: BlendSQL):
@@ -574,6 +576,7 @@ class TestSelectOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestLimitOperations(TimedTestBase):
     # @pytest.mark.parametrize("bsql", bsql_connections)
     # def test_limit(self, bsql: BlendSQL):
@@ -643,6 +646,7 @@ class TestLimitOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestGroupByOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_group_by_with_ingredient_alias(self, bsql: BlendSQL):
@@ -666,6 +670,7 @@ class TestGroupByOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestCTEOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_cte_with_ingredient(self, bsql: BlendSQL):
@@ -737,6 +742,7 @@ class TestOffsetOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestHavingOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_having(self, bsql: BlendSQL):

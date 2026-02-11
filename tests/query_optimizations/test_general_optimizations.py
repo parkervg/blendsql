@@ -99,6 +99,7 @@ def bsql() -> BlendSQL:
     )
 
 
+@pytest.mark.cpu_only
 class TestGeneralOptimizations(TimedTestBase):
     def test_early_exit_with_cascade(self, bsql):
         """b6a50ef

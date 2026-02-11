@@ -1,5 +1,4 @@
 import pytest
-import torch
 from dataclasses import dataclass, field
 import pandas as pd
 
@@ -35,15 +34,6 @@ def get_available_models():
 def model(request):
     """Return all models"""
     return request.param
-
-
-@pytest.fixture(autouse=True)
-def cleanup():
-    yield
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.reset_max_memory_allocated()
-        torch.cuda.reset_peak_memory_stats()
 
 
 def pytest_generate_tests(metafunc):

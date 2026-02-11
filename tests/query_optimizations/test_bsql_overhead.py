@@ -20,6 +20,7 @@ bsql_connections = [
 ]
 
 
+@pytest.mark.cpu_only
 class TestOverhead(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_1(self, bsql: BlendSQL):

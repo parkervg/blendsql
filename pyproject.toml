@@ -50,6 +50,7 @@ all = [
 ]
 test = [
     "pytest",
+    "tox"
 ]
 docs = [
     "mkdocs",

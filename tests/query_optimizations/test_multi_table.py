@@ -36,6 +36,7 @@ bsql_connections = [
 ]
 
 
+@pytest.mark.cpu_only
 class TestBasicOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_multi_exec(self, bsql: BlendSQL):
@@ -239,6 +240,7 @@ class TestBasicOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestJoinOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_join_multi_exec(self, bsql: BlendSQL):
@@ -360,6 +362,7 @@ class TestJoinOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestAliasOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_table_alias_multi_exec(self, bsql: BlendSQL):
@@ -413,6 +416,7 @@ class TestAliasOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestCTEOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_cte_qa_multi_exec(self, bsql: BlendSQL):
@@ -598,6 +602,7 @@ class TestCTEOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestSelectOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_ingredient_in_select_with_join_multi_exec(self, bsql: BlendSQL):
@@ -671,6 +676,7 @@ class TestSelectOperations(TimedTestBase):
         )
 
 
+@pytest.mark.cpu_only
 class TestSubqueryOperations(TimedTestBase):
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_subquery_alias_with_join_multi_exec(self, bsql: BlendSQL):

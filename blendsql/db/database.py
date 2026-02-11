@@ -1,6 +1,6 @@
 from typing import Generator, Callable
 import polars as pl
-from attr import attrib
+from dataclasses import field
 from sqlalchemy.engine import URL
 from abc import abstractmethod, ABC
 from collections.abc import Collection
@@ -9,7 +9,7 @@ from blendsql.db.utils import LazyTables
 
 
 class Database(ABC):
-    db_url: URL | str = attrib()
+    db_url: URL | str = field()
     lazy_tables: LazyTables = LazyTables()
 
     def __str__(self):

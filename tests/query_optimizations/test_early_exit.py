@@ -109,6 +109,7 @@ def bsql() -> BlendSQL:
     )
 
 
+@pytest.mark.cpu_only
 class TestEarlyExitOperations(TimedTestBase):
     def test_basic_filter_early_exit(self, bsql):
         """
