@@ -28,20 +28,26 @@ dependencies = [
     "sqlglot[rs]>=28.1.0",
     "sqlalchemy>=2.0.0",
     "duckdb>=1.4.3",
+    "huggingface_hub",
+    "Jinja2",
     "openai",
-    "skrub",
-    "rapidfuzz",
-    "sentence_transformers",
     "platformdirs",
     "tqdm",
-    "typeguard",
     "httpx",
-    "bm25s",
     "diskcache",
     "rich"
 ]
 
 [project.optional-dependencies]
+extra = [
+    "sentence-transformers",
+    "skrub",
+    "rapidfuzz",
+    "bm25s",
+]
+all = [
+    "blendsql[extra]"
+]
 test = [
     "pytest",
 ]

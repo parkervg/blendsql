@@ -723,33 +723,44 @@ class JoinIngredient(Ingredient):
             # Remained _outer and inner lists preserved the sorting order in length:
             # len(_outer) = len(outer) - #matched <= len(inner original) - matched = len(inner)
             if self.use_skrub_joiner and all(len(x) > 1 for x in [inner, _outer]):
-                from skrub import Joiner
-
-                # Create the main_table DataFrame
-                main_table = pd.DataFrame(_outer, columns=["out"])
-                # Create the aux_table DataFrame
-                aux_table = pd.DataFrame(inner, columns=["in"])
-                joiner = Joiner(
-                    aux_table,
-                    main_key="out",
-                    aux_key="in",
-                    max_dist=0.9,
-                    add_match_info=False,
-                )
-                res = joiner.fit_transform(main_table)
-                # Below is essentially set.difference on aux_table and those paired in res
-                inner = aux_table.loc[~aux_table["in"].isin(res["in"]), "in"].tolist()
-                # length(new inner) = length(inner) - #matched by fuzzy join
-                _outer = res["out"][res["in"].isnull()].to_list()
-                # length(new _outer) = length(_outer) - #matched by fuzzy join
-                _skrub_mapping = (
-                    res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
-                )
-                logger.debug(
-                    Color.warning("Made the following alignment with `skrub.Joiner`:")
-                )
-                logger.debug(Color.warning(json.dumps(_skrub_mapping, indent=4)))
-                mapping = mapping | _skrub_mapping
+                try:
+                    from skrub import Joiner
+                except ImportError:
+                    print(
+                        "`use_skrub_joiner` is `True`, but skrub is not installed. Install it with `pip install skrub` "
+                        "to use the Joiner functionality."
+                    )
+                    self.use_skrub_joiner = False
+                else:
+                    # Create the main_table DataFrame
+                    main_table = pd.DataFrame(_outer, columns=["out"])
+                    # Create the aux_table DataFrame
+                    aux_table = pd.DataFrame(inner, columns=["in"])
+                    joiner = Joiner(
+                        aux_table,
+                        main_key="out",
+                        aux_key="in",
+                        max_dist=0.9,
+                        add_match_info=False,
+                    )
+                    res = joiner.fit_transform(main_table)
+                    # Below is essentially set.difference on aux_table and those paired in res
+                    inner = aux_table.loc[
+                        ~aux_table["in"].isin(res["in"]), "in"
+                    ].tolist()
+                    # length(new inner) = length(inner) - #matched by fuzzy join
+                    _outer = res["out"][res["in"].isnull()].to_list()
+                    # length(new _outer) = length(_outer) - #matched by fuzzy join
+                    _skrub_mapping = (
+                        res.dropna(subset=["in"]).set_index("out")["in"].to_dict()
+                    )
+                    logger.debug(
+                        Color.warning(
+                            "Made the following alignment with `skrub.Joiner`:"
+                        )
+                    )
+                    logger.debug(Color.warning(json.dumps(_skrub_mapping, indent=4)))
+                    mapping = mapping | _skrub_mapping
             # order by length is still preserved regardless of using fuzzy join, so after initial matching and possible fuzzy join matching
             # This is because the lengths of each list will decrease at the same rate, so whichever list was larger at the beginning,
             # will be larger here at the end.

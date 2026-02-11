@@ -35,7 +35,6 @@ class VLLM(ModelBase):
         **kwargs,
     ):
         from openai import AsyncOpenAI
-        from transformers import AutoTokenizer
 
         self.extra_body = extra_body or dict()
 
@@ -45,12 +44,7 @@ class VLLM(ModelBase):
             _allows_parallel_requests=True,
             **kwargs,
         )
-
-        if tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
-        else:
-            self.tokenizer = tokenizer
-
+        self.tokenizer = tokenizer
         self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
     async def generate(
@@ -74,12 +68,23 @@ class VLLM(ModelBase):
                 {"role": "assistant", "content": item.assistant_continuation}
             )
 
-        prompt_to_send = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            continue_final_message=item.assistant_continuation is not None,
-            add_generation_prompt=item.assistant_continuation is None,
-        )
+        if self.tokenizer is None:
+            from .tokenization import apply_chat_template
+
+            prompt_to_send = apply_chat_template(
+                repo_id=self.model_name_or_path,
+                messages=messages,
+                continue_final_message=item.assistant_continuation is not None,
+                add_generation_prompt=item.assistant_continuation is None,
+            )
+        else:
+            prompt_to_send = self.tokenizer.apply_chat_template(
+                messages=messages,
+                tokenize=False,
+                continue_final_message=item.assistant_continuation is not None,
+                add_generation_prompt=item.assistant_continuation is None,
+            )
+
         stream = await self.client.completions.create(
             model=self.model_name_or_path,
             prompt=prompt_to_send,
