@@ -64,9 +64,6 @@ docs = [
 [project.urls]
 Documentation = "https://parkervg.github.io/blendsql/"
 
-#[project.scripts]
-#blendsql = "blendsql.blend_cli:main"
-
 [tool.setuptools.packages.find]
 exclude = ["examples*", "research*", "img*"]
 
