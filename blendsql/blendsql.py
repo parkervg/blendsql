@@ -504,6 +504,7 @@ def _blend(
     alias_function_name_to_result: dict[str, str] = {}
     session_modified_tables = set()
     scm = None
+    weird_union_exception = False
     # TODO: Currently, as we traverse upwards from deepest subquery,
     #   if any lower subqueries have an ingredient, we deem the current
     #   as ineligible for optimization. Maybe this can be improved in the future.
@@ -511,6 +512,11 @@ def _blend(
     for subquery_idx, subquery in enumerate(
         get_reversed_subqueries(query_context.node)
     ):
+        if isinstance(
+            subquery.parent, exp.Union
+        ):  # For some reason, this gets parsed as `Union(Select(...`
+            subquery = subquery.parent
+            weird_union_exception = True
         # At this point, we should have already handled cte statements and created associated tables
         if subquery.find(exp.With) is not None:
             subquery = subquery.transform(transform.remove_nodetype, exp.With)
@@ -523,7 +529,7 @@ def _blend(
         )
         if subquery is None:
             continue
-        if not isinstance(subquery, exp.Select):
+        if not weird_union_exception and not isinstance(subquery, exp.Select):
             # We need to create a select query from this parentheses expression
             # So we find the parent select, and grab that table
             parent_select_tablenames = [
@@ -1120,6 +1126,24 @@ class BlendSQL:
             # Save as PDF
             dot.render(output_path, format=format, cleanup=True)
         return dot
+
+    def _warmup(self):
+        _ = self.execute(
+            """
+            SELECT {{LLMQA('What color is the sky?')}} AS answer
+            """
+        )
+        _ = self.execute(
+            """
+            WITH subset AS (
+                SELECT 'This product is absolutely wonderful and I love it!' AS reviewText
+                UNION ALL
+                SELECT 'Terrible quality, broke after one day.'
+            )
+            SELECT {{LLMMap('Is this positive?', reviewText, return_type='bool')}}
+            FROM subset
+            """
+        )
 
     def execute(
         self,
