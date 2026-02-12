@@ -1,0 +1,1786 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Query language for blending SQL and LLMs across structured + unstructured data, with type constraints.">
+      
+      
+      
+      
+      
+        <link rel="next" href="quickstart/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="img/blender.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>BlendSQL</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="stylesheets/extra.css">
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#installation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="." title="BlendSQL" class="md-header__button md-logo" aria-label="BlendSQL" data-md-component="logo">
+      
+  <img src="img/blender.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            BlendSQL
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Home
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/parkervg/blendsql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    parkervg/blendsql
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="quickstart/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="reference/functions/" class="md-tabs__link">
+          
+  
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="." title="BlendSQL" class="md-nav__button md-logo" aria-label="BlendSQL" data-md-component="logo">
+      
+  <img src="img/blender.png" alt="logo">
+
+    </a>
+    BlendSQL
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/parkervg/blendsql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    parkervg/blendsql
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="." class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="by-example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Some Cool Things by Example
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/examples/blendsql-by-example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BlendSQL by Example
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/examples/vqa-ingredient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom VQA Ingredient with LLaVA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/examples/teaching-blendsql-via-in-context-learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teaching BlendSQL via In-Context Learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BlendSQL Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/execute-blendsql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execute a BlendSQL Query
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="reference/models/models/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Models
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/models/vllm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="reference/databases/databases/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Databases
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Databases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/databases/duckdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DuckDB
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/databases/pandas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pandas (aka DuckDB in a trench coat)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/databases/sqlite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQLite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/databases/postgresql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PostgreSQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/smoothie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Smoothie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+
+
+
+                  
+
+
+  
+  
+
+
+<div align="right">
+<a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" /></a>
+<a><img src="https://img.shields.io/github/last-commit/parkervg/blendsql?color=green"/></a>
+<a><img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/parkervg/e24f1214fdff3ab086b829b5f01f85a8/raw/covbadge.json"/></a>
+<a><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue"/></a>
+<a href="https://discord.gg/vCv7ak3WrU"><img src="https://img.shields.io/discord/1389219790404452462?label=Discord&logo=discord&color=5865F2"/></a>
+<br>
+</div>
+
+<center>
+<picture>
+  <img alt="blendsql" src="img/logo_light.png" width=350">
+</picture>
+</center>
+
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="err">{{</span>
+<span class="w">    </span><span class="n">LLMQA</span><span class="p">(</span>
+<span class="w">        </span><span class="s1">&#39;Describe BlendSQL in 50 words.&#39;</span><span class="p">,</span>
+<span class="w">        </span><span class="n">context</span><span class="o">=</span><span class="p">(</span>
+<span class="w">            </span><span class="k">SELECT</span><span class="w"> </span><span class="n">content</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">5000</span><span class="p">]</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="ss">&quot;README&quot;</span>
+<span class="w">            </span><span class="k">FROM</span><span class="w"> </span><span class="n">read_text</span><span class="p">(</span><span class="s1">&#39;https://raw.githubusercontent.com/parkervg/blendsql/main/README.md&#39;</span><span class="p">)</span>
+<span class="w">        </span><span class="p">)</span>
+<span class="w">    </span><span class="p">)</span>
+<span class="err">}}</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">answer</span>
+</code></pre></div>
+<center>
+    <i> SQL 🤝 LLMs </i>
+    <b><h4>Join our <a href="https://discord.gg/vCv7ak3WrU" target="_blank">Discord server</a> for more discussion!</h4></b>
+</center>
+
+<div style="text-align: center">
+<p><a class="md-button" href="https://arxiv.org/pdf/2402.17882.pdf">Paper <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3.842 0a1 1 0 0 0-.922.608c-.153.369-.044.627.294 1.111l6.919 8.36-1.023 1.106a1.04 1.04 0 0 0 .003 1.423l1.23 1.313-5.44 6.444c-.28.3-.453.823-.297 1.199a1.025 1.025 0 0 0 .959.635.91.91 0 0 0 .689-.34l5.783-6.126 7.49 8.005a.85.85 0 0 0 .684.26.96.96 0 0 0 .877-.615c.158-.377-.017-.75-.306-1.14L13.73 13.9l1.064-1.13a.963.963 0 0 0 .009-1.316L4.633.464S4.26.01 3.867 0zm0 .272h.017c.218.005.487.272.564.364l.005.006.005.005 10.17 10.99a.69.69 0 0 1-.008.946l-1.066 1.133-1.498-1.772-8.6-10.39c-.328-.472-.352-.619-.26-.841a.73.73 0 0 1 .671-.44Zm14.341 1.57a.88.88 0 0 0-.655.242l-5.696 6.158 1.694 1.832 5.309-6.514c.325-.433.479-.66.325-1.029a1.12 1.12 0 0 0-.977-.689zm-7.655 12.282 1.318 1.414-5.786 6.13a.65.65 0 0 1-.496.26.75.75 0 0 1-.706-.467c-.112-.269.036-.687.244-.909l.005-.005.005-.006z"/></svg></span></a> <a class="md-button" href="https://github.com/parkervg/blendsql">GitHub <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></span></a></p>
+</div>
+<p><br/></p>
+<h1 id="installation">💻 Installation</h1>
+<div class="highlight"><pre><span></span><code>pip install uv &amp;&amp; uv pip install blendsql
+</code></pre></div>
+<details>
+<summary><h1>⭐ Quickstart</h1></summary>
+
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlendSQL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">VLLM</span>
+
+<span class="c1"># Define model </span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">VLLM</span><span class="p">(</span><span class="s2">&quot;RedHatAI/gemma-3-12b-it-quantized.w4a16&quot;</span><span class="p">,</span> <span class="n">base_url</span><span class="o">=</span><span class="s2">&quot;http://localhost:8000/v1/&quot;</span><span class="p">)</span>
+
+<span class="c1"># Prepare our BlendSQL connection</span>
+<span class="n">bsql</span> <span class="o">=</span> <span class="n">BlendSQL</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;People&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;Name&quot;</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="s2">&quot;George Washington&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;John Adams&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Thomas Jefferson&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;James Madison&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;James Monroe&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Alexander Hamilton&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Sabrina Carpenter&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Charli XCX&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Elon Musk&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Michelle Obama&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Elvis Presley&quot;</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="s2">&quot;Known_For&quot;</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="s2">&quot;Established federal government, First U.S. President&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;XYZ Affair, Alien and Sedition Acts&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Louisiana Purchase, Declaration of Independence&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;War of 1812, Constitution&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Monroe Doctrine, Missouri Compromise&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Created national bank, Federalist Papers&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Nonsense, Emails I Cant Send, Mean Girls musical&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Crash, How Im Feeling Now, Boom Clap&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Tesla, SpaceX, Twitter/X acquisition&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Lets Move campaign, Becoming memoir&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;14 Grammys, King of Rock n Roll&quot;</span><span class="p">,</span>
+                <span class="p">],</span>
+            <span class="p">}</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;Eras&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;Years&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;1700-1800&quot;</span><span class="p">,</span> <span class="s2">&quot;1800-1900&quot;</span><span class="p">,</span> <span class="s2">&quot;1900-2000&quot;</span><span class="p">,</span> <span class="s2">&quot;2000-Now&quot;</span><span class="p">]}),</span>
+    <span class="p">},</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">smoothie</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    SELECT * FROM People P</span>
+<span class="sd">    WHERE P.Name IN {{</span>
+<span class="sd">        LLMQA(&#39;First 3 presidents of the U.S?&#39;, quantifier=&#39;{3}&#39;)</span>
+<span class="sd">    }}</span>
+<span class="sd">    &quot;&quot;&quot;</span><span class="p">,</span>
+    <span class="n">infer_gen_constraints</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="c1"># Is `True` by default</span>
+<span class="p">)</span>
+
+<span class="n">smoothie</span><span class="o">.</span><span class="n">print_summary</span><span class="p">()</span>
+<span class="c1"># ┌───────────────────┬───────────────────────────────────────────────────────┐</span>
+<span class="c1"># │ Name              │ Known_For                                             │</span>
+<span class="c1"># ├───────────────────┼───────────────────────────────────────────────────────┤</span>
+<span class="c1"># │ George Washington │ Established federal government, First U.S. Preside... │</span>
+<span class="c1"># │ John Adams        │ XYZ Affair, Alien and Sedition Acts                   │</span>
+<span class="c1"># │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │</span>
+<span class="c1"># └───────────────────┴───────────────────────────────────────────────────────┘</span>
+<span class="c1"># ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐</span>
+<span class="c1"># │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │</span>
+<span class="c1"># ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤</span>
+<span class="c1"># │    1.25158 │                    1 │             296 │                  16 │</span>
+<span class="c1"># └────────────┴──────────────────────┴─────────────────┴─────────────────────┘</span>
+
+
+<span class="n">smoothie</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    SELECT GROUP_CONCAT(Name, &#39;, &#39;) AS &#39;Names&#39;,</span>
+<span class="sd">    {{</span>
+<span class="sd">        LLMMap(</span>
+<span class="sd">            &#39;In which time period was this person born?&#39;,</span>
+<span class="sd">            p.Name,</span>
+<span class="sd">            options=Eras.Years</span>
+<span class="sd">        )</span>
+<span class="sd">    }} AS Born</span>
+<span class="sd">    FROM People p</span>
+<span class="sd">    GROUP BY Born</span>
+<span class="sd">    &quot;&quot;&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">smoothie</span><span class="o">.</span><span class="n">print_summary</span><span class="p">()</span>
+<span class="c1"># ┌───────────────────────────────────────────────────────┬───────────┐</span>
+<span class="c1"># │ Names                                                 │ Born      │</span>
+<span class="c1"># ├───────────────────────────────────────────────────────┼───────────┤</span>
+<span class="c1"># │ George Washington, John Adams, Thomas Jefferson, J... │ 1700-1800 │</span>
+<span class="c1"># │ Sabrina Carpenter, Charli XCX, Elon Musk, Michelle... │ 2000-Now  │</span>
+<span class="c1"># │ Elvis Presley                                         │ 1900-2000 │</span>
+<span class="c1"># └───────────────────────────────────────────────────────┴───────────┘</span>
+<span class="c1"># ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐</span>
+<span class="c1"># │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │</span>
+<span class="c1"># ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤</span>
+<span class="c1"># │    1.03858 │                    2 │             544 │                  75 │</span>
+<span class="c1"># └────────────┴──────────────────────┴─────────────────┴─────────────────────┘</span>
+
+<span class="n">smoothie</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    SELECT {{</span>
+<span class="s2">        LLMQA(</span>
+<span class="s2">            &#39;Describe BlendSQL in 50 words.&#39;,</span>
+<span class="s2">            context=(</span>
+<span class="s2">                SELECT content[0:5000] AS &quot;README&quot;</span>
+<span class="s2">                FROM read_text(&#39;https://raw.githubusercontent.com/parkervg/blendsql/main/README.md&#39;)</span>
+<span class="s2">            )</span>
+<span class="s2">        )</span>
+<span class="s2">    }} AS answer</span>
+<span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
+
+<span class="n">smoothie</span><span class="o">.</span><span class="n">print_summary</span><span class="p">()</span>
+<span class="c1"># ┌─────────────────────────────────────────────────────┐</span>
+<span class="c1"># │ answer                                              │</span>
+<span class="c1"># ├─────────────────────────────────────────────────────┤</span>
+<span class="c1"># │ BlendSQL is a Python library that combines SQL a... │</span>
+<span class="c1"># └─────────────────────────────────────────────────────┘</span>
+
+<span class="c1"># ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐</span>
+<span class="c1"># │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │</span>
+<span class="c1"># ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤</span>
+<span class="c1"># │    4.07617 │                    1 │            1921 │                  50 │</span>
+<span class="c1"># └────────────┴──────────────────────┴─────────────────┴─────────────────────┘</span>
+</code></pre></div>
+
+</details>
+
+<h1 id="summary">Summary</h1>
+<p>BlendSQL is a <em>superset of SQL</em> for problem decomposition and hybrid question-answering with LLMs.</p>
+<p>As a result, we can <em>Blend</em> together...</p>
+<ul>
+<li>🥤 ...operations over heterogeneous data sources (e.g. tables, text, images)</li>
+<li>🥤 ...the structured &amp; interpretable reasoning of SQL with the generalizable reasoning of LLMs</li>
+</ul>
+<h3 id="core-design-principle-be-lazy">Core Design Principle: Be Lazy 😴</h3>
+<p>This is embodied in a few different ways - <a href="https://github.com/parkervg/blendsql/pull/57">early exit LLM functions when <code>LIMIT</code> clauses are used</a>, <a href="https://github.com/parkervg/blendsql/pull/19">don't eagerly materialize CTEs unless we need to</a>, <a href="https://github.com/parkervg/blendsql/blob/main/blendsql/models/model.py#L213">only load language models into memory if we use them</a>, etc.</p>
+<p>But, at a higher level: Existing DBMS (database management systems) are already highly optimized, and many very smart people get paid a lot of money to keep them at the cutting-edge. Rather than reinvent the wheel, we can leverage their optimizations and only pull the subset of data into memory that is <em>logically required</em> to pass to the language model functions. We then prep the database state via temporary tables, and finally sync back to the native SQL dialect and execute. In this way, BlendSQL 'compiles to SQL'.</p>
+<p>For more info on query execution in BlendSQL, see Section 2.4 <a href="https://arxiv.org/pdf/2509.20208">here</a>. </p>
+<h1 id="news">📰 News</h1>
+<ul>
+<li>(2/4/26) Optimized VLLM integration, particularly for <code>LLMMap</code><ul>
+<li>Define max concurrent async calls via <code>blendsql.config.set_async_limit(32)</code></li>
+</ul>
+</li>
+<li>(11/7/25) 📝New paper: <a href="https://arxiv.org/abs/2509.20208">Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs</a></li>
+<li>(5/30/25) Created a <a href="https://discord.gg/vCv7ak3WrU">Discord server</a></li>
+<li>(5/6/25): New blog post: <a href="https://parkervg.github.io/misc/2025/05/05/sql-llms.html">Language Models, SQL, and Types, Oh My!</a></li>
+<li>(5/1/15): Single-page <a href="https://parkervg.github.io/blendsql/reference/functions/">function documentation</a></li>
+<li>(10/26/24) New tutorial! <a href="examples/blendsql-by-example.ipynb">blendsql-by-example.ipynb</a></li>
+</ul>
+<h1 id="features">Features</h1>
+<ul>
+<li>Supports many DBMS 💾<ul>
+<li>SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)</li>
+</ul>
+</li>
+<li>Optimized async-based parallelism with vLLM ✨</li>
+<li>Write your normal queries - smart parsing optimizes what is passed to external functions 🧠<ul>
+<li>Traverses abstract syntax tree with <a href="https://github.com/tobymao/sqlglot">sqlglot</a> to minimize LLM function calls 🌳</li>
+</ul>
+</li>
+<li>Constrained decoding with <a href="https://github.com/guidance-ai/guidance">guidance</a> 🚀<ul>
+<li>We only generate syntactically valid outputs according to query syntax + database contents</li>
+</ul>
+</li>
+<li>LLM function caching, built on <a href="https://grantjenks.com/docs/diskcache/">diskcache</a> 🔑</li>
+</ul>
+<h1 id="benchmarks">Benchmarks</h1>
+<p>On a dataset of complex questions converted to executable declarative programs (e.g. <em>How many test
+takers are there at the school/s in a county with population over 2 million?</em>), <strong>BlendSQL is 53% faster than the pandas-based LOTUS</strong>.
+See Section 4 of <a href="https://arxiv.org/abs/2509.20208">Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs</a> for more details. </p>
+<p><img alt="latency_analysis" src="img/runtime_analysis.png" /></p>
+<h3 id="but-why-not-just-define-udfs">But - why not just define UDFs?</h3>
+<p>Many DBMS allow for the creation of Python user-defined functions (UDFs), like <a href="https://duckdb.org/docs/stable/clients/python/function">DuckDB</a>. So why not just use those to embed language model functions instead of BlendSQL?
+The below plot adds the DuckDB UDF approach to the same benchmark we did above - where DuckDB UDFs come in with at average of 133.2 seconds per query.  </p>
+<p><img alt="latency_analysis_with_duckdb" src="img/runtime_analysis_with_duckdb.png" /></p>
+<p>The reason for this? DuckDB uses a generalized query optimizer, very good at many different optimizations. But when we introduce a UDF with an unknown cost, many values get passed to the highly expensive language model functions that could have been filtered out via vanilla SQL expressions first (<code>JOIN</code>, <code>WHERE</code>, <code>LIMIT</code>, etc.).</p>
+<p>This highlights an important point about the value-add of BlendSQL. While you <em>can</em> just import the individual language model functions and call them on data (see <a href="https://github.com/parkervg/blendsql/blob/main/research/run-evaluate.py#L64">here</a>) - if you know the larger query context where the function output will be used, you <em>should</em> use the BlendSQL query optimizer (<code>bsql.execute()</code>), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.</p>
+<blockquote>
+<p>[!TIP]
+How do we know the BlendSQL optimizer is passing the minimal required data to the language model functions? Check out our extensive <a href="./tests/query_optimizations/test_multi_table.py">test suite</a> for examples.</p>
+</blockquote>
+<h1 id="documentation">Documentation</h1>
+<ul>
+<li><a href="#simple-row-wise-classification">Simple Row-Wise Classification</a></li>
+<li><a href="#search-then-map">Search-then-Map </a><ul>
+<li><a href="#specifying-return_type">Specifying <code>return_type</code></a></li>
+</ul>
+</li>
+<li><a href="#search-then-map">Search-then-Reduce </a></li>
+<li><a href="#few-shot-prompting">Few-Shot Prompting</a></li>
+</ul>
+<p>The below examples can use this model initialization logic to define the variable <code>model</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">VLLM</span> 
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">VLLM</span><span class="p">(</span><span class="s2">&quot;RedHatAI/gemma-3-12b-it-quantized.w4a16&quot;</span><span class="p">,</span> <span class="n">base_url</span><span class="o">=</span><span class="s2">&quot;http://localhost:8000/v1/&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>For all the below examples, use <code>smoothie.print_summary()</code> to get an overview of the inputs and outputs.</p>
+<p><img alt="terminal-logging" src="img/terminal-logging.png" /></p>
+<h2 id="simple-row-wise-classification">Simple Row-Wise Classification</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlendSQL</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">bsql</span> <span class="o">=</span> <span class="n">BlendSQL</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;posts&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;I hate this product&quot;</span><span class="p">,</span> <span class="s2">&quot;I love this product&quot;</span><span class="p">]}</span>
+            <span class="p">)</span>
+        <span class="p">},</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">smoothie</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        SELECT {{</span>
+<span class="sd">            LLMMap(</span>
+<span class="sd">                &#39;What is the sentiment of this text?&#39;,</span>
+<span class="sd">                content,</span>
+<span class="sd">                options=(&#39;positive&#39;, &#39;negative&#39;, &#39;neutral&#39;)</span>
+<span class="sd">            )      </span>
+<span class="sd">        }} AS classification FROM posts</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+    <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">smoothie</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="search-then-map">Search-then-Map</h2>
+<p>Some question answering tasks require hybrid reasoning - some information is present in a given table, but some information exists only in external free text documents. </p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span> 
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlendSQL</span>
+
+<span class="n">bsql</span> <span class="o">=</span> <span class="n">BlendSQL</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;world_aquatic_championships&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;Medal&quot;</span><span class="p">:</span> <span class="s2">&quot;Silver&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Name&quot;</span><span class="p">:</span> <span class="s2">&quot;Dana Vollmer&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Sport&quot;</span><span class="p">:</span> <span class="s2">&quot;Swimming&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Event&quot;</span><span class="p">:</span> <span class="s2">&quot;Women&#39;s 100 m butterfly&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Time/Score&quot;</span><span class="p">:</span> <span class="s2">&quot;56.87&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Date&quot;</span><span class="p">:</span> <span class="s2">&quot;July 25&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;Medal&quot;</span><span class="p">:</span> <span class="s2">&quot;Gold&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Name&quot;</span><span class="p">:</span> <span class="s2">&quot;Ryan Lochte&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Sport&quot;</span><span class="p">:</span> <span class="s2">&quot;Swimming&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Event&quot;</span><span class="p">:</span> <span class="s2">&quot;Men&#39;s 200 m freestyle&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Time/Score&quot;</span><span class="p">:</span> <span class="s2">&quot;1:44.44&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;Medal&quot;</span><span class="p">:</span> <span class="s2">&quot;Gold&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Name&quot;</span><span class="p">:</span> <span class="s2">&quot;Rebecca Soni&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Sport&quot;</span><span class="p">:</span> <span class="s2">&quot;Swimming&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Event&quot;</span><span class="p">:</span> <span class="s2">&quot;Women&#39;s 100 m breaststroke&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Time/Score&quot;</span><span class="p">:</span> <span class="s2">&quot;1:05.05&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Date&quot;</span><span class="p">:</span> <span class="s2">&quot;July 26&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;Medal&quot;</span><span class="p">:</span> <span class="s2">&quot;Gold&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Name&quot;</span><span class="p">:</span> <span class="s2">&quot;Elizabeth Beisel&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Sport&quot;</span><span class="p">:</span> <span class="s2">&quot;Swimming&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Event&quot;</span><span class="p">:</span> <span class="s2">&quot;Women&#39;s 400 m individual medley&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Time/Score&quot;</span><span class="p">:</span> <span class="s2">&quot;4:31.78&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Date&quot;</span><span class="p">:</span> <span class="s2">&quot;July 31&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+    <span class="p">},</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="c1"># Set `verbose=True` to see the query plan as it executes</span>
+<span class="p">)</span>
+
+<span class="n">_</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">model_obj</span> <span class="c1"># Models are lazy loaded by default. Use this line if you want to pre-load models before execution.</span>
+</code></pre></div>
+<p>We can now create a custom function that will: 
+  1) Fill in our f-string templatized question with values in the database
+  2) Batch-retrieve top <code>k</code> relevant documents for each unrolled question 
+  3) Batch-apply the provied language model to generate a type constrained output given the document contexts </p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.search</span><span class="w"> </span><span class="kn">import</span> <span class="n">TavilySearch</span><span class="p">,</span> <span class="n">FaissVectorStore</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.ingredients</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMMap</span>
+
+<span class="n">USE_TAVILY</span> <span class="o">=</span> <span class="kc">True</span> <span class="c1"># This requires a `.env` file with a `TAVILY_API_KEY` variable defined</span>
+<span class="k">if</span> <span class="n">USE_TAVILY</span><span class="p">:</span>
+  <span class="n">context_searcher</span> <span class="o">=</span> <span class="n">TavilySearch</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+  <span class="c1"># We can also define a local FAISS vector store</span>
+  <span class="n">context_searcher</span> <span class="o">=</span> <span class="n">FaissVectorStore</span><span class="p">(</span>
+    <span class="n">model_name_or_path</span><span class="o">=</span><span class="s2">&quot;sentence-transformers/all-mpnet-base-v2&quot;</span><span class="p">,</span>
+    <span class="n">documents</span><span class="o">=</span><span class="p">[</span>
+      <span class="s2">&quot;Ryan Steven Lochte (/ˈlɒkti/ LOK-tee; born August 3, 1984) is an American former[2] competition swimmer and 12-time Olympic medalist.&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;Rebecca Soni (born March 18, 1987) is an American former competition swimmer and breaststroke specialist.&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;Elizabeth Lyon Beisel (/ˈbaɪzəl/; born August 18, 1992) is an American competition swimmer who specializes in backstroke and individual medley events.&quot;</span>
+    <span class="p">],</span>
+    <span class="n">k</span><span class="o">=</span><span class="mi">3</span>
+  <span class="p">)</span>
+
+<span class="n">DocumentSearchMap</span> <span class="o">=</span> <span class="n">LLMMap</span><span class="o">.</span><span class="n">from_args</span><span class="p">(</span>
+  <span class="n">context_searcher</span><span class="o">=</span><span class="n">context_searcher</span>
+<span class="p">)</span>
+
+<span class="c1"># This line registers our new function in our `BlendSQL` connection context</span>
+<span class="c1"># Replacement scans allow us to now reference the function by the variable name we initialized it to (`DocumentSearchMap`)</span>
+<span class="n">bsql</span><span class="o">.</span><span class="n">ingredients</span> <span class="o">=</span> <span class="p">{</span><span class="n">DocumentSearchMap</span><span class="p">}</span> 
+
+<span class="c1"># Define a blendsql program to answer: &#39;What is the name of the oldest person who won gold?&#39;</span>
+<span class="n">smoothie</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    SELECT Name FROM world_aquatic_championships w</span>
+<span class="sd">    WHERE Medal = &#39;Gold&#39;</span>
+<span class="sd">    /* By default, blendsql infers type constraints given expression context. */ </span>
+<span class="sd">    /* So below, the return_type will be constrained to an integer (`\d+`) */ </span>
+<span class="sd">    ORDER BY {{DocumentSearchMap(&#39;What year was {} born?&#39;, w.Name)}} ASC LIMIT 1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">smoothie</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
+<span class="c1"># ┌─────────────┐</span>
+<span class="c1"># │ Name        │</span>
+<span class="c1"># ├─────────────┤</span>
+<span class="c1"># │ Ryan Lochte │</span>
+<span class="c1"># └─────────────┘</span>
+</code></pre></div>
+<p>To analyze the prompts we sent to the model, we can access <code>GLOBAL_HISTORY</code>. </p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">GLOBAL_HISTORY</span>
+
+<span class="c1"># This is a list</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">GLOBAL_HISTORY</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="specifying-return_type">Specifying <code>return_type</code></h2>
+<p>Notice in the above example - what if two athletes were born in the same year, but different days? </p>
+<p>In this case, simply fetching the year of birth isn't enough for the ordering we need to do. For cases when the required datatype is unable to be inferred via expression context, you can override the inferred default via passing <code>return_type</code>. The following are valid. All below can be wrapped in a <code>List[...]</code> type.</p>
+<table>
+<thead>
+<tr>
+<th><code>return_type</code> Argument</th>
+<th>Regex</th>
+<th>DB Mapping Logic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>any</code></td>
+<td>N.A.</td>
+<td>N.A. The DB implicitly casts the type, if type affinity is supported (e.g. SQLite does this).</td>
+</tr>
+<tr>
+<td><code>str</code></td>
+<td>N.A.</td>
+<td>N.A. Same behavior as <code>any</code>, but the language model is prompted with the cue that the return type should look like a string.</td>
+</tr>
+<tr>
+<td><code>int</code></td>
+<td><code>r"-?(\d+)"</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>float</code></td>
+<td><code>r"-?(\d+(\.\d+)?)"</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td><code>r"(t\|f\|true\|false\|True\|False)"</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>substring</code> (*Only valid for LLMMap)</td>
+<td>complicated - see https://github.com/guidance-ai/guidance/blob/main/guidance/library/_substring.py#L11</td>
+<td></td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>r"\d{4}-\d{2}-\d{2}"</code></td>
+<td>The ISO8601 is inserted into the query as a date type. This differs for different DBMS - in DuckDB, it would be <code>'1992-09-20'::DATE</code></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="n">smoothie</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    SELECT Name FROM world_aquatic_championships w</span>
+<span class="sd">    WHERE Medal = &#39;Gold&#39;</span>
+<span class="sd">    /* Defining `return_type = &#39;date&#39;` will constrain generation to a date format, and handle type conversion to the respective database context for you. */  </span>
+<span class="sd">    /* For example, DuckDB and SQLite stores dates as a ISO8601 string */</span>
+<span class="sd">    ORDER BY {{DocumentSearchMap(&#39;When was {} born?&#39;, w.Name, return_type=&#39;date&#39;)}} ASC LIMIT 1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<span class="p">)</span>
+</code></pre></div>
+<h2 id="search-then-reduce">Search-then-Reduce</h2>
+<p>Below we use the scalar <code>LLMQA</code> function to do a search over our documents with the question formatted with a value from the structured <code>european_countries</code> table.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span> 
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlendSQL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.search</span><span class="w"> </span><span class="kn">import</span> <span class="n">FaissVectorStore</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.ingredients</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMQA</span>
+
+<span class="n">bsql</span> <span class="o">=</span> <span class="n">BlendSQL</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;documents&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Steve Nash&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Steve Nash played college basketball at Santa Clara University&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;E.F. Codd&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s1">&#39;Edgar Frank &quot;Ted&quot; Codd (19 August 1923 – 18 April 2003) was a British computer scientist who, while working for IBM, invented the relational model for database management, the theoretical basis for relational databases and relational database management systems.&#39;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;George Washington (February 22, 1732 – December 14, 1799) was a Founding Father and the first president of the United States, serving from 1789 to 1797.&quot;</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Thomas Jefferson&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Thomas Jefferson (April 13, 1743 – July 4, 1826) was an American Founding Father and the third president of the United States from 1801 to 1809.&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;John Adams&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;John Adams (October 30, 1735 – July 4, 1826) was an American Founding Father who was the second president of the United States from 1797 to 1801.&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">]</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;european_countries&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;Country&quot;</span><span class="p">:</span> <span class="s2">&quot;Portugal&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Area (km²)&quot;</span><span class="p">:</span> <span class="mi">91568</span><span class="p">,</span>
+                    <span class="s2">&quot;Population (As of 2011)&quot;</span><span class="p">:</span> <span class="mi">10555853</span><span class="p">,</span>
+                    <span class="s2">&quot;Population density (per km²)&quot;</span><span class="p">:</span> <span class="mf">115.2</span><span class="p">,</span>
+                    <span class="s2">&quot;Capital&quot;</span><span class="p">:</span> <span class="s2">&quot;Lisbon&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;Country&quot;</span><span class="p">:</span> <span class="s2">&quot;Sweden&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Area (km²)&quot;</span><span class="p">:</span> <span class="mi">449964</span><span class="p">,</span>
+                    <span class="s2">&quot;Population (As of 2011)&quot;</span><span class="p">:</span> <span class="mi">9088728</span><span class="p">,</span>
+                    <span class="s2">&quot;Population density (per km²)&quot;</span><span class="p">:</span> <span class="mf">20.1</span><span class="p">,</span>
+                    <span class="s2">&quot;Capital&quot;</span><span class="p">:</span> <span class="s2">&quot;Stockholm&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;Country&quot;</span><span class="p">:</span> <span class="s2">&quot;United Kingdom&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Area (km²)&quot;</span><span class="p">:</span> <span class="mi">244820</span><span class="p">,</span>
+                    <span class="s2">&quot;Population (As of 2011)&quot;</span><span class="p">:</span> <span class="mi">62300000</span><span class="p">,</span>
+                    <span class="s2">&quot;Population density (per km²)&quot;</span><span class="p">:</span> <span class="mf">254.4</span><span class="p">,</span>
+                    <span class="s2">&quot;Capital&quot;</span><span class="p">:</span> <span class="s2">&quot;London&quot;</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">]</span>
+        <span class="p">),</span>
+    <span class="p">},</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">USE_SEARCH</span> <span class="o">=</span> <span class="kc">True</span> 
+<span class="k">if</span> <span class="n">USE_SEARCH</span><span class="p">:</span>
+  <span class="n">LLMQA</span> <span class="o">=</span> <span class="n">LLMQA</span><span class="o">.</span><span class="n">from_args</span><span class="p">(</span>
+    <span class="n">context_searcher</span><span class="o">=</span><span class="n">FaissVectorStore</span><span class="p">(</span>
+      <span class="n">model_name_or_path</span><span class="o">=</span><span class="s2">&quot;sentence-transformers/all-mpnet-base-v2&quot;</span><span class="p">,</span>
+      <span class="n">documents</span><span class="o">=</span><span class="n">bsql</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">execute_to_list</span><span class="p">(</span><span class="s2">&quot;SELECT DISTINCT title || content FROM documents&quot;</span><span class="p">),</span>
+      <span class="n">k</span><span class="o">=</span><span class="mi">3</span>
+    <span class="p">)</span>
+  <span class="p">)</span>
+  <span class="n">bsql</span><span class="o">.</span><span class="n">ingredients</span> <span class="o">=</span> <span class="p">{</span><span class="n">LLMQA</span><span class="p">}</span>
+
+<span class="n">smoothie</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">SELECT {{</span>
+<span class="sd">    LLMQA(</span>
+<span class="sd">      &#39;Who is from {}?&#39;, </span>
+<span class="sd">      /* The below subquery gets executed, and the result is inserted into the below `{}`. */</span>
+<span class="sd">      (</span>
+<span class="sd">        SELECT Country FROM european_countries c</span>
+<span class="sd">        WHERE Capital = &#39;London&#39;</span>
+<span class="sd">      )</span>
+<span class="sd">    )</span>
+<span class="sd">}} AS answer</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">smoothie</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
+<span class="c1"># ┌────────────┐</span>
+<span class="c1"># │ answer     │</span>
+<span class="c1"># ├────────────┤</span>
+<span class="c1"># │ E.F. Codd  │</span>
+<span class="c1"># └────────────┘</span>
+</code></pre></div>
+<h2 id="few-shot-prompting">Few-Shot Prompting</h2>
+<p>For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In <code>LLMMap</code>, <code>LLMQA</code> and <code>LLMJoin</code>, we provide an interface to pass custom few-shot examples.</p>
+<h4 id="llmmap"><code>LLMMap</code></h4>
+<ul>
+<li><a href="./blendsql/ingredients/builtin/map/default_examples.json">Default examples</a></li>
+<li><a href="./blendsql/ingredients/builtin/map/examples.py">All possible fields</a></li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlendSQL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.ingredients.builtin</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMMap</span><span class="p">,</span> <span class="n">DEFAULT_MAP_FEW_SHOT</span>
+
+<span class="n">ingredients</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="n">LLMMap</span><span class="o">.</span><span class="n">from_args</span><span class="p">(</span>
+    <span class="n">few_shot_examples</span><span class="o">=</span><span class="p">[</span>
+      <span class="o">*</span><span class="n">DEFAULT_MAP_FEW_SHOT</span><span class="p">,</span>
+      <span class="p">{</span>
+        <span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="s2">&quot;Is this a sport?&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;mapping&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="s2">&quot;Soccer&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+          <span class="s2">&quot;Chair&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+          <span class="s2">&quot;Banana&quot;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+          <span class="s2">&quot;Golf&quot;</span><span class="p">:</span> <span class="kc">True</span>
+        <span class="p">},</span>
+        <span class="c1"># Below are optional</span>
+        <span class="s2">&quot;column_name&quot;</span><span class="p">:</span> <span class="s2">&quot;Items&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;table_name&quot;</span><span class="p">:</span> <span class="s2">&quot;Table&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;return_type&quot;</span><span class="p">:</span> <span class="s2">&quot;boolean&quot;</span>
+      <span class="p">}</span>
+    <span class="p">],</span>
+    <span class="c1"># How many inference values to pass to model at once</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+  <span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">bsql</span> <span class="o">=</span> <span class="n">BlendSQL</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">ingredients</span><span class="o">=</span><span class="n">ingredients</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="llmqa"><code>LLMQA</code></h4>
+<ul>
+<li><a href="./blendsql/ingredients/builtin/qa/default_examples.json">Default examples</a></li>
+<li><a href="./blendsql/ingredients/builtin/qa/examples.py">All possible fields</a></li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlendSQL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.ingredients.builtin</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMQA</span><span class="p">,</span> <span class="n">DEFAULT_QA_FEW_SHOT</span>
+
+<span class="n">ingredients</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">LLMQA</span><span class="o">.</span><span class="n">from_args</span><span class="p">(</span>
+        <span class="n">few_shot_examples</span><span class="o">=</span><span class="p">[</span>
+            <span class="o">*</span><span class="n">DEFAULT_QA_FEW_SHOT</span><span class="p">,</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;question&quot;</span><span class="p">:</span> <span class="s2">&quot;Which weighs the most?&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;context&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="p">{</span>
+                        <span class="s2">&quot;Animal&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Dog&quot;</span><span class="p">,</span> <span class="s2">&quot;Gorilla&quot;</span><span class="p">,</span> <span class="s2">&quot;Hamster&quot;</span><span class="p">],</span>
+                        <span class="s2">&quot;Weight&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;20 pounds&quot;</span><span class="p">,</span> <span class="s2">&quot;350 lbs&quot;</span><span class="p">,</span> <span class="s2">&quot;100 grams&quot;</span><span class="p">]</span>
+                    <span class="p">}</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;answer&quot;</span><span class="p">:</span> <span class="s2">&quot;Gorilla&quot;</span><span class="p">,</span>
+                <span class="c1"># Below are optional</span>
+                <span class="s2">&quot;options&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Dog&quot;</span><span class="p">,</span> <span class="s2">&quot;Gorilla&quot;</span><span class="p">,</span> <span class="s2">&quot;Hamster&quot;</span><span class="p">]</span>
+            <span class="p">}</span>
+        <span class="p">],</span>
+        <span class="c1"># Lambda to turn the pd.DataFrame to a serialized string</span>
+        <span class="n">context_formatter</span><span class="o">=</span><span class="k">lambda</span> <span class="n">df</span><span class="p">:</span> <span class="n">df</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">(</span>
+            <span class="n">index</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">bsql</span> <span class="o">=</span> <span class="n">BlendSQL</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">ingredients</span><span class="o">=</span><span class="n">ingredients</span><span class="p">)</span>
+</code></pre></div>
+<h4 id="llmjoin"><code>LLMJoin</code></h4>
+<ul>
+<li><a href="./blendsql/ingredients/builtin/join/default_examples.json">Default examples</a></li>
+<li><a href="./blendsql/ingredients/builtin/join/examples.py">All possible fields</a></li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlendSQL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.ingredients.builtin</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMJoin</span><span class="p">,</span> <span class="n">DEFAULT_JOIN_FEW_SHOT</span>
+
+<span class="n">ingredients</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="n">LLMJoin</span><span class="o">.</span><span class="n">from_args</span><span class="p">(</span>
+    <span class="n">few_shot_examples</span><span class="o">=</span><span class="p">[</span>
+      <span class="o">*</span><span class="n">DEFAULT_JOIN_FEW_SHOT</span><span class="p">,</span>
+      <span class="p">{</span>
+        <span class="s2">&quot;join_criteria&quot;</span><span class="p">:</span> <span class="s2">&quot;Join the state to its capital.&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;left_values&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;California&quot;</span><span class="p">,</span> <span class="s2">&quot;Massachusetts&quot;</span><span class="p">,</span> <span class="s2">&quot;North Carolina&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;right_values&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Sacramento&quot;</span><span class="p">,</span> <span class="s2">&quot;Boston&quot;</span><span class="p">,</span> <span class="s2">&quot;Chicago&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;mapping&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="s2">&quot;California&quot;</span><span class="p">:</span> <span class="s2">&quot;Sacramento&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;Massachusetts&quot;</span><span class="p">:</span> <span class="s2">&quot;Boston&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;North Carolina&quot;</span><span class="p">:</span> <span class="s2">&quot;-&quot;</span>
+        <span class="p">}</span>
+      <span class="p">}</span>
+    <span class="p">],</span>
+  <span class="p">)</span>
+<span class="p">}</span>
+
+<span class="n">bsql</span> <span class="o">=</span> <span class="n">BlendSQL</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">ingredients</span><span class="o">=</span><span class="n">ingredients</span><span class="p">)</span>
+</code></pre></div>
+<h1 id="citation">Citation</h1>
+<div class="highlight"><pre><span></span><code><span class="nc">@inproceedings</span><span class="p">{</span><span class="nl">glenn2025play</span><span class="p">,</span>
+<span class="w">  </span><span class="na">title</span><span class="p">=</span><span class="s">{Play by the Type Rules: Inferring Constraints for Small Language Models in Declarative Programs}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">author</span><span class="p">=</span><span class="s">{Glenn, Parker and Samuel, Alfy and Liu, Daben}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">booktitle</span><span class="p">=</span><span class="s">{EurIPS 2025 Workshop: AI for Tabular Data}</span>
+<span class="p">}</span>
+
+<span class="nc">@article</span><span class="p">{</span><span class="nl">glenn2024blendsql</span><span class="p">,</span>
+<span class="w">  </span><span class="na">title</span><span class="p">=</span><span class="s">{BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">author</span><span class="p">=</span><span class="s">{Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">year</span><span class="p">=</span><span class="s">{2024}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">eprint</span><span class="p">=</span><span class="s">{2402.17882}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">archivePrefix</span><span class="p">=</span><span class="s">{arXiv}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">primaryClass</span><span class="p">=</span><span class="s">{cs.CL}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h1 id="acknowledgements">Acknowledgements</h1>
+<p>Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!</p>
+<ul>
+<li>The authors of <a href="https://arxiv.org/abs/2210.02875">Binding Language Models in Symbolic Languages</a><ul>
+<li>This paper was the primary inspiration for BlendSQL.</li>
+</ul>
+</li>
+<li>The authors of <a href="https://arxiv.org/pdf/2310.18652">EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images</a><ul>
+<li>As far as I can tell, the first publication to propose unifying model calls within SQL</li>
+<li>Served as the inspiration for the <a href="./examples/vqa-ingredient.ipynb">vqa-ingredient.ipynb</a> example</li>
+</ul>
+</li>
+<li>The authors of <a href="https://arxiv.org/abs/2305.19234">Grammar Prompting for Domain-Specific Language Generation with Large Language Models</a></li>
+<li>The maintainers of the <a href="https://github.com/guidance-ai/guidance">Guidance</a> library for powering the constrained decoding capabilities of BlendSQL</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["content.code.copy", "header.autohide", "navigation.expand", "navigation.tabs", "navigation.sections"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

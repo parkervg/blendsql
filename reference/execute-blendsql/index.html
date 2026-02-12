@@ -1,0 +1,2703 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Query language for blending SQL and LLMs across structured + unstructured data, with type constraints.">
+      
+      
+      
+      
+        <link rel="prev" href="../functions/">
+      
+      
+        <link rel="next" href="../models/models/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../img/blender.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Execute a BlendSQL Query - BlendSQL</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#blendsql-class" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="BlendSQL" class="md-header__button md-logo" aria-label="BlendSQL" data-md-component="logo">
+      
+  <img src="../../img/blender.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            BlendSQL
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Execute a BlendSQL Query
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/parkervg/blendsql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    parkervg/blendsql
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../quickstart/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../functions/" class="md-tabs__link">
+          
+  
+  
+  Documentation
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="BlendSQL" class="md-nav__button md-logo" aria-label="BlendSQL" data-md-component="logo">
+      
+  <img src="../../img/blender.png" alt="logo">
+
+    </a>
+    BlendSQL
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/parkervg/blendsql" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    parkervg/blendsql
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../by-example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Some Cool Things by Example
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/blendsql-by-example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BlendSQL by Example
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/vqa-ingredient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom VQA Ingredient with LLaVA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/teaching-blendsql-via-in-context-learning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Teaching BlendSQL via In-Context Learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../functions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BlendSQL Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execute a BlendSQL Query
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execute a BlendSQL Query
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BlendSQL Class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.BlendSQL" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BlendSQL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.BlendSQL.execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        execute
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.BlendSQL.visualize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        visualize
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../models/models/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language Models
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Language Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/vllm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../databases/databases/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Databases
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_4" id="__nav_3_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Databases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../databases/duckdb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DuckDB
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../databases/pandas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pandas (aka DuckDB in a trench coat)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../databases/sqlite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQLite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../databases/postgresql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PostgreSQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../smoothie/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Smoothie
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+                
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" hidden>
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BlendSQL Class
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.BlendSQL" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BlendSQL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.BlendSQL.execute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        execute
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#blendsql.BlendSQL.visualize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        visualize
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+
+
+
+                  
+  
+
+
+
+  
+  
+
+
+  <h1>Execute a BlendSQL Query</h1>
+
+<h2 id="blendsql-class">BlendSQL Class</h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<a id="blendsql.BlendSQL"></a>
+    <div class="doc doc-contents first">
+
+
+
+        <p>Core <code>BlendSQL</code> class that provides high level interface for executing BlendSQL queries.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>db</code>
+            </td>
+            <td>
+                  <code><span title="Union">Union</span>[<span title="pandas.DataFrame">DataFrame</span>, <span title="dict">dict</span>, <span title="str">str</span>, <a class="autorefs autorefs-internal" title="blendsql.db.database.Database" href="../databases/databases/#blendsql.db.database.Database">Database</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Database to connect to. Can be:</p>
+<ul>
+<li>
+<p>pandas DataFrame or dict of DataFrames</p>
+</li>
+<li>
+<p>Path to SQLite database file</p>
+</li>
+<li>
+<p>PostgreSQL connection string</p>
+</li>
+<li>
+<p><code>Database</code> object</p>
+</li>
+</ul>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model</code>
+            </td>
+            <td>
+                  <code><span title="Optional">Optional</span>[<a class="autorefs autorefs-internal" title="blendsql.models.model_base.ModelBase" href="../models/models/#blendsql.models.model_base.ModelBase">ModelBase</a>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Model instance to use for LLM operations. Can also be
+provided during query execution.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ingredients</code>
+            </td>
+            <td>
+                  <code><span title="Optional">Optional</span>[<span title="collections.abc.Collection">Collection</span>[<span title="typing.Type">Type</span>[<span title="blendsql.ingredients.ingredient.Ingredient">Ingredient</span>]]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Collection of ingredients to
+make available for queries. Can also be
+    provided during query execution.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="list">list</span>()</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>verbose</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to output debug logging information. Defaults to False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>infer_gen_constraints</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to automatically infer constraints for
+LLM generation based on query context. Defaults to True.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>table_to_title</code>
+            </td>
+            <td>
+                  <code><span title="Optional">Optional</span>[<span title="Dict">Dict</span>[<span title="str">str</span>, <span title="str">str</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional mapping from table names to
+descriptive titles, useful for datasets where table titles contain metadata.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+              <details class="mkdocstrings-source">
+                <summary>Source code in <code>blendsql/blendsql.py</code></summary>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 995</span>
+<span class="normal"> 996</span>
+<span class="normal"> 997</span>
+<span class="normal"> 998</span>
+<span class="normal"> 999</span>
+<span class="normal">1000</span>
+<span class="normal">1001</span>
+<span class="normal">1002</span>
+<span class="normal">1003</span>
+<span class="normal">1004</span>
+<span class="normal">1005</span>
+<span class="normal">1006</span>
+<span class="normal">1007</span>
+<span class="normal">1008</span>
+<span class="normal">1009</span>
+<span class="normal">1010</span>
+<span class="normal">1011</span>
+<span class="normal">1012</span>
+<span class="normal">1013</span>
+<span class="normal">1014</span>
+<span class="normal">1015</span>
+<span class="normal">1016</span>
+<span class="normal">1017</span>
+<span class="normal">1018</span>
+<span class="normal">1019</span>
+<span class="normal">1020</span>
+<span class="normal">1021</span>
+<span class="normal">1022</span>
+<span class="normal">1023</span>
+<span class="normal">1024</span>
+<span class="normal">1025</span>
+<span class="normal">1026</span>
+<span class="normal">1027</span>
+<span class="normal">1028</span>
+<span class="normal">1029</span>
+<span class="normal">1030</span>
+<span class="normal">1031</span>
+<span class="normal">1032</span>
+<span class="normal">1033</span>
+<span class="normal">1034</span>
+<span class="normal">1035</span>
+<span class="normal">1036</span>
+<span class="normal">1037</span>
+<span class="normal">1038</span>
+<span class="normal">1039</span>
+<span class="normal">1040</span>
+<span class="normal">1041</span>
+<span class="normal">1042</span>
+<span class="normal">1043</span>
+<span class="normal">1044</span>
+<span class="normal">1045</span>
+<span class="normal">1046</span>
+<span class="normal">1047</span>
+<span class="normal">1048</span>
+<span class="normal">1049</span>
+<span class="normal">1050</span>
+<span class="normal">1051</span>
+<span class="normal">1052</span>
+<span class="normal">1053</span>
+<span class="normal">1054</span>
+<span class="normal">1055</span>
+<span class="normal">1056</span>
+<span class="normal">1057</span>
+<span class="normal">1058</span>
+<span class="normal">1059</span>
+<span class="normal">1060</span>
+<span class="normal">1061</span>
+<span class="normal">1062</span>
+<span class="normal">1063</span>
+<span class="normal">1064</span>
+<span class="normal">1065</span>
+<span class="normal">1066</span>
+<span class="normal">1067</span>
+<span class="normal">1068</span>
+<span class="normal">1069</span>
+<span class="normal">1070</span>
+<span class="normal">1071</span>
+<span class="normal">1072</span>
+<span class="normal">1073</span>
+<span class="normal">1074</span>
+<span class="normal">1075</span>
+<span class="normal">1076</span>
+<span class="normal">1077</span>
+<span class="normal">1078</span>
+<span class="normal">1079</span>
+<span class="normal">1080</span>
+<span class="normal">1081</span>
+<span class="normal">1082</span>
+<span class="normal">1083</span>
+<span class="normal">1084</span>
+<span class="normal">1085</span>
+<span class="normal">1086</span>
+<span class="normal">1087</span>
+<span class="normal">1088</span>
+<span class="normal">1089</span>
+<span class="normal">1090</span>
+<span class="normal">1091</span>
+<span class="normal">1092</span>
+<span class="normal">1093</span>
+<span class="normal">1094</span>
+<span class="normal">1095</span>
+<span class="normal">1096</span>
+<span class="normal">1097</span>
+<span class="normal">1098</span>
+<span class="normal">1099</span>
+<span class="normal">1100</span>
+<span class="normal">1101</span>
+<span class="normal">1102</span>
+<span class="normal">1103</span>
+<span class="normal">1104</span>
+<span class="normal">1105</span>
+<span class="normal">1106</span>
+<span class="normal">1107</span>
+<span class="normal">1108</span>
+<span class="normal">1109</span>
+<span class="normal">1110</span>
+<span class="normal">1111</span>
+<span class="normal">1112</span>
+<span class="normal">1113</span>
+<span class="normal">1114</span>
+<span class="normal">1115</span>
+<span class="normal">1116</span>
+<span class="normal">1117</span>
+<span class="normal">1118</span>
+<span class="normal">1119</span>
+<span class="normal">1120</span>
+<span class="normal">1121</span>
+<span class="normal">1122</span>
+<span class="normal">1123</span>
+<span class="normal">1124</span>
+<span class="normal">1125</span>
+<span class="normal">1126</span>
+<span class="normal">1127</span>
+<span class="normal">1128</span>
+<span class="normal">1129</span>
+<span class="normal">1130</span>
+<span class="normal">1131</span>
+<span class="normal">1132</span>
+<span class="normal">1133</span>
+<span class="normal">1134</span>
+<span class="normal">1135</span>
+<span class="normal">1136</span>
+<span class="normal">1137</span>
+<span class="normal">1138</span>
+<span class="normal">1139</span>
+<span class="normal">1140</span>
+<span class="normal">1141</span>
+<span class="normal">1142</span>
+<span class="normal">1143</span>
+<span class="normal">1144</span>
+<span class="normal">1145</span>
+<span class="normal">1146</span>
+<span class="normal">1147</span>
+<span class="normal">1148</span>
+<span class="normal">1149</span>
+<span class="normal">1150</span>
+<span class="normal">1151</span>
+<span class="normal">1152</span>
+<span class="normal">1153</span>
+<span class="normal">1154</span>
+<span class="normal">1155</span>
+<span class="normal">1156</span>
+<span class="normal">1157</span>
+<span class="normal">1158</span>
+<span class="normal">1159</span>
+<span class="normal">1160</span>
+<span class="normal">1161</span>
+<span class="normal">1162</span>
+<span class="normal">1163</span>
+<span class="normal">1164</span>
+<span class="normal">1165</span>
+<span class="normal">1166</span>
+<span class="normal">1167</span>
+<span class="normal">1168</span>
+<span class="normal">1169</span>
+<span class="normal">1170</span>
+<span class="normal">1171</span>
+<span class="normal">1172</span>
+<span class="normal">1173</span>
+<span class="normal">1174</span>
+<span class="normal">1175</span>
+<span class="normal">1176</span>
+<span class="normal">1177</span>
+<span class="normal">1178</span>
+<span class="normal">1179</span>
+<span class="normal">1180</span>
+<span class="normal">1181</span>
+<span class="normal">1182</span>
+<span class="normal">1183</span>
+<span class="normal">1184</span>
+<span class="normal">1185</span>
+<span class="normal">1186</span>
+<span class="normal">1187</span>
+<span class="normal">1188</span>
+<span class="normal">1189</span>
+<span class="normal">1190</span>
+<span class="normal">1191</span>
+<span class="normal">1192</span>
+<span class="normal">1193</span>
+<span class="normal">1194</span>
+<span class="normal">1195</span>
+<span class="normal">1196</span>
+<span class="normal">1197</span>
+<span class="normal">1198</span>
+<span class="normal">1199</span>
+<span class="normal">1200</span>
+<span class="normal">1201</span>
+<span class="normal">1202</span>
+<span class="normal">1203</span>
+<span class="normal">1204</span>
+<span class="normal">1205</span>
+<span class="normal">1206</span>
+<span class="normal">1207</span>
+<span class="normal">1208</span>
+<span class="normal">1209</span>
+<span class="normal">1210</span>
+<span class="normal">1211</span>
+<span class="normal">1212</span>
+<span class="normal">1213</span>
+<span class="normal">1214</span>
+<span class="normal">1215</span>
+<span class="normal">1216</span>
+<span class="normal">1217</span>
+<span class="normal">1218</span>
+<span class="normal">1219</span>
+<span class="normal">1220</span>
+<span class="normal">1221</span>
+<span class="normal">1222</span>
+<span class="normal">1223</span>
+<span class="normal">1224</span>
+<span class="normal">1225</span>
+<span class="normal">1226</span>
+<span class="normal">1227</span>
+<span class="normal">1228</span>
+<span class="normal">1229</span>
+<span class="normal">1230</span>
+<span class="normal">1231</span>
+<span class="normal">1232</span>
+<span class="normal">1233</span>
+<span class="normal">1234</span>
+<span class="normal">1235</span>
+<span class="normal">1236</span>
+<span class="normal">1237</span>
+<span class="normal">1238</span>
+<span class="normal">1239</span>
+<span class="normal">1240</span>
+<span class="normal">1241</span>
+<span class="normal">1242</span>
+<span class="normal">1243</span>
+<span class="normal">1244</span>
+<span class="normal">1245</span>
+<span class="normal">1246</span>
+<span class="normal">1247</span>
+<span class="normal">1248</span>
+<span class="normal">1249</span>
+<span class="normal">1250</span>
+<span class="normal">1251</span>
+<span class="normal">1252</span>
+<span class="normal">1253</span>
+<span class="normal">1254</span>
+<span class="normal">1255</span>
+<span class="normal">1256</span>
+<span class="normal">1257</span>
+<span class="normal">1258</span>
+<span class="normal">1259</span>
+<span class="normal">1260</span>
+<span class="normal">1261</span>
+<span class="normal">1262</span>
+<span class="normal">1263</span>
+<span class="normal">1264</span>
+<span class="normal">1265</span>
+<span class="normal">1266</span>
+<span class="normal">1267</span>
+<span class="normal">1268</span>
+<span class="normal">1269</span>
+<span class="normal">1270</span>
+<span class="normal">1271</span>
+<span class="normal">1272</span>
+<span class="normal">1273</span>
+<span class="normal">1274</span>
+<span class="normal">1275</span>
+<span class="normal">1276</span>
+<span class="normal">1277</span>
+<span class="normal">1278</span>
+<span class="normal">1279</span>
+<span class="normal">1280</span>
+<span class="normal">1281</span>
+<span class="normal">1282</span>
+<span class="normal">1283</span>
+<span class="normal">1284</span>
+<span class="normal">1285</span>
+<span class="normal">1286</span>
+<span class="normal">1287</span>
+<span class="normal">1288</span>
+<span class="normal">1289</span>
+<span class="normal">1290</span>
+<span class="normal">1291</span>
+<span class="normal">1292</span>
+<span class="normal">1293</span>
+<span class="normal">1294</span>
+<span class="normal">1295</span>
+<span class="normal">1296</span>
+<span class="normal">1297</span>
+<span class="normal">1298</span>
+<span class="normal">1299</span>
+<span class="normal">1300</span>
+<span class="normal">1301</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BlendSQL</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Core `BlendSQL` class that provides high level interface for executing BlendSQL queries.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        db (Union[pd.DataFrame, dict, str, Database]): Database to connect to. Can be:</span>
+
+<span class="sd">            - pandas DataFrame or dict of DataFrames</span>
+
+<span class="sd">            - Path to SQLite database file</span>
+
+<span class="sd">            - PostgreSQL connection string</span>
+
+<span class="sd">            - `Database` object</span>
+<span class="sd">        model (Optional[ModelBase]): Model instance to use for LLM operations. Can also be</span>
+<span class="sd">            provided during query execution.</span>
+<span class="sd">        ingredients (Optional[Collection[Type[Ingredient]]]): Collection of ingredients to</span>
+<span class="sd">            make available for queries. Can also be</span>
+<span class="sd">                provided during query execution.</span>
+<span class="sd">        verbose (bool): Whether to output debug logging information. Defaults to False.</span>
+<span class="sd">        infer_gen_constraints (bool): Whether to automatically infer constraints for</span>
+<span class="sd">            LLM generation based on query context. Defaults to True.</span>
+<span class="sd">        table_to_title (Optional[Dict[str, str]]): Optional mapping from table names to</span>
+<span class="sd">            descriptive titles, useful for datasets where table titles contain metadata.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">db</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="nb">dict</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="n">Database</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">ModelBase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">ingredients</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">Ingredient</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+
+    <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">infer_gen_constraints</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">enable_constrained_decoding</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">enable_cascade_filter</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">enable_early_exit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">table_to_title</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">,</span> <span class="n">Database</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_infer_db_type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;df_or_db_path must be provided&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ingredients</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_merge_default_ingredients</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ingredients</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_toggle_verbosity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_toggle_verbosity</span><span class="p">(</span><span class="n">verbose_in_use</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">verbose_in_use</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_merge_default_ingredients</span><span class="p">(</span>
+        <span class="n">ingredients</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">Ingredient</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">Ingredient</span><span class="p">]]:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.ingredients</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMQA</span><span class="p">,</span> <span class="n">LLMMap</span><span class="p">,</span> <span class="n">LLMJoin</span>
+
+        <span class="n">DEFAULT_INGREDIENTS</span> <span class="o">=</span> <span class="p">{</span><span class="n">LLMQA</span><span class="p">,</span> <span class="n">LLMMap</span><span class="p">,</span> <span class="n">LLMJoin</span><span class="p">}</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">_ingredient_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ingredients</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">LMFunctionException</span><span class="p">(</span>
+                <span class="s2">&quot;All arguments passed to `ingredients` should be `Ingredient` classes!&quot;</span>
+            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+        <span class="n">ingredient_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">_ingredient_names</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ingredient_names</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">_ingredient_names</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">LMFunctionException</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Duplicate ingredient names passed! These are case insensitive, be careful.</span><span class="se">\n</span><span class="si">{</span><span class="n">_ingredient_names</span><span class="si">=}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="n">ingredients</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">ingredients</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">default_ingredient</span> <span class="ow">in</span> <span class="n">DEFAULT_INGREDIENTS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">default_ingredient</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ingredient_names</span><span class="p">:</span>
+                <span class="n">ingredients</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">default_ingredient</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ingredients</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_infer_db_type</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="nb">dict</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Database</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">df_or_db_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.db.pandas</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pandas</span>
+
+            <span class="k">return</span> <span class="n">Pandas</span><span class="p">({})</span>  <span class="c1"># Load an empty DuckDB connection</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">,</span> <span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.db.pandas</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pandas</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="o">.</span><span class="n">values</span><span class="p">())),</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                        <span class="n">Color</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;Converting dict values to pd.DataFrames...&quot;</span><span class="p">)</span>
+                    <span class="p">)</span>
+                    <span class="n">df_or_db_path</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="n">k</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">df_or_db_path</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                    <span class="p">}</span>
+            <span class="k">return</span> <span class="n">Pandas</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Path</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">&quot;.duckdb&quot;</span><span class="p">:</span>
+                    <span class="kn">from</span><span class="w"> </span><span class="nn">.db.duckdb</span><span class="w"> </span><span class="kn">import</span> <span class="n">DuckDB</span>
+
+                    <span class="k">return</span> <span class="n">DuckDB</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="kn">from</span><span class="w"> </span><span class="nn">.db.sqlite</span><span class="w"> </span><span class="kn">import</span> <span class="n">SQLite</span>
+
+                    <span class="k">return</span> <span class="n">SQLite</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="s2">&quot;://&quot;</span> <span class="ow">in</span> <span class="n">df_or_db_path</span><span class="p">:</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">.db.postgresql</span><span class="w"> </span><span class="kn">import</span> <span class="n">PostgreSQL</span>
+
+                <span class="k">return</span> <span class="n">PostgreSQL</span><span class="p">(</span><span class="n">df_or_db_path</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Could not resolve &#39;</span><span class="si">{</span><span class="n">df_or_db_path</span><span class="si">}</span><span class="s2">&#39; to a valid database type!&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">visualize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;pdf&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Visualize query as a DAG with graphviz.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.visualize</span><span class="w"> </span><span class="kn">import</span> <span class="n">SQLGlotASTVisualizer</span>
+
+        <span class="n">visualizer</span> <span class="o">=</span> <span class="n">SQLGlotASTVisualizer</span><span class="p">()</span>
+
+        <span class="n">dialect</span><span class="p">:</span> <span class="n">sqlglot</span><span class="o">.</span><span class="n">Dialect</span> <span class="o">=</span> <span class="n">get_dialect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+
+        <span class="c1"># Generate visualization</span>
+        <span class="n">dot</span> <span class="o">=</span> <span class="n">visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+            <span class="n">_parse_one</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="n">dialect</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">sqlglot_schema</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">output_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Save as PDF</span>
+            <span class="n">dot</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="nb">format</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dot</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_warmup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="n">ModelBase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            SELECT {{LLMQA(&#39;What color is the sky?&#39;)}} AS answer</span>
+<span class="sd">            &quot;&quot;&quot;</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            WITH subset AS (</span>
+<span class="sd">                SELECT &#39;This product is absolutely wonderful and I love it!&#39; AS reviewText</span>
+<span class="sd">                UNION ALL</span>
+<span class="sd">                SELECT &#39;Terrible quality, broke after one day.&#39;</span>
+<span class="sd">            )</span>
+<span class="sd">            SELECT {{LLMMap(&#39;Is this positive?&#39;, reviewText, return_type=&#39;bool&#39;)}}</span>
+<span class="sd">            FROM subset</span>
+<span class="sd">            &quot;&quot;&quot;</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">ingredients</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">Ingredient</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">ModelBase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">infer_gen_constraints</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">enable_cascade_filter</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">enable_early_exit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">enable_constrained_decoding</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Smoothie</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;The `execute()` function is used to execute a BlendSQL query against a database and</span>
+<span class="sd">        return the final result, in addition to the intermediate reasoning steps taken.</span>
+<span class="sd">        Execution is done on a database given an ingredient context.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query: The BlendSQL query to execute</span>
+<span class="sd">            ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query.</span>
+<span class="sd">                {LLMQA, LLMMap, LLMJoin} are supplied by default.</span>
+<span class="sd">            verbose: Boolean defining whether to run with logger in debug mode</span>
+<span class="sd">            default_model: Which BlendSQL model to use in performing ingredient tasks in the current query</span>
+<span class="sd">            infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context</span>
+<span class="sd">                For example, in `{{LLMMap(&#39;convert to date&#39;, &#39;w::listing date&#39;)}} &lt;= &#39;1960-12-31&#39;`</span>
+<span class="sd">                We can infer the output format should look like &#39;1960-12-31&#39; and both:</span>
+<span class="sd">                    1) Put this string in the `example_outputs` kwarg</span>
+<span class="sd">                    2) If we have a LocalModel, pass the date regex pattern to guidance</span>
+<span class="sd">            enable_cascade_filter: Enable cascade filtering optimization.</span>
+<span class="sd">            enable_early_exit: Enable early exit optimization.</span>
+<span class="sd">            enable_constrained_decoding: Enable constrained decoding for local models.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata</span>
+
+<span class="sd">        Examples:</span>
+<span class="sd">            ```python</span>
+<span class="sd">            import psutil</span>
+<span class="sd">            import pandas as pd</span>
+
+<span class="sd">            from blendsql import BlendSQL</span>
+<span class="sd">            from blendsql.models import LlamaCpp</span>
+
+<span class="sd">            # Prepare our BlendSQL connection</span>
+<span class="sd">            bsql = BlendSQL(</span>
+<span class="sd">                {</span>
+<span class="sd">                    &quot;People&quot;: pd.DataFrame(</span>
+<span class="sd">                        {</span>
+<span class="sd">                            &quot;Name&quot;: [</span>
+<span class="sd">                                &quot;George Washington&quot;,</span>
+<span class="sd">                                &quot;John Quincy Adams&quot;,</span>
+<span class="sd">                                &quot;Thomas Jefferson&quot;,</span>
+<span class="sd">                                &quot;James Madison&quot;,</span>
+<span class="sd">                                &quot;James Monroe&quot;,</span>
+<span class="sd">                                &quot;Alexander Hamilton&quot;,</span>
+<span class="sd">                                &quot;Sabrina Carpenter&quot;,</span>
+<span class="sd">                                &quot;Charli XCX&quot;,</span>
+<span class="sd">                                &quot;Elon Musk&quot;,</span>
+<span class="sd">                                &quot;Michelle Obama&quot;,</span>
+<span class="sd">                                &quot;Elvis Presley&quot;,</span>
+<span class="sd">                            ],</span>
+<span class="sd">                            &quot;Known_For&quot;: [</span>
+<span class="sd">                                &quot;Established federal government, First U.S. President&quot;,</span>
+<span class="sd">                                &quot;XYZ Affair, Alien and Sedition Acts&quot;,</span>
+<span class="sd">                                &quot;Louisiana Purchase, Declaration of Independence&quot;,</span>
+<span class="sd">                                &quot;War of 1812, Constitution&quot;,</span>
+<span class="sd">                                &quot;Monroe Doctrine, Missouri Compromise&quot;,</span>
+<span class="sd">                                &quot;Created national bank, Federalist Papers&quot;,</span>
+<span class="sd">                                &quot;Nonsense, Emails I Cant Send, Mean Girls musical&quot;,</span>
+<span class="sd">                                &quot;Crash, How Im Feeling Now, Boom Clap&quot;,</span>
+<span class="sd">                                &quot;Tesla, SpaceX, Twitter/X acquisition&quot;,</span>
+<span class="sd">                                &quot;Lets Move campaign, Becoming memoir&quot;,</span>
+<span class="sd">                                &quot;14 Grammys, King of Rock n Roll&quot;,</span>
+<span class="sd">                            ],</span>
+<span class="sd">                        }</span>
+<span class="sd">                    ),</span>
+<span class="sd">                    &quot;Eras&quot;: pd.DataFrame({&quot;Years&quot;: [&quot;1800-1900&quot;, &quot;1900-2000&quot;, &quot;2000-Now&quot;]}),</span>
+<span class="sd">                },</span>
+<span class="sd">                model = LlamaCpp(</span>
+<span class="sd">                    model_name_or_path=&quot;unsloth/gemma-3-4b-it-GGUF&quot;,</span>
+<span class="sd">                    filename=&quot;gemma-3-4b-it-Q4_K_M.gguf&quot;,</span>
+<span class="sd">                    config={</span>
+<span class="sd">                        &quot;n_gpu_layers&quot;: -1,</span>
+<span class="sd">                        &quot;n_ctx&quot;: 1028,</span>
+<span class="sd">                        &quot;seed&quot;: 100,</span>
+<span class="sd">                        &quot;n_threads&quot;: psutil.cpu_count(logical=False),</span>
+<span class="sd">                    }</span>
+<span class="sd">                )</span>
+<span class="sd">            )</span>
+
+<span class="sd">            smoothie = bsql.execute(</span>
+<span class="sd">                &quot;&quot;&quot;</span>
+<span class="sd">                SELECT * FROM People P</span>
+<span class="sd">                WHERE P.Name IN {{</span>
+<span class="sd">                    LLMQA(&#39;First 3 presidents of the U.S?&#39;, quantifier=&#39;{3}&#39;)</span>
+<span class="sd">                }}</span>
+<span class="sd">                &quot;&quot;&quot;</span>
+<span class="sd">            )</span>
+
+<span class="sd">            print(smoothie.df)</span>
+<span class="sd">            # ┌───────────────────┬───────────────────────────────────────────────────────┐</span>
+<span class="sd">            # │ Name              │ Known_For                                             │</span>
+<span class="sd">            # ├───────────────────┼───────────────────────────────────────────────────────┤</span>
+<span class="sd">            # │ George Washington │ Established federal government, First U.S. Preside... │</span>
+<span class="sd">            # │ John Quincy Adams │ XYZ Affair, Alien and Sedition Acts                   │</span>
+<span class="sd">            # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │</span>
+<span class="sd">            # └───────────────────┴───────────────────────────────────────────────────────┘</span>
+<span class="sd">            smoothie.print_summary()</span>
+<span class="sd">            # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐</span>
+<span class="sd">            # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │</span>
+<span class="sd">            # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤</span>
+<span class="sd">            # │    1.25158 │                    1 │             296 │                  16 │</span>
+<span class="sd">            # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘</span>
+<span class="sd">            ```</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_toggle_verbosity</span><span class="p">(</span><span class="n">verbose</span> <span class="k">if</span> <span class="n">verbose</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">Color</span><span class="o">.</span><span class="n">horizontal_line</span><span class="p">())</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">model_in_use</span> <span class="o">=</span> <span class="n">model</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">smoothie</span> <span class="o">=</span> <span class="n">_blend</span><span class="p">(</span>
+                <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+                <span class="n">db</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">,</span>
+                <span class="n">default_model</span><span class="o">=</span><span class="n">model_in_use</span><span class="p">,</span>
+                <span class="n">ingredients</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_merge_default_ingredients</span><span class="p">(</span>
+                    <span class="n">ingredients</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">ingredients</span>
+                <span class="p">),</span>
+                <span class="n">infer_gen_constraints</span><span class="o">=</span><span class="n">infer_gen_constraints</span>
+                <span class="k">if</span> <span class="n">infer_gen_constraints</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">infer_gen_constraints</span><span class="p">,</span>
+                <span class="n">enable_constrained_decoding</span><span class="o">=</span><span class="n">enable_constrained_decoding</span>
+                <span class="k">if</span> <span class="n">enable_constrained_decoding</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_constrained_decoding</span><span class="p">,</span>
+                <span class="n">enable_cascade_filter</span><span class="o">=</span><span class="n">enable_cascade_filter</span>
+                <span class="k">if</span> <span class="n">enable_cascade_filter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_cascade_filter</span><span class="p">,</span>
+                <span class="n">enable_early_exit</span><span class="o">=</span><span class="n">enable_early_exit</span>
+                <span class="k">if</span> <span class="n">enable_early_exit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_early_exit</span><span class="p">,</span>
+                <span class="n">table_to_title</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">table_to_title</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">error</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="c1"># In the case of a recursive `_blend()` call,</span>
+            <span class="c1">#   this logic allows temp tables to persist until</span>
+            <span class="c1">#   the final base case is fulfilled.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">_reset_connection</span><span class="p">()</span>
+            <span class="c1"># Reset model stats, so future executions don&#39;t add here</span>
+            <span class="k">if</span> <span class="n">model_in_use</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">model_in_use</span><span class="o">.</span><span class="n">reset_stats</span><span class="p">()</span>
+        <span class="n">smoothie</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">process_time_seconds</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">Color</span><span class="o">.</span><span class="n">horizontal_line</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">smoothie</span>
+</code></pre></div></td></tr></table></div>
+              </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="blendsql.BlendSQL.execute" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">ingredients</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">infer_gen_constraints</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">enable_cascade_filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">enable_early_exit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">enable_constrained_decoding</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The <code>execute()</code> function is used to execute a BlendSQL query against a database and
+return the final result, in addition to the intermediate reasoning steps taken.
+Execution is done on a database given an ingredient context.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>query</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The BlendSQL query to execute</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ingredients</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Collection">Collection</span>[<span title="typing.Type">Type</span>[<span title="blendsql.ingredients.ingredient.Ingredient">Ingredient</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Collection of ingredient objects, to use in interpreting BlendSQL query.
+{LLMQA, LLMMap, LLMJoin} are supplied by default.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>verbose</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Boolean defining whether to run with logger in debug mode</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>default_model</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which BlendSQL model to use in performing ingredient tasks in the current query</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>infer_gen_constraints</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optionally infer the output format of an <code>IngredientMap</code> call, given the predicate context
+For example, in <code>{{LLMMap('convert to date', 'w::listing date')}} &lt;= '1960-12-31'</code>
+We can infer the output format should look like '1960-12-31' and both:
+    1) Put this string in the <code>example_outputs</code> kwarg
+    2) If we have a LocalModel, pass the date regex pattern to guidance</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>enable_cascade_filter</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enable cascade filtering optimization.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>enable_early_exit</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enable early exit optimization.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>enable_constrained_decoding</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Enable constrained decoding for local models.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>smoothie</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="blendsql.smoothie.Smoothie" href="../smoothie/#blendsql.smoothie.Smoothie">Smoothie</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>Smoothie</code> dataclass containing pd.DataFrame output and execution metadata</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">psutil</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlendSQL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">blendsql.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">LlamaCpp</span>
+
+<span class="c1"># Prepare our BlendSQL connection</span>
+<span class="n">bsql</span> <span class="o">=</span> <span class="n">BlendSQL</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;People&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;Name&quot;</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="s2">&quot;George Washington&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;John Quincy Adams&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Thomas Jefferson&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;James Madison&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;James Monroe&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Alexander Hamilton&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Sabrina Carpenter&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Charli XCX&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Elon Musk&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Michelle Obama&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Elvis Presley&quot;</span><span class="p">,</span>
+                <span class="p">],</span>
+                <span class="s2">&quot;Known_For&quot;</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="s2">&quot;Established federal government, First U.S. President&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;XYZ Affair, Alien and Sedition Acts&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Louisiana Purchase, Declaration of Independence&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;War of 1812, Constitution&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Monroe Doctrine, Missouri Compromise&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Created national bank, Federalist Papers&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Nonsense, Emails I Cant Send, Mean Girls musical&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Crash, How Im Feeling Now, Boom Clap&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Tesla, SpaceX, Twitter/X acquisition&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Lets Move campaign, Becoming memoir&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;14 Grammys, King of Rock n Roll&quot;</span><span class="p">,</span>
+                <span class="p">],</span>
+            <span class="p">}</span>
+        <span class="p">),</span>
+        <span class="s2">&quot;Eras&quot;</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;Years&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;1800-1900&quot;</span><span class="p">,</span> <span class="s2">&quot;1900-2000&quot;</span><span class="p">,</span> <span class="s2">&quot;2000-Now&quot;</span><span class="p">]}),</span>
+    <span class="p">},</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">LlamaCpp</span><span class="p">(</span>
+        <span class="n">model_name_or_path</span><span class="o">=</span><span class="s2">&quot;unsloth/gemma-3-4b-it-GGUF&quot;</span><span class="p">,</span>
+        <span class="n">filename</span><span class="o">=</span><span class="s2">&quot;gemma-3-4b-it-Q4_K_M.gguf&quot;</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;n_gpu_layers&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+            <span class="s2">&quot;n_ctx&quot;</span><span class="p">:</span> <span class="mi">1028</span><span class="p">,</span>
+            <span class="s2">&quot;seed&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="s2">&quot;n_threads&quot;</span><span class="p">:</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(</span><span class="n">logical</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">smoothie</span> <span class="o">=</span> <span class="n">bsql</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    SELECT * FROM People P</span>
+<span class="sd">    WHERE P.Name IN {{</span>
+<span class="sd">        LLMQA(&#39;First 3 presidents of the U.S?&#39;, quantifier=&#39;{3}&#39;)</span>
+<span class="sd">    }}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">smoothie</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
+<span class="c1"># ┌───────────────────┬───────────────────────────────────────────────────────┐</span>
+<span class="c1"># │ Name              │ Known_For                                             │</span>
+<span class="c1"># ├───────────────────┼───────────────────────────────────────────────────────┤</span>
+<span class="c1"># │ George Washington │ Established federal government, First U.S. Preside... │</span>
+<span class="c1"># │ John Quincy Adams │ XYZ Affair, Alien and Sedition Acts                   │</span>
+<span class="c1"># │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │</span>
+<span class="c1"># └───────────────────┴───────────────────────────────────────────────────────┘</span>
+<span class="n">smoothie</span><span class="o">.</span><span class="n">print_summary</span><span class="p">()</span>
+<span class="c1"># ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐</span>
+<span class="c1"># │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │</span>
+<span class="c1"># ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤</span>
+<span class="c1"># │    1.25158 │                    1 │             296 │                  16 │</span>
+<span class="c1"># └────────────┴──────────────────────┴─────────────────┴─────────────────────┘</span>
+</code></pre></div>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>blendsql/blendsql.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1150</span>
+<span class="normal">1151</span>
+<span class="normal">1152</span>
+<span class="normal">1153</span>
+<span class="normal">1154</span>
+<span class="normal">1155</span>
+<span class="normal">1156</span>
+<span class="normal">1157</span>
+<span class="normal">1158</span>
+<span class="normal">1159</span>
+<span class="normal">1160</span>
+<span class="normal">1161</span>
+<span class="normal">1162</span>
+<span class="normal">1163</span>
+<span class="normal">1164</span>
+<span class="normal">1165</span>
+<span class="normal">1166</span>
+<span class="normal">1167</span>
+<span class="normal">1168</span>
+<span class="normal">1169</span>
+<span class="normal">1170</span>
+<span class="normal">1171</span>
+<span class="normal">1172</span>
+<span class="normal">1173</span>
+<span class="normal">1174</span>
+<span class="normal">1175</span>
+<span class="normal">1176</span>
+<span class="normal">1177</span>
+<span class="normal">1178</span>
+<span class="normal">1179</span>
+<span class="normal">1180</span>
+<span class="normal">1181</span>
+<span class="normal">1182</span>
+<span class="normal">1183</span>
+<span class="normal">1184</span>
+<span class="normal">1185</span>
+<span class="normal">1186</span>
+<span class="normal">1187</span>
+<span class="normal">1188</span>
+<span class="normal">1189</span>
+<span class="normal">1190</span>
+<span class="normal">1191</span>
+<span class="normal">1192</span>
+<span class="normal">1193</span>
+<span class="normal">1194</span>
+<span class="normal">1195</span>
+<span class="normal">1196</span>
+<span class="normal">1197</span>
+<span class="normal">1198</span>
+<span class="normal">1199</span>
+<span class="normal">1200</span>
+<span class="normal">1201</span>
+<span class="normal">1202</span>
+<span class="normal">1203</span>
+<span class="normal">1204</span>
+<span class="normal">1205</span>
+<span class="normal">1206</span>
+<span class="normal">1207</span>
+<span class="normal">1208</span>
+<span class="normal">1209</span>
+<span class="normal">1210</span>
+<span class="normal">1211</span>
+<span class="normal">1212</span>
+<span class="normal">1213</span>
+<span class="normal">1214</span>
+<span class="normal">1215</span>
+<span class="normal">1216</span>
+<span class="normal">1217</span>
+<span class="normal">1218</span>
+<span class="normal">1219</span>
+<span class="normal">1220</span>
+<span class="normal">1221</span>
+<span class="normal">1222</span>
+<span class="normal">1223</span>
+<span class="normal">1224</span>
+<span class="normal">1225</span>
+<span class="normal">1226</span>
+<span class="normal">1227</span>
+<span class="normal">1228</span>
+<span class="normal">1229</span>
+<span class="normal">1230</span>
+<span class="normal">1231</span>
+<span class="normal">1232</span>
+<span class="normal">1233</span>
+<span class="normal">1234</span>
+<span class="normal">1235</span>
+<span class="normal">1236</span>
+<span class="normal">1237</span>
+<span class="normal">1238</span>
+<span class="normal">1239</span>
+<span class="normal">1240</span>
+<span class="normal">1241</span>
+<span class="normal">1242</span>
+<span class="normal">1243</span>
+<span class="normal">1244</span>
+<span class="normal">1245</span>
+<span class="normal">1246</span>
+<span class="normal">1247</span>
+<span class="normal">1248</span>
+<span class="normal">1249</span>
+<span class="normal">1250</span>
+<span class="normal">1251</span>
+<span class="normal">1252</span>
+<span class="normal">1253</span>
+<span class="normal">1254</span>
+<span class="normal">1255</span>
+<span class="normal">1256</span>
+<span class="normal">1257</span>
+<span class="normal">1258</span>
+<span class="normal">1259</span>
+<span class="normal">1260</span>
+<span class="normal">1261</span>
+<span class="normal">1262</span>
+<span class="normal">1263</span>
+<span class="normal">1264</span>
+<span class="normal">1265</span>
+<span class="normal">1266</span>
+<span class="normal">1267</span>
+<span class="normal">1268</span>
+<span class="normal">1269</span>
+<span class="normal">1270</span>
+<span class="normal">1271</span>
+<span class="normal">1272</span>
+<span class="normal">1273</span>
+<span class="normal">1274</span>
+<span class="normal">1275</span>
+<span class="normal">1276</span>
+<span class="normal">1277</span>
+<span class="normal">1278</span>
+<span class="normal">1279</span>
+<span class="normal">1280</span>
+<span class="normal">1281</span>
+<span class="normal">1282</span>
+<span class="normal">1283</span>
+<span class="normal">1284</span>
+<span class="normal">1285</span>
+<span class="normal">1286</span>
+<span class="normal">1287</span>
+<span class="normal">1288</span>
+<span class="normal">1289</span>
+<span class="normal">1290</span>
+<span class="normal">1291</span>
+<span class="normal">1292</span>
+<span class="normal">1293</span>
+<span class="normal">1294</span>
+<span class="normal">1295</span>
+<span class="normal">1296</span>
+<span class="normal">1297</span>
+<span class="normal">1298</span>
+<span class="normal">1299</span>
+<span class="normal">1300</span>
+<span class="normal">1301</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">ingredients</span><span class="p">:</span> <span class="n">Collection</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">Ingredient</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">ModelBase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">infer_gen_constraints</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">enable_cascade_filter</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">enable_early_exit</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">enable_constrained_decoding</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Smoothie</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;The `execute()` function is used to execute a BlendSQL query against a database and</span>
+<span class="sd">    return the final result, in addition to the intermediate reasoning steps taken.</span>
+<span class="sd">    Execution is done on a database given an ingredient context.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        query: The BlendSQL query to execute</span>
+<span class="sd">        ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query.</span>
+<span class="sd">            {LLMQA, LLMMap, LLMJoin} are supplied by default.</span>
+<span class="sd">        verbose: Boolean defining whether to run with logger in debug mode</span>
+<span class="sd">        default_model: Which BlendSQL model to use in performing ingredient tasks in the current query</span>
+<span class="sd">        infer_gen_constraints: Optionally infer the output format of an `IngredientMap` call, given the predicate context</span>
+<span class="sd">            For example, in `{{LLMMap(&#39;convert to date&#39;, &#39;w::listing date&#39;)}} &lt;= &#39;1960-12-31&#39;`</span>
+<span class="sd">            We can infer the output format should look like &#39;1960-12-31&#39; and both:</span>
+<span class="sd">                1) Put this string in the `example_outputs` kwarg</span>
+<span class="sd">                2) If we have a LocalModel, pass the date regex pattern to guidance</span>
+<span class="sd">        enable_cascade_filter: Enable cascade filtering optimization.</span>
+<span class="sd">        enable_early_exit: Enable early exit optimization.</span>
+<span class="sd">        enable_constrained_decoding: Enable constrained decoding for local models.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata</span>
+
+<span class="sd">    Examples:</span>
+<span class="sd">        ```python</span>
+<span class="sd">        import psutil</span>
+<span class="sd">        import pandas as pd</span>
+
+<span class="sd">        from blendsql import BlendSQL</span>
+<span class="sd">        from blendsql.models import LlamaCpp</span>
+
+<span class="sd">        # Prepare our BlendSQL connection</span>
+<span class="sd">        bsql = BlendSQL(</span>
+<span class="sd">            {</span>
+<span class="sd">                &quot;People&quot;: pd.DataFrame(</span>
+<span class="sd">                    {</span>
+<span class="sd">                        &quot;Name&quot;: [</span>
+<span class="sd">                            &quot;George Washington&quot;,</span>
+<span class="sd">                            &quot;John Quincy Adams&quot;,</span>
+<span class="sd">                            &quot;Thomas Jefferson&quot;,</span>
+<span class="sd">                            &quot;James Madison&quot;,</span>
+<span class="sd">                            &quot;James Monroe&quot;,</span>
+<span class="sd">                            &quot;Alexander Hamilton&quot;,</span>
+<span class="sd">                            &quot;Sabrina Carpenter&quot;,</span>
+<span class="sd">                            &quot;Charli XCX&quot;,</span>
+<span class="sd">                            &quot;Elon Musk&quot;,</span>
+<span class="sd">                            &quot;Michelle Obama&quot;,</span>
+<span class="sd">                            &quot;Elvis Presley&quot;,</span>
+<span class="sd">                        ],</span>
+<span class="sd">                        &quot;Known_For&quot;: [</span>
+<span class="sd">                            &quot;Established federal government, First U.S. President&quot;,</span>
+<span class="sd">                            &quot;XYZ Affair, Alien and Sedition Acts&quot;,</span>
+<span class="sd">                            &quot;Louisiana Purchase, Declaration of Independence&quot;,</span>
+<span class="sd">                            &quot;War of 1812, Constitution&quot;,</span>
+<span class="sd">                            &quot;Monroe Doctrine, Missouri Compromise&quot;,</span>
+<span class="sd">                            &quot;Created national bank, Federalist Papers&quot;,</span>
+<span class="sd">                            &quot;Nonsense, Emails I Cant Send, Mean Girls musical&quot;,</span>
+<span class="sd">                            &quot;Crash, How Im Feeling Now, Boom Clap&quot;,</span>
+<span class="sd">                            &quot;Tesla, SpaceX, Twitter/X acquisition&quot;,</span>
+<span class="sd">                            &quot;Lets Move campaign, Becoming memoir&quot;,</span>
+<span class="sd">                            &quot;14 Grammys, King of Rock n Roll&quot;,</span>
+<span class="sd">                        ],</span>
+<span class="sd">                    }</span>
+<span class="sd">                ),</span>
+<span class="sd">                &quot;Eras&quot;: pd.DataFrame({&quot;Years&quot;: [&quot;1800-1900&quot;, &quot;1900-2000&quot;, &quot;2000-Now&quot;]}),</span>
+<span class="sd">            },</span>
+<span class="sd">            model = LlamaCpp(</span>
+<span class="sd">                model_name_or_path=&quot;unsloth/gemma-3-4b-it-GGUF&quot;,</span>
+<span class="sd">                filename=&quot;gemma-3-4b-it-Q4_K_M.gguf&quot;,</span>
+<span class="sd">                config={</span>
+<span class="sd">                    &quot;n_gpu_layers&quot;: -1,</span>
+<span class="sd">                    &quot;n_ctx&quot;: 1028,</span>
+<span class="sd">                    &quot;seed&quot;: 100,</span>
+<span class="sd">                    &quot;n_threads&quot;: psutil.cpu_count(logical=False),</span>
+<span class="sd">                }</span>
+<span class="sd">            )</span>
+<span class="sd">        )</span>
+
+<span class="sd">        smoothie = bsql.execute(</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+<span class="sd">            SELECT * FROM People P</span>
+<span class="sd">            WHERE P.Name IN {{</span>
+<span class="sd">                LLMQA(&#39;First 3 presidents of the U.S?&#39;, quantifier=&#39;{3}&#39;)</span>
+<span class="sd">            }}</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+<span class="sd">        )</span>
+
+<span class="sd">        print(smoothie.df)</span>
+<span class="sd">        # ┌───────────────────┬───────────────────────────────────────────────────────┐</span>
+<span class="sd">        # │ Name              │ Known_For                                             │</span>
+<span class="sd">        # ├───────────────────┼───────────────────────────────────────────────────────┤</span>
+<span class="sd">        # │ George Washington │ Established federal government, First U.S. Preside... │</span>
+<span class="sd">        # │ John Quincy Adams │ XYZ Affair, Alien and Sedition Acts                   │</span>
+<span class="sd">        # │ Thomas Jefferson  │ Louisiana Purchase, Declaration of Independence       │</span>
+<span class="sd">        # └───────────────────┴───────────────────────────────────────────────────────┘</span>
+<span class="sd">        smoothie.print_summary()</span>
+<span class="sd">        # ┌────────────┬──────────────────────┬─────────────────┬─────────────────────┐</span>
+<span class="sd">        # │   Time (s) │   # Generation Calls │   Prompt Tokens │   Completion Tokens │</span>
+<span class="sd">        # ├────────────┼──────────────────────┼─────────────────┼─────────────────────┤</span>
+<span class="sd">        # │    1.25158 │                    1 │             296 │                  16 │</span>
+<span class="sd">        # └────────────┴──────────────────────┴─────────────────┴─────────────────────┘</span>
+<span class="sd">        ```</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">_toggle_verbosity</span><span class="p">(</span><span class="n">verbose</span> <span class="k">if</span> <span class="n">verbose</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">Color</span><span class="o">.</span><span class="n">horizontal_line</span><span class="p">())</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">model_in_use</span> <span class="o">=</span> <span class="n">model</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">smoothie</span> <span class="o">=</span> <span class="n">_blend</span><span class="p">(</span>
+            <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+            <span class="n">db</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">,</span>
+            <span class="n">default_model</span><span class="o">=</span><span class="n">model_in_use</span><span class="p">,</span>
+            <span class="n">ingredients</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_merge_default_ingredients</span><span class="p">(</span>
+                <span class="n">ingredients</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">ingredients</span>
+            <span class="p">),</span>
+            <span class="n">infer_gen_constraints</span><span class="o">=</span><span class="n">infer_gen_constraints</span>
+            <span class="k">if</span> <span class="n">infer_gen_constraints</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">infer_gen_constraints</span><span class="p">,</span>
+            <span class="n">enable_constrained_decoding</span><span class="o">=</span><span class="n">enable_constrained_decoding</span>
+            <span class="k">if</span> <span class="n">enable_constrained_decoding</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_constrained_decoding</span><span class="p">,</span>
+            <span class="n">enable_cascade_filter</span><span class="o">=</span><span class="n">enable_cascade_filter</span>
+            <span class="k">if</span> <span class="n">enable_cascade_filter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_cascade_filter</span><span class="p">,</span>
+            <span class="n">enable_early_exit</span><span class="o">=</span><span class="n">enable_early_exit</span>
+            <span class="k">if</span> <span class="n">enable_early_exit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_early_exit</span><span class="p">,</span>
+            <span class="n">table_to_title</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">table_to_title</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">error</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># In the case of a recursive `_blend()` call,</span>
+        <span class="c1">#   this logic allows temp tables to persist until</span>
+        <span class="c1">#   the final base case is fulfilled.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">_reset_connection</span><span class="p">()</span>
+        <span class="c1"># Reset model stats, so future executions don&#39;t add here</span>
+        <span class="k">if</span> <span class="n">model_in_use</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">model_in_use</span><span class="o">.</span><span class="n">reset_stats</span><span class="p">()</span>
+    <span class="n">smoothie</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">process_time_seconds</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">Color</span><span class="o">.</span><span class="n">horizontal_line</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">smoothie</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="blendsql.BlendSQL.visualize" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">visualize</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">output_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;pdf&#39;</span><span class="p">)</span></code>
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Visualize query as a DAG with graphviz.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>blendsql/blendsql.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1112</span>
+<span class="normal">1113</span>
+<span class="normal">1114</span>
+<span class="normal">1115</span>
+<span class="normal">1116</span>
+<span class="normal">1117</span>
+<span class="normal">1118</span>
+<span class="normal">1119</span>
+<span class="normal">1120</span>
+<span class="normal">1121</span>
+<span class="normal">1122</span>
+<span class="normal">1123</span>
+<span class="normal">1124</span>
+<span class="normal">1125</span>
+<span class="normal">1126</span>
+<span class="normal">1127</span>
+<span class="normal">1128</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">visualize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;pdf&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize query as a DAG with graphviz.&quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.visualize</span><span class="w"> </span><span class="kn">import</span> <span class="n">SQLGlotASTVisualizer</span>
+
+    <span class="n">visualizer</span> <span class="o">=</span> <span class="n">SQLGlotASTVisualizer</span><span class="p">()</span>
+
+    <span class="n">dialect</span><span class="p">:</span> <span class="n">sqlglot</span><span class="o">.</span><span class="n">Dialect</span> <span class="o">=</span> <span class="n">get_dialect</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="c1"># Generate visualization</span>
+    <span class="n">dot</span> <span class="o">=</span> <span class="n">visualizer</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+        <span class="n">_parse_one</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="n">dialect</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">sqlglot_schema</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">output_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Save as PDF</span>
+        <span class="n">dot</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="nb">format</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">dot</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+  
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "header.autohide", "navigation.expand", "navigation.tabs", "navigation.sections"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
