@@ -19,7 +19,6 @@ for arg in "$@"; do
 done
 
 if [ "$UPLOAD_ONLY" = false ]; then
-  python -m tox
   python -m tox -e coverage
 fi
 

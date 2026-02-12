@@ -1127,11 +1127,12 @@ class BlendSQL:
             dot.render(output_path, format=format, cleanup=True)
         return dot
 
-    def _warmup(self):
+    def _warmup(self, model: ModelBase | None = None):
         _ = self.execute(
             """
             SELECT {{LLMQA('What color is the sky?')}} AS answer
-            """
+            """,
+            model=model,
         )
         _ = self.execute(
             """
@@ -1142,14 +1143,15 @@ class BlendSQL:
             )
             SELECT {{LLMMap('Is this positive?', reviewText, return_type='bool')}}
             FROM subset
-            """
+            """,
+            model=model,
         )
 
     def execute(
         self,
         query: str,
         ingredients: Collection[Type[Ingredient]] | None = None,
-        model: str | None = None,
+        model: ModelBase | None = None,
         infer_gen_constraints: bool | None = None,
         enable_cascade_filter: bool | None = None,
         enable_early_exit: bool | None = None,

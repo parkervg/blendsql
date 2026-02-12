@@ -258,4 +258,4 @@ def test_raises_type_resolution_error(bsql, model):
 
 def test_warmup(bsql, model):
     """b168717"""
-    bsql._warmup()
+    bsql._warmup(model=model)
