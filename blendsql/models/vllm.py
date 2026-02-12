@@ -44,6 +44,29 @@ class VLLM(ModelBase):
             _allows_parallel_requests=True,
             **kwargs,
         )
+        if tokenizer is None:
+            from huggingface_hub import hf_hub_download
+            import json
+
+            with open(
+                hf_hub_download(
+                    repo_id=model_name_or_path, filename="tokenizer_config.json"
+                ),
+                "r",
+            ) as f:
+                config = json.load(f)
+            self.chat_template = config["chat_template"]
+            with open(
+                hf_hub_download(
+                    repo_id=model_name_or_path, filename="special_tokens_map.json"
+                ),
+                "r",
+            ) as f:
+                special_tokens_map = json.load(f)
+            self.special_tokens_map = {
+                k: v["content"] if isinstance(v, dict) else v
+                for k, v in special_tokens_map.items()
+            }
         self.tokenizer = tokenizer
         self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
@@ -69,13 +92,14 @@ class VLLM(ModelBase):
             )
 
         if self.tokenizer is None:
-            from .tokenization import apply_chat_template
+            from .tokenization import render_jinja_template
 
-            prompt_to_send = apply_chat_template(
-                repo_id=self.model_name_or_path,
+            prompt_to_send = render_jinja_template(
                 messages=messages,
+                chat_template=self.chat_template,
                 continue_final_message=item.assistant_continuation is not None,
                 add_generation_prompt=item.assistant_continuation is None,
+                **self.special_tokens_map,
             )
         else:
             prompt_to_send = self.tokenizer.apply_chat_template(

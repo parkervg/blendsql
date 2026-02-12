@@ -1,5 +1,3 @@
-from huggingface_hub import hf_hub_download
-
 from blendsql.common.logger import logger
 
 # Copyright 2024 The HuggingFace Team. All rights reserved.
@@ -229,26 +227,3 @@ def render_jinja_template(
             # The message has trailing spacing that was trimmed, so we must be more cautious
             rendered_messages = rendered_messages[:tag_loc].rstrip()
     return rendered_messages
-
-
-def apply_chat_template(
-    repo_id, messages, add_generation_prompt: bool, continue_final_message: bool
-):
-    with open(
-        hf_hub_download(repo_id=repo_id, filename="tokenizer_config.json"), "r"
-    ) as f:
-        config = json.load(f)
-    chat_template = config["chat_template"]
-    with open(hf_hub_download(repo_id, filename="special_tokens_map.json"), "r") as f:
-        special_tokens_map = json.load(f)
-    special_tokens_map = {
-        k: v["content"] if isinstance(v, dict) else v
-        for k, v in special_tokens_map.items()
-    }
-    return render_jinja_template(
-        messages=messages,
-        chat_template=chat_template,
-        continue_final_message=continue_final_message,
-        add_generation_prompt=add_generation_prompt,
-        **special_tokens_map,
-    )
