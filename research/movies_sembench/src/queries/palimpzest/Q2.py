@@ -10,8 +10,8 @@ def run(con, pz_config: pz.QueryProcessorConfig):
     )
     reviews = reviews.filter(lambda r: r["movieId"] == "taken_3")
     reviews = reviews.sem_filter(
-        "Determine if the following movie review is clearly positive.",
-        depends_on=["reviewText"],
+        "Determine if the score, as a fraction, is greater than 0.5.",
+        depends_on=["originalScore"],
     )
     reviews = reviews.project(["reviewId"])
     reviews = reviews.limit(5)

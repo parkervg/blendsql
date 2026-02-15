@@ -3,11 +3,7 @@ from ..config import ModelConfig
 
 
 def run_palimpzest_eval(model_config: ModelConfig):
-    from ..server_utils import (
-        LLAMA_SERVER_HOST,
-        LLAMA_SERVER_PORT,
-    )
-    from ..config import MODEL_PARAMS
+    from ..config import MODEL_PARAMS, N_PARALLEL, BASE_URL
 
     import litellm
 
@@ -15,10 +11,11 @@ def run_palimpzest_eval(model_config: ModelConfig):
 
     def patched_completion(*args, **kwargs):
         litellm.drop_params = True
-        kwargs["api_base"] = f"http://{LLAMA_SERVER_HOST}:{LLAMA_SERVER_PORT}/v1"
+        kwargs["api_base"] = BASE_URL
         kwargs["supports_system_message"] = False
         kwargs["temperature"] = MODEL_PARAMS["temperature"]
-
+        kwargs["model"] = f"hosted_vllm/{model_config.model_name_or_path}"
+        kwargs.pop("reasoning_effort", None)
         return original_completion(*args, **kwargs)
 
     # Replace the completion function with your patched version
@@ -31,11 +28,7 @@ def run_palimpzest_eval(model_config: ModelConfig):
 
     from blendsql.common.logger import Color, logger
 
-    from ..config import DUCKDB_DB_PATH, SYSTEM_PARAMS
-    from ..server_utils import (
-        start_llama_cpp_server,
-        stop_llama_cpp_server,
-    )
+    from ..config import DUCKDB_DB_PATH
     from ..database_utils import iter_queries
     import importlib.util
     import os
@@ -50,8 +43,6 @@ def run_palimpzest_eval(model_config: ModelConfig):
 
         return module
 
-    start_llama_cpp_server(model_config)
-
     with duckdb.connect(DUCKDB_DB_PATH) as con:
         logger.debug(Color.horizontal_line())
         logger.debug(Color.model_or_data_update("~~~~~ Running palimpzest eval ~~~~~"))
@@ -61,12 +52,12 @@ def run_palimpzest_eval(model_config: ModelConfig):
         results = []
         for query_file, query_name in iter_queries("palimpzest"):
             pz_config = pz.QueryProcessorConfig(
-                max_workers=SYSTEM_PARAMS["batch_size"],
-                join_parallelism=SYSTEM_PARAMS["batch_size"],
+                max_workers=N_PARALLEL,
+                join_parallelism=N_PARALLEL,
                 verbose=False,
                 progress=False,
                 reasoning_effort=None,
-                execution_strategy="pipelined",
+                # execution_strategy="pipelined",
                 # Placeholder model with reasoning
                 # Need a reasoning model due to this bug: https://github.com/mitdbg/palimpzest/issues/268
                 available_models=["openai/gpt-5-2025-08-07"],
@@ -83,6 +74,5 @@ def run_palimpzest_eval(model_config: ModelConfig):
                     "prediction": result.to_json(orient="split", index=False),
                 }
             )
-    stop_llama_cpp_server()
     Color.in_block = False
     return pd.DataFrame(results)

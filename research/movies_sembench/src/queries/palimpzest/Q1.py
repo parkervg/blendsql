@@ -6,8 +6,8 @@ def run(con, pz_config: pz.QueryProcessorConfig):
         id="reviews", vals=con.execute("SELECT * FROM Reviews").df()
     )
     reviews = reviews.sem_filter(
-        "Determine if the following movie review is clearly positive.",
-        depends_on=["reviewText"],
+        "Determine if the score, as a fraction, is greater than 0.5.",
+        depends_on=["originalScore"],
     )
     reviews = reviews.project(["reviewId"])
     reviews = reviews.limit(5)

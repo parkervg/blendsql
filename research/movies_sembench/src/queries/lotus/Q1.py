@@ -6,7 +6,7 @@ def run(con):
 
     # Semantic filter for clearly positive reviews
     filtered_reviews = reviews.sem_filter(
-        'Determine if the following movie review is clearly positive. Review: "{reviewText}".'
+        'Is the score, as a fraction, greater than 0.5? Score: "{originalScore}"'
     )
 
     # Check if we got any results

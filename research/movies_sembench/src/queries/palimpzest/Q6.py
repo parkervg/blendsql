@@ -13,12 +13,12 @@ def run(con, pz_config: pz.QueryProcessorConfig):
 
     # Select and rename columns
     merged_df = merged_df[
-        ["reviewText_1", "reviewText_2", "id", "reviewId_1", "reviewId_2"]
+        ["originalScore_1", "originalScore_2", "id", "reviewId_1", "reviewId_2"]
     ]
     merged_df = merged_df.rename(
         columns={
-            "reviewText_1": "reviewText1",
-            "reviewText_2": "reviewText2",
+            "originalScore_1": "originalScore1",
+            "originalScore_2": "originalScore2",
             "id": "id1",
             "reviewId_1": "reviewId1",
             "reviewId_2": "reviewId2",
@@ -33,8 +33,8 @@ def run(con, pz_config: pz.QueryProcessorConfig):
 
     # Apply the semantic condition only to the pre-filtered pairs
     merged_df = merged_df.sem_filter(
-        "These two movie reviews express opposite sentiments - one is positive and the other is negative.",
-        depends_on=["reviewText1", "reviewText2"],
+        "Is one score greater than 0.5 and the other less than 0.5?",
+        depends_on=["originalScore1", "originalScore2"],
     )
 
     # Project to get only the columns we need

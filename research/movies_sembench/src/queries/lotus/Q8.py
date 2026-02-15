@@ -9,6 +9,7 @@ def run(con):
     # Semantic map to classify sentiment
     sentiment_reviews = filtered_reviews.sem_map(
         "Classify the sentiment of this movie review as either 'POSITIVE' or 'NEGATIVE'. "
+        "Return 'POSITIVE' if the score as a fraction is greater than 0.5, and 'NEGATIVE' otherwise."
         "Only output the exact word 'POSITIVE' or 'NEGATIVE' with no additional text. "
         "Review: {reviewText}"
     )

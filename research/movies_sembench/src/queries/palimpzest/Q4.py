@@ -14,10 +14,10 @@ def run(con, pz_config: pz.QueryProcessorConfig):
             {
                 "name": "positivity",
                 "type": int,
-                "desc": "Return 1 if the following review is positive, and 0 if the review is not positive. Only output a single numeric value (1 or 0) with no additional commentary",
+                "desc": "Return 1 if the following score, as a fraction, is above 0.5, and 0 if the score is less than 0.5. Only output a single numeric value (1 or 0) with no additional commentary",
             }
         ],
-        depends_on=["reviewText"],
+        depends_on=["originalScore"],
     )
     reviews = reviews.project(["positivity"])
     reviews = reviews.average()

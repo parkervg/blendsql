@@ -15,7 +15,9 @@ def run(con, pz_config: pz.QueryProcessorConfig):
             {
                 "name": "sentiment",
                 "type": str,
-                "desc": "Return POSITIVE if the following review is positive, and NEGATIVE if the review is not positive. Only output POSITIVE or NEGATIVE with no additional commentary",
+                "desc": "Classify the sentiment of this movie review as either 'POSITIVE' or 'NEGATIVE'. "
+                "Return 'POSITIVE' if the score as a fraction is greater than 0.5, and 'NEGATIVE' otherwise."
+                "Only output the exact word 'POSITIVE' or 'NEGATIVE' with no additional text. ",
             }
         ],
         depends_on=["reviewText"],
