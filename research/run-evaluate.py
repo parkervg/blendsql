@@ -325,7 +325,7 @@ if __name__ == "__main__":
                     curr_pred_data[
                         "num_values_passed"
                     ] = smoothie.meta.num_values_passed
-                    flattened_preds = [str(i) for i in smoothie.df.values.flat]
+                    flattened_preds = [str(i) for i in smoothie.df().values.flat]
                 elif exp_type == "DuckDB":
                     # if not do_eval:
                     #     if item["Query ID"] == 29:

@@ -39,7 +39,8 @@ if __name__ == "__main__":
 
     # Load new (Report, player) table to BlendSQL and calculate stats
     expanded_df = (
-        smoothie.df.explode("players_list")
+        smoothie.df()
+        .explode("players_list")
         .rename(columns={"players_list": "player"})
         .sort_values(by="player")
         .reset_index(drop=True)
@@ -67,4 +68,4 @@ if __name__ == "__main__":
         FROM player_stats
         """
     )
-    print(smoothie.df)
+    print(smoothie.df())

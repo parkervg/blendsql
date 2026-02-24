@@ -279,7 +279,7 @@ if __name__ == "__main__":
         }} AS classification FROM posts
         """
     )
-    print(smoothie.df)
+    print(smoothie.df())
 ```
 
 ## Search-then-Map 
@@ -379,7 +379,7 @@ smoothie = bsql.execute(
     """
 )
 
-print(smoothie.df)
+print(smoothie.df())
 # ┌─────────────┐
 # │ Name        │
 # ├─────────────┤
@@ -515,7 +515,7 @@ SELECT {{
 }} AS answer
 """
 )
-print(smoothie.df)
+print(smoothie.df())
 # ┌────────────┐
 # │ answer     │
 # ├────────────┤

@@ -91,7 +91,7 @@ def test_alphabet(bsql, model):
         """,
         model=model,
     )
-    assert "A" in list(smoothie.df.values.flat)
+    assert "A" in list(smoothie.df().values.flat)
 
     smoothie = bsql.execute(
         """
@@ -99,7 +99,7 @@ def test_alphabet(bsql, model):
             """,
         model=model,
     )
-    assert list(smoothie.df.values.flat) == ["A", "B"]
+    assert list(smoothie.df().values.flat) == ["A", "B"]
 
     smoothie = bsql.execute(
         """
@@ -107,7 +107,7 @@ def test_alphabet(bsql, model):
             """,
         model=model,
     )
-    assert set(smoothie.df.values.flat) == {"α", "β", "γ"}
+    assert set(smoothie.df().values.flat) == {"α", "β", "γ"}
 
     smoothie = bsql.execute(
         """
@@ -120,7 +120,7 @@ def test_alphabet(bsql, model):
             """,
         model=model,
     )
-    assert list(smoothie.df.values.flat)[0].lower() == "alpha"
+    assert list(smoothie.df().values.flat)[0].lower() == "alpha"
 
     smoothie = bsql.execute(
         """
@@ -134,7 +134,7 @@ def test_alphabet(bsql, model):
             """,
         model=model,
     )
-    assert list(smoothie.df.values.flat)[0].lower() == "alpha"
+    assert list(smoothie.df().values.flat)[0].lower() == "alpha"
 
 
 def test_templates(bsql, model):

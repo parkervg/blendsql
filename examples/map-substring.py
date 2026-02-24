@@ -40,4 +40,4 @@ if __name__ == "__main__":
         ) > 2 AND description NOT LIKE 'G%'
         """,
     )
-    print(smoothie.df)
+    print(smoothie.df())

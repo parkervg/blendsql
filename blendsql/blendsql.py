@@ -291,7 +291,7 @@ def materialize_cte(
         **kwargs,
     )
     db.to_temp_table(
-        df=materialized_smoothie.pl,
+        df=materialized_smoothie.pl(),
         tablename=aliasname,
     )
     # Now, we need to remove subquery and instead insert direct reference to aliasname
@@ -400,10 +400,71 @@ def disambiguate_and_submit_blend(
     return _blend(query=query, **kwargs)
 
 
+def bind_params(sql: str, params: list) -> str:
+    """
+    Replace '?' placeholders with params before SQL parsing.
+    Skips '?' inside single-quoted string literals.
+    """
+
+    def _format_value(val) -> str:
+        """Format a Python value for safe SQL string interpolation."""
+        if val is None:
+            return "NULL"
+        elif isinstance(val, bool):
+            return "TRUE" if val else "FALSE"
+        elif isinstance(val, (int, float)):
+            return str(val)
+        elif isinstance(val, str):
+            # Escape single quotes
+            escaped = val.replace("'", "''")
+            return f"'{escaped}'"
+        elif isinstance(val, (list, tuple)):
+            formatted = ", ".join(_format_value(v) for v in val)
+            return f"({formatted})"
+        else:
+            raise TypeError(f"Unsupported parameter type: {type(val)}")
+
+    param_iter = iter(params)
+    result = []
+    i = 0
+
+    while i < len(sql):
+        char = sql[i]
+
+        # Handle single-quoted string literals - pass through unchanged
+        if char == "'":
+            result.append(char)
+            i += 1
+            while i < len(sql):
+                c = sql[i]
+                result.append(c)
+                if c == "'" and sql[i - 1] != "\\":
+                    break
+                i += 1
+
+        # Replace placeholder
+        elif char == "?":
+            try:
+                val = next(param_iter)
+            except StopIteration:
+                raise ValueError(
+                    "Not enough parameters provided for '?' placeholders"
+                ) from None
+            result.append(_format_value(val))
+
+        else:
+            result.append(char)
+
+        i += 1
+
+    return "".join(result)
+
+
 def _blend(
     query: str,
     db: Database,
     ingredients: Collection[Type[Ingredient]],
+    params: list[str] | None = None,
     default_model: ModelBase | None = None,
     verbose: bool = False,
     infer_gen_constraints: bool = True,
@@ -418,6 +479,9 @@ def _blend(
     """
     # The QueryContextManager class is used to track all manipulations done to
     # the original query, prior to the final execution on the underlying DBMS.
+    if params:
+        query = bind_params(query, params)
+
     original_query = copy.deepcopy(query)
     dialect: sqlglot.Dialect = get_dialect(db.__class__.__name__)
 
@@ -755,7 +819,7 @@ def _blend(
                             _prev_passed_values=_prev_passed_values,
                         )
                         _prev_passed_values += _smoothie.meta.num_values_passed
-                        subtable = _smoothie.pl
+                        subtable = _smoothie.pl()
                         if unpack_kwarg == "options":
                             if len(subtable.columns) == 1 or len(subtable) == 1:
                                 # Here, we need to format as a flat set
@@ -1150,6 +1214,7 @@ class BlendSQL:
     def execute(
         self,
         query: str,
+        params: list[str] | None = None,
         ingredients: Collection[Type[Ingredient]] | None = None,
         model: ModelBase | None = None,
         infer_gen_constraints: bool | None = None,
@@ -1244,7 +1309,7 @@ class BlendSQL:
                 """
             )
 
-            print(smoothie.df)
+            print(smoothie.df())
             # ┌───────────────────┬───────────────────────────────────────────────────────┐
             # │ Name              │ Known_For                                             │
             # ├───────────────────┼───────────────────────────────────────────────────────┤
@@ -1267,6 +1332,7 @@ class BlendSQL:
         try:
             smoothie = _blend(
                 query=query,
+                params=params,
                 db=self.db,
                 default_model=model_in_use,
                 ingredients=self._merge_default_ingredients(

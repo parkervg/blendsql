@@ -135,7 +135,7 @@ SELECT {{
 }}
 """
 )
-print(smoothie.df)
+print(smoothie.df())
 # ┌───────────┐
 # │ Capital   │
 # ├───────────┤
@@ -154,7 +154,7 @@ WITH bay_area_county AS (
 ) SELECT {{DocumentSearch('Who played basketball at a school in {}?', bay_area_count.County)}} AS answer
 """
 )
-print(smoothie.df)
+print(smoothie.df())
 # ┌────────────┐
 # │ answer     │
 # ├────────────┤

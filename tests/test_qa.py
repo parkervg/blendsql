@@ -39,4 +39,4 @@ def test_qa_tuple_with_single_quotes(bsql, model):
         """,
         model=model,
     )
-    assert smoothie.df.columns.tolist() == ["review1", "review2", "review3"]
+    assert smoothie.df().columns.tolist() == ["review1", "review2", "review3"]

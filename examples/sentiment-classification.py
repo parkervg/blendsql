@@ -25,4 +25,4 @@ if __name__ == "__main__":
         }} AS classification FROM posts LIMIT 10
         """
     )
-    print(smoothie.df)
+    print(smoothie.df())

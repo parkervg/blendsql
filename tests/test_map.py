@@ -51,7 +51,7 @@ def test_map_to_columns(bsql, model):
         """,
         model=model,
     )
-    assert smoothie.df.columns.tolist() == ["player_name", "points", "assists"]
+    assert smoothie.df().columns.tolist() == ["player_name", "points", "assists"]
 
 
 def test_map_context_with_duplicate_values(bsql, model):
@@ -68,7 +68,7 @@ def test_map_context_with_duplicate_values(bsql, model):
         """,
         model=model,
     )
-    df = smoothie.df
+    df = smoothie.df()
     assert set(df[df["Name"] == "Tommy"]["How old is {}?"].values.tolist()) == {24, 3}
     assert df[df["Description"] == "He's only 3"]["How old is {}?"].values.item() == 3
 
@@ -88,4 +88,4 @@ def test_map_options_to_string(bsql, model):
         """,
         model=model,
     )
-    assert not smoothie.df.empty
+    assert not smoothie.df().empty

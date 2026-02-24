@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Iterable, Type
 import polars as pl
-from functools import cached_property
 
 from blendsql.ingredients import Ingredient
 
@@ -31,11 +30,11 @@ class Smoothie:
         if isinstance(self._df, pl.LazyFrame):
             self._df = self._df.collect()
 
-    @cached_property
     def df(self):
-        return self._df.to_pandas()
+        if not hasattr(self, "_df_cache"):
+            self._df_cache = self._df.to_pandas()
+        return self._df_cache
 
-    @cached_property
     def pl(self):
         return self._df
 

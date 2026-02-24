@@ -60,7 +60,7 @@ def test_join_with_duplicate_columns(bsql):
         WHERE {{test_starts_with('I', c.name)}}
         """,
     )
-    assert not smoothie.df.empty
+    assert not smoothie.df().empty
 
 
 def test_llmqa_options_precedence(bsql, model):
@@ -151,4 +151,4 @@ def test_options_with_return_type(bsql, model):
         """,
         model=model,
     )
-    assert len(smoothie.df.columns) == 2
+    assert len(smoothie.df().columns) == 2

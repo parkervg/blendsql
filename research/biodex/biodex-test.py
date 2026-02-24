@@ -130,7 +130,7 @@ if __name__ == "__main__":
     )
     smoothie.print_summary()
 
-    res_df = smoothie.df
+    res_df = smoothie.df()
     res_df = res_df[~pd.isna(res_df["prediction"])]
     print(len(res_df))
     res_df["prediction"] = res_df["prediction"].apply(lambda x: list(set(x)))

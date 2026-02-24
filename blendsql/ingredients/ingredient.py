@@ -133,7 +133,8 @@ class Ingredient:
             materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
             self.num_values_passed += materialized_smoothie.meta.num_values_passed
             unpacked_values = (
-                materialized_smoothie.pl.get_column(colname)
+                materialized_smoothie.pl()
+                .get_column(colname)
                 .unique(maintain_order=deterministic)
                 .cast(pl.Utf8)
                 .to_list()
@@ -261,7 +262,7 @@ class MapIngredient(Ingredient):
 
                 smoothie = bsql.execute("SELECT genre, url, {{GetQRCode('QR Code as Bytes:', 'w::url')}} FROM w WHERE genre = 'social'")
 
-                smoothie.df
+                smoothie.df()
                 # | genre  | url           | QR Code as Bytes:      |
                 # |--------|---------------|-----------------------|
                 # | social | facebook.com  | b'...'                |
@@ -443,7 +444,7 @@ class MapIngredient(Ingredient):
             if tablename in self.db.lazy_tables:
                 materialized_smoothie = self.db.lazy_tables.pop(tablename).collect()
                 self.num_values_passed += materialized_smoothie.meta.num_values_passed
-                original_table = materialized_smoothie.pl.lazy()
+                original_table = materialized_smoothie.pl().lazy()
             else:
                 original_table = self.db.execute_to_df(
                     f"""SELECT {select_distinct_arg} FROM "{tablename}" ORDER BY rowid"""
@@ -556,7 +557,9 @@ class MapIngredient(Ingredient):
                     self.num_values_passed += (
                         materialized_smoothie.meta.num_values_passed
                     )
-                    global_subtable_context = materialized_smoothie.pl.select([colname])
+                    global_subtable_context = materialized_smoothie.pl().select(
+                        [colname]
+                    )
                     if isinstance(global_subtable_context, pl.LazyFrame):
                         global_subtable_context = global_subtable_context.collect()
                 else:
@@ -867,7 +870,7 @@ class QAIngredient(Ingredient):
                     self.num_values_passed += (
                         materialized_smoothie.meta.num_values_passed
                     )
-                    subtable = materialized_smoothie.pl.select([colname])
+                    subtable = materialized_smoothie.pl().select([colname])
                     if isinstance(subtable, pl.LazyFrame):
                         subtable = subtable.collect()
                 else:

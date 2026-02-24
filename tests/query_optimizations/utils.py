@@ -6,7 +6,7 @@ from blendsql import BlendSQL
 
 
 def assert_equality(smoothie, sql_df: pd.DataFrame, args: list[str] | None = None):
-    blendsql_df = smoothie.df
+    blendsql_df = smoothie.df()
     if args is not None:
         arg_overlap = blendsql_df.columns.intersection(args).tolist()
         if len(arg_overlap) > 0:

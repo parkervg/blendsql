@@ -71,7 +71,7 @@ def run_blendsql_eval(model_config: ModelConfig):
             start = time.time()
             smoothie = bsql.execute(query)
             result = (
-                smoothie.df
+                smoothie.df()
             )  # Count this, since conversion to pd from pl takes a small bit of latency
             latency = time.time() - start
             results.append(

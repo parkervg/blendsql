@@ -44,7 +44,7 @@ bsql = BlendSQL(
     verbose=True,
 )
 
-print(f'{bsql.execute("SELECT COUNT(*) FROM reviews").df.values.item():,} total rows')
+print(f'{bsql.execute("SELECT COUNT(*) FROM reviews").df().values.item():,} total rows')
 
 # If we've already processed this tablename before in the same subquery,
 # it's a self-join, or something similar where a single table is used as a reference

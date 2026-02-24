@@ -123,7 +123,7 @@ class TestGeneralOptimizations(TimedTestBase):
             LIMIT 1
             """
         )
-        assert list(smoothie.df.values.flat)[0] in [1, 5]
+        assert list(smoothie.df().values.flat)[0] in [1, 5]
         assert smoothie.meta.num_values_passed == expected_num_values_passed
 
     def test_early_exit_with_cascade_and_alias(self, bsql):
@@ -159,5 +159,5 @@ class TestGeneralOptimizations(TimedTestBase):
           """,
         )
         smoothie = bsql.execute(bsql_query + " LIMIT 1")
-        assert list(smoothie.df.values.flat)[0] in [1, 5]
+        assert list(smoothie.df().values.flat)[0] in [1, 5]
         assert smoothie.meta.num_values_passed == expected_num_values_passed

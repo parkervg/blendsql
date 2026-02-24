@@ -126,4 +126,4 @@ if __name__ == "__main__":
         }}
         """,
     )
-    print(smoothie.df)
+    print(smoothie.df())

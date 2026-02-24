@@ -49,7 +49,7 @@ class TestBasicOperations(TimedTestBase):
             SELECT * FROM transactions;
             """
         )
-        assert not smoothie.df.empty
+        assert not smoothie.df().empty
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_nested_exec(self, bsql: BlendSQL):
@@ -62,7 +62,7 @@ class TestBasicOperations(TimedTestBase):
                 );
             """
         )
-        assert not smoothie.df.empty
+        assert not smoothie.df().empty
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_simple_ingredient_exec(self, bsql: BlendSQL):
@@ -380,8 +380,8 @@ class TestBasicOperations(TimedTestBase):
             }}
             """
         )
-        assert len(smoothie.df) == 1
-        assert smoothie.df.values.flat[0] == "Paypal"
+        assert len(smoothie.df()) == 1
+        assert smoothie.df().values.flat[0] == "Paypal"
 
     @pytest.mark.parametrize("bsql", bsql_connections)
     def test_filter_by_ingredient(self, bsql: BlendSQL):

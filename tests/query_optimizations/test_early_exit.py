@@ -138,7 +138,7 @@ class TestEarlyExitOperations(TimedTestBase):
                 expected_num_values_passed=limit_n,
                 skip_assert_equality=True,
             )
-            assert list(smoothie.df.values.flat)[0] in ["Carol Smith", "David Kim"]
+            assert list(smoothie.df().values.flat)[0] in ["Carol Smith", "David Kim"]
 
     def test_regex_search_early_exit(self, bsql):
         smoothie = self.assert_blendsql_equals_sql(
@@ -166,7 +166,7 @@ class TestEarlyExitOperations(TimedTestBase):
             skip_assert_equality=True,
         )
         # Both candidate rows have the same name
-        assert list(smoothie.df.values.flat)[0] == "Alice Chen"
+        assert list(smoothie.df().values.flat)[0] == "Alice Chen"
 
     def test_no_early_exit(self, bsql):
         _ = self.assert_blendsql_equals_sql(
@@ -227,7 +227,7 @@ class TestEarlyExitOperations(TimedTestBase):
                 enable_early_exit=enable_early_exit,
             )
             # Both candidate rows have the same name
-            assert list(smoothie.df.values.flat)[0] == "Alice Chen"
+            assert list(smoothie.df().values.flat)[0] == "Alice Chen"
 
     def test_eligible_for_cascade_filter(self):
         def get_scm(query: str, dialect: BlendSQLDialect) -> SubqueryContextManager:

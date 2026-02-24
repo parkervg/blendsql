@@ -25,10 +25,10 @@ def test_qa_with_map_cascade(bsql, model):
     """,
         model=model,
     )
-    assert len(smoothie.df) == 1
+    assert len(smoothie.df()) == 1
     assert smoothie.meta.num_generation_calls == 2
     assert smoothie.meta.num_values_passed == 1
-    assert smoothie.df.iloc[0]["player_name"] == "Lionel Messi"
+    assert smoothie.df().iloc[0]["player_name"] == "Lionel Messi"
 
 
 @pytest.mark.timeout(20)
@@ -47,7 +47,7 @@ def test_qa_with_map_cascade_and_join(bsql, model):
         """,
         model=model,
     )
-    assert not smoothie.df.empty
+    assert not smoothie.df().empty
     assert smoothie.meta.num_generation_calls <= 10
     assert smoothie.meta.num_values_passed <= 10
 
@@ -67,6 +67,6 @@ def test_qa_with_map_cascade_and_join(bsql, model):
 #            AND {{LLMMap('What year were they born?', p.player_name, p.birthday)}} IN (1985, 1987)
 #         """, model=model
 #     )
-#     assert not smoothie.df.empty
+#     assert not smoothie.df().empty
 #     assert smoothie.meta.num_generation_calls <= 5
 #     assert smoothie.meta.num_values_passed <= 5
