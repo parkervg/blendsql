@@ -152,3 +152,17 @@ def test_options_with_return_type(bsql, model):
         model=model,
     )
     assert len(smoothie.df().columns) == 2
+
+
+def test_simple_params(bsql, model):
+    """fe86b5b"""
+    smoothie = bsql.execute(
+        """
+        SELECT * FROM Food 
+        WHERE calories > ? 
+        AND {{LLMMap('Is this Brocolli?', name)}}
+        """,
+        [5],
+        model=model,
+    )
+    assert not smoothie.df().empty
