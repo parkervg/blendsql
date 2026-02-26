@@ -99,13 +99,13 @@ class Smoothie:
 
             return table
 
-        total_rows = len(self.pl)
+        total_rows = len(self.pl())
         num_row_limit = 5
         if total_rows > num_row_limit:
-            df_to_display = self.pl.head(num_row_limit)
+            df_to_display = self.pl().head(num_row_limit)
             result_title = f"Result ({num_row_limit} out of {total_rows} Rows)"
         else:
-            df_to_display = self.pl
+            df_to_display = self.pl()
             result_title = f"Result"
         result_panel = Panel(
             df_to_table(df_to_display),
