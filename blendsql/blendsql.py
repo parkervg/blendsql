@@ -1229,6 +1229,8 @@ class BlendSQL:
 
         Args:
             query: The BlendSQL query to execute
+            params: Optional list[str] params to substitute into the query using auto-incrementing `?` notation.
+                See https://duckdb.org/docs/stable/sql/query_syntax/prepared_statements#auto-incremented-parameters-
             ingredients: Collection of ingredient objects, to use in interpreting BlendSQL query.
                 {LLMQA, LLMMap, LLMJoin} are supplied by default.
             verbose: Boolean defining whether to run with logger in debug mode
