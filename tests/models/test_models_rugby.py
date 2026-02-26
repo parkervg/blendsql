@@ -12,7 +12,6 @@ def bsql() -> BlendSQL:
     )
 
 
-@pytest.mark.long
 def test_no_ingredients(bsql, model, ingredients):
     res = bsql.execute(
         """
@@ -24,7 +23,6 @@ def test_no_ingredients(bsql, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
-@pytest.mark.long
 def test_llmmap(bsql, model, ingredients):
     res = bsql.execute(
         """
@@ -42,7 +40,6 @@ def test_llmmap(bsql, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
-@pytest.mark.long
 def test_llmjoin(bsql, model, ingredients):
     res = bsql.execute(
         """
@@ -61,7 +58,6 @@ def test_llmjoin(bsql, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
-@pytest.mark.long
 def test_llmqa(bsql, model, ingredients):
     res = bsql.execute(
         """
@@ -80,7 +76,6 @@ def test_llmqa(bsql, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
-@pytest.mark.long
 def test_llmmap_with_string(bsql, model, ingredients):
     res = bsql.execute(
         """
@@ -99,7 +94,6 @@ def test_llmmap_with_string(bsql, model, ingredients):
     assert isinstance(res, Smoothie)
 
 
-@pytest.mark.long
 def test_unconstrained_llmqa(bsql, model, ingredients):
     res = bsql.execute(
         """
