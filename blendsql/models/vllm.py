@@ -100,47 +100,24 @@ class VLLM(ModelBase):
                 "structured_outputs": {"grammar": item.grammar},
             }
         messages = [{"role": "user", "content": item.prompt}]
-        if item.assistant_continuation is not None:
-            messages.append(
-                {"role": "assistant", "content": item.assistant_continuation}
-            )
 
-        if self.tokenizer is None:
-            from .tokenization import render_jinja_template
-
-            prompt_to_send = render_jinja_template(
-                messages=messages,
-                chat_template=self.chat_template,
-                continue_final_message=item.assistant_continuation is not None,
-                add_generation_prompt=item.assistant_continuation is None,
-                **self.special_tokens_map | self.chat_template_kwargs,
-            )
-        else:
-            prompt_to_send = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                continue_final_message=item.assistant_continuation is not None,
-                add_generation_prompt=item.assistant_continuation is None,
-                **self.chat_template_kwargs,
-            )
-
-        stream = await self.client.completions.create(
+        stream = await self.client.chat.completions.create(
             model=self.model_name_or_path,
-            prompt=prompt_to_send,
+            messages=messages,
             stream=True,
             stream_options={"include_usage": True},
             extra_body=extra_body,
         )
         self.num_generation_calls += 1
-        add_to_global_history(prompt_to_send)
+        add_to_global_history(messages)
 
         try:
             async for chunk in stream:
                 if cancel_event and cancel_event.is_set():
                     return GenerationResult(item.identifier, buffer, completed=False)
 
-                if chunk.choices and chunk.choices[0].text:
-                    buffer += chunk.choices[0].text
+                if chunk.choices and chunk.choices[0].delta.content:
+                    buffer += chunk.choices[0].delta.content
 
                 if hasattr(chunk, "usage") and chunk.usage is not None:
                     self.prompt_tokens += chunk.usage.prompt_tokens

@@ -535,8 +535,29 @@ class LLMMap(MapIngredient):
                         local_options=o,
                     )
                 elif self.prompt_style == "default":
-                    prompt = q
-                    prompt += f"\nReturn ONLY a response of type `{current_example.return_type_annotation(list_options_in_prompt)}`."
+                    prompt = dedent(
+                        f"""
+                    Answer the question, returning an answer matching the requested Python datatype. 
+            
+                    # Examples 
+                    
+                    <question>
+                    Is San Jose in the California Bay Area? Return only a boolean. 
+                    </question> 
+                    
+                    <answer>
+                    True
+                    </answer> 
+                    
+                    # Your Task
+                    
+                    <question>
+                    {q}
+                    </question> 
+                    
+                    <answer>
+                    """
+                    )
 
                 # Get grammar
                 if gen_f_is_collection and enable_constrained_decoding:
