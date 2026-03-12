@@ -48,6 +48,7 @@ class Ingredient:
     list_options_in_prompt: bool = field(default=True)
     context_searcher: Searcher | None = field(default=None)
     options_searcher: Searcher | None = field(default=None)
+    prompt_style: str | None = field(default=None)
 
     ingredient_type: str = field(init=False)
     allowed_output_types: tuple[Type] = field(init=False)
@@ -575,7 +576,16 @@ class MapIngredient(Ingredient):
         # Unpack questions, to later pass to a `context_searcher` or `options_searcher`
         unpacked_questions = None
         if question is not None and "{}" in question:
-            unpacked_questions = [question.format(value) for value in unpacked_values]
+            if resolved_additional_args:
+                additional_values = [a.values for a in resolved_additional_args]
+                unpacked_questions = [
+                    question.format(value, *others)
+                    for value, *others in zip(unpacked_values, *additional_values)
+                ]
+            else:
+                unpacked_questions = [
+                    question.format(value) for value in unpacked_values
+                ]
 
             logger.debug(
                 Color.quiet_update(f"Unpacked question to '{unpacked_questions[:10]}'")

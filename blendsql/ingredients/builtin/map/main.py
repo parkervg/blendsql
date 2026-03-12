@@ -1,7 +1,7 @@
 import logging
 import os
 import asyncio
-from typing import Callable, Generator
+from typing import Callable, Generator, Literal
 from pathlib import Path
 import json
 import polars as pl
@@ -53,9 +53,9 @@ DEFAULT_MAP_FEW_SHOT: list[AnnotatedMapExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-CONSTRAINED_MAIN_INSTRUCTION = "Complete the docstring for the provided Python function. The output will correctly answer the question provided for each input value, with no mistakes. "
-CONSTRAINED_MAIN_INSTRUCTION = (
-    CONSTRAINED_MAIN_INSTRUCTION
+MAIN_CODE_INSTRUCTION = "Complete the docstring for the provided Python function. The output will correctly answer the question provided for each input value, with no mistakes. "
+MAIN_CODE_INSTRUCTION = (
+    MAIN_CODE_INSTRUCTION
     + "On each newline, you will follow the format of f({value}) == {answer}.\n"
 )
 
@@ -69,7 +69,7 @@ class LLMMap(MapIngredient):
     context_formatter: Callable[[pl.DataFrame], str] = field(
         default=DEFAULT_CONTEXT_FORMATTER,
     )
-    batch_size: int = field(default=None)
+    prompt_style: Literal["code", "default"] = "default"
 
     @classmethod
     def from_args(
@@ -81,6 +81,7 @@ class LLMMap(MapIngredient):
         batch_size: int | None = None,
         num_few_shot_examples: int | None = 0,
         context_searcher: Searcher | None = None,
+        prompt_style: Literal["code", "default"] = "default",
     ):
         """Creates a partial class with predefined arguments.
 
@@ -152,6 +153,7 @@ class LLMMap(MapIngredient):
                 options_searcher=options_searcher,
                 batch_size=batch_size,
                 context_searcher=context_searcher,
+                prompt_style=prompt_style,
             )
         )
 
@@ -234,6 +236,11 @@ class LLMMap(MapIngredient):
             raise ValueError(
                 f"Invalid `context_in_use_type`: {type(context_in_use_type)}"
             )
+
+        if unpacked_questions is None:
+            unpacked_questions = [None] * len(values)
+
+        assert len(unpacked_questions) == len(values)
 
         # Unpack default kwargs
         table_name, column_name = self.unpack_default_kwargs(**kwargs)
@@ -395,7 +402,7 @@ class LLMMap(MapIngredient):
                 force_quotes=resolved_return_type.requires_quotes,
             )
 
-        def format_current_prompt(
+        def format_code_prompt(
             value: str,
             additional_args: tuple[str] | None,
             context: str | list[str] | None,
@@ -449,17 +456,18 @@ class LLMMap(MapIngredient):
             for example in few_shot_examples:
                 example_str += example.to_string()
 
-        curr_function_signature_str = current_example.to_string(
-            list_options=list_options_in_prompt,
-            additional_args=additional_args,
-            add_leading_newlines=True,
-        )
+        if self.prompt_style == "code":
+            curr_function_signature_str = current_example.to_string(
+                list_options=list_options_in_prompt,
+                additional_args=additional_args,
+                add_leading_newlines=True,
+            )
 
-        base_prompt = CONSTRAINED_MAIN_INSTRUCTION
-        if example_str:
-            base_prompt += example_str
-            base_prompt += "\n\nNow, complete the docstring for the following example:"
-        base_prompt += curr_function_signature_str
+            prompt = MAIN_CODE_INSTRUCTION
+            if example_str:
+                prompt += example_str
+                prompt += "\n\nNow, complete the docstring for the following example:"
+            prompt += curr_function_signature_str
 
         lm_mapping: dict = {}  # Final type-cast results
         all_processed_identifiers: list[str] = []
@@ -467,8 +475,9 @@ class LLMMap(MapIngredient):
         def generate_items() -> Generator[GenerationItem, None, None]:
             """Lazily yields items, checking cache as we go."""
             gen_f_is_collection = hasattr(gen_f, "__getitem__")
-            for idx, (v, a, c, o) in enumerate(
+            for idx, (q, v, a, c, o) in enumerate(
                 zip(
+                    unpacked_questions,
                     values,
                     zip(*[arg.values for arg in additional_args])
                     if additional_args
@@ -490,7 +499,7 @@ class LLMMap(MapIngredient):
                 cache_key = None
                 if model.caching:
                     cached_response, cache_key = model.check_cache(
-                        CONSTRAINED_MAIN_INSTRUCTION,
+                        MAIN_CODE_INSTRUCTION,
                         example_str,
                         question,
                         regex,
@@ -505,7 +514,7 @@ class LLMMap(MapIngredient):
                         c,
                         o,
                         funcs=[
-                            format_current_prompt,
+                            format_code_prompt,
                             gen_f[idx]
                             if gen_f_is_collection and enable_constrained_decoding
                             else gen_f,
@@ -516,13 +525,18 @@ class LLMMap(MapIngredient):
                         continue  # Skip - already cached
 
                 # Build prompt
-                assistant_continuation = format_current_prompt(
-                    value=v,
-                    additional_args=a,
-                    context=c,
-                    context_in_use_type=context_in_use_type,
-                    local_options=o,
-                )
+                assistant_continuation = None
+                if self.prompt_style == "code":
+                    assistant_continuation = format_code_prompt(
+                        value=v,
+                        additional_args=a,
+                        context=c,
+                        context_in_use_type=context_in_use_type,
+                        local_options=o,
+                    )
+                elif self.prompt_style == "default":
+                    prompt = q
+                    prompt += f"\nReturn ONLY a response of type `{current_example.return_type_annotation(list_options_in_prompt)}`."
 
                 # Get grammar
                 if gen_f_is_collection and enable_constrained_decoding:
@@ -533,7 +547,7 @@ class LLMMap(MapIngredient):
 
                 yield GenerationItem(
                     identifier=curr_identifier,
-                    prompt=base_prompt,
+                    prompt=prompt,
                     assistant_continuation=assistant_continuation,
                     grammar=grammar,
                     cache_key=cache_key,

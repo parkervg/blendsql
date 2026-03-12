@@ -39,6 +39,22 @@ class MapExample(Example):
         # Apply converters
         self.return_type = _return_type_converter(self.return_type)
 
+    def return_type_annotation(self, list_options: bool) -> str:
+        if list_options and self.options is not None:
+            return (
+                f"Literal["
+                + ", ".join(
+                    [
+                        f'"{option}"'
+                        if self.return_type.requires_quotes
+                        else str(option)
+                        for option in self.options
+                    ]
+                )
+                + "]"
+            )
+        return self.return_type.name
+
     def to_string(
         self,
         list_options: bool = True,
@@ -55,21 +71,6 @@ class MapExample(Example):
 
         s = "\n\n" if add_leading_newlines else ""
         s += "```python\n"
-        if list_options and self.options is not None:
-            return_type_annotation = (
-                f"Literal["
-                + ", ".join(
-                    [
-                        f'"{option}"'
-                        if self.return_type.requires_quotes
-                        else str(option)
-                        for option in self.options
-                    ]
-                )
-                + "]"
-            )
-        else:
-            return_type_annotation = self.return_type.name
 
         if self.table_name and self.column_name:
             args_str = f'Values from the "{self.table_name}" table in a SQL database.'
@@ -89,7 +90,7 @@ class MapExample(Example):
         if self.options_type == FeatureType.LOCAL:
             s += f""", options: List[str]"""
         s += ")"
-        s += f" -> {return_type_annotation}:\n" + indent(
+        s += f" -> {self.return_type_annotation(list_options)}:\n" + indent(
             f'"""{self.question}', prefix=INDENT()
         )
 
@@ -107,7 +108,7 @@ class MapExample(Example):
             s += f"""\n{INDENT(2)}context (List[str]): Context to use in answering the question."""
         if self.options_type == FeatureType.LOCAL:
             s += f"""\n{INDENT(2)}options (List[str]): Candidate strings for use in your response."""
-        s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{return_type_annotation}: Answer to the above question for each input."""
+        s += f"""\n\n{INDENT()}Returns:\n{INDENT(2)}{self.return_type_annotation(list_options)}: Answer to the above question for each input."""
         s += f"""\n\n{INDENT()}Examples:\n{INDENT(2)}```python"""
         _question = '"' + self.question + '"'
         if "\n" in self.question:
