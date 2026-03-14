@@ -1,7 +1,6 @@
 from datasets import load_dataset
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp
-from blendsql.ingredients import LLMMap
+from blendsql.models import VLLM
 
 
 if __name__ == "__main__":
@@ -11,16 +10,14 @@ if __name__ == "__main__":
     dataset["Report"] = dataset["summary"].apply(lambda x: " ".join(x))
     dataset["id"] = dataset.index
 
-    model = LlamaCpp(
-        "google_gemma-3-12b-it-Q6_K.gguf",
-        "bartowski/google_gemma-3-12b-it-GGUF",
-        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-        caching=True,
-    )
-
     # First, extract player names
     bsql = BlendSQL(
-        dataset, model=model, verbose=True, ingredients=[LLMMap.from_args(batch_size=1)]
+        dataset,
+        model=VLLM(
+            model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+            base_url="http://127.0.0.1:8000/v1/",
+        ),
+        verbose=True,
     )
 
     smoothie = bsql.execute(

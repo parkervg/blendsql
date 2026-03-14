@@ -29,7 +29,6 @@ class VLLM(ModelBase):
         model_name_or_path: str,
         base_url: str,
         api_key: str = "N/A",
-        tokenizer: "BaseTokenizer" = None,
         extra_body: dict | None = None,
         chat_template_kwargs: dict | None = None,
         caching: bool = False,
@@ -45,39 +44,6 @@ class VLLM(ModelBase):
             _allows_parallel_requests=True,
             **kwargs,
         )
-        if tokenizer is None:
-            from huggingface_hub import hf_hub_download
-            import json
-
-            with open(
-                hf_hub_download(
-                    repo_id=model_name_or_path, filename="tokenizer_config.json"
-                ),
-                "r",
-            ) as f:
-                config = json.load(f)
-            self.chat_template = config["chat_template"]
-            try:
-                with open(
-                    hf_hub_download(
-                        repo_id=model_name_or_path, filename="special_tokens_map.json"
-                    ),
-                    "r",
-                ) as f:
-                    special_tokens_map = json.load(f)
-                self.special_tokens_map = {
-                    k: v["content"] if isinstance(v, dict) else v
-                    for k, v in special_tokens_map.items()
-                }
-            except Exception:
-                # Fall back to extracting special tokens from tokenizer_config.json
-                self.special_tokens_map = {}
-                for k, v in config.items():
-                    if k.endswith("_token"):
-                        self.special_tokens_map[k] = (
-                            v["content"] if isinstance(v, dict) else v
-                        )
-        self.tokenizer = tokenizer
         self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
         if chat_template_kwargs is None:
             self.chat_template_kwargs = {}
@@ -109,7 +75,6 @@ class VLLM(ModelBase):
             extra_body=extra_body,
         )
         self.num_generation_calls += 1
-        add_to_global_history(messages)
 
         try:
             async for chunk in stream:
@@ -130,4 +95,7 @@ class VLLM(ModelBase):
         finally:
             await stream.close()
 
+        add_to_global_history(
+            f"[USER]{item.prompt}[/USER]\n\n[ASSISTANT]{buffer}[/ASSISTANT]"
+        )
         return GenerationResult(item.identifier, buffer, completed=True)

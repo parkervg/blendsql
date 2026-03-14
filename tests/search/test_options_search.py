@@ -8,22 +8,17 @@ from blendsql.search import FaissVectorStore, HybridSearch
 
 BIODEX_QUESTION = "You are a medical expert. Given the patient description of a medical article, return the ranked list of medical conditions experienced by the patient. The most relevant label occurs first in the list. Be sure to rank ALL of the inputs."
 
-FEW_SHOT_EXAMPLES = [
-    {
+RETURN_TYPE_TO_EXAMPLE = {
+    "list[str]": {
         "question": BIODEX_QUESTION,
-        "mapping": {
-            "Patient experienced severe nausea and vomiting after taking the prescribed medication. The symptoms started within 2 hours of administration and persisted for 24 hours.": [
-                "nausea",
-                "vomiting",
-                "gastrointestinal distress",
-            ],
-            # ... rest of your examples
-        },
-        "column_name": "patient_description",
-        "table_name": "w",
-        "return_type": "list[str]",
+        "examples": [
+            {
+                "value": "Patient experienced severe nausea and vomiting after taking the prescribed medication. The symptoms started within 2 hours of administration and persisted for 24 hours.",
+                "answer": ["nausea", "vomiting", "gastrointestinal distress"],
+            }
+        ],
     }
-]
+}
 
 
 @pytest.fixture(scope="session")
@@ -61,7 +56,7 @@ def bsql(request, biodex_data):
         )
 
     MultiLabelMap = LLMMap.from_args(
-        few_shot_examples=FEW_SHOT_EXAMPLES,
+        return_type_to_example=RETURN_TYPE_TO_EXAMPLE,
         options_searcher=searcher,
     )
 

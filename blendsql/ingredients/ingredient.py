@@ -25,7 +25,6 @@ from blendsql.db import Database
 from blendsql.db.utils import format_tuple, double_quote_escape, LazyTable
 from blendsql.common.utils import get_tablename_colname
 from blendsql.search.searcher import Searcher
-from blendsql.ingredients.few_shot import Example
 from blendsql.configure import DEFAULT_DETERMINISTIC, DETERMINISTIC_KEY
 
 
@@ -44,7 +43,7 @@ class Ingredient:
     session_uuid: str = field()
 
     deterministic: bool = field(default=False)
-    few_shot_retriever: Callable[[str], list[Example]] = field(default=None)
+    return_type_to_example: list[dict] | None = field(default=None)
     list_options_in_prompt: bool = field(default=True)
     context_searcher: Searcher | None = field(default=None)
     options_searcher: Searcher | None = field(default=None)
@@ -576,17 +575,21 @@ class MapIngredient(Ingredient):
         # Unpack questions, to later pass to a `context_searcher` or `options_searcher`
         unpacked_questions = None
         if question is not None and "{}" in question:
+            num_placeholders = (
+                question.count("{}") - 1
+            )  # -1 because the first {} is for `value`
             if resolved_additional_args:
                 additional_values = [a.values for a in resolved_additional_args]
+                consumed = additional_values[:num_placeholders]
+                resolved_additional_args = resolved_additional_args[num_placeholders:]
                 unpacked_questions = [
                     question.format(value, *others)
-                    for value, *others in zip(unpacked_values, *additional_values)
+                    for value, *others in zip(unpacked_values, *consumed)
                 ]
             else:
                 unpacked_questions = [
                     question.format(value) for value in unpacked_values
                 ]
-
             logger.debug(
                 Color.quiet_update(f"Unpacked question to '{unpacked_questions[:10]}'")
             )

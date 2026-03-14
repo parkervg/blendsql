@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     BIODEX_QUESTION = "You are a medical expert. Given the patient description of a medical article, return the ranked list of medical conditions experienced by the patient. The most relevant label occurs first in the list. Be sure to rank ALL of the inputs."
     MultiLabelMap = LLMMap.from_args(
-        few_shot_examples=[
+        return_type_to_example=[
             {
                 "question": BIODEX_QUESTION,
                 "mapping": {
