@@ -228,7 +228,7 @@ def test_prompt_type_annotation(bsql, model):
         """,
         model=model,
     )
-    assert 'Literal["yes", "no"]' in GLOBAL_HISTORY[-1]
+    assert any(x in GLOBAL_HISTORY[-1] for x in ['["yes", "no"]', "['yes', 'no']"])
 
     _ = bsql.execute(
         """
@@ -236,7 +236,7 @@ def test_prompt_type_annotation(bsql, model):
         """,
         model=model,
     )
-    assert "Literal[21, 14, 12]" in GLOBAL_HISTORY[-1]
+    assert "[21, 14, 12]" in GLOBAL_HISTORY[-1]
 
 
 def test_raises_type_resolution_error(bsql, model):

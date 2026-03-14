@@ -43,7 +43,14 @@ if __name__ == "__main__":
         .reset_index(drop=True)
     )
 
-    bsql = BlendSQL(expanded_df, model=model, verbose=True)
+    bsql = BlendSQL(
+        expanded_df,
+        model=VLLM(
+            model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+            base_url="http://127.0.0.1:8000/v1/",
+        ),
+        verbose=True,
+    )
     smoothie = bsql.execute(
         """
         WITH player_stats AS (

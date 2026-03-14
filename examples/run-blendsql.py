@@ -56,10 +56,11 @@ smoothie = bsql.execute(
     """
 SELECT *, {{
             LLMMap(
-                'What sport might {} like?',
+                'Is {} a boy?',
                 Name,
                 Description,
-                return_type='str'
+                options=('yes', 'no'),
+                context=(SELECT 'parker')
             )
         }} FROM "names_and_ages"
     """,

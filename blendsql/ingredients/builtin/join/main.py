@@ -14,7 +14,7 @@ from blendsql.common.typing import GenerationResult, GenerationItem
 from blendsql.ingredients.ingredient import JoinIngredient, LMFunctionException
 from blendsql.ingredients.utils import initialize_retriever, partialclass
 
-from .examples import AnnotatedJoinExample, JoinExample
+from .prompts import AnnotatedJoinExample, JoinExample
 
 DEFAULT_JOIN_FEW_SHOT: list[AnnotatedJoinExample] = [
     AnnotatedJoinExample(**d)
@@ -22,7 +22,7 @@ DEFAULT_JOIN_FEW_SHOT: list[AnnotatedJoinExample] = [
         open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
     )
 ]
-MAIN_INSTRUCTION = "You are a database expert in charge of performing a modified `JOIN` operation. This `JOIN` is based on a semantic criteria given by the user.\nGiven the provided right values, generate a left value and give its alignment. If no alignment is present, use '-' as a placeholder for `NULL`.\n"
+MAIN_INSTRUCTION = "You are a database expert in charge of performing a modified `JOIN` operation. This `JOIN` is based on a semantic criteria given by the user.\nGiven the right values, find the correct alignment for the provided left value. If no alignment is present, use '-' as a placeholder for `NULL`.\n"
 
 
 @dataclass
@@ -196,8 +196,8 @@ class LLMJoin(JoinIngredient):
 
             items_to_process.append(
                 GenerationItem(
-                    prompt=base_prompt,
-                    assistant_continuation=f'\n```json\n{{\n\t"{left_value}"',
+                    prompt=base_prompt
+                    + f"\nNow, what would be the corresponding value for the key '{left_value}'? Return ONLY the right value, or '-'",
                     identifier=left_value,
                     cache_key=cache_key,
                     grammar=select_grammar.ll_grammar(),

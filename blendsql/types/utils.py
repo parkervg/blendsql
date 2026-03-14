@@ -141,6 +141,7 @@ def apply_type_conversion(s: str, return_type: DataType, db: Database):
     import re
 
     is_list_output = return_type.quantifier is not None
+    s = s.removeprefix("```python").removesuffix("```")
     if is_list_output:
         try:
             return [return_type.coerce_fn(c, db) for c in ast.literal_eval(s)]

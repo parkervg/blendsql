@@ -338,7 +338,7 @@ class LLMMap(MapIngredient):
                         "max_tokens",
                         int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
                     ),
-                    suffix="\n",
+                    stop="\n",
                     regex=regex if enable_constrained_decoding else None,
                 )
                 + grammar_suffix,
@@ -498,22 +498,30 @@ class LLMMap(MapIngredient):
                     )
                     assistant_continuation = None
                 elif self.prompt_style == "basic":
+                    _context = None
+                    if context_in_use_type == FeatureType.GLOBAL:
+                        _context = context
+                    elif context_in_use_type == FeatureType.LOCAL:
+                        _context = c
                     item_prompt = prompt + format_default_continuation(
                         value=v,
                         additional_args=a,
-                        context=c,
-                        options=o,
+                        context=_context,
+                        options=o or options,
                         question=q or question,
                         skip_value_in_inputs=bool(q is not None),
                     )
                     assistant_continuation = None
 
                 # Get grammar
-                if gen_f_is_collection and enable_constrained_decoding:
-                    # Different grammars for each item
-                    grammar = gen_f[idx](v).ll_grammar()
+                if enable_constrained_decoding:
+                    if gen_f_is_collection:
+                        # Different grammars for each item
+                        grammar = gen_f[idx](v).ll_grammar()
+                    else:
+                        grammar = gen_f(v).ll_grammar()
                 else:
-                    grammar = gen_f(v).ll_grammar()
+                    grammar = None
 
                 yield GenerationItem(
                     identifier=curr_identifier,

@@ -205,7 +205,7 @@ class LLMQA(QAIngredient):
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if context_searcher is not None and context is None:
             docs = context_searcher(question)[0]
-            context = [pl.DataFrame(docs, columns=["content"])]
+            context = [pl.DataFrame({"content": docs})]
             logger.debug(
                 Color.quiet_update(
                     f"Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"

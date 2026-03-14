@@ -1,15 +1,13 @@
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp
+from blendsql.models import VLLM
 
 
 if __name__ == "__main__":
-    model = LlamaCpp(
-        "google_gemma-3-12b-it-Q6_K.gguf",
-        "bartowski/google_gemma-3-12b-it-GGUF",
-        config={"n_gpu_layers": -1, "n_ctx": 8000, "seed": 100, "n_threads": 16},
-        caching=True,
+    model = VLLM(
+        model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+        base_url="http://127.0.0.1:8000/v1/",
     )
 
     # First, extract player names
@@ -126,4 +124,5 @@ if __name__ == "__main__":
         }}
         """,
     )
-    print(smoothie.df())
+    smoothie.print_summary()
+    print(smoothie.pl())
