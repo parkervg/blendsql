@@ -9,7 +9,9 @@ from dataclasses import dataclass, field
 from itertools import islice, repeat
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
-from guidance._grammar import select, gen
+from guidance._grammar import gen
+from guidance import json as guidance_json
+from pydantic import TypeAdapter
 from guidance.library import substring
 
 from blendsql.models.model_base import ModelBase
@@ -28,6 +30,7 @@ from blendsql.ingredients.utils import (
     partialclass,
     gen_list,
     _wrap_with_quotes,
+    get_python_type,
 )
 from blendsql.configure import (
     MAX_OPTIONS_IN_PROMPT_KEY,
@@ -271,7 +274,6 @@ class LLMMap(MapIngredient):
                     # Need to create separate gen_f for each set of filtered_options
                     gen_f = [
                         lambda _, o=o: gen_list(
-                            force_quotes=resolved_return_type.requires_quotes,
                             quantifier=quantifier,
                             options=o,
                             regex=regex,
@@ -282,7 +284,6 @@ class LLMMap(MapIngredient):
                 else:
                     gen_f = (
                         lambda _: gen_list(
-                            force_quotes=resolved_return_type.requires_quotes,
                             quantifier=quantifier,
                             options=options,
                             regex=regex,
@@ -293,28 +294,20 @@ class LLMMap(MapIngredient):
                 if self.options_searcher is not None:
                     # Need to create separate gen_f for each set of filtered_options
                     gen_f = [
-                        lambda _, o=o: _wrap_with_quotes(
-                            select(options=o),
-                            has_options_or_regex=bool(o or regex),
-                            force_quotes=resolved_return_type.requires_quotes
-                            and self.prompt_style == "python",
+                        lambda _, o=o: guidance_json(
+                            TypeAdapter(get_python_type(options=o))
                         )
                         + grammar_suffix
                         for o in filtered_options
                     ]
                 elif options is not None:
-                    select_fn = select(options=options)
                     gen_f = (
-                        lambda _: _wrap_with_quotes(
-                            select_fn,
-                            has_options_or_regex=bool(options or regex),
-                            force_quotes=resolved_return_type.requires_quotes
-                            and self.prompt_style == "python",
-                        )
+                        lambda _: TypeAdapter(get_python_type(options=options))
                         + grammar_suffix
                     )
                 elif resolved_return_type.name == "substring":
                     # Special case for substring datatypes
+                    # This can't be written as a `guidance_json` obj
                     gen_f = (
                         lambda s: _wrap_with_quotes(
                             substring(target_string=s),
@@ -417,9 +410,10 @@ class LLMMap(MapIngredient):
             from .prompts import format_default_continuation
 
             prompt = instruction
-            for example in one_shot_example["examples"]:
-                example_string = format_default_continuation(
-                    question=one_shot_example["question"],
+            example_string = ""
+            for idx, example in enumerate(one_shot_example["examples"]):
+                example_string += format_default_continuation(
+                    question=one_shot_example["question"] if idx == 0 else None,
                     value=example["value"],
                     additional_args=example.get("additional_args", None),
                     context=one_shot_example.get("context", None)
@@ -427,8 +421,10 @@ class LLMMap(MapIngredient):
                     options=one_shot_example.get("options", None)
                     or example.get("options", None),
                 )
-                example_string += str(example["answer"])
-            prompt = f"{instruction}\n\n{example_string}\n\n---\n\n"
+                example_string += (
+                    json.dumps(example["answer"], ensure_ascii=False) + "\n\n"
+                )
+            prompt = f"{instruction}\n\n{example_string}" + "---\n\n"
         else:
             raise ValueError(
                 f"Unknown prompt style: {self.prompt_style}\nValid arguments are ['python', 'basic']"

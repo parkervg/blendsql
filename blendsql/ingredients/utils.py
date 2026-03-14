@@ -1,10 +1,13 @@
 from typing import Callable
 from functools import partialmethod
-from guidance._grammar import select, gen
+from guidance._grammar import select
 from guidance.library._sequences import one_or_more, zero_or_more, sequence
-from guidance.library._optional import optional
+from guidance import json as guidance_json
+from typing import Literal
 
 import re
+
+from pydantic import TypeAdapter
 
 from blendsql.common.logger import logger, Color
 from .few_shot import Example
@@ -53,42 +56,65 @@ def _wrap_with_quotes(item, has_options_or_regex: bool, force_quotes: bool):
         )
 
 
-def gen_list(
-    force_quotes: bool,
-    quantifier=None,
+def get_python_type(
     options: list[str] | None = None,
     regex: str | None = None,
 ):
     if options:
-        single_item = select(options, list_append=False)
-    else:
-        single_item = gen(
-            max_tokens=100,
-            regex=regex,
-            # Stop at Python list item separators
-            stop_regex=LIST_ITEM_STOP_REGEX if not regex else None,
-            list_append=False,
-        )  # type: ignore
-    quoted_item = _wrap_with_quotes(single_item, bool(options or regex), force_quotes)
-    quantifier_fn = get_quantifier_wrapper(quantifier)
-    # For quantifiers that allow zero items, we need to handle empty list case
-    if quantifier in (None, "*") or (quantifier and quantifier.startswith("{0")):
-        # Could be empty, so entire contents is optional
-        subsequent_items = zero_or_more(", " + quoted_item)
-        list_contents = optional(quoted_item + subsequent_items)
-    elif quantifier == "+":
-        # One or more: first item + zero or more (sep + item)
-        subsequent_items = zero_or_more(", " + quoted_item)
-        list_contents = quoted_item + subsequent_items
-    elif quantifier and re.match(r"{\d+(,\d*)?}", quantifier):
-        # Specific count - use the quantifier wrapper but adjust for separator
-        item_with_sep = quoted_item + ", "
-        list_contents = quantifier_fn(item_with_sep)
-    else:
-        # Default: single item
-        list_contents = quoted_item
+        item_type = Literal[tuple(options)]
+    elif regex:
+        from pydantic import StringConstraints
+        from typing import Annotated
 
-    return "[" + list_contents + "]"
+        item_type = Annotated[str, StringConstraints(pattern=regex)]
+    else:
+        item_type = str
+    return item_type
+
+
+def gen_list(
+    quantifier=None,
+    options: list[str] | None = None,
+    regex: str | None = None,
+):
+    item_type = get_python_type(
+        options=options,
+        regex=regex,
+    )
+    if quantifier is None:
+        # Default: single item in a list
+        schema = TypeAdapter(tuple[item_type])
+    elif quantifier == "+":
+        # One or more
+        schema = TypeAdapter(
+            list[item_type]
+        )  # minItems=1 handled downstream or via annotation
+    elif quantifier == "*":
+        schema = TypeAdapter(list[item_type])
+    elif match := re.match(r"\{(\d+)\}", quantifier):
+        count = int(match.group(1))
+        # Fixed-length tuple: tuple[item_type, item_type, ...] with `count` elements
+        schema = TypeAdapter(tuple[tuple(item_type for _ in range(count))])
+    elif match := re.match(r"\{(\d+),(\d*)\}", quantifier):
+        min_count = int(match.group(1))
+        max_count = int(match.group(2)) if match.group(2) else None
+        from pydantic import Field
+        from typing import Annotated
+
+        if max_count is not None:
+            schema = TypeAdapter(
+                Annotated[
+                    list[item_type], Field(min_length=min_count, max_length=max_count)
+                ]
+            )
+        else:
+            schema = TypeAdapter(
+                Annotated[list[item_type], Field(min_length=min_count)]
+            )
+    else:
+        schema = TypeAdapter(list[item_type])
+
+    return guidance_json(schema=schema)
 
 
 def get_quantifier_wrapper(
