@@ -12,6 +12,7 @@ from textwrap import indent, dedent
 from guidance import json as guidance_json
 from pydantic import TypeAdapter
 from guidance.library import substring
+from guidance import regex as guidance_regex
 
 from blendsql.models.model_base import ModelBase
 from blendsql.common.logger import logger, Color
@@ -266,7 +267,7 @@ class LLMMap(MapIngredient):
         )
 
         grammar = None
-        grammar_suffix = f"\n" if self.prompt_style == "python" else ""
+        grammar_suffix = "\n"
         if enable_constrained_decoding:
             if is_list_output:
                 if self.options_searcher is not None:
@@ -277,7 +278,6 @@ class LLMMap(MapIngredient):
                                 data_type=resolved_return_type,
                                 quantifier=quantifier,
                                 options=o,
-                                regex=regex,
                             )
                             + grammar_suffix
                         ).ll_grammar()
@@ -289,7 +289,6 @@ class LLMMap(MapIngredient):
                             data_type=resolved_return_type,
                             quantifier=quantifier,
                             options=options,
-                            regex=regex,
                         )
                         + grammar_suffix
                     ).ll_grammar()
@@ -317,6 +316,17 @@ class LLMMap(MapIngredient):
                         )
                         + grammar_suffix
                     ).ll_grammar()
+                elif regex is not None:
+                    # pydantic TypeAdapters don't work here
+                    grammar = lambda _: (
+                        _wrap_with_quotes(
+                            guidance_regex(pattern=regex),
+                            has_options_or_regex=bool(options or regex),
+                            force_quotes=resolved_return_type.requires_quotes
+                            and self.prompt_style == "python",
+                        )
+                        + grammar_suffix
+                    ).ll_grammar()
         else:
             logger.debug(
                 Color.warning(
@@ -331,7 +341,6 @@ class LLMMap(MapIngredient):
                         get_python_type(
                             data_type=resolved_return_type,
                             options=options,
-                            regex=regex,
                         )
                     ),
                     max_tokens=kwargs.get(
@@ -427,7 +436,7 @@ class LLMMap(MapIngredient):
                         json.dumps(example["answer"], ensure_ascii=False) + "\n\n"
                     )
                 else:
-                    example_string += example["answer"]
+                    example_string += example["answer"] + "\n\n"
             prompt = f"{instruction}\n\n{example_string}" + "---\n\n"
         else:
             raise ValueError(
@@ -481,7 +490,9 @@ class LLMMap(MapIngredient):
                             grammar[idx]
                             if grammar_is_collection and enable_constrained_decoding
                             else grammar,
-                        ],
+                        ]
+                        if grammar is not None
+                        else None,
                     )
                     if cached_response is not None:
                         lm_mapping[curr_identifier] = cached_response
