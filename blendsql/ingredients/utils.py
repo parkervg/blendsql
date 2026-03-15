@@ -11,6 +11,7 @@ from pydantic import TypeAdapter
 
 from blendsql.common.logger import logger, Color
 from .few_shot import Example
+from ..common.typing import DataType
 
 LIST_ITEM_STOP_REGEX = r"(\n|',|\",|'\]|\"\])"
 
@@ -57,27 +58,30 @@ def _wrap_with_quotes(item, has_options_or_regex: bool, force_quotes: bool):
 
 
 def get_python_type(
+    data_type: DataType,
     options: list[str] | None = None,
     regex: str | None = None,
 ):
     if options:
-        item_type = Literal[tuple(options)]
+        return Literal[tuple(options)]
     elif regex:
         from pydantic import StringConstraints
         from typing import Annotated
 
         item_type = Annotated[str, StringConstraints(pattern=regex)]
     else:
-        item_type = str
+        item_type = data_type.atomic_type
     return item_type
 
 
 def gen_list(
+    data_type: DataType,
     quantifier=None,
     options: list[str] | None = None,
     regex: str | None = None,
 ):
     item_type = get_python_type(
+        data_type=data_type,
         options=options,
         regex=regex,
     )

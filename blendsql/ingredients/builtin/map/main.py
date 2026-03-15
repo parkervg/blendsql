@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from itertools import islice, repeat
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
-from guidance._grammar import gen
 from guidance import json as guidance_json
 from pydantic import TypeAdapter
 from guidance.library import substring
@@ -266,79 +265,81 @@ class LLMMap(MapIngredient):
             else 1
         )
 
-        gen_f = None
+        grammar = None
         grammar_suffix = f"\n" if self.prompt_style == "python" else ""
         if enable_constrained_decoding:
             if is_list_output:
                 if self.options_searcher is not None:
-                    # Need to create separate gen_f for each set of filtered_options
-                    gen_f = [
-                        lambda _, o=o: gen_list(
-                            quantifier=quantifier,
-                            options=o,
-                            regex=regex,
-                        )
-                        + grammar_suffix
+                    # Need to create separate grammar for each set of filtered_options
+                    grammar = [
+                        lambda _, o=o: (
+                            gen_list(
+                                data_type=resolved_return_type,
+                                quantifier=quantifier,
+                                options=o,
+                                regex=regex,
+                            )
+                            + grammar_suffix
+                        ).ll_grammar()
                         for o in filtered_options
                     ]
                 else:
-                    gen_f = (
-                        lambda _: gen_list(
+                    grammar = lambda _: (
+                        gen_list(
+                            data_type=resolved_return_type,
                             quantifier=quantifier,
                             options=options,
                             regex=regex,
                         )
                         + grammar_suffix
-                    )
+                    ).ll_grammar()
             else:
                 if self.options_searcher is not None:
-                    # Need to create separate gen_f for each set of filtered_options
-                    gen_f = [
-                        lambda _, o=o: guidance_json(
-                            TypeAdapter(get_python_type(options=o))
-                        )
-                        + grammar_suffix
+                    # Need to create separate grammar for each set of filtered_options
+                    grammar = [
+                        lambda _, o=o: (
+                            guidance_json(
+                                schema=TypeAdapter(get_python_type(options=o))
+                            )
+                            + grammar_suffix
+                        ).ll_grammar()
                         for o in filtered_options
                     ]
-                elif options is not None:
-                    gen_f = (
-                        lambda _: TypeAdapter(get_python_type(options=options))
-                        + grammar_suffix
-                    )
                 elif resolved_return_type.name == "substring":
                     # Special case for substring datatypes
                     # This can't be written as a `guidance_json` obj
-                    gen_f = (
-                        lambda s: _wrap_with_quotes(
+                    grammar = lambda s: (
+                        _wrap_with_quotes(
                             substring(target_string=s),
                             has_options_or_regex=bool(options or regex),
                             force_quotes=resolved_return_type.requires_quotes
                             and self.prompt_style == "python",
                         )
                         + grammar_suffix
-                    )
+                    ).ll_grammar()
         else:
             logger.debug(
                 Color.warning(
                     "Not applying constraints, since `enable_constrained_decoding==False`"
                 )
             )
-        if gen_f is None:
-            # Create base gen_f function
-            gen_f = lambda _: _wrap_with_quotes(
-                gen(
-                    max_tokens=kwargs.get(
-                        "max_tokens",
-                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+        if grammar is None and resolved_return_type.name != "str":
+            # Create base grammar function
+            grammar = lambda _: (
+                guidance_json(
+                    schema=TypeAdapter(
+                        get_python_type(
+                            data_type=resolved_return_type,
+                            options=options,
+                            regex=regex,
+                        )
                     ),
-                    stop="\n",
-                    regex=regex if enable_constrained_decoding else None,
+                    max_tokens=kwargs.get(
+                        "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
+                    ),
                 )
-                + grammar_suffix,
-                has_options_or_regex=bool(options or regex),
-                force_quotes=resolved_return_type.requires_quotes
-                and self.prompt_style == "python",
-            )
+                + grammar_suffix
+            ).ll_grammar()
 
         return_type_to_example = BASE_RETURN_TYPE_TO_EXAMPLE | (
             self.return_type_to_example or dict()
@@ -421,9 +422,12 @@ class LLMMap(MapIngredient):
                     options=one_shot_example.get("options", None)
                     or example.get("options", None),
                 )
-                example_string += (
-                    json.dumps(example["answer"], ensure_ascii=False) + "\n\n"
-                )
+                if not isinstance(example["answer"], str):
+                    example_string += (
+                        json.dumps(example["answer"], ensure_ascii=False) + "\n\n"
+                    )
+                else:
+                    example_string += example["answer"]
             prompt = f"{instruction}\n\n{example_string}" + "---\n\n"
         else:
             raise ValueError(
@@ -434,7 +438,7 @@ class LLMMap(MapIngredient):
 
         def generate_items() -> Generator[GenerationItem, None, None]:
             """Lazily yields items, checking cache as we go."""
-            gen_f_is_collection = hasattr(gen_f, "__getitem__")
+            grammar_is_collection = hasattr(grammar, "__getitem__")
             for idx, (q, v, a, c, o) in enumerate(
                 zip(
                     unpacked_questions,
@@ -474,9 +478,9 @@ class LLMMap(MapIngredient):
                         c,
                         o,
                         funcs=[
-                            gen_f[idx]
-                            if gen_f_is_collection and enable_constrained_decoding
-                            else gen_f,
+                            grammar[idx]
+                            if grammar_is_collection and enable_constrained_decoding
+                            else grammar,
                         ],
                     )
                     if cached_response is not None:
@@ -510,20 +514,20 @@ class LLMMap(MapIngredient):
                     assistant_continuation = None
 
                 # Get grammar
-                if enable_constrained_decoding:
-                    if gen_f_is_collection:
+                if enable_constrained_decoding and grammar:
+                    if grammar_is_collection:
                         # Different grammars for each item
-                        grammar = gen_f[idx](v).ll_grammar()
+                        grammar_str = grammar[idx](v)
                     else:
-                        grammar = gen_f(v).ll_grammar()
+                        grammar_str = grammar(v)
                 else:
-                    grammar = None
+                    grammar_str = None
 
                 yield GenerationItem(
                     identifier=curr_identifier,
                     prompt=item_prompt,
                     assistant_continuation=assistant_continuation,
-                    grammar=grammar,
+                    grammar=grammar_str,
                     cache_key=cache_key,
                 )
 

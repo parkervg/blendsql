@@ -258,7 +258,9 @@ def format_default_continuation(
     options: list[str] | None,
     skip_value_in_inputs: bool = False,
 ) -> str:
-    s = f"QUESTION:\n{question}\n\n"
+    s = ""
+    if question is not None:
+        s += f"QUESTION:\n{question}\n\n"
     if skip_value_in_inputs:
         if additional_args is not None:
             s += f"INPUTS:\n{list(additional_args)}\n\n"

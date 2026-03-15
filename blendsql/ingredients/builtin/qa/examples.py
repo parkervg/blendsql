@@ -23,7 +23,7 @@ class QAExample(Example):
     question: str
     context: list[pl.DataFrame] | None = None
     options: Collection[str] | None = None
-    return_type: DataType = field(default_factory=lambda: DataTypes.ANY())
+    return_type: DataType = field(default_factory=lambda: DataTypes.STR())
 
     def __post_init__(self):
         # Apply converters

@@ -148,7 +148,7 @@ def apply_type_conversion(s: str, return_type: DataType, db: Database):
         except Exception:
             # Sometimes we need to first escape single quotes
             # E.g. in ['Something's wrong here']
-            if return_type.atomic_type == "str":
+            if return_type.atomic_type == str:
                 return [
                     return_type.coerce_fn(c, db)
                     for c in ast.literal_eval(re.sub(r"(\w)'(\w)", r"\1\\'\2", s))

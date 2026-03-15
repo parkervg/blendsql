@@ -400,7 +400,7 @@ class ReturnTypeInferrer:
             str_literals = str_literals * 2
 
         return {
-            "return_type": DataTypes.ANY(quantifier),
+            "return_type": DataTypes.STR(quantifier),
             "example_outputs": str_literals,
         }
 

@@ -59,8 +59,6 @@ SELECT *, {{
                 'Is {} a boy?',
                 Name,
                 Description,
-                options=('yes', 'no'),
-                context=(SELECT 'parker')
             )
         }} FROM "names_and_ages"
     """,
