@@ -31,6 +31,7 @@ from blendsql.ingredients.utils import (
     gen_list,
     _wrap_with_quotes,
     get_python_type,
+    parse_quantifier,
 )
 from blendsql.configure import (
     MAX_OPTIONS_IN_PROMPT_KEY,
@@ -255,6 +256,8 @@ class LLMMap(MapIngredient):
         regex = regex or resolved_return_type.regex
         quantifier = resolved_return_type.quantifier
 
+        quantifier_min_length, quantifier_max_length = parse_quantifier(quantifier)
+
         if all(x is not None for x in [options, regex]):
             raise LMFunctionException(
                 "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
@@ -278,6 +281,8 @@ class LLMMap(MapIngredient):
                                 data_type=resolved_return_type,
                                 quantifier=quantifier,
                                 options=o,
+                                quantifier_min_length=quantifier_min_length,
+                                quantifier_max_length=quantifier_max_length,
                             )
                             + grammar_suffix
                         ).ll_grammar()
@@ -289,6 +294,8 @@ class LLMMap(MapIngredient):
                             data_type=resolved_return_type,
                             quantifier=quantifier,
                             options=options,
+                            quantifier_min_length=quantifier_min_length,
+                            quantifier_max_length=quantifier_max_length,
                         )
                         + grammar_suffix
                     ).ll_grammar()
@@ -360,6 +367,21 @@ class LLMMap(MapIngredient):
         instruction: str = BASE_RETURN_TYPE_TO_INSTRUCTION.get(
             key, BASE_RETURN_TYPE_TO_INSTRUCTION["str"]
         )
+        if resolved_return_type.quantifier is not None:
+            # Add a note about how many items we expect back
+            if quantifier == "+":
+                instruction += (
+                    " There should be one or more items in your generated list."
+                )
+            elif quantifier == "*":
+                instruction += (
+                    " There should be zero or more items in your generated list."
+                )
+            elif quantifier_max_length == quantifier_min_length:
+                instruction += f" There should be exactly {quantifier_max_length} items in your generated list."
+            else:
+                instruction += f" There should be between {quantifier_min_length} and {quantifier_max_length} items in your generated list."
+        instruction += " An example is shown below."
         one_shot_example: dict = return_type_to_example.get(
             key, return_type_to_example["str"]
         )

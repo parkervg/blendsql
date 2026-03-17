@@ -24,6 +24,7 @@ from blendsql.ingredients.utils import (
     partialclass,
     gen_list,
     get_python_type,
+    parse_quantifier,
 )
 from blendsql.configure import (
     MAX_OPTIONS_IN_PROMPT_KEY,
@@ -222,11 +223,20 @@ class LLMQA(QAIngredient):
         resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
         )
+
+        is_list_output = resolved_return_type.quantifier is not None
+        regex = regex or resolved_return_type.regex
+        quantifier = resolved_return_type.quantifier
+
+        quantifier_min_length, quantifier_max_length = parse_quantifier(quantifier)
+
         current_example = QAExample(
             question=question,
             context=context,
             options=options,
             return_type=resolved_return_type,
+            quantifier_min_length=quantifier_min_length,
+            quantifier_max_length=quantifier_max_length,
         )
         few_shot_examples: list[AnnotatedQAExample] = [
             AnnotatedQAExample(**example.__dict__)
@@ -236,10 +246,6 @@ class LLMQA(QAIngredient):
                 current_example.to_string(context_formatter)
             )
         ]
-
-        is_list_output = resolved_return_type.quantifier is not None
-        regex = regex or resolved_return_type.regex
-        quantifier = resolved_return_type.quantifier
 
         options_with_aliases, options_alias_to_original = None, dict()
         if use_option_aliases:
@@ -296,6 +302,8 @@ class LLMQA(QAIngredient):
                         data_type=resolved_return_type,
                         quantifier=quantifier,
                         options=options_with_aliases,
+                        quantifier_min_length=quantifier_min_length,
+                        quantifier_max_length=quantifier_max_length,
                     )
                     + grammar_suffix
                 ).ll_grammar()

@@ -24,6 +24,8 @@ class QAExample(Example):
     context: list[pl.DataFrame] | None = None
     options: Collection[str] | None = None
     return_type: DataType = field(default_factory=lambda: DataTypes.STR())
+    quantifier_min_length: int | None = (None,)
+    quantifier_max_length: int | None = (None,)
 
     def __post_init__(self):
         # Apply converters
@@ -52,17 +54,10 @@ class QAExample(Example):
                 elif quantifier == "+":
                     s += "You may generate one or more responses in your list.\n"
                 else:
-                    repeats = [
-                        int(i)
-                        for i in quantifier.replace("}", "").replace("{", "").split(",")
-                    ]
-                    if len(repeats) == 1:
-                        repeats = repeats * 2
-                    min_length, max_length = repeats
-                    if min_length == max_length:
-                        s += f"You may generate {min_length} responses in your list.\n"
+                    if self.quantifier_min_length == self.quantifier_max_length:
+                        s += f"You may generate exactly {self.quantifier_min_length} responses in your list.\n"
                     else:
-                        s += f"You may generate between {min_length} and {max_length} responses in your list.\n"
+                        s += f"You may generate between {self.quantifier_min_length} and {self.quantifier_max_length} responses in your list.\n"
         if self.context is not None:
             s += f"Context:"
             for c in self.context:

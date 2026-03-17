@@ -17,21 +17,18 @@ PYTHON_INSTRUCTION = (
 BASIC_INSTRUCTION = "You are a helpful assistant. You will be presented with some context and a question. "
 BASE_RETURN_TYPE_TO_INSTRUCTION: dict[str, str] = {
     "bool": BASIC_INSTRUCTION
-    + "Output True if the context satisfies the filter condition, and False otherwise. An example is shown below.",
-    "int": BASIC_INSTRUCTION
-    + "Return your answer as a valid Python `int`. An example is shown below.",
-    "float": BASIC_INSTRUCTION
-    + "Return your answer as a valid Python `float`. An example is shown below.",
+    + "Output True if the context satisfies the filter condition, and False otherwise.",
+    "int": BASIC_INSTRUCTION + "Return your answer as a valid Python `int`.",
+    "float": BASIC_INSTRUCTION + "Return your answer as a valid Python `float`.",
     "str": BASIC_INSTRUCTION
-    + "Answer the question accurately. Do not add any additional commentary - for example, don't say 'The answer is golf', simply say 'golf'. An example is shown below.",
+    + "Answer the question accurately. Do not add any additional commentary - for example, don't say 'The answer is golf', simply say 'golf'.",
     "list[str]": BASIC_INSTRUCTION
-    + "Return your answer as a valid Python `list[str]`. An example is shown below.",
-    "date": BASIC_INSTRUCTION
-    + "Return your answer as a date, formatted `YYYY-MM-DD`. An example is shown below.",
+    + "Return your answer as a valid Python `list[str]`.",
+    "date": BASIC_INSTRUCTION + "Return your answer as a date, formatted `YYYY-MM-DD`.",
     "list[int]": BASIC_INSTRUCTION
-    + "Return your answer as a valid Python `list[int]`. An example is shown below.",
+    + "Return your answer as a valid Python `list[int]`.",
     "literal": BASIC_INSTRUCTION
-    + "Your answer should be a valid selection from the provided `OPTIONS`. An example is shown below.",
+    + "Your answer should be a valid selection from the provided `OPTIONS`.",
 }
 
 BASE_RETURN_TYPE_TO_EXAMPLE: dict[str, dict] = {
