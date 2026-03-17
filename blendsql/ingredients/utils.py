@@ -39,7 +39,9 @@ def partialclass(cls, *args, **kwds):
 def parse_quantifier(quantifier: str | None = None) -> tuple[int | None, int | None]:
     if quantifier is None:
         return (None, None)
-    if quantifier not in {"+", "*"}:
+    if quantifier in {"+", "*"}:
+        return (None, None)
+    else:
         quantifier = "".join(quantifier.split())
         # Need to parse `min_items`, `max_items`
         if match := re.match(r"\{(\d+)\}", quantifier):
