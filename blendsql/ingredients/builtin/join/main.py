@@ -139,11 +139,7 @@ class LLMJoin(JoinIngredient):
             # Default to 1 few-shot example in LLMJoin
             few_shot_retriever = lambda *_: DEFAULT_JOIN_FEW_SHOT[:1]
 
-        n_parallel = (
-            int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT))
-            if model._allows_parallel_requests
-            else 1
-        )
+        n_parallel = int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT))
         cancel_event = asyncio.Event()
         semaphore = asyncio.Semaphore(n_parallel)
         left_values = sorted(list(left_values))

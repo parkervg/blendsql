@@ -17,7 +17,11 @@ class VLLM(ModelBase):
         ```
     """
 
-    async def _format_extra_body(self, extra_body: dict, item: GenerationItem) -> dict:
+    def __init__(self, api_key: str | None = None, *args, **kwargs) -> None:
+        api_key = api_key or "N.A"
+        super().__init__(api_key=api_key, *args, **kwargs)
+
+    def _format_extra_body(self, extra_body: dict, item: GenerationItem) -> dict:
         if item.grammar:
             extra_body |= {
                 "guided_decoding_backend": "guidance",

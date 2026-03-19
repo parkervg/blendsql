@@ -263,11 +263,7 @@ class LLMMap(MapIngredient):
                 "MapIngredient exception!\nCan't have both `options` and `regex` argument passed."
             )
 
-        n_parallel = (
-            int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT))
-            if model._allows_parallel_requests
-            else 1
-        )
+        n_parallel = int(os.getenv(ASYNC_LIMIT_KEY, DEFAULT_ASYNC_LIMIT))
 
         grammar = None
         grammar_suffix = "\n"
