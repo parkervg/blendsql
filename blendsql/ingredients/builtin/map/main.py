@@ -1,8 +1,7 @@
 import logging
 import os
 import asyncio
-from typing import Callable, Generator
-from pathlib import Path
+from typing import Callable, Generator, Literal
 import json
 import polars as pl
 import pandas as pd
@@ -10,12 +9,14 @@ from dataclasses import dataclass, field
 from itertools import islice, repeat
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
-from guidance._grammar import select, gen
+from guidance import json as guidance_json
+from pydantic import TypeAdapter
 from guidance.library import substring
+from guidance import regex as guidance_regex
 
 from blendsql.models.model_base import ModelBase
 from blendsql.common.logger import logger, Color
-from blendsql.common.constants import INDENT, DEFAULT_CONTEXT_FORMATTER
+from blendsql.common.constants import DEFAULT_CONTEXT_FORMATTER
 from blendsql.ingredients.ingredient import MapIngredient
 from blendsql.common.exceptions import LMFunctionException
 from blendsql.common.typing import (
@@ -26,10 +27,11 @@ from blendsql.common.typing import (
     GenerationResult,
 )
 from blendsql.ingredients.utils import (
-    initialize_retriever,
     partialclass,
     gen_list,
     _wrap_with_quotes,
+    get_python_type,
+    parse_quantifier,
 )
 from blendsql.configure import (
     MAX_OPTIONS_IN_PROMPT_KEY,
@@ -40,54 +42,37 @@ from blendsql.configure import (
     DEFAULT_ASYNC_LIMIT,
 )
 from blendsql.types import prepare_datatype, apply_type_conversion
-from .examples import (
-    MapExample,
-    AnnotatedMapExample,
-    FeatureType,
-)
 from blendsql.search.searcher import Searcher
-
-DEFAULT_MAP_FEW_SHOT: list[AnnotatedMapExample] = [
-    AnnotatedMapExample(**d)
-    for d in json.loads(
-        open(Path(__file__).resolve().parent / "./default_examples.json", "r").read()
-    )
-]
-CONSTRAINED_MAIN_INSTRUCTION = "Complete the docstring for the provided Python function. The output will correctly answer the question provided for each input value, with no mistakes. "
-CONSTRAINED_MAIN_INSTRUCTION = (
-    CONSTRAINED_MAIN_INSTRUCTION
-    + "On each newline, you will follow the format of f({value}) == {answer}.\n"
+from .prompts import (
+    FeatureType,
+    BASE_RETURN_TYPE_TO_EXAMPLE,
+    BASE_RETURN_TYPE_TO_INSTRUCTION,
 )
 
 
 @dataclass
 class LLMMap(MapIngredient):
     model: ModelBase = field(default=None)
-    few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = field(default=None)
     list_options_in_prompt: bool = field(default=True)
-    few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = field(default=None)
     context_formatter: Callable[[pl.DataFrame], str] = field(
         default=DEFAULT_CONTEXT_FORMATTER,
     )
-    batch_size: int = field(default=None)
+    prompt_style: Literal["basic", "python"] = "basic"
 
     @classmethod
     def from_args(
         cls,
         model: ModelBase | None = None,
-        few_shot_examples: list[dict] | list[AnnotatedMapExample] | None = None,
+        return_type_to_example: list[dict] | None = None,
         list_options_in_prompt: bool = True,
         options_searcher: Searcher | None = None,
-        batch_size: int | None = None,
-        num_few_shot_examples: int | None = 0,
         context_searcher: Searcher | None = None,
+        prompt_style: Literal["basic", "python"] = "basic",
     ):
         """Creates a partial class with predefined arguments.
 
         Args:
             model: The model to be used. Defaults to None.
-            few_shot_examples: A list of dictionary MapExample few-shot examples.
-               If not specified, will use [default_examples.json](https://github.com/parkervg/blendsql/blob/main/blendsql/ingredients/builtin/map/default_examples.json) as default.
             list_options_in_prompt: Whether to list options in the prompt. Defaults to True.
             options_searcher: A callable that takes in a list of options, and returns a `Searcher` object.
                 For example, ```
@@ -97,10 +82,7 @@ class LLMMap(MapIngredient):
                     k=10,
                 )
                 ```
-            batch_size: The batch size for processing. Defaults to 1.
-            num_few_shot_examples: Determines number of few-shot examples to use for each ingredient call.
-               Default is None, which will use all few-shot examples on all calls.
-               If specified, will initialize a haystack-based embedding retriever to filter examples.
+            prompt_style: One of 'python' or 'xml'. Controls the prompt format sent to the model.
 
         Returns:
             Type[MapIngredient]: A partial class of MapIngredient with predefined arguments.
@@ -138,20 +120,15 @@ class LLMMap(MapIngredient):
             bsql = BlendSQL(db, ingredients=ingredients)
             ```
         """
-        if few_shot_examples is None:
-            few_shot_examples = DEFAULT_MAP_FEW_SHOT
-        few_shot_retriever = initialize_retriever(
-            examples=few_shot_examples, num_few_shot_examples=num_few_shot_examples
-        )
         return cls._maybe_set_name_to_var_name(
             partialclass(
                 cls,
                 model=model,
-                few_shot_retriever=few_shot_retriever,
                 list_options_in_prompt=list_options_in_prompt,
                 options_searcher=options_searcher,
-                batch_size=batch_size,
+                return_type_to_example=return_type_to_example,
                 context_searcher=context_searcher,
+                prompt_style=prompt_style,
             )
         )
 
@@ -168,13 +145,11 @@ class LLMMap(MapIngredient):
         unpacked_questions: list[str] = None,
         options: list[str] | None = None,
         options_searcher: Searcher | None = None,
-        few_shot_retriever: Callable[[str], list[AnnotatedMapExample]] = None,
         value_limit: int | None = None,
         example_outputs: str | None = None,
         quantifier: QuantifierType = None,
         return_type: DataType | str | None = None,
         regex: str | None = None,
-        batch_size: int = None,
         exit_condition_func: Callable = None,
         exit_condition_required_values: int = None,
         enable_constrained_decoding: bool = True,
@@ -198,8 +173,6 @@ class LLMMap(MapIngredient):
             raise LMFunctionException(
                 "LLMMap requires a `Model` object, but nothing was passed!\nMost likely you forgot to set the `default_model` argument in `blend()`"
             )
-        if few_shot_retriever is None:
-            few_shot_retriever = lambda *_: []
 
         question = dedent(question.removeprefix("\n"))
 
@@ -234,6 +207,11 @@ class LLMMap(MapIngredient):
             raise ValueError(
                 f"Invalid `context_in_use_type`: {type(context_in_use_type)}"
             )
+
+        if unpacked_questions is None:
+            unpacked_questions = [None] * len(values)
+
+        assert len(unpacked_questions) == len(values)
 
         # Unpack default kwargs
         table_name, column_name = self.unpack_default_kwargs(**kwargs)
@@ -274,33 +252,11 @@ class LLMMap(MapIngredient):
                 documents = values
             filtered_options = self.options_searcher(documents)
 
-        current_example = MapExample(
-            question=question,
-            column_name=column_name,
-            table_name=table_name,
-            return_type=resolved_return_type,
-            example_outputs=example_outputs,
-            options_type=options_in_use_type,
-            options=options,
-            context_type=context_in_use_type,
-            context=context,
-        )
-
-        current_example = MapExample(**current_example.__dict__)
-        few_shot_examples: list[AnnotatedMapExample] = [
-            AnnotatedMapExample(**example.__dict__)
-            if not isinstance(example, dict)
-            else AnnotatedMapExample(**example)
-            for example in few_shot_retriever(
-                current_example.to_string(
-                    additional_args=additional_args,
-                )
-            )
-        ]
-
         is_list_output = resolved_return_type.quantifier is not None
         regex = regex or resolved_return_type.regex
         quantifier = resolved_return_type.quantifier
+
+        quantifier_min_length, quantifier_max_length = parse_quantifier(quantifier)
 
         if all(x is not None for x in [options, regex]):
             raise LMFunctionException(
@@ -313,162 +269,210 @@ class LLMMap(MapIngredient):
             else 1
         )
 
-        gen_f = None
-        grammar_suffix = f"\n"
+        grammar = None
+        grammar_suffix = "\n"
         if enable_constrained_decoding:
             if is_list_output:
                 if self.options_searcher is not None:
-                    # Need to create separate gen_f for each set of filtered_options
-                    gen_f = [
-                        lambda _, o=o: gen_list(
-                            force_quotes=resolved_return_type.requires_quotes,
-                            quantifier=quantifier,
-                            options=o,
-                            regex=regex,
-                        )
-                        + grammar_suffix
+                    # Need to create separate grammar for each set of filtered_options
+                    grammar = [
+                        lambda _, o=o: (
+                            gen_list(
+                                data_type=resolved_return_type,
+                                quantifier=quantifier,
+                                options=o,
+                                quantifier_min_length=quantifier_min_length,
+                                quantifier_max_length=quantifier_max_length,
+                            )
+                            + grammar_suffix
+                        ).ll_grammar()
                         for o in filtered_options
                     ]
                 else:
-                    gen_f = (
-                        lambda _: gen_list(
-                            force_quotes=resolved_return_type.requires_quotes,
+                    grammar = lambda _: (
+                        gen_list(
+                            data_type=resolved_return_type,
                             quantifier=quantifier,
                             options=options,
-                            regex=regex,
+                            quantifier_min_length=quantifier_min_length,
+                            quantifier_max_length=quantifier_max_length,
                         )
                         + grammar_suffix
-                    )
+                    ).ll_grammar()
             else:
                 if self.options_searcher is not None:
-                    # Need to create separate gen_f for each set of filtered_options
-                    gen_f = [
-                        lambda _, o=o: _wrap_with_quotes(
-                            select(options=o),
-                            has_options_or_regex=bool(o or regex),
-                            force_quotes=resolved_return_type.requires_quotes,
-                        )
-                        + grammar_suffix
+                    # Need to create separate grammar for each set of filtered_options
+                    grammar = [
+                        lambda _, o=o: (
+                            guidance_json(
+                                schema=TypeAdapter(get_python_type(options=o))
+                            )
+                            + grammar_suffix
+                        ).ll_grammar()
                         for o in filtered_options
                     ]
-                elif options is not None:
-                    select_fn = select(options=options)
-                    gen_f = (
-                        lambda _: _wrap_with_quotes(
-                            select_fn,
-                            has_options_or_regex=bool(options or regex),
-                            force_quotes=resolved_return_type.requires_quotes,
-                        )
-                        + grammar_suffix
-                    )
                 elif resolved_return_type.name == "substring":
                     # Special case for substring datatypes
-                    gen_f = (
-                        lambda s: _wrap_with_quotes(
+                    # This can't be written as a `guidance_json` obj
+                    grammar = lambda s: (
+                        _wrap_with_quotes(
                             substring(target_string=s),
                             has_options_or_regex=bool(options or regex),
-                            force_quotes=resolved_return_type.requires_quotes,
+                            force_quotes=resolved_return_type.requires_quotes
+                            and self.prompt_style == "python",
                         )
                         + grammar_suffix
-                    )
+                    ).ll_grammar()
+                elif regex is not None:
+                    # pydantic TypeAdapters don't work here
+                    grammar = lambda _: (
+                        _wrap_with_quotes(
+                            guidance_regex(pattern=regex),
+                            has_options_or_regex=bool(options or regex),
+                            force_quotes=resolved_return_type.requires_quotes
+                            and self.prompt_style == "python",
+                        )
+                        + grammar_suffix
+                    ).ll_grammar()
         else:
             logger.debug(
                 Color.warning(
                     "Not applying constraints, since `enable_constrained_decoding==False`"
                 )
             )
-        if gen_f is None:
-            # Create base gen_f function
-            gen_f = lambda _: _wrap_with_quotes(
-                gen(
-                    max_tokens=kwargs.get(
-                        "max_tokens",
-                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+        if grammar is None and resolved_return_type.name != "str":
+            # Create base grammar function
+            grammar = lambda _: (
+                guidance_json(
+                    schema=TypeAdapter(
+                        get_python_type(
+                            data_type=resolved_return_type,
+                            options=options,
+                        )
                     ),
-                    # guidance>=0.2.1 doesn't allow both `stop` and `regex` to be passed
-                    # guidance 0.3.0 raises a serialization error if this is a list, not a tuple
-                    stop=None if regex is not None else grammar_suffix,
-                    regex=regex if enable_constrained_decoding else None,
+                    max_tokens=kwargs.get(
+                        "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
+                    ),
                 )
-                + grammar_suffix,
-                has_options_or_regex=bool(options or regex),
-                force_quotes=resolved_return_type.requires_quotes,
-            )
+                + grammar_suffix
+            ).ll_grammar()
 
-        def format_current_prompt(
-            value: str,
-            additional_args: tuple[str] | None,
-            context: str | list[str] | None,
-            context_in_use_type: FeatureType | None,
-            local_options: list[str] | None,
-        ) -> str:
-            def get_quote(s: str):
-                return '"""' if any(c in s for c in ["\n", '"']) else '"'
-
-            value_quote = get_quote(value)
-            has_more_than_one_arg = bool(
-                context_in_use_type == FeatureType.LOCAL
-                or additional_args is not None
-                or local_options is not None
-            )
-            arg_prefix = " "
-            newline_args = False
-            if has_more_than_one_arg:
-                newline_args = False
-                if len(value) > 20:
-                    newline_args = True
-                elif local_options is not None:
-                    if len(str(local_options)) > 20:
-                        newline_args = True
-                elif additional_args is not None:
-                    for a in additional_args:
-                        if len(a) > 20:
-                            newline_args = True
-                if newline_args:
-                    arg_prefix = f"\n{INDENT(3)}"  # If we pass more than one arg, and they are long, make them appear on newlines
-                gen_str = f"""{INDENT(2)}f({arg_prefix if newline_args else ''}{value_quote}{value}{value_quote}"""
-                if additional_args is not None:
-                    for arg in additional_args:
-                        gen_str += f',{arg_prefix}"{arg}"'
-                if context_in_use_type == FeatureType.LOCAL:
-                    json_str = json.dumps(context, ensure_ascii=False, indent=16)[:-1]
-                    gen_str += f",{arg_prefix}" + json_str + f"{INDENT(3)}]"
-                if local_options is not None:
-                    gen_str += f",{arg_prefix}{local_options}"
-            else:  # Global contexts have already been handled. We only have a single variable to pass.
-                indented_value = value.replace("\n", f"\n{INDENT(2)}")
-                gen_str = f"""{INDENT(2)}f({value_quote}{indented_value}{value_quote}"""
-            if has_more_than_one_arg:
-                if newline_args:
-                    gen_str += f"\n{INDENT(2)}"
-            gen_str += ") =="
-            return gen_str
-
-        example_str = ""
-        if len(few_shot_examples) > 0:
-            for example in few_shot_examples:
-                example_str += example.to_string()
-
-        curr_function_signature_str = current_example.to_string(
-            list_options=list_options_in_prompt,
-            additional_args=additional_args,
-            add_leading_newlines=True,
+        return_type_to_example = BASE_RETURN_TYPE_TO_EXAMPLE | (
+            self.return_type_to_example or dict()
+        )
+        if options is not None:
+            key = "literal"
+        else:
+            key = resolved_return_type.name.lower()
+        instruction: str = BASE_RETURN_TYPE_TO_INSTRUCTION.get(
+            key, BASE_RETURN_TYPE_TO_INSTRUCTION["str"]
+        )
+        if resolved_return_type.quantifier is not None:
+            # Add a note about how many items we expect back
+            if quantifier == "+":
+                instruction += (
+                    " There should be one or more items in your generated list."
+                )
+            elif quantifier == "*":
+                instruction += (
+                    " There should be zero or more items in your generated list."
+                )
+            elif quantifier_max_length == quantifier_min_length:
+                instruction += f" There should be exactly {quantifier_max_length} items in your generated list."
+            else:
+                instruction += f" There should be between {quantifier_min_length} and {quantifier_max_length} items in your generated list."
+        instruction += " An example is shown below."
+        one_shot_example: dict = return_type_to_example.get(
+            key, return_type_to_example["str"]
         )
 
-        base_prompt = CONSTRAINED_MAIN_INSTRUCTION
-        if example_str:
-            base_prompt += example_str
-            base_prompt += "\n\nNow, complete the docstring for the following example:"
-        base_prompt += curr_function_signature_str
+        if self.prompt_style == "python":
+            from .prompts import (
+                format_python_signature,
+                format_python_continuation,
+                PYTHON_INSTRUCTION,
+            )
 
+            prompt = PYTHON_INSTRUCTION
+            example_signature = format_python_signature(
+                question=one_shot_example["question"],
+                return_type=resolved_return_type,
+                context=one_shot_example.get("context"),
+                context_type=FeatureType.GLOBAL
+                if one_shot_example.get("context")
+                else None,
+                options=one_shot_example.get("options"),
+                list_options=True,
+                options_type=FeatureType.GLOBAL,
+            )
+            example_string = ""
+            for example in one_shot_example["examples"]:
+                example_string += format_python_continuation(
+                    value=example["value"],
+                    additional_args=example.get("additional_args", None),
+                    context=example.get("context", None),
+                    local_options=example.get("options", None),
+                    context_in_use_type=FeatureType.LOCAL
+                    if example.get("context")
+                    else None,
+                )
+                answer = example["answer"]
+                example_string += (
+                    f'"{answer}"' if isinstance(answer, str) else f"{answer}"
+                )
+
+            prompt += example_signature + example_string + "\n```"
+            prompt += "\n\nNow, complete the docstring for the following example:"
+            curr_function_signature_str = format_python_signature(
+                question=question,
+                column_name=column_name,
+                table_name=table_name,
+                return_type=resolved_return_type,
+                options_type=options_in_use_type,
+                options=options,
+                context_type=context_in_use_type,
+                context=context,
+                list_options=list_options_in_prompt,
+                additional_args=additional_args,
+                add_leading_newlines=True,
+            )
+            prompt += curr_function_signature_str
+
+        elif self.prompt_style == "basic":
+            from .prompts import format_default_continuation
+
+            prompt = instruction
+            example_string = ""
+            for idx, example in enumerate(one_shot_example["examples"]):
+                example_string += format_default_continuation(
+                    question=one_shot_example["question"] if idx == 0 else None,
+                    value=example["value"],
+                    additional_args=example.get("additional_args", None),
+                    context=one_shot_example.get("context", None)
+                    or example.get("context"),
+                    options=one_shot_example.get("options", None)
+                    or example.get("options", None),
+                )
+                if not isinstance(example["answer"], str):
+                    example_string += (
+                        json.dumps(example["answer"], ensure_ascii=False) + "\n\n"
+                    )
+                else:
+                    example_string += example["answer"] + "\n\n"
+            prompt = f"{instruction}\n\n{example_string}" + "---\n\n"
+        else:
+            raise ValueError(
+                f"Unknown prompt style: {self.prompt_style}\nValid arguments are ['python', 'basic']"
+            )
         lm_mapping: dict = {}  # Final type-cast results
         all_processed_identifiers: list[str] = []
 
         def generate_items() -> Generator[GenerationItem, None, None]:
             """Lazily yields items, checking cache as we go."""
-            gen_f_is_collection = hasattr(gen_f, "__getitem__")
-            for idx, (v, a, c, o) in enumerate(
+            grammar_is_collection = hasattr(grammar, "__getitem__")
+            for idx, (q, v, a, c, o) in enumerate(
                 zip(
+                    unpacked_questions,
                     values,
                     zip(*[arg.values for arg in additional_args])
                     if additional_args
@@ -490,8 +494,8 @@ class LLMMap(MapIngredient):
                 cache_key = None
                 if model.caching:
                     cached_response, cache_key = model.check_cache(
-                        CONSTRAINED_MAIN_INSTRUCTION,
-                        example_str,
+                        prompt,
+                        self.prompt_style,
                         question,
                         regex,
                         options,
@@ -505,37 +509,58 @@ class LLMMap(MapIngredient):
                         c,
                         o,
                         funcs=[
-                            format_current_prompt,
-                            gen_f[idx]
-                            if gen_f_is_collection and enable_constrained_decoding
-                            else gen_f,
-                        ],
+                            grammar[idx]
+                            if grammar_is_collection and enable_constrained_decoding
+                            else grammar,
+                        ]
+                        if grammar is not None
+                        else None,
                     )
                     if cached_response is not None:
                         lm_mapping[curr_identifier] = cached_response
                         continue  # Skip - already cached
 
-                # Build prompt
-                assistant_continuation = format_current_prompt(
-                    value=v,
-                    additional_args=a,
-                    context=c,
-                    context_in_use_type=context_in_use_type,
-                    local_options=o,
-                )
+                # Build per-item prompt/continuation.
+                if self.prompt_style == "python":
+                    item_prompt = prompt + format_python_continuation(
+                        value=v,
+                        additional_args=a,
+                        context=c,
+                        context_in_use_type=context_in_use_type,
+                        local_options=o,
+                    )
+                    assistant_continuation = None
+                elif self.prompt_style == "basic":
+                    _context = None
+                    if context_in_use_type == FeatureType.GLOBAL:
+                        _context = context
+                    elif context_in_use_type == FeatureType.LOCAL:
+                        _context = c
+                    item_prompt = prompt + format_default_continuation(
+                        value=v,
+                        additional_args=a,
+                        context=_context,
+                        options=o or options,
+                        question=q or question,
+                        skip_value_in_inputs=bool(q is not None),
+                    )
+                    assistant_continuation = None
 
                 # Get grammar
-                if gen_f_is_collection and enable_constrained_decoding:
-                    # Different grammars for each item
-                    grammar = gen_f[idx](v).ll_grammar()
+                if enable_constrained_decoding and grammar:
+                    if grammar_is_collection:
+                        # Different grammars for each item
+                        grammar_str = grammar[idx](v)
+                    else:
+                        grammar_str = grammar(v)
                 else:
-                    grammar = gen_f(v).ll_grammar()
+                    grammar_str = None
 
                 yield GenerationItem(
                     identifier=curr_identifier,
-                    prompt=base_prompt,
+                    prompt=item_prompt,
                     assistant_continuation=assistant_continuation,
-                    grammar=grammar,
+                    grammar=grammar_str,
                     cache_key=cache_key,
                 )
 
@@ -610,7 +635,9 @@ class LLMMap(MapIngredient):
 
                     # Type conversion
                     converted_value = apply_type_conversion(
-                        result.value.split(grammar_suffix)[0],
+                        result.value.split(grammar_suffix)[0]
+                        if grammar_suffix
+                        else result.value,
                         return_type=resolved_return_type,
                         db=self.db,
                     )

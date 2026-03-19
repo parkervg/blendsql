@@ -527,12 +527,12 @@ print(smoothie.df())
 ## Extreme Multi-Label Classification
 
 ```python
-from blendsql import BlendSQL 
+from blendsql import BlendSQL
 from blendsql.search import HybridSearch
 from blendsql.ingredients import LLMMap
 
 MultiLabelMap = LLMMap.from_args(
-    few_shot_examples=[
+    return_type_to_example=[
         {
             "question": "What medical conditions does the patient have?",
             "mapping": {
@@ -561,9 +561,9 @@ MultiLabelMap = LLMMap.from_args(
 bsql = BlendSQL(
     {
         "w": {
-          "patient_description": [
-            "Patient complained of severe stomach pain and diarrhea after taking the medication. The gastrointestinal symptoms were debilitating and required medical attention."
-            "Subject experienced extreme fatigue and muscle weakness following medication administration. Energy levels remained critically low for 48-72 hours post-treatment."
+            "patient_description": [
+                "Patient complained of severe stomach pain and diarrhea after taking the medication. The gastrointestinal symptoms were debilitating and required medical attention."
+                "Subject experienced extreme fatigue and muscle weakness following medication administration. Energy levels remained critically low for 48-72 hours post-treatment."
         },
     },
     model=model,
@@ -611,26 +611,26 @@ from blendsql import BlendSQL
 from blendsql.ingredients.builtin import LLMMap, DEFAULT_MAP_FEW_SHOT
 
 ingredients = {
-  LLMMap.from_args(
-    few_shot_examples=[
-      *DEFAULT_MAP_FEW_SHOT,
-      {
-        "question": "Is this a sport?",
-        "mapping": {
-          "Soccer": True,
-          "Chair": False,
-          "Banana": False,
-          "Golf": True
-        },
-        # Below are optional
-        "column_name": "Items",
-        "table_name": "Table",
-        "return_type": "boolean"
-      }
-    ],
-    # How many inference values to pass to model at once
-    batch_size=5,
-  )
+    LLMMap.from_args(
+        return_type_to_example=[
+            *DEFAULT_MAP_FEW_SHOT,
+            {
+                "question": "Is this a sport?",
+                "mapping": {
+                    "Soccer": True,
+                    "Chair": False,
+                    "Banana": False,
+                    "Golf": True
+                },
+                # Below are optional
+                "column_name": "Items",
+                "table_name": "Table",
+                "return_type": "boolean"
+            }
+        ],
+        # How many inference values to pass to model at once
+        batch_size=5,
+    )
 }
 
 bsql = BlendSQL(db, ingredients=ingredients)

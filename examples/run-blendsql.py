@@ -1,50 +1,50 @@
 import pandas as pd
-import psutil
 
-# os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 from blendsql import BlendSQL, GLOBAL_HISTORY
-from blendsql.db import DuckDB
-from blendsql.models import LiteLLM, LlamaCpp
-from blendsql.common.utils import fetch_from_hub
+from blendsql.models import VLLM
 
-
-USE_LOCAL_CONSTRAINED_MODEL = True
-
-# Load model, either a local transformers model, or remote provider via LiteLLM
-model = None
-if True:
-    if USE_LOCAL_CONSTRAINED_MODEL:
-        model = LlamaCpp(
-            model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
-            filename="gemma-3-4b-it-Q4_K_M.gguf",
-            # model_name_or_path="bartowski/SmolLM2-135M-Instruct-GGUF",
-            # filename="SmolLM2-135M-Instruct-Q4_K_M.gguf",
-            config={
-                "n_gpu_layers": -1,
-                "n_ctx": 1028,
-                "seed": 100,
-                "n_threads": psutil.cpu_count(logical=False),
-            },
-            caching=False,
-        )
-        _ = model.model_obj
-    else:
-        model = LiteLLM("openai/gpt-4o-mini")
+"""
+vllm serve cyankiwi/Qwen3.5-9B-AWQ-4bit --host 0.0.0.0 \
+--port 8000 \
+--enable-prefix-caching \
+--max-model-len 8000 \
+--structured-outputs-config.backend guidance \
+--language-model-only \
+--reasoning-parser qwen3 \
+--gpu_memory_utilization 0.8 \
+--max-cudagraph-capture-size 32 \
+--enable-prompt-tokens-details
+"""
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
-    DuckDB.from_pandas(
-        {
-            "Movies": pd.read_csv(fetch_from_hub("movie/sf_2000/Movies.csv")),
-            "Reviews": pd.read_csv(fetch_from_hub("movie/sf_2000/Reviews.csv")),
-        },
+    {
+        "w": pd.DataFrame(
+            {
+                "player_name": ["John Wall", "Jayson Tatum"],
+                "Report": ["He had 2 assists", "He only had 1 assist"],
+                "AnotherOptionalReport": ["He had 26pts", "He scored 51pts!"],
+            }
+        ),
+        "v": pd.DataFrame({"people": ["john", "jayson", "emily"]}),
+        "names_and_ages": pd.DataFrame(
+            {
+                "Name": ["Tommy", "Sarah", "Tommy"],
+                "Description": ["He is 24 years old", "She's 12", "He's only 3"],
+            }
+        ),
+        "movie_reviews": pd.DataFrame(
+            {"review": ["I love this movie!", "This was SO GOOD"]}
+        ),
+    },
+    model=VLLM(
+        model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+        base_url="http://127.0.0.1:8000/v1/",
     ),
-    enable_early_exit=False,
-    model=model,
     verbose=True,
 )
 
-print(f'{bsql.execute("SELECT COUNT(*) FROM reviews").df().values.item():,} total rows')
+# print(f'{bsql.execute("SELECT COUNT(*) FROM reviews").df().values.item():,} total rows')
 
 # If we've already processed this tablename before in the same subquery,
 # it's a self-join, or something similar where a single table is used as a reference
@@ -54,19 +54,13 @@ print(f'{bsql.execute("SELECT COUNT(*) FROM reviews").df().values.item():,} tota
 # r1.reviewText, r2.reviewText
 smoothie = bsql.execute(
     """
-    SELECT reviewId, reviewText,
-    {{
-        LLMMap(
-            'What is the sentiment of this review?',
-            reviewText,
-            options=('POSITIVE', 'NEGATIVE')
-        )
-    }} AS prediction,
-    scoreSentiment AS reference
-    FROM Reviews
-    WHERE id = 'taken_3'
-    AND prediction = 'POSITIVE'
-    LIMIT 5;
+SELECT *, {{
+            LLMMap(
+                'Is {} a boy?',
+                Name,
+                Description,
+            )
+        }} FROM "names_and_ages"
     """,
 )
 smoothie.print_summary()

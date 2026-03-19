@@ -1,7 +1,7 @@
 import pandas as pd
 
 from blendsql import BlendSQL
-from blendsql.models import LiteLLM
+from blendsql.models import VLLM
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -10,7 +10,10 @@ if __name__ == "__main__":
                 {"content": ["I hate this product", "I love this product"]}
             )
         },
-        model=LiteLLM("openai/gpt-4o", caching=False),
+        model=VLLM(
+            model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+            base_url="http://127.0.0.1:8000/v1/",
+        ),
         verbose=True,
     )
 

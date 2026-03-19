@@ -1,8 +1,7 @@
 import pandas as pd
-import torch.cuda
 
 from blendsql import BlendSQL
-from blendsql.models import LiteLLM, LlamaCpp
+from blendsql.models import VLLM
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -14,23 +13,22 @@ if __name__ == "__main__":
                 {"name": ["orange", "blue", "yellow", "red", "yellow"]}
             ),
         },
-        model=LlamaCpp(
-            "Meta-Llama-3.1-8B-Instruct.Q6_K.gguf",
-            "QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF",
-            config={"n_gpu_layers": -1},
-        )
-        if torch.cuda.is_available()
-        else LiteLLM("openai/gpt-4o"),
+        model=VLLM(
+            model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+            base_url="http://127.0.0.1:8000/v1/",
+        ),
         verbose=True,
     )
     smoothie = bsql.execute(
         """
-        SELECT * FROM fruit f
+        SELECT f.name, c.name FROM fruit f
         JOIN colors c ON {{
             LLMJoin(
                 f.name,
-                c.name
+                c.name,
+                join_criteria='Join the fruit to its color.'
             )
         }}
         """,
     )
+    smoothie.print_summary()

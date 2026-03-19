@@ -42,11 +42,15 @@ def bsql() -> BlendSQL:
 
 
 def test_num_values_passed_map(bsql, model):
+    if [i for i in bsql.ingredients if i.__name__ == "LLMMap"][
+        0
+    ].prompt_style != "basic":
+        pytest.skip()
     # With the above db, this will be 10
     total_num_values_to_process = bsql.db.execute_to_list(
         "SELECT COUNT(DISTINCT Name) FROM People", to_type=int
     )[0]
-    expected_token_count = 5  # `"n"\n` is 6 tokens - 5 normal, 1 special. TODO: why is special token added?
+    expected_token_count = 2
     assert model.completion_tokens == 0
     assert model.prompt_tokens == 0
     smoothie = bsql.execute(

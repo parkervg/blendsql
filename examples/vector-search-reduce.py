@@ -2,7 +2,7 @@ import pandas as pd
 
 from blendsql import BlendSQL
 from blendsql.ingredients import LLMQA
-from blendsql.models import LiteLLM
+from blendsql.models import VLLM
 from blendsql.search import FaissVectorStore
 
 bsql = BlendSQL(
@@ -106,14 +106,17 @@ bsql = BlendSQL(
             ]
         ),
     },
-    model=LiteLLM("openai/gpt-4o", caching=False),
+    model=VLLM(
+        model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+        base_url="http://127.0.0.1:8000/v1/",
+    ),
     verbose=True,
 )
 
 # Create embeddings for the concatenation of `title` and `content` columns
 DocumentSearch = LLMQA.from_args(
     context_searcher=FaissVectorStore(
-        "sentence-transformers/all-mpnet-base-v2",
+        model_name_or_path="sentence-transformers/all-mpnet-base-v2",
         documents=bsql.db.execute_to_list(
             "SELECT CONCAT(title, ' | ', content) FROM documents;"
         ),
@@ -151,7 +154,7 @@ WITH bay_area_county AS (
     SELECT County FROM schools s
     WHERE {{LLMMap('Is this county in the California Bay Area?', s.County)}}
     AND s.StatusType = 'Active' LIMIT 1
-) SELECT {{DocumentSearch('Who played basketball at a school in {}?', bay_area_count.County)}} AS answer
+) SELECT {{DocumentSearch('Who played basketball at a school in {}?', bay_area_county.County)}} AS answer
 """
 )
 print(smoothie.df())

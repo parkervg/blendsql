@@ -536,26 +536,26 @@ from blendsql import BlendSQL
 from blendsql.ingredients.builtin import LLMMap, DEFAULT_MAP_FEW_SHOT
 
 ingredients = {
-  LLMMap.from_args(
-    few_shot_examples=[
-      *DEFAULT_MAP_FEW_SHOT,
-      {
-        "question": "Is this a sport?",
-        "mapping": {
-          "Soccer": True,
-          "Chair": False,
-          "Banana": False,
-          "Golf": True
-        },
-        # Below are optional
-        "column_name": "Items",
-        "table_name": "Table",
-        "return_type": "boolean"
-      }
-    ],
-    # How many inference values to pass to model at once
-    batch_size=5,
-  )
+    LLMMap.from_args(
+        return_type_to_example=[
+            *DEFAULT_MAP_FEW_SHOT,
+            {
+                "question": "Is this a sport?",
+                "mapping": {
+                    "Soccer": True,
+                    "Chair": False,
+                    "Banana": False,
+                    "Golf": True
+                },
+                # Below are optional
+                "column_name": "Items",
+                "table_name": "Table",
+                "return_type": "boolean"
+            }
+        ],
+        # How many inference values to pass to model at once
+        batch_size=5,
+    )
 }
 
 bsql = BlendSQL(db, ingredients=ingredients)

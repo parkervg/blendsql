@@ -5,7 +5,6 @@
 import time
 from pathlib import Path
 from typing import Iterable
-import psutil
 
 import pandas as pd
 import json
@@ -20,8 +19,7 @@ from annotated_programs import ANNOTATED_TAG_DATASET
 
 from blendsql import BlendSQL
 from blendsql.db import DuckDB
-from blendsql.models import LlamaCpp, TransformersLLM
-from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
+from blendsql.models import VLLM
 from blendsql.ingredients import Ingredient
 
 CURR_DIR = Path(__file__).resolve().parent
@@ -250,14 +248,6 @@ if __name__ == "__main__":
         experiment_name="polars",
     )
 
-    ingredients = {
-        LLMQA.from_args(
-            num_few_shot_examples=0,
-        ),
-        LLMMap.from_args(num_few_shot_examples=0, batch_size=3),
-        LLMJoin,
-    }
-
     # from blendsql.db import SQLite
     # all_dbs = set([item["DB used"] for item in BLENDSQL_ANNOTATED_TAG_DATASET if item["BlendSQL"] is not None])
     # num_rows = []
@@ -267,27 +257,10 @@ if __name__ == "__main__":
     #         num_rows.append(db.execute_to_list(f"SELECT COUNT(*) FROM {t}")[0])
     #
 
-    if CONFIG.filename is not None:
-        model = LlamaCpp(
-            CONFIG.filename,
-            CONFIG.repo_id,
-            config={
-                "n_gpu_layers": -1,
-                "n_ctx": 8000,
-                "seed": 100,
-                "n_threads": psutil.cpu_count(logical=False),
-            },
-            caching=False,
-        )
-    else:
-        model = TransformersLLM(
-            CONFIG.repo_id,
-            config={"device_map": "auto", "torch_dtype": torch.bfloat16},
-            caching=False,
-        )
-    # Pre-load model obj
-    _ = model.model_obj
-
+    model = VLLM(
+        model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+        base_url="http://127.0.0.1:8000/v1/",
+    )
     for exp_type in [
         # "DuckDB",
         "BlendSQL"
@@ -297,8 +270,7 @@ if __name__ == "__main__":
                 load_bsql = lambda path, additional_cmds: BlendSQL(
                     DuckDB.from_sqlite(path, additional_cmds=additional_cmds),
                     model=model,
-                    ingredients=ingredients,
-                    verbose=False,  # toggle this off for actual runtime test
+                    verbose=True,  # toggle this off for actual runtime test
                 )
             do_eval = False
             prediction_data = []

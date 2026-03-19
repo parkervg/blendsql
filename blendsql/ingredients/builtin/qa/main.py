@@ -7,7 +7,9 @@ import polars as pl
 import json
 from dataclasses import dataclass, field
 from textwrap import dedent
-from guidance._grammar import select, gen
+from guidance import json as guidance_json
+from guidance import regex as guidance_regex
+from pydantic import TypeAdapter
 
 from blendsql.common.logger import logger, Color
 from blendsql.common.constants import DEFAULT_CONTEXT_FORMATTER
@@ -17,7 +19,13 @@ from blendsql.ingredients.ingredient import QAIngredient
 from blendsql.db.utils import single_quote_escape
 from blendsql.common.exceptions import LMFunctionException
 from blendsql.common.typing import DataType, QuantifierType
-from blendsql.ingredients.utils import initialize_retriever, partialclass, gen_list
+from blendsql.ingredients.utils import (
+    initialize_retriever,
+    partialclass,
+    gen_list,
+    get_python_type,
+    parse_quantifier,
+)
 from blendsql.configure import (
     MAX_OPTIONS_IN_PROMPT_KEY,
     DEFAULT_MAX_OPTIONS_IN_PROMPT,
@@ -205,7 +213,7 @@ class LLMQA(QAIngredient):
         # If we explicitly passed `context`, this should take precedence over the vector store.
         if context_searcher is not None and context is None:
             docs = context_searcher(question)[0]
-            context = [pl.DataFrame(docs, columns=["content"])]
+            context = [pl.DataFrame({"content": docs})]
             logger.debug(
                 Color.quiet_update(
                     f"Retrieved contexts '{[doc[:50] + '...' for doc in docs]}'"
@@ -215,11 +223,20 @@ class LLMQA(QAIngredient):
         resolved_return_type: DataType = prepare_datatype(
             return_type=return_type, options=options, quantifier=quantifier
         )
+
+        is_list_output = resolved_return_type.quantifier is not None
+        regex = regex or resolved_return_type.regex
+        quantifier = resolved_return_type.quantifier
+
+        quantifier_min_length, quantifier_max_length = parse_quantifier(quantifier)
+
         current_example = QAExample(
             question=question,
             context=context,
             options=options,
             return_type=resolved_return_type,
+            quantifier_min_length=quantifier_min_length,
+            quantifier_max_length=quantifier_max_length,
         )
         few_shot_examples: list[AnnotatedQAExample] = [
             AnnotatedQAExample(**example.__dict__)
@@ -229,10 +246,6 @@ class LLMQA(QAIngredient):
                 current_example.to_string(context_formatter)
             )
         ]
-
-        is_list_output = resolved_return_type.quantifier is not None
-        regex = regex or resolved_return_type.regex
-        quantifier = resolved_return_type.quantifier
 
         options_with_aliases, options_alias_to_original = None, dict()
         if use_option_aliases:
@@ -280,21 +293,25 @@ class LLMQA(QAIngredient):
             context_formatter, list_options=list_options_in_prompt
         )
 
-        gen_f = None
+        grammar = None
         grammar_suffix = "\n"
         if enable_constrained_decoding:
             if is_list_output:
-                gen_f = (
-                    lambda _: gen_list(
-                        force_quotes=bool("str" in resolved_return_type.name),
-                        regex=regex,
-                        options=options_with_aliases,
+                grammar = lambda _: (
+                    gen_list(
+                        data_type=resolved_return_type,
                         quantifier=quantifier,
+                        options=options_with_aliases,
+                        quantifier_min_length=quantifier_min_length,
+                        quantifier_max_length=quantifier_max_length,
                     )
                     + grammar_suffix
-                )
-            elif options:
-                gen_f = lambda _: select(options=options)
+                ).ll_grammar()
+            elif regex is not None:
+                # pydantic TypeAdapters don't work here
+                grammar = lambda _: (
+                    guidance_regex(pattern=regex) + grammar_suffix
+                ).ll_grammar()
         else:
             logger.debug(
                 Color.warning(
@@ -302,20 +319,23 @@ class LLMQA(QAIngredient):
                 )
             )
 
-        if gen_f is None:
-            gen_f = (
-                lambda _: gen(
-                    max_tokens=kwargs.get(
-                        "max_tokens",
-                        int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+        if grammar is None and resolved_return_type.name != "str":
+            # Create base grammar function
+            grammar = lambda _: (
+                guidance_json(
+                    schema=TypeAdapter(
+                        get_python_type(
+                            data_type=resolved_return_type,
+                            options=options,
+                        )
                     ),
-                    regex=regex if enable_constrained_decoding else None,
-                    stop=None if regex is not None else grammar_suffix,
+                    max_tokens=kwargs.get(
+                        "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
+                    ),
                 )
                 + grammar_suffix
-            )
+            ).ll_grammar()
 
-        # First check - do we need to load the model?
         few_shot_str = "\n".join(
             [
                 f"{example.to_string(context_formatter)}\n {example.answer}"
@@ -335,7 +355,7 @@ class LLMQA(QAIngredient):
                     "max_tokens",
                     int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
                 ),
-                funcs=[gen_f],
+                funcs=[grammar] if grammar is not None else None,
             )
             if cached_response is not None:
                 return cached_response
@@ -350,10 +370,14 @@ class LLMQA(QAIngredient):
                     + example.answer
                 )
         full_instruction += curr_example_str
-        grammar = gen_f(question).ll_grammar()
+
+        if enable_constrained_decoding and grammar:
+            grammar_str = grammar(question)
+        else:
+            grammar_str = None
 
         result = await model.generate(
-            GenerationItem(prompt=full_instruction, grammar=grammar)
+            GenerationItem(prompt=full_instruction, grammar=grammar_str)
         )
         converted_value = apply_type_conversion(
             result.value.removesuffix(grammar_suffix),

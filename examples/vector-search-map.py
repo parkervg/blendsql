@@ -1,8 +1,7 @@
 import pandas as pd
 from blendsql import BlendSQL
-from blendsql.models import LlamaCpp
+from blendsql.models import VLLM
 
-import psutil
 
 if __name__ == "__main__":
     bsql = BlendSQL(
@@ -59,22 +58,12 @@ if __name__ == "__main__":
                 ]
             )
         },
-        model=LlamaCpp(
-            model_name_or_path="unsloth/gemma-3-4b-it-GGUF",
-            filename="gemma-3-4b-it-Q4_K_M.gguf",
-            # model_name_or_path="bartowski/SmolLM2-135M-Instruct-GGUF",
-            # filename="SmolLM2-135M-Instruct-Q4_K_M.gguf",
-            config={
-                "n_gpu_layers": -1,
-                "n_ctx": 1028,
-                "seed": 100,
-                "n_threads": psutil.cpu_count(logical=False),
-            },
-            caching=False,
+        model=VLLM(
+            model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
+            base_url="http://127.0.0.1:8000/v1/",
         ),
         verbose=True,
     )
-    _ = bsql.model.model_obj
 
     from blendsql.search import FaissVectorStore
     from blendsql.ingredients import LLMMap
@@ -102,9 +91,8 @@ if __name__ == "__main__":
        WITH t AS (
             SELECT Name FROM "world_aquatic_championships"
             WHERE {{LLMMap('Is this a team event?', Event)}} = FALSE
-            AND {{LLMMap('Is this time over 2 minutes?', "Time/Score")}} = TRUE
         ) SELECT Name FROM t
-        ORDER BY {{LLMMap('What year was {} born?', t.Name)}} ASC LIMIT 1
+        ORDER BY {{DocumentSearchMap('What year was {} born?', t.Name)}} ASC LIMIT 1
         """
     )
     smoothie.print_summary()

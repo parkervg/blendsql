@@ -1,5 +1,6 @@
 from ast import literal_eval
 from dataclasses import dataclass
+from typing import NewType
 
 from blendsql.common.constants import DEFAULT_NAN_ANS
 from blendsql.common.typing import DataType
@@ -55,55 +56,44 @@ def str_to_str(s: str | None, _: Database | None) -> str | None:
 @dataclass
 class DataTypes:
     STR = lambda quantifier=None: DataType(
-        atomic_type="str",
-        regex=None,
-        quantifier=quantifier,
-        _coerce_fn=str_to_str,
-        requires_quotes=True,
-    )
-    SUBSTRING = lambda quantifier=None: DataType(
-        atomic_type="substring",
-        regex=None,
+        atomic_type=str,
         quantifier=quantifier,
         _coerce_fn=str_to_str,
         requires_quotes=True,
     )
     BOOL = lambda quantifier=None: DataType(
-        atomic_type="bool",
-        regex=r"(t|f|true|false|True|False)",
+        atomic_type=bool,
         quantifier=quantifier,
         _coerce_fn=str_to_bool,
     )
     INT = lambda quantifier=None: DataType(
-        atomic_type="int",
-        regex=r"-?(\d+)",
+        atomic_type=int,
         quantifier=quantifier,
         _coerce_fn=str_to_numeric,
     )
     FLOAT = lambda quantifier=None: DataType(
-        atomic_type="float",
-        regex="-?(\d+(\.\d+)?)",
+        atomic_type=float,
         quantifier=quantifier,
         _coerce_fn=str_to_numeric,
     )
     NUMERIC = lambda quantifier=None: DataType(
-        atomic_type="Union[int, float]",
-        regex=r"(\d+(\.\d+)?)",
+        atomic_type=int | float,
         quantifier=quantifier,
         _coerce_fn=str_to_numeric,
     )
+    # Special types below
     ISO_8601_DATE = lambda quantifier=None: DataType(
-        atomic_type="NewType(DateString_YYYY_MM_DD, str)",
+        atomic_type=NewType("DateString", str),
         regex=r"\d{4}-\d{2}-\d{2}",
         quantifier=quantifier,
         _coerce_fn=str_to_date,
         requires_quotes=True,
     )
-    ANY = lambda quantifier=None: DataType(
-        atomic_type="Any",
-        regex=None,
+    SUBSTRING = lambda quantifier=None: DataType(
+        atomic_type=NewType("SubString", str),
         quantifier=quantifier,
-        _coerce_fn=lambda s, _: s,  # Let the DBMS transform, if it allows
+        _coerce_fn=str_to_str,
+        requires_quotes=True,
     )
 
 
@@ -114,8 +104,6 @@ STR_TO_DATATYPE: dict[str, DataType] = {
     "bool": DataTypes.BOOL(),
     "date": DataTypes.ISO_8601_DATE(),
     "substring": DataTypes.SUBSTRING(),
-    "any": DataTypes.ANY(),
-    "list[Any]": DataTypes.ANY("*"),
     "list[str]": DataTypes.STR("*"),
     "list[int]": DataTypes.INT("*"),
     "list[float]": DataTypes.FLOAT("*"),

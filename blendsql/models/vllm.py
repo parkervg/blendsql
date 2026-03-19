@@ -29,7 +29,6 @@ class VLLM(ModelBase):
         model_name_or_path: str,
         base_url: str,
         api_key: str = "N/A",
-        tokenizer: "BaseTokenizer" = None,
         extra_body: dict | None = None,
         chat_template_kwargs: dict | None = None,
         caching: bool = False,
@@ -45,39 +44,6 @@ class VLLM(ModelBase):
             _allows_parallel_requests=True,
             **kwargs,
         )
-        if tokenizer is None:
-            from huggingface_hub import hf_hub_download
-            import json
-
-            with open(
-                hf_hub_download(
-                    repo_id=model_name_or_path, filename="tokenizer_config.json"
-                ),
-                "r",
-            ) as f:
-                config = json.load(f)
-            self.chat_template = config["chat_template"]
-            try:
-                with open(
-                    hf_hub_download(
-                        repo_id=model_name_or_path, filename="special_tokens_map.json"
-                    ),
-                    "r",
-                ) as f:
-                    special_tokens_map = json.load(f)
-                self.special_tokens_map = {
-                    k: v["content"] if isinstance(v, dict) else v
-                    for k, v in special_tokens_map.items()
-                }
-            except Exception:
-                # Fall back to extracting special tokens from tokenizer_config.json
-                self.special_tokens_map = {}
-                for k, v in config.items():
-                    if k.endswith("_token"):
-                        self.special_tokens_map[k] = (
-                            v["content"] if isinstance(v, dict) else v
-                        )
-        self.tokenizer = tokenizer
         self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
         if chat_template_kwargs is None:
             self.chat_template_kwargs = {}
@@ -100,47 +66,23 @@ class VLLM(ModelBase):
                 "structured_outputs": {"grammar": item.grammar},
             }
         messages = [{"role": "user", "content": item.prompt}]
-        if item.assistant_continuation is not None:
-            messages.append(
-                {"role": "assistant", "content": item.assistant_continuation}
-            )
 
-        if self.tokenizer is None:
-            from .tokenization import render_jinja_template
-
-            prompt_to_send = render_jinja_template(
-                messages=messages,
-                chat_template=self.chat_template,
-                continue_final_message=item.assistant_continuation is not None,
-                add_generation_prompt=item.assistant_continuation is None,
-                **self.special_tokens_map | self.chat_template_kwargs,
-            )
-        else:
-            prompt_to_send = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                continue_final_message=item.assistant_continuation is not None,
-                add_generation_prompt=item.assistant_continuation is None,
-                **self.chat_template_kwargs,
-            )
-
-        stream = await self.client.completions.create(
+        stream = await self.client.chat.completions.create(
             model=self.model_name_or_path,
-            prompt=prompt_to_send,
+            messages=messages,
             stream=True,
             stream_options={"include_usage": True},
             extra_body=extra_body,
         )
         self.num_generation_calls += 1
-        add_to_global_history(prompt_to_send)
 
         try:
             async for chunk in stream:
                 if cancel_event and cancel_event.is_set():
                     return GenerationResult(item.identifier, buffer, completed=False)
 
-                if chunk.choices and chunk.choices[0].text:
-                    buffer += chunk.choices[0].text
+                if chunk.choices and chunk.choices[0].delta.content:
+                    buffer += chunk.choices[0].delta.content
 
                 if hasattr(chunk, "usage") and chunk.usage is not None:
                     self.prompt_tokens += chunk.usage.prompt_tokens
@@ -153,4 +95,7 @@ class VLLM(ModelBase):
         finally:
             await stream.close()
 
+        add_to_global_history(
+            f"[USER]{item.prompt}[/USER]\n\n[ASSISTANT]{buffer}[/ASSISTANT]"
+        )
         return GenerationResult(item.identifier, buffer, completed=True)

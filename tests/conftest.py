@@ -7,7 +7,6 @@ from blendsql.models import VLLM
 from blendsql.models.model_base import ModelBase
 from blendsql.configure import set_deterministic
 from blendsql.ingredients import LLMQA, LLMMap, LLMJoin
-from blendsql.ingredients.builtin import DEFAULT_MAP_FEW_SHOT
 
 set_deterministic(True)
 
@@ -41,22 +40,7 @@ def pytest_generate_tests(metafunc):
         ingredient_sets = [
             {LLMQA, LLMMap, LLMJoin},
             {
-                LLMQA.from_args(
-                    num_few_shot_examples=1,
-                ),
-                LLMMap.from_args(
-                    few_shot_examples=[
-                        *DEFAULT_MAP_FEW_SHOT,
-                        {
-                            "question": "What school type is this?",
-                            "mapping": {
-                                "A. L. Conner Elementary": "Traditional",
-                                "Abraxas Continuation High": "Continuation School",
-                            },
-                        },
-                    ],
-                    num_few_shot_examples=2,
-                ),
+                LLMMap.from_args(prompt_style="python"),
             },
         ]
         metafunc.parametrize("ingredients", ingredient_sets)
