@@ -1,38 +1,98 @@
 from typing import Any, Sequence, Callable, Tuple
-
+import os
 from pathlib import Path
 from diskcache import Cache
 import platformdirs
 import hashlib
 import inspect
 from textwrap import dedent
-from dataclasses import dataclass, field
+import asyncio
 
 from blendsql.common.logger import logger, Color
+from blendsql.common.typing import GenerationResult, GenerationItem
+from blendsql.configure import MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS, add_to_global_history
 
 CONTEXT_TRUNCATION_LIMIT = 100
 
 
-@dataclass
 class ModelBase:
     """Parent class for all BlendSQL Models."""
 
-    model_name_or_path: str = field()
-    caching: bool = field(default=False)
-    cache: Cache | None = field(default=None)
-    _allows_parallel_requests: bool = field(default=False)
+    def __init__(
+        self,
+        model_name_or_path: str,
+        base_url: str,
+        api_key: str = "N/A",
+        extra_body: dict | None = None,
+        chat_template_kwargs: dict | None = None,
+        caching: bool = False,
+        **kwargs,
+    ):
+        from openai import AsyncOpenAI
 
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    cached_tokens: int = 0
-    num_generation_calls: int = 0
-    num_cache_hits: int = 0
+        self.model_name_or_path = model_name_or_path
+        self.caching = caching
+        self.extra_body = extra_body or dict()
+        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        if chat_template_kwargs is None:
+            self.chat_template_kwargs = {}
+        if "chat_template_kwargs" in self.extra_body:
+            self.chat_template_kwargs = self.extra_body.pop("chat_template_kwargs")
+        if self.caching:
+            self.cache = Cache(
+                Path(platformdirs.user_cache_dir("blendsql"))
+                / f"{self.model_name_or_path}.diskcache"
+            )
 
-    def __post_init__(self):
-        self.cache = Cache(
-            Path(platformdirs.user_cache_dir("blendsql"))
-            / f"{self.model_name_or_path}.diskcache"
+        # Initialize counters
+        self.prompt_tokens: int = 0
+        self.completion_tokens: int = 0
+        self.cached_tokens: int = 0
+        self.num_generation_calls: int = 0
+        self.num_cache_hits: int = 0
+
+    async def generate(
+        self, item: GenerationItem, cancel_event: asyncio.Event | None = None
+    ):
+        buffer = ""
+        extra_body = {
+            "max_tokens": int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
+        } | self.extra_body
+        extra_body = self._format_extra_body(extra_body, item)
+        messages = [{"role": "user", "content": item.prompt}]
+
+        stream = await self.client.chat.completions.create(
+            model=self.model_name_or_path,
+            messages=messages,
+            stream=True,
+            stream_options={"include_usage": True},
+            extra_body=extra_body,
         )
+        self.num_generation_calls += 1
+
+        try:
+            async for chunk in stream:
+                if cancel_event and cancel_event.is_set():
+                    return GenerationResult(item.identifier, buffer, completed=False)
+
+                if chunk.choices and chunk.choices[0].delta.content:
+                    buffer += chunk.choices[0].delta.content
+
+                if hasattr(chunk, "usage") and chunk.usage is not None:
+                    self.prompt_tokens += chunk.usage.prompt_tokens
+                    self.completion_tokens += chunk.usage.completion_tokens
+                    if chunk.usage.prompt_tokens_details is not None:
+                        self.cached_tokens += (
+                            chunk.usage.prompt_tokens_details.cached_tokens
+                        )
+
+        finally:
+            await stream.close()
+
+        add_to_global_history(
+            f"[USER]{item.prompt}[/USER]\n\n[ASSISTANT]{buffer}[/ASSISTANT]"
+        )
+        return GenerationResult(item.identifier, buffer, completed=True)
 
     def _create_key(
         self, *args, funcs: Sequence[Callable] | None = None, **kwargs

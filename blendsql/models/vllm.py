@@ -1,12 +1,5 @@
-import asyncio
-import os
-
-from blendsql.configure import MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS
 from blendsql.models.model_base import ModelBase
-from blendsql.common.typing import GenerationResult, GenerationItem
-from blendsql.configure import add_to_global_history
-
-DEFAULT_BODY = {"temperature": 0.0}
+from blendsql.common.typing import GenerationItem
 
 
 class VLLM(ModelBase):
@@ -24,78 +17,11 @@ class VLLM(ModelBase):
         ```
     """
 
-    def __init__(
-        self,
-        model_name_or_path: str,
-        base_url: str,
-        api_key: str = "N/A",
-        extra_body: dict | None = None,
-        chat_template_kwargs: dict | None = None,
-        caching: bool = False,
-        **kwargs,
-    ):
-        from openai import AsyncOpenAI
-
-        self.extra_body = extra_body or dict()
-
-        super().__init__(
-            model_name_or_path=model_name_or_path,
-            caching=caching,
-            _allows_parallel_requests=True,
-            **kwargs,
-        )
-        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
-        if chat_template_kwargs is None:
-            self.chat_template_kwargs = {}
-        if "chat_template_kwargs" in self.extra_body:
-            self.chat_template_kwargs = self.extra_body.pop("chat_template_kwargs")
-
-    async def generate(
-        self, item: GenerationItem, cancel_event: asyncio.Event | None = None
-    ):
-        buffer = ""
-        extra_body = (
-            DEFAULT_BODY
-            | {"max_tokens": int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))}
-            | self.extra_body
-        )
+    async def _format_extra_body(self, extra_body: dict, item: GenerationItem) -> dict:
         if item.grammar:
             extra_body |= {
                 "guided_decoding_backend": "guidance",
                 "guided_grammar": item.grammar,
                 "structured_outputs": {"grammar": item.grammar},
             }
-        messages = [{"role": "user", "content": item.prompt}]
-
-        stream = await self.client.chat.completions.create(
-            model=self.model_name_or_path,
-            messages=messages,
-            stream=True,
-            stream_options={"include_usage": True},
-            extra_body=extra_body,
-        )
-        self.num_generation_calls += 1
-
-        try:
-            async for chunk in stream:
-                if cancel_event and cancel_event.is_set():
-                    return GenerationResult(item.identifier, buffer, completed=False)
-
-                if chunk.choices and chunk.choices[0].delta.content:
-                    buffer += chunk.choices[0].delta.content
-
-                if hasattr(chunk, "usage") and chunk.usage is not None:
-                    self.prompt_tokens += chunk.usage.prompt_tokens
-                    self.completion_tokens += chunk.usage.completion_tokens
-                    if chunk.usage.prompt_tokens_details is not None:
-                        self.cached_tokens += (
-                            chunk.usage.prompt_tokens_details.cached_tokens
-                        )
-
-        finally:
-            await stream.close()
-
-        add_to_global_history(
-            f"[USER]{item.prompt}[/USER]\n\n[ASSISTANT]{buffer}[/ASSISTANT]"
-        )
-        return GenerationResult(item.identifier, buffer, completed=True)
+        return extra_body
