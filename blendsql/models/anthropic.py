@@ -1,3 +1,5 @@
+import os
+
 from blendsql.models.model_base import ModelBase
 from blendsql.common.typing import GenerationItem
 
@@ -16,6 +18,18 @@ class Anthropic(ModelBase):
         model = Anthropic("claude-opus-4-6")
         ```
     """
+
+    def __init__(
+        self, model_name_or_path: str, api_key: str | None = None, *args, **kwargs
+    ):
+        api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        super().__init__(
+            model_name_or_path=model_name_or_path,
+            api_key=api_key,
+            base_url="https://api.anthropic.com/v1/",
+            *args,
+            **kwargs,
+        )
 
     def _format_extra_body(self, extra_body: dict, item: GenerationItem) -> dict:
         return extra_body

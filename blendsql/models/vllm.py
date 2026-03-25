@@ -7,7 +7,7 @@ class VLLM(ModelBase):
 
     Args:
         model_name_or_path: Name of the model
-        base_url: Base URL for http requests
+        base_url: Base URL for http requests. Defaults to "http://localhost:8000/v1/"
 
     Examples:
         ```python
@@ -17,9 +17,12 @@ class VLLM(ModelBase):
         ```
     """
 
-    def __init__(self, api_key: str | None = None, *args, **kwargs) -> None:
+    def __init__(
+        self, api_key: str | None = None, base_url: str | None = None, *args, **kwargs
+    ) -> None:
         api_key = api_key or "N.A"
-        super().__init__(api_key=api_key, *args, **kwargs)
+        base_url = base_url or "http://localhost:8000/v1/"
+        super().__init__(api_key=api_key, base_url=base_url, *args, **kwargs)
 
     def _format_extra_body(self, extra_body: dict, item: GenerationItem) -> dict:
         if item.grammar:

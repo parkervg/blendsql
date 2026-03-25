@@ -21,7 +21,7 @@ class ModelBase:
     def __init__(
         self,
         model_name_or_path: str,
-        base_url: str,
+        base_url: str | None = None,
         api_key: str = "N/A",
         extra_body: dict | None = None,
         chat_template_kwargs: dict | None = None,
@@ -38,11 +38,10 @@ class ModelBase:
             self.chat_template_kwargs = {}
         if "chat_template_kwargs" in self.extra_body:
             self.chat_template_kwargs = self.extra_body.pop("chat_template_kwargs")
-        if self.caching:
-            self.cache = Cache(
-                Path(platformdirs.user_cache_dir("blendsql"))
-                / f"{self.model_name_or_path}.diskcache"
-            )
+        self.cache = Cache(
+            Path(platformdirs.user_cache_dir("blendsql"))
+            / f"{self.model_name_or_path}.diskcache"
+        )
 
         # Initialize counters
         self.prompt_tokens: int = 0

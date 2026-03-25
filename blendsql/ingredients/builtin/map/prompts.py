@@ -243,7 +243,7 @@ def format_python_continuation(
     if has_more_than_one_arg:
         if newline_args:
             gen_str += f"\n{INDENT(2)}"
-    gen_str += ") =="
+    gen_str += ") == "
     return gen_str
 
 

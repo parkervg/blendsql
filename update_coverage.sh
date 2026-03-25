@@ -19,7 +19,7 @@ for arg in "$@"; do
 done
 
 if [ "$UPLOAD_ONLY" = false ]; then
-  python -m tox -e coverage
+  tox
 fi
 
 TOTAL=$(python -c "import json; print(json.load(open('coverage.json'))['totals']['percent_covered_display'])")
