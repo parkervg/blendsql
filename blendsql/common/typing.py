@@ -31,7 +31,7 @@ class DataType:
 
     @property
     def name(self) -> str:
-        if self.atomic_type.__name__ != "list" and self.quantifier is not None:
+        if self.quantifier is not None and self.atomic_type.__name__ != "list":
             return f"List[{self.atomic_type.__name__}]"
         return self.atomic_type.__name__
 
