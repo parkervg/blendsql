@@ -35,6 +35,9 @@ from blendsql.parse import (
     check,
     get_reversed_subqueries,
     get_first_child,
+    get_blendsql_func_name,
+    get_blendsql_fn_args,
+    get_blendsql_fn_kwargs,
 )
 from blendsql.parse.cascade_filter import get_qa_cascade_filter, get_map_cascade_filter
 from blendsql.parse.constants import MODIFIERS
@@ -127,7 +130,7 @@ def autowrap_query(
 
 
 def preprocess_blendsql(
-    node: exp.Exp,
+    node: exp.Expression,
     dialect: sqlglot.Dialect,
     kitchen: Kitchen,
     ingredients: Collection[Ingredient],
@@ -223,10 +226,13 @@ def preprocess_blendsql(
     function_hash_to_alias: dict[str, str] = {}
     alias_counter = 0
     for function_node in node.find_all(exp.BlendSQLFunction):
-        function_name = function_node.name
-        function_args = [process_arg_value(arg) for arg in function_node.fn_args]
+        function_name = get_blendsql_func_name(function_node)
+        function_args = [
+            process_arg_value(arg) for arg in get_blendsql_fn_args(function_node)
+        ]
         function_kwargs = {
-            kw.name.this: process_arg_value(kw.value) for kw in function_node.fn_kwargs
+            kw.this.name: process_arg_value(kw.expression)
+            for kw in get_blendsql_fn_kwargs(function_node)
         }
         function_hash = hash(f"{function_name} {function_args} {function_kwargs}")
         if function_hash in function_hash_to_alias:
@@ -347,24 +353,28 @@ def get_sorted_blendsql_nodes(
     # Pre-scan to count total distinct mAP ingredients
     total_maps_left = set()
     for function_node in parse_results:
-        parse_results_dict = ingredient_alias_to_parsed_dict[function_node.name]
+        parse_results_dict = ingredient_alias_to_parsed_dict[
+            get_blendsql_func_name(function_node)
+        ]
         _function = kitchen.get_from_name(parse_results_dict["function"])
         if _function.ingredient_type == IngredientType.MAP:
-            total_maps_left.add(function_node.name)
+            total_maps_left.add(get_blendsql_func_name(function_node))
 
     while len(parse_results) > 0:
         curr_ingredient_target = ooo.pop(0)
         remaining_parse_results = []
         for function_node in parse_results:
             # Fetch parsed ingredient dict from our cache
-            parse_results_dict = ingredient_alias_to_parsed_dict[function_node.name]
+            parse_results_dict = ingredient_alias_to_parsed_dict[
+                get_blendsql_func_name(function_node)
+            ]
             _function: Ingredient = kitchen.get_from_name(
                 parse_results_dict["function"]
             )
             if _function.ingredient_type == curr_ingredient_target:
                 is_final_map = False
                 if curr_ingredient_target == IngredientType.MAP:
-                    total_maps_left.discard(function_node.name)
+                    total_maps_left.discard(get_blendsql_func_name(function_node))
                     is_final_map = len(total_maps_left) == 0
                 yield function_node, is_final_map
                 continue
@@ -734,17 +744,17 @@ def _blend(
             if in_cte:  # Don't execute CTEs until we need them
                 continue
             curr_function_parsed_results = ingredient_alias_to_parsed_dict[
-                function_node.name
+                get_blendsql_func_name(function_node)
             ]
             curr_ingredient = kitchen.get_from_name(
                 curr_function_parsed_results["function"]
             )
             prev_subquery_has_ingredient = True
-            if function_node.name in executed_subquery_ingredients:
+            if get_blendsql_func_name(function_node) in executed_subquery_ingredients:
                 # Don't execute same ingredient twice
                 continue
 
-            executed_subquery_ingredients.add(function_node.name)
+            executed_subquery_ingredients.add(get_blendsql_func_name(function_node))
             kwargs_dict = curr_function_parsed_results["kwargs_dict"]
 
             if (
@@ -873,7 +883,7 @@ def _blend(
                     tablename_to_map_out[tablename] = [(new_table, new_col)]
                 session_modified_tables.add(tablename)
                 alias_function_name_to_result[
-                    function_node.name
+                    get_blendsql_func_name(function_node)
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
 
                 if enable_cascade_filter:
@@ -899,7 +909,9 @@ def _blend(
                 IngredientType.QA,
             ):
                 # Here, we can simply insert the function's output
-                alias_function_name_to_result[function_node.name] = function_out
+                alias_function_name_to_result[
+                    get_blendsql_func_name(function_node)
+                ] = function_out
                 if enable_cascade_filter:
                     if (
                         scm.is_eligible_for_cascade_filter()
@@ -928,8 +940,12 @@ def _blend(
                 ) = function_out
                 # Special case for when we have more than 1 ingredient in `JOIN` node left at this point
                 join_node = query_context.node.find(exp.Join)
-                join_node.replace(exp.BlendSQLFunction(this=function_node.name))
-                alias_function_name_to_result[function_node.name] = join_clause
+                join_node.replace(
+                    exp.BlendSQLFunction(this=get_blendsql_func_name(function_node))
+                )
+                alias_function_name_to_result[
+                    get_blendsql_func_name(function_node)
+                ] = join_clause
             else:
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
