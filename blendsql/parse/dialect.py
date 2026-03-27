@@ -12,6 +12,8 @@ from sqlglot.dialects.duckdb import DuckDB
 from sqlglot import expressions as exp
 
 BLENDSQL_FUNC_PREFIX = "__BSQL__"
+_BLENDSQL_FUNC_PREFIX_LEN = len(BLENDSQL_FUNC_PREFIX)
+_GLOB_RE = re.compile(r"\bGLOB\b")
 
 
 def is_blendsql_node(node) -> bool:
@@ -23,7 +25,7 @@ def is_blendsql_node(node) -> bool:
 
 
 def get_blendsql_func_name(node) -> str:
-    return node.this[len(BLENDSQL_FUNC_PREFIX) :]
+    return node.this[_BLENDSQL_FUNC_PREFIX_LEN:]
 
 
 def get_blendsql_fn_args(node) -> list:
@@ -59,7 +61,9 @@ exp.BlendSQLFunction = BlendSQLFunction
 
 def _preprocess_blendsql_syntax(sql: str) -> str:
     """Replace {{ FunctionName(...) }} with BLENDSQL_FUNC_PREFIX+FunctionName(...).
-    Handles nested {{ }} blocks via depth counting."""
+    Single-pass: {{ emits the prefix (skipping leading whitespace), }} is dropped."""
+    if "{{" not in sql:
+        return sql
     result = []
     i = 0
     n = len(sql)
@@ -96,41 +100,12 @@ def _preprocess_blendsql_syntax(sql: str) -> str:
             continue
 
         if sql[i : i + 2] == "{{":
-            # Find matching "}}" using depth counting, respecting nested {{ }} and quotes
-            depth = 1
-            j = i + 2
-            inner_in_single = False
-            inner_in_double = False
-            while j < n and depth > 0:
-                d = sql[j]
-                if inner_in_single:
-                    if d == "'" and sql[j - 1] != "\\":
-                        inner_in_single = False
-                elif inner_in_double:
-                    if d == '"' and sql[j - 1] != "\\":
-                        inner_in_double = False
-                elif d == "'":
-                    inner_in_single = True
-                elif d == '"':
-                    inner_in_double = True
-                elif sql[j : j + 2] == "{{":
-                    depth += 1
-                    j += 1  # skip second {
-                elif sql[j : j + 2] == "}}":
-                    depth -= 1
-                    if depth == 0:
-                        break
-                    j += 1  # skip second }
-                j += 1
-            if depth == 0:
-                content = sql[i + 2 : j].strip()
-                # Recursively process nested {{ }} in the content
-                content = _preprocess_blendsql_syntax(content)
-                result.append(BLENDSQL_FUNC_PREFIX + content)
-                i = j + 2  # skip past "}}"
-            else:
-                result.append(c)
+            result.append(BLENDSQL_FUNC_PREFIX)
+            i += 2
+            while i < n and sql[i] in " \t\n\r":
                 i += 1
+        elif sql[i : i + 2] == "}}":
+            i += 2
         else:
             result.append(c)
             i += 1
@@ -145,7 +120,6 @@ def _postprocess_blendsql_sql(sql: str) -> str:
     result = []
     i = 0
     n = len(sql)
-    prefix_len = len(BLENDSQL_FUNC_PREFIX)
 
     while i < n:
         idx = sql.find(BLENDSQL_FUNC_PREFIX, i)
@@ -153,10 +127,10 @@ def _postprocess_blendsql_sql(sql: str) -> str:
             result.append(sql[i:])
             break
         result.append(sql[i:idx])
-        j = idx + prefix_len
+        j = idx + _BLENDSQL_FUNC_PREFIX_LEN
         while j < n and (sql[j].isalnum() or sql[j] == "_"):
             j += 1
-        func_name = sql[idx + prefix_len : j]
+        func_name = sql[idx + _BLENDSQL_FUNC_PREFIX_LEN : j]
         if j < n and sql[j] == "(":
             depth = 1
             k = j + 1
@@ -232,7 +206,7 @@ class BlendSQLSQLite(BlendSQLDialect, SQLite):
         sql = super().generate(expression, **opts)
         # SQLite FTS5: reconvert GLOB back to MATCH
         # (The tokenizer maps MATCH -> GLOB token type for parsing)
-        return re.sub(r"\bGLOB\b", "MATCH", sql)
+        return _GLOB_RE.sub("MATCH", sql)
 
 
 def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
