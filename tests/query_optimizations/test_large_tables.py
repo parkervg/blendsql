@@ -21,7 +21,7 @@ def test_qa_with_map_cascade(bsql, model):
            LLMQA(
                "Say 'Lionel Messi'"
            )
-       }} AND {{LLMMap('Is greater than 1?', player_api_id)}} LIMIT 1
+       }} AND {{LLMMap('Is the `player_api_id` greater than 1?', player_api_id)}} LIMIT 1
     """,
         model=model,
     )
@@ -43,7 +43,7 @@ def test_qa_with_map_cascade_and_join(bsql, model):
                    "Who are your top 3 favorite players?",
                    quantifier='{3}'
                )
-           }} AND {{LLMMap('Is greater than 1?', p.player_api_id)}} 
+           }} AND {{LLMMap('Is the `player_api_id` greater than 1?', p.player_api_id)}} 
         """,
         model=model,
     )

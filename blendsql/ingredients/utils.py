@@ -96,29 +96,24 @@ def gen_list(
     quantifier_min_length: int | None = None,
     quantifier_max_length: int | None = None,
 ):
+    from pydantic import Field
+    from typing import Annotated
+
     item_type = get_python_type(
         data_type=data_type,
         options=options,
     )
-    if quantifier is None:
+    if quantifier in [None, "*"]:
         schema = TypeAdapter(list[item_type])
     else:
         if quantifier == "+":
-            # One or more
-            schema = TypeAdapter(
-                list[item_type]
-            )  # minItems=1 handled downstream or via annotation
-        elif quantifier == "*":
-            schema = TypeAdapter(list[item_type])
+            schema = TypeAdapter(Annotated[list[item_type], Field(min_length=1)])
         elif quantifier_max_length == quantifier_min_length:
             # Fixed-length tuple: tuple[item_type, item_type, ...] with `count` elements
             schema = TypeAdapter(
                 tuple[tuple(item_type for _ in range(quantifier_max_length))]
             )
         else:
-            from pydantic import Field
-            from typing import Annotated
-
             if quantifier_max_length is not None:
                 schema = TypeAdapter(
                     Annotated[

@@ -14,6 +14,7 @@ RETURN_TYPE_TO_EXAMPLE = {
         "examples": [
             {
                 "value": "Patient experienced severe nausea and vomiting after taking the prescribed medication. The symptoms started within 2 hours of administration and persisted for 24 hours.",
+                "column_name": "patient_description",
                 "answer": ["nausea", "vomiting", "gastrointestinal distress"],
             }
         ],
