@@ -4,5 +4,5 @@ import sqlglot
 setattr(sqlglot.exp, "BlendSQLFunction", BlendSQLFunction)
 
 from .blendsql import BlendSQL
-from . import configure as config
-from .configure import GLOBAL_HISTORY
+from .configure import config, GLOBAL_HISTORY
+from . import pandas_api  # noqa: F401 - registers pd.DataFrame.llmmap accessor

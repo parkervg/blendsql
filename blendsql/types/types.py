@@ -63,6 +63,7 @@ class DataTypes:
     )
     BOOL = lambda quantifier=None: DataType(
         atomic_type=bool,
+        regex="(True|False)",
         quantifier=quantifier,
         _coerce_fn=str_to_bool,
     )

@@ -4,6 +4,8 @@ import os
 GLOBAL_HISTORY = []
 MAX_HISTORY_SIZE = 20
 
+_default_model = None
+
 ASYNC_LIMIT_KEY = "BLENDSQL_ASYNC_LIMIT"
 DEFAULT_ASYNC_LIMIT = 32
 
@@ -38,3 +40,25 @@ def set_default_max_tokens(n: int):
 
 def set_deterministic(v: bool):
     os.environ[DETERMINISTIC_KEY] = str(int(v))
+
+
+class _Config:
+    def __call__(self, model=None):
+        global _default_model
+        if model is not None:
+            _default_model = model
+
+    def set_async_limit(self, n: int):
+        set_async_limit(n)
+
+    def set_max_options_in_prompt(self, n: int):
+        set_max_options_in_prompt(n)
+
+    def set_default_max_tokens(self, n: int):
+        set_default_max_tokens(n)
+
+    def set_deterministic(self, v: bool):
+        set_deterministic(v)
+
+
+config = _Config()

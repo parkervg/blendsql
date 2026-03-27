@@ -1,3 +1,4 @@
+import re
 import sqlglot.dialects
 from sqlglot.dialects import SQLite, Postgres
 from sqlglot.schema import MappingSchema
@@ -10,199 +11,182 @@ from sqlglot import TokenType
 from sqlglot.dialects.duckdb import DuckDB
 from sqlglot import expressions as exp
 
-# Use existing TokenType values that are rarely used in SQL
-# We'll repurpose BLOCK_START and BLOCK_END for our function brackets
-L_FUNC_BRACKET = TokenType.BLOCK_START  # {{
-R_FUNC_BRACKET = TokenType.BLOCK_END  # }}
+BLENDSQL_FUNC_PREFIX = "__BSQL__"
+_BLENDSQL_FUNC_PREFIX_LEN = len(BLENDSQL_FUNC_PREFIX)
+_GLOB_RE = re.compile(r"\bGLOB\b")
 
 
-class BlendSQLFunction(exp.Expression):
-    """Custom AST node for function calls within {{ }} brackets"""
-
-    arg_types = {"fn_args": False, "fn_kwargs": False}
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    @property
-    def fn_args(self):
-        """Get the function expression"""
-        return self.args.get("fn_args")
-
-    @property
-    def fn_kwargs(self):
-        """Get the keyword arguments"""
-        return self.args.get("fn_kwargs", [])
+def is_blendsql_node(node) -> bool:
+    return (
+        isinstance(node, exp.Anonymous)
+        and isinstance(node.this, str)
+        and node.this.startswith(BLENDSQL_FUNC_PREFIX)
+    )
 
 
-class KeywordArgument(exp.Expression):
-    """Represents a keyword argument like quantifier='{3}'"""
+def get_blendsql_func_name(node) -> str:
+    return node.this[_BLENDSQL_FUNC_PREFIX_LEN:]
 
-    arg_types = {"name": True, "value": True}
 
-    @property
-    def name(self):
-        return self.args.get("name")
+def get_blendsql_fn_args(node) -> list:
+    return [e for e in (node.expressions or []) if not isinstance(e, exp.EQ)]
 
-    @property
-    def value(self):
-        return self.args.get("value")
+
+def get_blendsql_fn_kwargs(node) -> list:
+    return [e for e in (node.expressions or []) if isinstance(e, exp.EQ)]
+
+
+class _BlendSQLFunctionMeta(type):
+    def __instancecheck__(cls, instance):
+        return is_blendsql_node(instance)
+
+
+class BlendSQLFunction(metaclass=_BlendSQLFunctionMeta):
+    """Sentinel class for isinstance checks on BlendSQL function AST nodes.
+
+    BlendSQL function nodes are represented as exp.Anonymous instances with
+    a BLENDSQL_FUNC_PREFIX prefix. Use BlendSQLFunction(this=name) to create
+    one (returns exp.Anonymous), and isinstance(node, BlendSQLFunction) to check.
+    """
+
+    def __new__(cls, this, fn_args=None, fn_kwargs=None, **kwargs):
+        return exp.Anonymous(
+            this=BLENDSQL_FUNC_PREFIX + this,
+            expressions=(fn_args or []) + (fn_kwargs or []),
+        )
+
+
+exp.BlendSQLFunction = BlendSQLFunction
+
+
+def _preprocess_blendsql_syntax(sql: str) -> str:
+    """Replace {{ FunctionName(...) }} with BLENDSQL_FUNC_PREFIX+FunctionName(...).
+    Single-pass: {{ emits the prefix (skipping leading whitespace), }} is dropped."""
+    if "{{" not in sql:
+        return sql
+    result = []
+    i = 0
+    n = len(sql)
+    in_single_quote = False
+    in_double_quote = False
+
+    while i < n:
+        c = sql[i]
+
+        if in_single_quote:
+            result.append(c)
+            if c == "'" and (i == 0 or sql[i - 1] != "\\"):
+                in_single_quote = False
+            i += 1
+            continue
+
+        if in_double_quote:
+            result.append(c)
+            if c == '"' and (i == 0 or sql[i - 1] != "\\"):
+                in_double_quote = False
+            i += 1
+            continue
+
+        if c == "'":
+            in_single_quote = True
+            result.append(c)
+            i += 1
+            continue
+
+        if c == '"':
+            in_double_quote = True
+            result.append(c)
+            i += 1
+            continue
+
+        if sql[i : i + 2] == "{{":
+            result.append(BLENDSQL_FUNC_PREFIX)
+            i += 2
+            while i < n and sql[i] in " \t\n\r":
+                i += 1
+        elif sql[i : i + 2] == "}}":
+            i += 2
+        else:
+            result.append(c)
+            i += 1
+
+    return "".join(result)
+
+
+def _postprocess_blendsql_sql(sql: str) -> str:
+    """Convert __BSQL__FuncName(...) back to {{FuncName(...)}}."""
+    if BLENDSQL_FUNC_PREFIX not in sql:
+        return sql
+    result = []
+    i = 0
+    n = len(sql)
+
+    while i < n:
+        idx = sql.find(BLENDSQL_FUNC_PREFIX, i)
+        if idx == -1:
+            result.append(sql[i:])
+            break
+        result.append(sql[i:idx])
+        j = idx + _BLENDSQL_FUNC_PREFIX_LEN
+        while j < n and (sql[j].isalnum() or sql[j] == "_"):
+            j += 1
+        func_name = sql[idx + _BLENDSQL_FUNC_PREFIX_LEN : j]
+        if j < n and sql[j] == "(":
+            depth = 1
+            k = j + 1
+            in_single = False
+            in_double = False
+            while k < n and depth > 0:
+                c = sql[k]
+                if in_single:
+                    if c == "'" and sql[k - 1] != "\\":
+                        in_single = False
+                elif in_double:
+                    if c == '"' and sql[k - 1] != "\\":
+                        in_double = False
+                elif c == "'":
+                    in_single = True
+                elif c == '"':
+                    in_double = True
+                elif c == "(":
+                    depth += 1
+                elif c == ")":
+                    depth -= 1
+                k += 1
+            inner = sql[j + 1 : k - 1]
+            result.append(f"{{{{{func_name}({inner})}}}}")
+            i = k
+        else:
+            result.append(BLENDSQL_FUNC_PREFIX + func_name)
+            i = j
+
+    return "".join(result)
+
+
+def _wrap_bare_blendsql(node):
+    """Post-parse transform: wrap bare BlendSQL function nodes in = TRUE."""
+    if isinstance(node, (exp.And, exp.Or)):
+        if is_blendsql_node(node.this):
+            node.set("this", exp.EQ(this=node.this, expression=exp.true()))
+        if is_blendsql_node(node.expression):
+            node.set("expression", exp.EQ(this=node.expression, expression=exp.true()))
+    elif isinstance(node, exp.Where):
+        if is_blendsql_node(node.this):
+            node.set("this", exp.EQ(this=node.this, expression=exp.true()))
+    return node
 
 
 class BlendSQLDialect(sqlglot.Dialect):
     class Tokenizer(sqlglot.Tokenizer):
-        # Add our custom token mappings using existing TokenType values
-        KEYWORDS = {
-            **sqlglot.Tokenizer.KEYWORDS,
-            "{{": L_FUNC_BRACKET,
-            "}}": R_FUNC_BRACKET,
-        }
+        pass
 
-    class Parser(sqlglot.Parser):
-        def _parse_primary(self):
-            """Override primary parsing to handle our function brackets"""
-            # Check if we have a function bracket
-            if self._match(L_FUNC_BRACKET):
-                return self._parse_function_bracket()
-
-            # Otherwise, use the default primary parsing
-            return super()._parse_primary()
-
-        def _parse_function_bracket(self):
-            """Parse content within {{ }} specifically as a function call with keyword args"""
-            # We've already consumed the {{ token
-
-            # Parse the function name
-            func_name = self._parse_id_var()
-            if not func_name:
-                self.raise_error("Expected function name within {{ }} brackets")
-
-            # Expect opening parenthesis
-            if not self._match(TokenType.L_PAREN):
-                self.raise_error("Expected '(' after function name")
-
-            # Parse positional arguments and keyword arguments
-            args = []
-            kwargs = []
-
-            # Parse arguments until we hit the closing parenthesis
-            while self._curr and self._curr.token_type != TokenType.R_PAREN:
-                # Check if this looks like a keyword argument (identifier followed by =)
-                if (
-                    # We only need to specify `TokenType.VALUES` here
-                    #   because we have a 'values' kwarg. But, I don't think we'll
-                    #   be explicitly passing this in future syntax, so we can remove it below.
-                    self._curr.token_type in (TokenType.VAR, TokenType.VALUES)
-                    and self._index + 1 < len(self._tokens)
-                    and self._tokens[self._index + 1].token_type == TokenType.EQ
-                ):
-                    keyword_name = self._curr.text
-                    value = self._parse_conjunction()
-                    kwargs.append(
-                        KeywordArgument(
-                            name=exp.Identifier(this=keyword_name),
-                            value=value.expression,
-                        )
-                    )
-                else:
-                    # Parse as positional argument
-                    arg = self._parse_conjunction()
-                    args.append(arg)
-
-                # Handle comma separation
-                if self._match(TokenType.COMMA):
-                    continue
-                elif self._curr and self._curr.token_type == TokenType.R_PAREN:
-                    break
-                else:
-                    self.raise_error("Expected ',' or ')' in function arguments")
-
-            # Consume the closing parenthesis
-            if not self._match(TokenType.R_PAREN):
-                self.raise_error("Expected ')' to close function arguments")
-
-            # Expect the closing }} bracket
-            if not self._match(R_FUNC_BRACKET):
-                self.raise_error("Expected '}}' to close function bracket")
-
-            # Create a custom AST node to represent our function bracket
-            return BlendSQLFunction(this=func_name.name, fn_args=args, fn_kwargs=kwargs)
-
-        def _parse_conjunction(self):
-            """Override conjunction parsing to handle bare BlendSQL functions in boolean context"""
-            left = self._parse_equality()
-
-            # If we have a bare BlendSQLFunction and the next token is AND/OR,
-            # wrap it in = TRUE
-            if isinstance(left, BlendSQLFunction) and self._match_set(
-                (TokenType.AND, TokenType.OR)
-            ):
-                self._retreat(self._index - 1)  # Go back to reprocess the AND/OR
-                left = exp.EQ(this=left, expression=exp.true())
-
-            # Continue with normal conjunction parsing
-            while self._match_set(self.CONJUNCTION):
-                connector = self._prev
-                right = self._parse_equality()
-
-                # If right side is a bare BlendSQLFunction, wrap it
-                if isinstance(right, BlendSQLFunction):
-                    right = exp.EQ(this=right, expression=exp.true())
-
-                left = self.expression(
-                    self.CONJUNCTION.get(connector.token_type),
-                    this=left,
-                    expression=right,
-                    comments=connector.comments,
-                )
-
-            return left
-
-        def _parse_where(self, skip_where_token: bool = False) -> exp.Where | None:
-            """Override WHERE parsing to handle bare BlendSQL functions"""
-            if not skip_where_token and not self._match(TokenType.WHERE):
-                return None
-
-            condition = self._parse_assignment()
-
-            # If the entire WHERE condition is just a bare BlendSQLFunction, wrap it
-            if isinstance(condition, BlendSQLFunction):
-                condition = exp.EQ(this=condition, expression=exp.true())
-
-            return self.expression(
-                exp.Where, comments=self._prev_comments, this=condition
-            )
-
-    class Generator(sqlglot.Generator):
-        def blendsqlfunction_sql(self, expression: BlendSQLFunction) -> str:
-            """Generate SQL for BlendSQLFunction nodes"""
-            func_sql = f"{expression.name}("
-            arg_sql, kwarg_sql = None, None
-            if expression.fn_args is not None:
-                arg_sql = ", ".join([self.sql(arg) for arg in expression.fn_args])
-            if expression.fn_kwargs is not None:
-                kwarg_sql = ", ".join(
-                    [self.sql(kwarg) for kwarg in expression.fn_kwargs]
-                )
-            combined = [i for i in [arg_sql, kwarg_sql] if i]
-            func_sql += f"{', '.join(combined)})"
-            return f"{{{{{func_sql}}}}}"
-
-        def keywordargument_sql(self, expression: KeywordArgument) -> str:
-            """Generate SQL for KeywordArgument nodes"""
-            name_sql = self.sql(expression.name)
-            value_sql = self.sql(expression.value)
-            return f"{name_sql}={value_sql}"
+    def generate(self, expression, **opts) -> str:
+        sql = super().generate(expression, **opts)
+        return _postprocess_blendsql_sql(sql)
 
 
 class BlendSQLDuckDB(BlendSQLDialect, DuckDB):
     class Tokenizer(BlendSQLDialect.Tokenizer, DuckDB.Tokenizer):
-        pass
-
-    class Parser(BlendSQLDialect.Parser, DuckDB.Parser):
-        pass
-
-    class Generator(BlendSQLDialect.Generator, DuckDB.Generator):
         pass
 
 
@@ -210,39 +194,19 @@ class BlendSQLPostgres(BlendSQLDialect, Postgres):
     class Tokenizer(BlendSQLDialect.Tokenizer, Postgres.Tokenizer):
         pass
 
-    class Parser(BlendSQLDialect.Parser, Postgres.Parser):
-        pass
-
-    class Generator(BlendSQLDialect.Generator, Postgres.Generator):
-        pass
-
-
-def glob_to_match(self: SQLite.Generator, expression: exp.Where) -> str:
-    return f"{expression.this.sql(dialect=BlendSQLSQLite)} MATCH {expression.expression.sql(dialect=BlendSQLSQLite)}"
-
-
-def str_position_to_substr(self: SQLite.Generator, expression: exp.Where) -> str:
-    return f"INSTR({expression.this.sql(dialect=BlendSQLSQLite)}, {expression.args['substr'].sql(dialect=BlendSQLSQLite)})"
-
 
 class BlendSQLSQLite(BlendSQLDialect, SQLite):
     class Tokenizer(BlendSQLDialect.Tokenizer, SQLite.Tokenizer):
         KEYWORDS = {
-            **{
-                **BlendSQLDialect.Tokenizer.KEYWORDS,
-                "MATCH": TokenType.GLOB,
-            },
+            **SQLite.Tokenizer.KEYWORDS,
+            "MATCH": TokenType.GLOB,
         }
 
-    class Parser(BlendSQLDialect.Parser, SQLite.Parser):
-        pass
-
-    class Generator(BlendSQLDialect.Generator, SQLite.Generator):
-        TRANSFORMS = {
-            **BlendSQLDialect.Generator.TRANSFORMS,
-            exp.Glob: glob_to_match,
-            exp.StrPosition: str_position_to_substr,
-        }
+    def generate(self, expression, **opts) -> str:
+        sql = super().generate(expression, **opts)
+        # SQLite FTS5: reconvert GLOB back to MATCH
+        # (The tokenizer maps MATCH -> GLOB token type for parsing)
+        return _GLOB_RE.sub("MATCH", sql)
 
 
 def get_dialect(db_type: str) -> sqlglot.dialects.Dialect:
@@ -262,10 +226,11 @@ def _parse_one(
     schema: dict | Schema | None = None,
 ):
     """Utility to make sure we parse/read queries with the correct dialect."""
-    # https://www.sqlite.org/optoverview.html
     node = sql
     if isinstance(sql, str):
-        node = parse_one(sql, dialect=dialect)
+        modified_sql = _preprocess_blendsql_syntax(sql)
+        node = parse_one(modified_sql, dialect=dialect)
+        node = node.transform(_wrap_bare_blendsql)
     if schema is not None:
         node = qualify_columns(
             expression=node,
@@ -277,7 +242,7 @@ def _parse_one(
             dialect=dialect,
         )
 
-        if dialect.__name__ == "BlendSQLDuckDB":
+        if isinstance(sql, str) and dialect.__name__ == "BlendSQLDuckDB":
             # Otherwise,
             #  ```
             #  SELECT content[0:5000] AS "README"

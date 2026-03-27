@@ -17,7 +17,7 @@ PYTHON_INSTRUCTION = (
 BASIC_INSTRUCTION = "You are a helpful assistant. You will be presented with some context and a question. "
 BASE_RETURN_TYPE_TO_INSTRUCTION: dict[str, str] = {
     "bool": BASIC_INSTRUCTION
-    + "Output True if the context satisfies the filter condition, and False otherwise.",
+    + "Output 'True' if the context satisfies the filter condition presented in the question, and 'False' otherwise.",
     "int": BASIC_INSTRUCTION + "Return your answer as a valid Python `int`.",
     "float": BASIC_INSTRUCTION + "Return your answer as a valid Python `float`.",
     "str": BASIC_INSTRUCTION
@@ -34,25 +34,28 @@ BASE_RETURN_TYPE_TO_INSTRUCTION: dict[str, str] = {
 BASE_RETURN_TYPE_TO_EXAMPLE: dict[str, dict] = {
     "bool": {
         "question": "Is this city in the California Bay Area?",
-        "examples": [{"value": "San Jose", "answer": True}],
+        "examples": [{"value": "San Jose", "column_name": "city", "answer": True}],
     },
     "int": {
         "question": "Approximately how tall is this person in cm?",
-        "examples": [{"value": "Barack Obama", "answer": 185}],
+        "examples": [{"value": "Barack Obama", "column_name": "person", "answer": 185}],
     },
     "float": {
         "question": "What is the approximate distance in thousands of miles?",
-        "examples": [{"value": "Earth to Moon", "answer": 238.9}],
+        "examples": [
+            {"value": "Earth to Moon", "column_name": "trip", "answer": 238.9}
+        ],
     },
     "str": {
         "question": "What is the capital of this country?",
-        "examples": [{"value": "France", "answer": "Paris"}],
+        "examples": [{"value": "France", "column_name": "country", "answer": "Paris"}],
     },
     "list[str]": {
         "question": "Who played in the game?",
         "examples": [
             {
                 "value": "Lebron James played very well, but Steph Curry struggled.",
+                "column_name": "game_summary",
                 "answer": ["Lebron James", "Steph Curry"],
             }
         ],
@@ -62,6 +65,7 @@ BASE_RETURN_TYPE_TO_EXAMPLE: dict[str, dict] = {
         "examples": [
             {
                 "value": "Michael Phelps",
+                "column_name": "summary",
                 "context": "Michael Phelps (born June 30, 1985) is a swimmer.",
                 "answer": "1985-06-30",
             }
@@ -72,6 +76,7 @@ BASE_RETURN_TYPE_TO_EXAMPLE: dict[str, dict] = {
         "examples": [
             {
                 "value": "Steph had 34pts on 5/16 shooting, whereas Lebron had only 4.",
+                "column_name": "game_summary",
                 "answer": [34, 4],
             }
         ],
@@ -80,7 +85,11 @@ BASE_RETURN_TYPE_TO_EXAMPLE: dict[str, dict] = {
         "question": "Does the review have positive or negative sentiment?",
         "options": ["POSITIVE", "NEGATIVE"],
         "examples": [
-            {"value": "I love this movie! It's so good.", "answer": "POSITIVE"}
+            {
+                "value": "I love this movie! It's so good.",
+                "column_name": "movieReview",
+                "answer": "POSITIVE",
+            }
         ],
     },
 }
@@ -247,10 +256,12 @@ def format_python_continuation(
     return gen_str
 
 
-def format_default_continuation(
+def format_basic_continuation(
     question: str,
     value: str | None,
-    additional_args: tuple[str] | None,
+    column_name: str | None,
+    additional_args: list[str] | None,
+    additional_args_columnnames: list[str] | None,
     context: str | list[str] | None,
     options: list[str] | None,
     skip_value_in_inputs: bool = False,
@@ -258,14 +269,15 @@ def format_default_continuation(
     s = ""
     if question is not None:
         s += f"QUESTION:\n{question}\n\n"
-    if skip_value_in_inputs:
-        if additional_args is not None:
-            s += f"INPUTS:\n{list(additional_args)}\n\n"
-    elif value is not None:
-        s += f"INPUTS:\n{[value] + list(additional_args) if additional_args is not None else value}\n\n"
+    context_dict = {}
+    if value is not None and not skip_value_in_inputs:
+        context_dict[column_name] = value
+    if additional_args is not None:
+        for a, a_columnname in zip(additional_args, additional_args_columnnames):
+            context_dict[a_columnname] = a
     if context is not None:
-        formatted_context = json.dumps(context, ensure_ascii=False)
-        s += f"CONTEXT:\n{formatted_context}\n\n"
+        context_dict["extra_context"] = json.loads(context)
+    s += f"CONTEXT:\n{json.dumps(context_dict, ensure_ascii=False, indent=4 if len(context_dict) > 1 else None)}\n\n"
     if options is not None:
         s += f"OPTIONS:\n{options}\n\n"
     s += "ANSWER:\n"

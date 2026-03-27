@@ -11,7 +11,7 @@ from blendsql.common.utils import get_tablename_colname
 from blendsql.common.typing import ColumnRef, StringConcatenation
 from blendsql.common.logger import logger, Color
 from blendsql.db import Database
-from blendsql.parse.dialect import _parse_one
+from blendsql.parse.dialect import _parse_one, get_blendsql_func_name
 from blendsql.parse import checks as check
 from blendsql.parse import transforms as transform
 from blendsql.parse.utils import set_select_to
@@ -22,31 +22,10 @@ def get_reversed_subqueries(node):
     """Iterates through all subqueries (either parentheses or select).
     Reverses all EXCEPT for CTEs, which should remain in order.
     """
-    # First, fetch all common table expressions
-    r = [
-        i
-        for i in node.find_all(
-            (
-                exp.Select,
-                exp.Paren,
-            )
-        )
-        if check.in_cte(i)
-    ]
-    # Then, add (reversed) other subqueries
-    return (
-        r
-        + [
-            i
-            for i in node.find_all(
-                (
-                    exp.Select,
-                    exp.Paren,
-                )
-            )
-            if not check.in_cte(i)
-        ][::-1]
-    )
+    cte, non_cte = [], []
+    for i in node.find_all((exp.Select, exp.Paren)):
+        (cte if check.in_cte(i) else non_cte).append(i)
+    return cte + non_cte[::-1]
 
 
 def get_scope_nodes(
@@ -130,7 +109,9 @@ class SubqueryContextManager:
         self, ingredient_alias_to_parsed_dict: dict
     ):
         stateful_columns_referenced_by_lm_functions = {}
-        ingredient_aliases = [i.name for i in check.get_ingredient_nodes(self.node)]
+        ingredient_aliases = [
+            get_blendsql_func_name(i) for i in check.get_ingredient_nodes(self.node)
+        ]
 
         def _process_single(arg: ColumnRef):
             tablename, columnname = get_tablename_colname(arg)

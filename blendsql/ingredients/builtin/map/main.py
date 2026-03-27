@@ -353,6 +353,23 @@ class LLMMap(MapIngredient):
                 + grammar_suffix
             ).ll_grammar()
 
+        # Precompute grammar strings for grammars that don't depend on the row value.
+        # Only the `substring` return type actually uses the value; all other lambdas
+        # are `lambda _: ...` and produce the same result on every call.
+        _grammar_is_collection = hasattr(grammar, "__getitem__")
+        _grammar_depends_on_value = (
+            grammar is not None
+            and not _grammar_is_collection
+            and resolved_return_type.name == "substring"
+        )
+        _precomputed_grammars: list | None = None
+        _precomputed_grammar: str | None = None
+        if grammar is not None and enable_constrained_decoding:
+            if _grammar_is_collection:
+                _precomputed_grammars = [g(None) for g in grammar]
+            elif not _grammar_depends_on_value:
+                _precomputed_grammar = grammar(None)
+
         return_type_to_example = BASE_RETURN_TYPE_TO_EXAMPLE | (
             self.return_type_to_example or dict()
         )
@@ -397,6 +414,7 @@ class LLMMap(MapIngredient):
                 context_type=FeatureType.GLOBAL
                 if one_shot_example.get("context")
                 else None,
+                additional_args=additional_args,
                 options=one_shot_example.get("options"),
                 list_options=True,
                 options_type=FeatureType.GLOBAL,
@@ -435,26 +453,25 @@ class LLMMap(MapIngredient):
             prompt += curr_function_signature_str
 
         elif self.prompt_style == "basic":
-            from .prompts import format_default_continuation
+            from .prompts import format_basic_continuation
 
             prompt = instruction
             example_string = ""
             for idx, example in enumerate(one_shot_example["examples"]):
-                example_string += format_default_continuation(
+                example_string += format_basic_continuation(
                     question=one_shot_example["question"] if idx == 0 else None,
                     value=example["value"],
+                    column_name=example["column_name"],
                     additional_args=example.get("additional_args", None),
+                    additional_args_columnnames=example.get(
+                        "additional_args_columnnames", None
+                    ),
                     context=one_shot_example.get("context", None)
                     or example.get("context"),
                     options=one_shot_example.get("options", None)
                     or example.get("options", None),
                 )
-                if not isinstance(example["answer"], str):
-                    example_string += (
-                        json.dumps(example["answer"], ensure_ascii=False) + "\n\n"
-                    )
-                else:
-                    example_string += example["answer"] + "\n\n"
+                example_string += str(example["answer"]) + "\n\n"
             prompt = f"{instruction}\n\n{example_string}" + "---\n\n"
         else:
             raise ValueError(
@@ -466,13 +483,14 @@ class LLMMap(MapIngredient):
         def generate_items() -> Generator[GenerationItem, None, None]:
             """Lazily yields items, checking cache as we go."""
             grammar_is_collection = hasattr(grammar, "__getitem__")
-            for idx, (q, v, a, c, o) in enumerate(
+            for idx, (q, v, a, a_columnnames, c, o) in enumerate(
                 zip(
                     unpacked_questions,
                     values,
                     zip(*[arg.values for arg in additional_args])
                     if additional_args
                     else repeat(None),
+                    repeat([arg.columnname for arg in additional_args]),
                     context,
                     filtered_options,
                 )
@@ -532,9 +550,11 @@ class LLMMap(MapIngredient):
                         _context = context
                     elif context_in_use_type == FeatureType.LOCAL:
                         _context = c
-                    item_prompt = prompt + format_default_continuation(
+                    item_prompt = prompt + format_basic_continuation(
                         value=v,
+                        column_name=column_name,
                         additional_args=a,
+                        additional_args_columnnames=a_columnnames,
                         context=_context,
                         options=o or options,
                         question=q or question,
@@ -545,10 +565,11 @@ class LLMMap(MapIngredient):
                 # Get grammar
                 if enable_constrained_decoding and grammar:
                     if grammar_is_collection:
-                        # Different grammars for each item
-                        grammar_str = grammar[idx](v)
-                    else:
+                        grammar_str = _precomputed_grammars[idx]
+                    elif _grammar_depends_on_value:
                         grammar_str = grammar(v)
+                    else:
+                        grammar_str = _precomputed_grammar
                 else:
                     grammar_str = None
 

@@ -2,7 +2,6 @@ from sqlglot import exp
 import graphviz
 from typing import Optional
 
-from blendsql.parse.dialect import KeywordArgument
 
 FONT = "Sans Serif,monospace"
 BASE_FONTSIZE = 12
@@ -113,24 +112,23 @@ class SQLGlotASTVisualizer:
             if edge_label:
                 edge_attrs["label"] = edge_label
             self.dot.edge(parent_id, node_id, **edge_attrs)
-        if not isinstance(node, KeywordArgument):
-            if hasattr(node, "args") and node.args:
-                for _arg_name, arg_value in node.args.items():
-                    if arg_value is None:
-                        continue
-                    if isinstance(arg_value, (exp.Identifier,)):  # Don't expand these
-                        continue
-                    if isinstance(arg_value, exp.Expression):
-                        self.add_node_to_graph(arg_value, node_id)
-                    elif isinstance(arg_value, list):
-                        for _i, item in enumerate(arg_value):
-                            if isinstance(item, exp.Expression):
-                                # label = f"{arg_name}[{i}]" if len(arg_value) > 1 else arg_name
-                                self.add_node_to_graph(item, node_id)
-                    elif isinstance(arg_value, dict):
-                        for _key, value in arg_value.items():
-                            if isinstance(value, exp.Expression):
-                                self.add_node_to_graph(value, node_id)
+        if hasattr(node, "args") and node.args:
+            for _arg_name, arg_value in node.args.items():
+                if arg_value is None:
+                    continue
+                if isinstance(arg_value, (exp.Identifier,)):  # Don't expand these
+                    continue
+                if isinstance(arg_value, exp.Expr):
+                    self.add_node_to_graph(arg_value, node_id)
+                elif isinstance(arg_value, list):
+                    for _i, item in enumerate(arg_value):
+                        if isinstance(item, exp.Expr):
+                            # label = f"{arg_name}[{i}]" if len(arg_value) > 1 else arg_name
+                            self.add_node_to_graph(item, node_id)
+                elif isinstance(arg_value, dict):
+                    for _key, value in arg_value.items():
+                        if isinstance(value, exp.Expr):
+                            self.add_node_to_graph(value, node_id)
 
         return node_id
 
