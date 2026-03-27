@@ -22,31 +22,10 @@ def get_reversed_subqueries(node):
     """Iterates through all subqueries (either parentheses or select).
     Reverses all EXCEPT for CTEs, which should remain in order.
     """
-    # First, fetch all common table expressions
-    r = [
-        i
-        for i in node.find_all(
-            (
-                exp.Select,
-                exp.Paren,
-            )
-        )
-        if check.in_cte(i)
-    ]
-    # Then, add (reversed) other subqueries
-    return (
-        r
-        + [
-            i
-            for i in node.find_all(
-                (
-                    exp.Select,
-                    exp.Paren,
-                )
-            )
-            if not check.in_cte(i)
-        ][::-1]
-    )
+    cte, non_cte = [], []
+    for i in node.find_all((exp.Select, exp.Paren)):
+        (cte if check.in_cte(i) else non_cte).append(i)
+    return cte + non_cte[::-1]
 
 
 def get_scope_nodes(

@@ -17,7 +17,7 @@ PYTHON_INSTRUCTION = (
 BASIC_INSTRUCTION = "You are a helpful assistant. You will be presented with some context and a question. "
 BASE_RETURN_TYPE_TO_INSTRUCTION: dict[str, str] = {
     "bool": BASIC_INSTRUCTION
-    + "Output True if the context satisfies the filter condition, and False otherwise.",
+    + "Output 'True' if the context satisfies the filter condition presented in the question, and 'False' otherwise.",
     "int": BASIC_INSTRUCTION + "Return your answer as a valid Python `int`.",
     "float": BASIC_INSTRUCTION + "Return your answer as a valid Python `float`.",
     "str": BASIC_INSTRUCTION

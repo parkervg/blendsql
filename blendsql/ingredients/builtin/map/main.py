@@ -353,6 +353,23 @@ class LLMMap(MapIngredient):
                 + grammar_suffix
             ).ll_grammar()
 
+        # Precompute grammar strings for grammars that don't depend on the row value.
+        # Only the `substring` return type actually uses the value; all other lambdas
+        # are `lambda _: ...` and produce the same result on every call.
+        _grammar_is_collection = hasattr(grammar, "__getitem__")
+        _grammar_depends_on_value = (
+            grammar is not None
+            and not _grammar_is_collection
+            and resolved_return_type.name == "substring"
+        )
+        _precomputed_grammars: list | None = None
+        _precomputed_grammar: str | None = None
+        if grammar is not None and enable_constrained_decoding:
+            if _grammar_is_collection:
+                _precomputed_grammars = [g(None) for g in grammar]
+            elif not _grammar_depends_on_value:
+                _precomputed_grammar = grammar(None)
+
         return_type_to_example = BASE_RETURN_TYPE_TO_EXAMPLE | (
             self.return_type_to_example or dict()
         )
@@ -450,9 +467,7 @@ class LLMMap(MapIngredient):
                     or example.get("options", None),
                 )
                 if not isinstance(example["answer"], str):
-                    example_string += (
-                        json.dumps(example["answer"], ensure_ascii=False) + "\n\n"
-                    )
+                    example_string += str(example["answer"]) + "\n\n"
                 else:
                     example_string += example["answer"] + "\n\n"
             prompt = f"{instruction}\n\n{example_string}" + "---\n\n"
@@ -545,10 +560,11 @@ class LLMMap(MapIngredient):
                 # Get grammar
                 if enable_constrained_decoding and grammar:
                     if grammar_is_collection:
-                        # Different grammars for each item
-                        grammar_str = grammar[idx](v)
-                    else:
+                        grammar_str = _precomputed_grammars[idx]
+                    elif _grammar_depends_on_value:
                         grammar_str = grammar(v)
+                    else:
+                        grammar_str = _precomputed_grammar
                 else:
                     grammar_str = None
 

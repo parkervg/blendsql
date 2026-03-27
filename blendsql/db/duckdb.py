@@ -134,12 +134,14 @@ class DuckDB(Database):
             ```
         """
         schema: dict[str, dict] = {}
-        for tablename in self.tables():
-            schema[tablename] = {}
-            for column_name, column_type in self.con.sql(
-                f'SELECT column_name, column_type FROM (DESCRIBE "{double_quote_escape(tablename)}")'
-            ).fetchall():
-                schema[tablename][column_name] = column_type
+        for table_name, column_name, column_type in self.con.sql(
+            "SELECT table_name, column_name, data_type "
+            "FROM information_schema.columns "
+            "ORDER BY table_name, ordinal_position"
+        ).fetchall():
+            if table_name not in schema:
+                schema[table_name] = {}
+            schema[table_name][column_name] = column_type
         return schema
 
     def tables(self) -> list[str]:
