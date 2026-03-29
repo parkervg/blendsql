@@ -2,6 +2,7 @@ import os
 
 from blendsql.models.model_base import ModelBase
 from blendsql.common.typing import GenerationItem
+from .utils import get_base64_string
 
 
 class Anthropic(ModelBase):
@@ -31,5 +32,29 @@ class Anthropic(ModelBase):
             **kwargs,
         )
 
-    def _format_extra_body(self, extra_body: dict, item: GenerationItem) -> dict:
-        return extra_body
+    async def _format_extra_body(
+        self, extra_body: dict, item: GenerationItem
+    ) -> tuple[list[dict], dict]:
+        if item.image_url is not None:
+            session = await self._get_session()
+            base64_image = await get_base64_string(item.image_url, session)
+            filetype = item.image_url.split(".")[-1].lower()
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": item.prompt},
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": f"image/{filetype}",
+                                "data": base64_image,
+                            },
+                        },
+                    ],
+                }
+            ]
+        else:
+            messages = [{"role": "user", "content": item.prompt}]
+        return messages, extra_body

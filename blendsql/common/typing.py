@@ -82,6 +82,7 @@ class StringConcatenation(IngredientArgType, list):
 class GenerationItem:
     prompt: str
     grammar: str
+    image_url: str | None = None
     identifier: str | None = None
     cache_key: str | None = None
     assistant_continuation: str | None = None

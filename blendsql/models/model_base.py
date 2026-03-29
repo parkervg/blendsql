@@ -6,6 +6,7 @@ import platformdirs
 import hashlib
 import inspect
 from textwrap import dedent
+import aiohttp
 import asyncio
 
 from blendsql.common.logger import logger, Color
@@ -42,6 +43,7 @@ class ModelBase:
             Path(platformdirs.user_cache_dir("blendsql"))
             / f"{self.model_name_or_path}.diskcache"
         )
+        self._session: aiohttp.ClientSession | None = None
 
         # Initialize counters
         self.prompt_tokens: int = 0
@@ -50,6 +52,21 @@ class ModelBase:
         self.num_generation_calls: int = 0
         self.num_cache_hits: int = 0
 
+    async def _get_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    async def close(self):
+        if self._session and not self._session.closed:
+            await self._session.close()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
     async def generate(
         self, item: GenerationItem, cancel_event: asyncio.Event | None = None
     ):
@@ -57,8 +74,8 @@ class ModelBase:
         extra_body = {
             "max_tokens": int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
         } | self.extra_body
-        extra_body = self._format_extra_body(extra_body, item)
-        messages = [{"role": "user", "content": item.prompt}]
+
+        messages, extra_body = await self._format_inputs(extra_body, item)
 
         stream = await self.client.chat.completions.create(
             model=self.model_name_or_path,

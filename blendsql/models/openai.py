@@ -2,6 +2,7 @@ import os
 
 from blendsql.models.model_base import ModelBase
 from blendsql.common.typing import GenerationItem
+from .utils import openai_compatible_image_url
 
 
 class OpenAI(ModelBase):
@@ -27,7 +28,24 @@ class OpenAI(ModelBase):
             model_name_or_path=model_name_or_path, api_key=api_key, *args, **kwargs
         )
 
-    def _format_extra_body(self, extra_body: dict, item: GenerationItem) -> dict:
+    async def _format_extra_body(
+        self, extra_body: dict, item: GenerationItem
+    ) -> tuple[list[dict], dict]:
+        if item.image_url is not None:
+            session = await self._get_session()
+            encoded = await openai_compatible_image_url(item.image_url, session)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": item.prompt},
+                        {"type": "image_url", "image_url": encoded},
+                    ],
+                }
+            ]
+        else:
+            messages = [{"role": "user", "content": item.prompt}]
+
         if "max_tokens" in extra_body:
             extra_body["max_completion_tokens"] = extra_body.pop("max_tokens")
-        return extra_body
+        return messages, extra_body

@@ -534,6 +534,15 @@ class LLMMap(MapIngredient):
                         lm_mapping[curr_identifier] = cached_response
                         continue  # Skip - already cached
 
+                image_url = None
+                # Check if value is an image URL
+                if v.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
+                    image_url = v
+                    v = None
+                elif v.startswith("data:image") and "base64" in v:
+                    image_url = v
+                    v = None
+
                 # Build per-item prompt/continuation.
                 if self.prompt_style == "python":
                     item_prompt = prompt + format_python_continuation(
@@ -576,6 +585,7 @@ class LLMMap(MapIngredient):
                 yield GenerationItem(
                     identifier=curr_identifier,
                     prompt=item_prompt,
+                    image_url=image_url,
                     assistant_continuation=assistant_continuation,
                     grammar=grammar_str,
                     cache_key=cache_key,
@@ -617,88 +627,89 @@ class LLMMap(MapIngredient):
                     generator_exhausted = True
                     break
 
-        if logger.level <= logging.DEBUG:
-            pbar = tqdm(
-                desc=Color.prefix + f"LLMMap with n_parallel={n_parallel}",
-                total=len(values),
-            )
-            # Update for cached items
-            pbar.update(len(lm_mapping))
-
-        # Initial submission
-        submit_next_items()
-
-        # Process as tasks complete
-        try:
-            while active_tasks:
-                # Wait for at least one task to complete
-                done, _ = await asyncio.wait(
-                    active_tasks.keys(),
-                    return_when=asyncio.FIRST_COMPLETED,
+        async with model:
+            if logger.level <= logging.DEBUG:
+                pbar = tqdm(
+                    desc=Color.prefix + f"LLMMap with n_parallel={n_parallel}",
+                    total=len(values),
                 )
+                # Update for cached items
+                pbar.update(len(lm_mapping))
 
-                for task in done:
-                    item = active_tasks.pop(task)
+            # Initial submission
+            submit_next_items()
 
-                    try:
-                        result = task.result()
-                    except asyncio.CancelledError:
-                        continue
-
-                    if result is None:
-                        continue
-
-                    items_completed += 1
-
-                    # Type conversion
-                    converted_value = apply_type_conversion(
-                        result.value.split(grammar_suffix)[0]
-                        if grammar_suffix
-                        else result.value,
-                        return_type=resolved_return_type,
-                        db=self.db,
+            # Process as tasks complete
+            try:
+                while active_tasks:
+                    # Wait for at least one task to complete
+                    done, _ = await asyncio.wait(
+                        active_tasks.keys(),
+                        return_when=asyncio.FIRST_COMPLETED,
                     )
 
-                    lm_mapping[result.identifier] = converted_value
+                    for task in done:
+                        item = active_tasks.pop(task)
 
-                    # Cache result
-                    if model.caching and item.cache_key is not None:
-                        model.cache[item.cache_key] = converted_value
+                        try:
+                            result = task.result()
+                        except asyncio.CancelledError:
+                            continue
 
-                    if logger.level <= logging.DEBUG:
-                        pbar.update(1)
+                        if result is None:
+                            continue
 
-                    # Check exit condition
-                    if exit_condition_func and result.completed:
-                        if exit_condition_func(converted_value):
-                            n_satisfied += 1
+                        items_completed += 1
 
-                            if n_satisfied >= exit_condition_required_values:
-                                logger.debug(
-                                    Color.optimization(
-                                        f"[ 🚪] Exit condition satisfied. Exiting early after processing {items_completed:,} out of {items_submitted:,} items, {len(lm_mapping)} total (including cached)."
+                        # Type conversion
+                        converted_value = apply_type_conversion(
+                            result.value.split(grammar_suffix)[0]
+                            if grammar_suffix
+                            else result.value,
+                            return_type=resolved_return_type,
+                            db=self.db,
+                        )
+
+                        lm_mapping[result.identifier] = converted_value
+
+                        # Cache result
+                        if model.caching and item.cache_key is not None:
+                            model.cache[item.cache_key] = converted_value
+
+                        if logger.level <= logging.DEBUG:
+                            pbar.update(1)
+
+                        # Check exit condition
+                        if exit_condition_func and result.completed:
+                            if exit_condition_func(converted_value):
+                                n_satisfied += 1
+
+                                if n_satisfied >= exit_condition_required_values:
+                                    logger.debug(
+                                        Color.optimization(
+                                            f"[ 🚪] Exit condition satisfied. Exiting early after processing {items_completed:,} out of {items_submitted:,} items, {len(lm_mapping)} total (including cached)."
+                                        )
                                     )
-                                )
-                                cancel_event.set()
+                                    cancel_event.set()
 
-                                # Cancel pending tasks
-                                for t in active_tasks:
-                                    t.cancel()
+                                    # Cancel pending tasks
+                                    for t in active_tasks:
+                                        t.cancel()
 
-                                # Wait for cancellations
-                                if active_tasks:
-                                    await asyncio.gather(
-                                        *active_tasks.keys(), return_exceptions=True
-                                    )
-                                active_tasks.clear()
-                                break
-                if cancel_event.is_set():
-                    break
+                                    # Wait for cancellations
+                                    if active_tasks:
+                                        await asyncio.gather(
+                                            *active_tasks.keys(), return_exceptions=True
+                                        )
+                                    active_tasks.clear()
+                                    break
+                    if cancel_event.is_set():
+                        break
 
-                submit_next_items()
-        finally:
-            if logger.level <= logging.DEBUG:
-                pbar.close()
+                    submit_next_items()
+            finally:
+                if logger.level <= logging.DEBUG:
+                    pbar.close()
 
         mapped_values = [
             lm_mapping.get(identifier, None) for identifier in all_processed_identifiers

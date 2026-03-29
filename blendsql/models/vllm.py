@@ -1,5 +1,6 @@
 from blendsql.models.model_base import ModelBase
 from blendsql.common.typing import GenerationItem
+from .utils import openai_compatible_image_url
 
 
 class VLLM(ModelBase):
@@ -24,11 +25,28 @@ class VLLM(ModelBase):
         base_url = base_url or "http://localhost:8000/v1/"
         super().__init__(api_key=api_key, base_url=base_url, *args, **kwargs)
 
-    def _format_extra_body(self, extra_body: dict, item: GenerationItem) -> dict:
+    async def _format_inputs(
+        self, extra_body: dict, item: GenerationItem
+    ) -> tuple[list[dict], dict]:
+        if item.image_url is not None:
+            session = await self._get_session()
+            encoded = await openai_compatible_image_url(item.image_url, session)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": item.prompt},
+                        {"type": "image_url", "image_url": {"url": encoded}},
+                    ],
+                }
+            ]
+        else:
+            messages = [{"role": "user", "content": item.prompt}]
+
         if item.grammar:
             extra_body |= {
                 "guided_decoding_backend": "guidance",
                 "guided_grammar": item.grammar,
                 "structured_outputs": {"grammar": item.grammar},
             }
-        return extra_body
+        return messages, extra_body

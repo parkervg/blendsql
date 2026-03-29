@@ -1,8 +1,10 @@
-import pandas as pd
+from dotenv import load_dotenv
 
 from blendsql import BlendSQL, GLOBAL_HISTORY
 from blendsql.models import VLLM
+from blendsql.common.utils import fetch_from_hub
 
+load_dotenv()
 """
 vllm serve cyankiwi/Qwen3.5-9B-AWQ-4bit --host 0.0.0.0 \
 --port 8000 \
@@ -18,29 +20,9 @@ vllm serve cyankiwi/Qwen3.5-9B-AWQ-4bit --host 0.0.0.0 \
 
 # Prepare our BlendSQL connection
 bsql = BlendSQL(
-    {
-        "w": pd.DataFrame(
-            {
-                "player_name": ["John Wall", "Jayson Tatum"],
-                "Report": ["He had 2 assists", "He only had 1 assist"],
-                "AnotherOptionalReport": ["He had 26pts", "He scored 51pts!"],
-            }
-        ),
-        "v": pd.DataFrame({"people": ["john", "jayson", "emily"]}),
-        "names_and_ages": pd.DataFrame(
-            {
-                "Name": ["Tommy", "Sarah", "Tommy"],
-                "Description": ["He is 24 years old", "She's 12", "He's only 3"],
-            }
-        ),
-        "movie_reviews": pd.DataFrame(
-            {"review": ["I love this movie!", "This was SO GOOD"]}
-        ),
-    },
-    model=VLLM(
-        model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
-        base_url="http://127.0.0.1:8000/v1/",
-    ),
+    # DuckDB(con=duckdb.connect("./research/movies_sembench/src/data/movie_database_2000.duckdb")),
+    fetch_from_hub("ecomm/sf_2000/ecomm_database_2000.duckdb"),
+    model=VLLM(model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16"),
     verbose=True,
 )
 
@@ -52,15 +34,50 @@ bsql = BlendSQL(
 # finding the original table name in the query' strategy doesn't work.
 # We need to use the aliasname to identify the temp table we create.
 # r1.reviewText, r2.reviewText
+
 smoothie = bsql.execute(
     """
-SELECT *, {{
-            LLMMap(
-                'Is {} a boy?',
-                Name,
-                Description,
-            )
-        }} FROM "names_and_ages"
+SELECT
+  i.id as id,
+  i.link,
+  {{LLMMap('What is the primary color of the product in this image? Only return the base color, nothing else.', i.link)}}
+FROM styles_details s
+JOIN image_mapping i on s.id = i.id
+WHERE s.baseColour IN ('Black', 'Blue', 'Red', 'White', 'Orange', 'Green')
+LIMIT 5
+"""
+)
+smoothie.print_summary()
+print(GLOBAL_HISTORY[-1])
+exit()
+
+smoothie = bsql.execute(
+    """
+WITH self_joined_reviews AS (
+    SELECT DISTINCT
+    r1.originalScore AS originalScore1,
+    r2.originalScore AS originalScore2,
+    r1.id as id1,
+    r1.reviewId as reviewId1,
+    r2.reviewId as reviewId2
+    FROM Reviews r1
+    JOIN Reviews r2
+    ON r1.id = r2.id
+    AND r1.reviewId < r2.reviewId
+    WHERE r1.id = 'ant_man_and_the_wasp_quantumania'
+    AND r2.id = 'ant_man_and_the_wasp_quantumania'
+    AND originalScore1 IS NOT NULL AND originalScore1 LIKE '%/%' AND CAST(split_part(originalScore1, '/', 1) AS FLOAT) / CAST(split_part(originalScore1, '/', 2) AS FLOAT) <> 0.5
+    AND originalScore2 IS NOT NULL AND originalScore2 LIKE '%/%' AND CAST(split_part(originalScore2, '/', 1) AS FLOAT) / CAST(split_part(originalScore2, '/', 2) AS FLOAT) <> 0.5
+    ORDER BY r1.reviewId, r2.reviewId
+) SELECT id1, reviewId1, reviewId2 FROM self_joined_reviews
+WHERE {{
+    LLMMap(
+        'Is one score greater than 1/2 and the other less than 1/2?',
+        originalScore1,
+        originalScore2,
+        context=(SELECT * FROM Reviews LIMIT 3)
+    )
+}} = TRUE
     """,
 )
 smoothie.print_summary()
