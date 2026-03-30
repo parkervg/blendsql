@@ -144,6 +144,11 @@ def replace_tablename(node, original_tablename, new_tablename):
                 "this", exp.Identifier(this=new_tablename, quoted=True)
             )
     elif isinstance(node, exp.Column) and "table" in node.args:
-        if node.args["table"].name.lower() == original_tablename.lower():
-            node.set("table", exp.Identifier(this=new_tablename, quoted=True))
+        if "db" in node.args:
+            # This is needed to handle DuckDB `tablename.columnname.jsonkeyname` cases
+            if node.args["db"].this.lower() == original_tablename.lower():
+                node.set("db", exp.Identifier(this=new_tablename, quoted=True))
+        elif "table" in node.args:
+            if node.args["table"].name.lower() == original_tablename.lower():
+                node.set("table", exp.Identifier(this=new_tablename, quoted=True))
     return node
