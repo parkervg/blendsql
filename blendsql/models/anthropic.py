@@ -32,29 +32,26 @@ class Anthropic(ModelBase):
             **kwargs,
         )
 
-    async def _format_extra_body(
+    async def _format_inputs(
         self, extra_body: dict, item: GenerationItem
     ) -> tuple[list[dict], dict]:
-        if item.image_url is not None:
-            session = await self._get_session()
-            base64_image = await get_base64_string(item.image_url, session)
-            filetype = item.image_url.split(".")[-1].lower()
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": item.prompt},
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": f"image/{filetype}",
-                                "data": base64_image,
-                            },
+        if len(item.image_urls) > 0:
+            content = [{"type": "text", "text": item.prompt}]
+            for image_url in item.image_urls:
+                session = await self._get_session()
+                base64_image = await get_base64_string(image_url, session)
+                filetype = image_url.split(".")[-1].lower()
+                content.append(
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": f"image/{filetype}",
+                            "data": base64_image,
                         },
-                    ],
-                }
-            ]
+                    }
+                )
+            messages = [{"role": "user", "content": content}]
         else:
             messages = [{"role": "user", "content": item.prompt}]
         return messages, extra_body

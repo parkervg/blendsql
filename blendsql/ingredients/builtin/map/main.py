@@ -1,7 +1,7 @@
 import logging
 import os
 import asyncio
-from typing import Callable, Generator, Literal
+from typing import Callable, Generator, Literal, Any
 import json
 import polars as pl
 import pandas as pd
@@ -534,14 +534,25 @@ class LLMMap(MapIngredient):
                         lm_mapping[curr_identifier] = cached_response
                         continue  # Skip - already cached
 
-                image_url = None
+                image_urls = []
+
+                def is_image_url(s: Any) -> bool:
+                    if not isinstance(s, str):
+                        return False
+                    if s.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
+                        return True
+                    elif s.startswith("data:image") and "base64" in s:
+                        return True
+                    return False
+
                 # Check if value is an image URL
-                if v.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
-                    image_url = v
+                if is_image_url(v):
+                    image_urls.append(v)
                     v = None
-                elif v.startswith("data:image") and "base64" in v:
-                    image_url = v
-                    v = None
+                for _a in a:
+                    if is_image_url(_a):
+                        image_urls.append(_a)
+                a = tuple(_a for _a in a if not is_image_url(_a))
 
                 # Build per-item prompt/continuation.
                 if self.prompt_style == "python":
@@ -585,7 +596,7 @@ class LLMMap(MapIngredient):
                 yield GenerationItem(
                     identifier=curr_identifier,
                     prompt=item_prompt,
-                    image_url=image_url,
+                    image_urls=image_urls,
                     assistant_continuation=assistant_continuation,
                     grammar=grammar_str,
                     cache_key=cache_key,

@@ -28,18 +28,13 @@ class VLLM(ModelBase):
     async def _format_inputs(
         self, extra_body: dict, item: GenerationItem
     ) -> tuple[list[dict], dict]:
-        if item.image_url is not None:
-            session = await self._get_session()
-            encoded = await openai_compatible_image_url(item.image_url, session)
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": item.prompt},
-                        {"type": "image_url", "image_url": {"url": encoded}},
-                    ],
-                }
-            ]
+        if len(item.image_urls) > 0:
+            content = [{"type": "text", "text": item.prompt}]
+            for image_url in item.image_urls:
+                session = await self._get_session()
+                encoded = await openai_compatible_image_url(image_url, session)
+                content.append({"type": "image_url", "image_url": {"url": encoded}})
+            messages = [{"role": "user", "content": content}]
         else:
             messages = [{"role": "user", "content": item.prompt}]
 
