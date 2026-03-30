@@ -15,6 +15,7 @@ from guidance.library import substring
 from guidance import regex as guidance_regex
 
 from blendsql.models.model_base import ModelBase
+from rich.markup import escape
 from blendsql.common.logger import logger, Color
 from blendsql.common.constants import DEFAULT_CONTEXT_FORMATTER
 from blendsql.ingredients.ingredient import MapIngredient
@@ -551,10 +552,18 @@ class LLMMap(MapIngredient):
                     image_urls.append(v)
                     v = None
                 if a is not None:
-                    for _a in a:
+                    img_idx = set()
+                    for idx, _a in enumerate(a):
                         if is_image_url(_a):
                             image_urls.append(_a)
-                    a = tuple(_a for _a in a if not is_image_url(_a))
+                            img_idx.add(idx)
+                    a = tuple(_a for idx, _a in enumerate(a) if idx not in img_idx)
+                    a_columnnames = tuple(
+                        _a for idx, _a in enumerate(a_columnnames) if idx not in img_idx
+                    )
+                    a_tablenames = tuple(
+                        _a for idx, _a in enumerate(a_tablenames) if idx not in img_idx
+                    )
 
                 # Build per-item prompt/continuation.
                 if self.prompt_style == "python":
@@ -733,8 +742,11 @@ class LLMMap(MapIngredient):
         mapped_values.extend([None] * (len(values) - len(all_processed_identifiers)))
 
         logger.debug(
-            lambda: Color.warning(
-                f"Finished LLMMap with {len(lm_mapping)} total values{' (10 shown)' if len(lm_mapping) > 10 else ''}:\n{indent(json.dumps({str(k): str(v) for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else '')}"
+            lambda: Color._apply_prefix(
+                "[bold yellow]Finished LLMMap[/bold yellow]"
+                f"[yellow] with {len(lm_mapping)} total values"
+                f"{' (10 shown)' if len(lm_mapping) > 10 else ''}:\n"
+                f"{escape(indent(json.dumps({str(k): str(v) for k, v in islice(lm_mapping.items(), 10)}, indent=4), Color.prefix if Color.in_block else ''))}[/yellow]"
             )
         )
         return mapped_values

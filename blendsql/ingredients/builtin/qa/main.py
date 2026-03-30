@@ -11,6 +11,7 @@ from guidance import json as guidance_json
 from guidance import regex as guidance_regex
 from pydantic import TypeAdapter
 
+from rich.markup import escape
 from blendsql.common.logger import logger, Color
 from blendsql.common.constants import DEFAULT_CONTEXT_FORMATTER
 from blendsql.common.typing import GenerationItem
@@ -408,8 +409,9 @@ class LLMQA(QAIngredient):
         else:
             converted_value = tuple(converted_value)  # type: ignore
         logger.debug(
-            lambda: Color.warning(
-                f"Finished LLMQA with value: {str(converted_value)[:200]}{'...' if len(str(converted_value)) > 200 else ''}"
+            lambda: Color._apply_prefix(
+                f"[bold yellow]Finished LLMQA[/bold yellow]"
+                f"[yellow] with value: {escape(str(converted_value)[:200])}{'...' if len(str(converted_value)) > 200 else ''}[/yellow]"
             )
         )
         return converted_value  # type: ignore

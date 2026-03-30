@@ -780,14 +780,7 @@ def _blend(
             # Immediately set false, unless proven otherwise
             previous_cascade_filter_failed = True
 
-            logger.debug(
-                Color.update("\nExecuting ")
-                + Color.sql(
-                    f"{curr_function_parsed_results['raw']}", ignore_prefix=True
-                )
-                + Color.update("...", ignore_prefix=True)
-            )
-            Color.in_block = True
+            Color.begin_block(curr_function_parsed_results["raw"])
 
             if infer_gen_constraints:
                 # Latter is the winner.
@@ -954,7 +947,7 @@ def _blend(
                 raise ValueError(
                     f"Not sure what to do with ingredient_type '{curr_ingredient.ingredient_type}' yet\n(Also, we should have never hit this error....)"
                 )
-            Color.in_block = False
+            Color.end_block()
 
         # Combine all the retrieved map outputs
         # The below assumes the `mapped_dfs` are in the same row-order!

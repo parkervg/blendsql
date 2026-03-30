@@ -512,17 +512,12 @@ class MapIngredient(Ingredient):
             # Remove columns, if they were only needed for the cascade_filter
             distinct_values = distinct_values.select(
                 set([colname]) | set([i.columnname for i in resolved_additional_args])
-            )
+            ).unique()
 
         if additional_args_passed or cascade_filter is not None:
             # We have a dataframe object we need to disentangle
             df = distinct_values.collect()
-            if cascade_filter is not None:
-                unpacked_values = (
-                    df[colname].unique(maintain_order=in_deterministic_mode).to_list()
-                )
-            else:
-                unpacked_values = df[colname].to_list()
+            unpacked_values = df[colname].to_list()
             for additional_arg in resolved_additional_args:
                 additional_arg.values = df.get_column(
                     additional_arg.columnname
@@ -593,6 +588,14 @@ class MapIngredient(Ingredient):
             logger.debug(
                 Color.quiet_update(f"Unpacked question to '{unpacked_questions[:10]}'")
             )
+        assert (
+            len(
+                set([len(i.values) for i in resolved_additional_args]).union(
+                    set([len(unpacked_values)])
+                )
+            )
+            == 1
+        )
 
         mapped_values = self._run(
             question=question,

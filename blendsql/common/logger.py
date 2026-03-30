@@ -3,9 +3,14 @@ from typing import Callable
 from rich.logging import RichHandler
 from rich.highlighter import NullHighlighter
 from rich.console import Console
+from rich.panel import Panel
+from rich.rule import Rule
 from rich.markup import escape
+import rich.box as rich_box
 
 console = Console(force_terminal=True, width=120)
+
+_PANEL_TITLE_MAX = console.width - 10  # leave room for box borders + padding
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
@@ -63,12 +68,35 @@ logger = LazyLogger(get_logger("blendsql", level=logging.DEBUG))
 # Logging utilities
 class Color:
     in_block = False
-    prefix = "    "
+    prefix = "   "  # plain text; used in tqdm descriptions and JSON indentation
+
+    @classmethod
+    def begin_block(cls, title: str):
+        cls.in_block = True
+        if logger.level <= logging.DEBUG:
+            # The title is known upfront, so we can render a full Panel for it.
+            # Content streams below with indentation; end_block closes with a Rule.
+            if len(title) > _PANEL_TITLE_MAX:
+                title = title[: _PANEL_TITLE_MAX - 1] + "…"
+            console.print(
+                Panel(
+                    f"[bold cyan]{escape(title)}[/bold cyan]",
+                    box=rich_box.ROUNDED,
+                    border_style="cyan dim",
+                    padding=(0, 1),
+                )
+            )
+
+    @classmethod
+    def end_block(cls):
+        cls.in_block = False
+        if logger.level <= logging.DEBUG:
+            console.print(Rule(style="cyan dim"))
 
     @classmethod
     def _apply_prefix(cls, s: str, ignore_prefix=False):
         if cls.in_block:
-            return cls.prefix + s
+            return cls.prefix + s.replace("\n", "\n" + cls.prefix)
         return s
 
     @staticmethod
@@ -78,7 +106,7 @@ class Color:
 
     @staticmethod
     def optimization(s: str, ignore_prefix=False):
-        formatted = f"[deep_pink3]{s}[/deep_pink3]"
+        formatted = f"[bold deep_pink3]{s}[/bold deep_pink3]"
         return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
@@ -108,7 +136,7 @@ class Color:
 
     @staticmethod
     def success(s: str, ignore_prefix=False):
-        formatted = f"[green]{escape(s)}[/green]"
+        formatted = f"[bold green]{escape(s)}[/bold green]"
         return formatted if ignore_prefix else Color._apply_prefix(formatted)
 
     @staticmethod
