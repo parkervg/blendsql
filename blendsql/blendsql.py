@@ -627,6 +627,7 @@ def _blend(
 
         subquery_processed_tablenames = set()
         in_cte, cte_table_alias_name = check.in_cte(subquery, return_name=True)
+        temp_tables_to_write = []
         scm = SubqueryContextManager(
             dialect=dialect,
             node=_parse_one(
@@ -643,12 +644,6 @@ def _blend(
         ) in scm.abstracted_table_selects(db):
             if in_cte:  # Don't execute CTEs until we need them
                 continue
-            # # If this table isn't being used in any ingredient calls, there's no
-            # #   need to create a temporary session table
-            # if (tablename not in tables_in_ingredients) and (
-            #     scm.tablename_to_alias.get(tablename, None) not in tables_in_ingredients
-            # ):
-            #     continue
             aliased_subquery = scm.alias_to_subquery.pop(tablename, None)
             if aliased_subquery is not None:
                 # First, we need to explicitly create the aliased subquery as a table
@@ -695,13 +690,22 @@ def _blend(
                         f" and setting to `{tablename_to_write}`...", ignore_prefix=True
                     )
                 )
-                abstracted_df = db.execute_to_df(abstracted_query_str)
-
-                db.to_temp_table(
-                    df=abstracted_df,
-                    tablename=tablename_to_write,
+                temp_tables_to_write.append(
+                    {
+                        "abstracted_query_str": abstracted_query_str,
+                        "tablename_to_write": tablename_to_write,
+                        "original_tablename": tablename,
+                    }
                 )
-                subquery_processed_tablenames.add(tablename)
+
+        for item in temp_tables_to_write:
+            abstracted_df = db.execute_to_df(item["abstracted_query_str"])
+
+            db.to_temp_table(
+                df=abstracted_df,
+                tablename=item["tablename_to_write"],
+            )
+            subquery_processed_tablenames.add(item["original_tablename"])
 
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():

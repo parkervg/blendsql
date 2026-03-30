@@ -483,7 +483,7 @@ class LLMMap(MapIngredient):
         def generate_items() -> Generator[GenerationItem, None, None]:
             """Lazily yields items, checking cache as we go."""
             grammar_is_collection = hasattr(grammar, "__getitem__")
-            for idx, (q, v, a, a_columnnames, c, o) in enumerate(
+            for idx, (q, v, a, a_columnnames, a_tablenames, c, o) in enumerate(
                 zip(
                     unpacked_questions,
                     values,
@@ -491,6 +491,7 @@ class LLMMap(MapIngredient):
                     if additional_args
                     else repeat(None),
                     repeat([arg.columnname for arg in additional_args]),
+                    repeat([arg.tablename for arg in additional_args]),
                     context,
                     filtered_options,
                 )
@@ -549,10 +550,11 @@ class LLMMap(MapIngredient):
                 if is_image_url(v):
                     image_urls.append(v)
                     v = None
-                for _a in a:
-                    if is_image_url(_a):
-                        image_urls.append(_a)
-                a = tuple(_a for _a in a if not is_image_url(_a))
+                if a is not None:
+                    for _a in a:
+                        if is_image_url(_a):
+                            image_urls.append(_a)
+                    a = tuple(_a for _a in a if not is_image_url(_a))
 
                 # Build per-item prompt/continuation.
                 if self.prompt_style == "python":
@@ -573,8 +575,10 @@ class LLMMap(MapIngredient):
                     item_prompt = prompt + format_basic_continuation(
                         value=v,
                         column_name=column_name,
+                        table_name=table_name,
                         additional_args=a,
                         additional_args_columnnames=a_columnnames,
+                        additional_args_tablenames=a_tablenames,
                         context=_context,
                         options=o or options,
                         question=q or question,

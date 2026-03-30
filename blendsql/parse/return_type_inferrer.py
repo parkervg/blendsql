@@ -167,7 +167,7 @@ class NumericContextStrategy(TypeInferenceStrategy):
             return None
 
         if isinstance(ctx.parent_node, self.NUMERIC_CONTEXTS):
-            return DataTypes.FLOAT()
+            return DataTypes.INT()
         return None
 
 

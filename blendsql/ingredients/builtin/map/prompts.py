@@ -264,17 +264,32 @@ def format_basic_continuation(
     additional_args_columnnames: list[str] | None,
     context: str | list[str] | None,
     options: list[str] | None,
+    table_name: str | None = None,
+    additional_args_tablenames: list[str] | None = None,
     skip_value_in_inputs: bool = False,
 ) -> str:
     s = ""
     if question is not None:
         s += f"QUESTION:\n{question}\n\n"
     context_dict = {}
-    if value is not None and not skip_value_in_inputs:
-        context_dict[column_name] = value
+    has_multiple_tables = False
     if additional_args is not None:
-        for a, a_columnname in zip(additional_args, additional_args_columnnames):
-            context_dict[a_columnname] = a
+        has_multiple_tables = (
+            len(set([table_name]).union(set(additional_args_tablenames))) > 1
+        )
+    if value is not None and not skip_value_in_inputs:
+        if has_multiple_tables:
+            context_dict[f"{table_name}.{column_name}"] = value
+        else:
+            context_dict[column_name] = value
+    if additional_args is not None:
+        for a, a_tablename, a_columnname in zip(
+            additional_args, additional_args_tablenames, additional_args_columnnames
+        ):
+            if has_multiple_tables:
+                context_dict[f"{a_tablename}.{a_columnname}"] = a
+            else:
+                context_dict[a_columnname] = a
     if context is not None:
         context_dict["extra_context"] = json.loads(context)
     s += f"CONTEXT:\n{json.dumps(context_dict, ensure_ascii=False, indent=4 if len(context_dict) > 1 else None)}\n\n"

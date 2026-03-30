@@ -187,22 +187,27 @@ class SubqueryContextManager:
         all_columnnames = []
 
         if len(self.stateful_columns_referenced_by_lm_ingredients) > 1:
-            all_resolved_tablenames = []
-            for (
-                tablename_or_aliasname,
-                columnnames,
-            ) in self.stateful_columns_referenced_by_lm_ingredients.items():
-                tablename = self.alias_to_tablename.get(
-                    tablename_or_aliasname, tablename_or_aliasname
-                )
-                all_resolved_tablenames.append(tablename)
-                columnnames = list(columnnames)
-                all_tablename_or_aliasnames.extend(
-                    [tablename_or_aliasname] * len(columnnames)
-                )
-                all_columnnames.extend(columnnames)
+            # We can only do this optimization if all tables currently exist, i.e. none are CTEs we haven't yet materialized
+            if all(
+                t in db.tables()
+                for t in self.stateful_columns_referenced_by_lm_ingredients.keys()
+            ):
+                all_resolved_tablenames = []
+                for (
+                    tablename_or_aliasname,
+                    columnnames,
+                ) in self.stateful_columns_referenced_by_lm_ingredients.items():
+                    tablename = self.alias_to_tablename.get(
+                        tablename_or_aliasname, tablename_or_aliasname
+                    )
+                    all_resolved_tablenames.append(tablename)
+                    columnnames = list(columnnames)
+                    all_tablename_or_aliasnames.extend(
+                        [tablename_or_aliasname] * len(columnnames)
+                    )
+                    all_columnnames.extend(columnnames)
 
-            abstracted_join_temp_tablename = "_JOIN_".join(all_resolved_tablenames)
+                abstracted_join_temp_tablename = "_JOIN_".join(all_resolved_tablenames)
 
         def prepare_joined_temp_table():
             abstracted_join_str = set_select_to(
