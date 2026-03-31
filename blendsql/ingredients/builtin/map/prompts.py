@@ -292,7 +292,10 @@ def format_basic_continuation(
                 context_dict[a_columnname] = a
     if context is not None:
         context_dict["extra_context"] = json.loads(context)
-    s += f"CONTEXT:\n{json.dumps(context_dict, ensure_ascii=False, indent=4 if len(context_dict) > 1 else None)}\n\n"
+    if context_dict:
+        s += f"CONTEXT:\n{json.dumps(context_dict, ensure_ascii=False, indent=4 if len(context_dict) > 1 else None)}\n\n"
+    else:
+        s += f"CONTEXT: See attached content.\n"
     if options is not None:
         s += f"OPTIONS:\n{options}\n\n"
     s += "ANSWER:\n"

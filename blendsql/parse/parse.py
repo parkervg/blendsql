@@ -399,14 +399,18 @@ class SubqueryContextManager:
         )
 
     def maybe_resolve_aliased_function(
-        self, function_node: exp.Expression
+        self,
+        function_node: exp.Expression,
+        valid_expression_types: tuple[exp.Expression] = None,
     ) -> exp.Expression:
         """More specifically, this function takes an exp.BlendSQLFunction, and returns an exp.BlendSQLFunction."""
         # is this function_node an alias in a `SELECT` statement?
+        if valid_expression_types is None:
+            valid_expression_types = (exp.Predicate,)
         if isinstance(function_node.parent, exp.Alias):
             for _node in self.function_references:
                 if (
-                    isinstance(_node.parent, exp.Binary)
+                    isinstance(_node.parent, valid_expression_types)
                     and _node.this == function_node.this
                 ):
                     return _node
@@ -452,9 +456,46 @@ class SubqueryContextManager:
         if where_clause and _has_unsafe_or(where_clause):
             return (None, None)
 
-        function_node = self.maybe_resolve_aliased_function(function_node)
+        EXPRESSION_TYPE_TO_LAMBDA_MAPPING = {
+            exp.EQ: lambda arg: (lambda v, _a=arg: v == _a),
+            exp.GT: lambda arg: (lambda v, _a=arg: v > _a),
+            exp.GTE: lambda arg: (lambda v, _a=arg: v >= _a),
+            exp.LT: lambda arg: (lambda v, _a=arg: v < _a),
+            exp.LTE: lambda arg: (lambda v, _a=arg: v <= _a),
+            exp.Is: lambda arg: (lambda v, _a=arg: v is _a),
+            exp.Not: lambda _: (lambda v: not v),
+            exp.Like: lambda arg: (
+                lambda v, _p=re.compile(re.escape(arg).replace(r"\%", ".*")): bool(
+                    _p.search(v)
+                )
+            ),
+        }
+        valid_expression_types = tuple(EXPRESSION_TYPE_TO_LAMBDA_MAPPING.keys())
 
-        if isinstance(function_node.parent, (exp.Binary, exp.In)):
+        function_node = self.maybe_resolve_aliased_function(
+            function_node, valid_expression_types
+        )
+
+        if not isinstance(function_node.parent, valid_expression_types):
+            return (None, None)
+
+        limit_arg: int = limit_node.expression.to_py()
+        offset_node = self.node.find(exp.Offset)
+        offset_arg = offset_node.expression.to_py() if offset_node else 0
+
+        parent_node = function_node.parent
+        arg = parent_node.expression.to_py()
+        num_required_values = limit_arg + offset_arg
+
+        if arg == function_node:
+            return (None, None)
+
+        factory = EXPRESSION_TYPE_TO_LAMBDA_MAPPING.get(type(parent_node), None)
+        if factory:
+            return (factory(arg), num_required_values)
+        return (None, None)
+
+        if isinstance(function_node.parent, exp.Predicate):
             # We can apply some exit_condition function
             limit_arg: int = limit_node.expression.to_py()
             offset_node = self.node.find(exp.Offset)
@@ -509,18 +550,27 @@ class SubqueryContextManager:
             n for n in where_node.walk() if isinstance(n, exp.BlendSQLFunction)
         ]
 
-        # Need at least 2 functions to cascade
-        if len(blendsql_functions_in_where) < 2:
-            return False
-
         select_node = self.node.find(exp.Select)
         if select_node is None:
             return False
 
         # Count BlendSQL functions in WHERE clause
         blendsql_functions_in_select = [
-            n for n in select_node.walk() if isinstance(n, exp.BlendSQLFunction)
+            n.find(exp.BlendSQLFunction)
+            for n in select_node.expressions
+            if n.find(exp.BlendSQLFunction)
         ]
+
+        # Need at least 2 functions to cascade
+        if (
+            len(
+                set(blendsql_functions_in_where).union(
+                    set(blendsql_functions_in_select)
+                )
+            )
+            < 2
+        ):
+            return False
 
         def has_or_with_blendsql(node):
             """Check if node is/contains OR with BlendSQL functions in different branches"""
