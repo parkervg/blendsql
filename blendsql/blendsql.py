@@ -1031,9 +1031,12 @@ def _blend(
     #   but, without it, test_cte_qa_multi_exec fails
     for table in query_context.node.find_all((exp.Table, exp.TableAlias)):
         if table.name in db.lazy_tables:
-            lazy_table = db.lazy_tables.pop(table.name)
+            lazy_table = db.lazy_tables[table.name]
             if lazy_table.has_blendsql_function:
                 materialized_smoothie = lazy_table.collect()
+                db.lazy_tables.pop(
+                    table.name
+                )  # Only remove if we end up materializing it
                 _prev_passed_values += materialized_smoothie.meta.num_values_passed
 
     query = query_context.to_string()
