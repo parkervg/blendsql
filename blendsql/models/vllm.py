@@ -19,11 +19,22 @@ class VLLM(ModelBase):
     """
 
     def __init__(
-        self, api_key: str | None = None, base_url: str | None = None, *args, **kwargs
+        self,
+        model_name_or_path: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        *args,
+        **kwargs,
     ) -> None:
         api_key = api_key or "N.A"
         base_url = base_url or "http://localhost:8000/v1/"
-        super().__init__(api_key=api_key, base_url=base_url, *args, **kwargs)
+        super().__init__(
+            model_name_or_path=model_name_or_path,
+            api_key=api_key,
+            base_url=base_url,
+            *args,
+            **kwargs,
+        )
 
     async def _format_inputs(
         self, extra_body: dict, item: GenerationItem

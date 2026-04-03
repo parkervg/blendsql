@@ -156,3 +156,22 @@ def test_complex_nested_cte(model):
         FROM pairings
         """
     )
+
+
+def test_map_with_unexpected_options(bsql, model):
+    """A test to see if our option constraints are being respected"""
+    smoothie = bsql.execute(
+        """
+         SELECT *, {{
+            LLMMap(
+                'How old is {}?',
+                Name,
+                Description,
+                options=("Do NOT say this!")
+            )
+        }} AS response FROM "names_and_ages"
+        """,
+        model=model,
+    )
+    df = smoothie.df()
+    assert all([x == "Do NOT say this!" for x in df["response"]])

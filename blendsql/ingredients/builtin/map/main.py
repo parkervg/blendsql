@@ -337,22 +337,26 @@ class LLMMap(MapIngredient):
                     "Not applying constraints, since `enable_constrained_decoding==False`"
                 )
             )
-        if grammar is None and resolved_return_type.name != "str":
-            # Create base grammar function
-            grammar = lambda _: (
-                guidance_json(
-                    schema=TypeAdapter(
-                        get_python_type(
-                            data_type=resolved_return_type,
-                            options=options,
-                        )
-                    ),
-                    max_tokens=kwargs.get(
-                        "max_tokens", int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
-                    ),
-                )
-                + grammar_suffix
-            ).ll_grammar()
+        if grammar is None:
+            if not (
+                resolved_return_type.name == "str" and options is None
+            ):  # If this is true, it's essentially unconstrained generation
+                # Create base grammar function
+                grammar = lambda _: (
+                    guidance_json(
+                        schema=TypeAdapter(
+                            get_python_type(
+                                data_type=resolved_return_type,
+                                options=options,
+                            )
+                        ),
+                        max_tokens=kwargs.get(
+                            "max_tokens",
+                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                        ),
+                    )
+                    + grammar_suffix
+                ).ll_grammar()
 
         # Precompute grammar strings for grammars that don't depend on the row value.
         # Only the `substring` return type actually uses the value; all other lambdas
