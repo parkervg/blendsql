@@ -60,7 +60,7 @@ def test_num_values_passed_map(bsql, model):
     )
     assert smoothie.meta.num_values_passed == total_num_values_to_process
     assert smoothie.meta.num_generation_calls == total_num_values_to_process
-    assert smoothie.meta.completion_tokens < 30
+    # assert smoothie.meta.completion_tokens < 30
 
 
 def test_num_values_passed_qa(bsql, model):

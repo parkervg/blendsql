@@ -108,11 +108,6 @@ def gen_list(
     else:
         if quantifier == "+":
             schema = TypeAdapter(Annotated[list[item_type], Field(min_length=1)])
-        elif quantifier_max_length == quantifier_min_length:
-            # Fixed-length tuple: tuple[item_type, item_type, ...] with `count` elements
-            schema = TypeAdapter(
-                tuple[tuple(item_type for _ in range(quantifier_max_length))]
-            )
         else:
             if quantifier_max_length is not None:
                 schema = TypeAdapter(

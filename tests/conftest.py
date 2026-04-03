@@ -21,12 +21,7 @@ def pytest_make_parametrize_id(config, val, argname):
 
 
 def get_available_models():
-    return [
-        VLLM(
-            model_name_or_path="RedHatAI/gemma-3-12b-it-quantized.w4a16",
-            base_url="http://localhost:8000/v1",
-        )
-    ]
+    return [VLLM()]
 
 
 @pytest.fixture(params=get_available_models(), scope="session")

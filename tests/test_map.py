@@ -167,7 +167,7 @@ def test_map_with_unexpected_options(bsql, model):
                 'How old is {}?',
                 Name,
                 Description,
-                options=("Do NOT say this!")
+                options=('Do NOT say this!')
             )
         }} AS response FROM "names_and_ages"
         """,

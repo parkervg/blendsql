@@ -320,7 +320,7 @@ class LLMQA(QAIngredient):
                 )
             )
 
-        if grammar:
+        if grammar is None:
             if not (
                 resolved_return_type.name == "str" and options is None
             ):  # If this is true, it's essentially unconstrained generation
