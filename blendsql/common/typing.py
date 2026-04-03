@@ -31,6 +31,8 @@ class DataType:
 
     @property
     def name(self) -> str:
+        if isinstance(self.atomic_type, dict):
+            return "json"
         if self.quantifier is not None and self.atomic_type.__name__ != "list":
             return f"List[{self.atomic_type.__name__}]"
         return self.atomic_type.__name__

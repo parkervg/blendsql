@@ -1,3 +1,4 @@
+import json
 from ast import literal_eval
 from dataclasses import dataclass
 from typing import NewType
@@ -53,6 +54,13 @@ def str_to_str(s: str | None, _: Database | None) -> str | None:
     return unquote(s)
 
 
+def str_to_json(s: str | None, _: Database | None) -> str | None:
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        return None
+
+
 @dataclass
 class DataTypes:
     STR = lambda quantifier=None: DataType(
@@ -94,6 +102,12 @@ class DataTypes:
         atomic_type=NewType("SubString", str),
         quantifier=quantifier,
         _coerce_fn=str_to_str,
+        requires_quotes=True,
+    )
+    JSON = lambda json_schema, quantifier=None: DataType(
+        atomic_type=json_schema,
+        quantifier=quantifier,
+        _coerce_fn=str_to_json,
         requires_quotes=True,
     )
 

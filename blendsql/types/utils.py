@@ -1,5 +1,6 @@
 import itertools
 from collections.abc import Collection
+import json
 
 from blendsql.common.exceptions import LMFunctionException, TypeResolutionException
 from blendsql.types.types import (
@@ -57,10 +58,15 @@ def _parse_return_type(
 
     return_type = return_type.lower()
     if return_type not in STR_TO_DATATYPE:
-        raise LMFunctionException(
-            f"{return_type} is not a recognized datatype!\n"
-            f"Valid options are {list(STR_TO_DATATYPE.keys())}"
-        )
+        # See if it's a valid JSON schema
+        try:
+            json_schema = json.loads(return_type)
+            return DataTypes.JSON(json_schema)
+        except json.JSONDecodeError:
+            raise LMFunctionException(
+                f"{return_type} is not a recognized datatype!\n"
+                f"Valid options are {list(STR_TO_DATATYPE.keys())}, or a valid JSON schema."
+            ) from None
 
     data_type = STR_TO_DATATYPE[return_type]
     if quantifier:

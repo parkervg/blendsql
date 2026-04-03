@@ -297,7 +297,18 @@ class LLMQA(QAIngredient):
         grammar = None
         grammar_suffix = "\n"
         if enable_constrained_decoding:
-            if is_list_output:
+            if resolved_return_type.name == "json":
+                grammar = lambda _: (
+                    guidance_json(
+                        schema=resolved_return_type.atomic_type,
+                        max_tokens=kwargs.get(
+                            "max_tokens",
+                            int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+                        ),
+                    )
+                    + grammar_suffix
+                ).ll_grammar()
+            elif is_list_output:
                 grammar = lambda _: (
                     gen_list(
                         data_type=resolved_return_type,
