@@ -2,6 +2,7 @@ import copy
 import logging
 import time
 import uuid
+import json
 import pandas as pd
 import re
 from typing import Callable, Type, Generator
@@ -431,6 +432,8 @@ def bind_params(sql: str, params: list) -> str:
         elif isinstance(val, (list, tuple)):
             formatted = ", ".join(_format_value(v) for v in val)
             return f"({formatted})"
+        elif isinstance(val, dict):
+            return f"'{json.dumps(val)}'"
         else:
             raise TypeError(f"Unsupported parameter type: {type(val)}")
 

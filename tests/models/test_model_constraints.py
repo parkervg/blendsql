@@ -179,3 +179,29 @@ def test_unnest(bsql, model):
             """,
         model=model,
     )
+
+
+def test_json_type(bsql, model):
+    from pydantic import BaseModel, Field
+
+    class Prediction(BaseModel):
+        age: int = Field(gt=0, le=100)
+        interests: list[str] = Field()
+        location: str = Field(max_length=50)
+        model_config = dict(extra="forbid")
+
+    smoothie = bsql.execute(
+        """
+        SELECT {{
+            LLMMap(
+                'Please give their age and interests as a JSON object',
+                Name,
+                return_type=?
+            )
+        }} AS response FROM People
+        """,
+        [Prediction.model_json_schema()],
+        model=model,
+    )
+    for _, row in smoothie.df().iterrows():
+        assert all(x in row["response"] for x in ["age", "interests", "location"])
