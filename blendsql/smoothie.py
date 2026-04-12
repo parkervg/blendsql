@@ -46,17 +46,11 @@ class Smoothie:
         from rich.table import Table
         from rich.columns import Columns
         from rich.box import ROUNDED
-        from blendsql.parse.dialect import get_dialect
-        import sqlglot
 
         console = Console(force_terminal=True)
 
-        # Create SQL syntax highlighted query
-        formatted_query = sqlglot.transpile(
-            self.meta.query, read=get_dialect(self.meta.db_type), pretty=True
-        )[0]
         query_syntax = Syntax(
-            formatted_query, "sql", theme="default", dedent=True, word_wrap=True
+            self.meta.query, "sql", theme="default", dedent=True, word_wrap=True
         )
 
         # Create summary table

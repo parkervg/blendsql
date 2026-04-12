@@ -185,17 +185,17 @@ class BlendSQLDialect(sqlglot.Dialect):
         return _postprocess_blendsql_sql(sql)
 
 
-class BlendSQLDuckDB(BlendSQLDialect, DuckDB):
+class BlendSQLDuckDB(DuckDB, BlendSQLDialect):
     class Tokenizer(BlendSQLDialect.Tokenizer, DuckDB.Tokenizer):
         pass
 
 
-class BlendSQLPostgres(BlendSQLDialect, Postgres):
+class BlendSQLPostgres(Postgres, BlendSQLDialect):
     class Tokenizer(BlendSQLDialect.Tokenizer, Postgres.Tokenizer):
         pass
 
 
-class BlendSQLSQLite(BlendSQLDialect, SQLite):
+class BlendSQLSQLite(SQLite, BlendSQLDialect):
     class Tokenizer(BlendSQLDialect.Tokenizer, SQLite.Tokenizer):
         KEYWORDS = {
             **SQLite.Tokenizer.KEYWORDS,
