@@ -512,7 +512,7 @@ class MapIngredient(Ingredient):
             # Remove columns, if they were only needed for the cascade_filter
             distinct_values = distinct_values.select(
                 set([colname]) | set([i.columnname for i in resolved_additional_args])
-            ).unique()
+            ).unique(maintain_order=True)
 
         if additional_args_passed or cascade_filter is not None:
             # We have a dataframe object we need to disentangle

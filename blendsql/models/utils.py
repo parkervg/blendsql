@@ -30,5 +30,7 @@ async def openai_compatible_image_url(
     if image_url.startswith("data:image"):
         return image_url
     filetype = image_url.split(".")[-1].lower()
+    if filetype == "jpg":
+        filetype = "jpeg"
     base64_image = await get_base64_string(image_url, session)
     return f"data:image/{filetype};base64,{base64_image}"

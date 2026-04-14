@@ -2,7 +2,7 @@ import os
 
 from blendsql.models.model_base import ModelBase
 from blendsql.common.typing import GenerationItem
-from .utils import get_base64_string
+from .utils import openai_compatible_image_url
 
 
 class Anthropic(ModelBase):
@@ -39,18 +39,8 @@ class Anthropic(ModelBase):
             content = [{"type": "text", "text": item.prompt}]
             for image_url in item.image_urls:
                 session = await self._get_session()
-                base64_image = await get_base64_string(image_url, session)
-                filetype = image_url.split(".")[-1].lower()
-                content.append(
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": f"image/{filetype}",
-                            "data": base64_image,
-                        },
-                    }
-                )
+                encoded = await openai_compatible_image_url(image_url, session)
+                content.append({"type": "image_url", "image_url": {"url": encoded}})
             messages = [{"role": "user", "content": content}]
         else:
             messages = [{"role": "user", "content": item.prompt}]
