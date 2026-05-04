@@ -71,9 +71,7 @@ class ModelBase:
         self, item: GenerationItem, cancel_event: asyncio.Event | None = None
     ):
         buffer = ""
-        extra_body = {
-            "max_tokens": int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS))
-        } | self.extra_body
+        extra_body = self.extra_body
 
         messages, extra_body = await self._format_inputs(extra_body, item)
 
@@ -83,6 +81,7 @@ class ModelBase:
             stream=True,
             stream_options={"include_usage": True},
             extra_body=extra_body,
+            max_tokens=int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
         )
         self.num_generation_calls += 1
 

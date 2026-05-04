@@ -34,3 +34,11 @@ async def openai_compatible_image_url(
         filetype = "jpeg"
     base64_image = await get_base64_string(image_url, session)
     return f"data:image/{filetype};base64,{base64_image}"
+
+
+async def openai_compatible_audio_url(
+    audio_url: str, session: aiohttp.ClientSession
+) -> dict:
+    filetype = audio_url.split(".")[-1].lower()
+    base64_audio = await get_base64_string(audio_url, session)
+    return {"data": base64_audio, "format": filetype}

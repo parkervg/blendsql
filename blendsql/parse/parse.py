@@ -102,8 +102,16 @@ class SubqueryContextManager:
         self.root = build_scope(self.node)
 
     def set_node(self, node):
-        self.node = node
-        self._reset_root()
+        if node == exp.Union(
+            this=exp.Boolean(this=True),
+            distinct=True,
+            expression=exp.Boolean(this=True),
+        ):
+            # This happens when we have a `SELECT ... UNION SELECT ...` situation
+            pass
+        else:
+            self.node = node
+            self._reset_root()
 
     def get_stateful_columns_referenced_by_lm_functions(
         self, ingredient_alias_to_parsed_dict: dict
@@ -256,7 +264,12 @@ class SubqueryContextManager:
                     [tablename_or_aliasname] * len(columnnames),
                     list(columnnames),
                 )
-            return (resolved_tablename, has_join, query.sql(dialect=self.dialect))
+            return (
+                resolved_tablename,
+                has_join,
+                query.sql(dialect=self.dialect),
+                set([i.table for i in query.find_all(exp.Column)]),
+            )
 
         has_join = self.node.find(exp.Join) is not None
 

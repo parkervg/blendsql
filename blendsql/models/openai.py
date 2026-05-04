@@ -2,7 +2,7 @@ import os
 
 from blendsql.models.model_base import ModelBase
 from blendsql.common.typing import GenerationItem
-from .utils import openai_compatible_image_url
+from .utils import openai_compatible_image_url, openai_compatible_audio_url
 
 
 class OpenAI(ModelBase):
@@ -31,12 +31,15 @@ class OpenAI(ModelBase):
     async def _format_inputs(
         self, extra_body: dict, item: GenerationItem
     ) -> tuple[list[dict], dict]:
-        if len(item.image_urls) > 0:
+        if item.image_urls or item.audio_urls:
+            session = await self._get_session()
             content = [{"type": "text", "text": item.prompt}]
             for image_url in item.image_urls:
-                session = await self._get_session()
                 encoded = await openai_compatible_image_url(image_url, session)
-                content.append({"type": "image_url", "image_url": encoded})
+                content.append({"type": "image_url", "image_url": {"url": encoded}})
+            for audio_url in item.audio_urls:
+                audio_data = await openai_compatible_audio_url(audio_url, session)
+                content.append({"type": "input_audio", "input_audio": audio_data})
             messages = [{"role": "user", "content": content}]
         else:
             messages = [{"role": "user", "content": item.prompt}]

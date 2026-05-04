@@ -187,14 +187,14 @@ def test_json_type(bsql, model):
     class Prediction(BaseModel):
         age: int = Field(gt=0, le=100)
         interests: list[str] = Field()
-        location: str = Field(max_length=50)
+        lction: str = Field(max_length=50)  # typo is on purpose
         model_config = dict(extra="forbid")
 
     smoothie = bsql.execute(
         """
         SELECT {{
             LLMMap(
-                'Please give their age and interests as a JSON object',
+                'Please give their age and interests as a JSON object ({"age": int, "interests": list[str}, "location": str})',
                 Name,
                 return_type=?
             )
@@ -204,4 +204,4 @@ def test_json_type(bsql, model):
         model=model,
     )
     for _, row in smoothie.df().iterrows():
-        assert all(x in row["response"] for x in ["age", "interests", "location"])
+        assert all(x in row["response"] for x in ["age", "interests", "lction"])

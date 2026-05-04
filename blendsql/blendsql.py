@@ -510,7 +510,6 @@ def _blend(
     kitchen = Kitchen(db=db, session_uuid=session_uuid)
     kitchen.extend(ingredients)
     # Replace ingredient calls with short aliases (e.g. '{{A()}}'),
-    # and use _peg_grammar to extract ingredient types
     (
         query,
         ingredient_alias_to_parsed_dict,
@@ -644,6 +643,7 @@ def _blend(
             tablename,
             _postprocess_columns,
             abstracted_query_str,
+            all_tables_in_subquery,
         ) in scm.abstracted_table_selects(db):
             if in_cte:  # Don't execute CTEs until we need them
                 continue
@@ -653,30 +653,40 @@ def _blend(
                 # For example, `SELECT Symbol FROM (SELECT DISTINCT Symbol FROM portfolio) AS w WHERE w...`
                 # We can't assign `abstracted_query` for non-existent `w`
                 #   until we set `w` to `SELECT DISTINCT Symbol FROM portfolio`
-                db.lazy_tables.add(
-                    LazyTable(
-                        tablename=tablename,
-                        collect_fn=partial(
-                            materialize_cte,
-                            query_context=query_context,
-                            subquery=aliased_subquery,
-                            aliasname=tablename,
-                            default_model=default_model,
-                            db=db,
-                            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-                            # Below are in case we need to call blend() again
-                            ingredients=ingredients,
-                            infer_gen_constraints=infer_gen_constraints,
-                            table_to_title=table_to_title,
-                            verbose=verbose,
-                            _prev_passed_values=_prev_passed_values,
-                        ),
-                        has_blendsql_function=aliased_subquery.find(
-                            exp.BlendSQLFunction
+                if (
+                    tablename in db.lazy_tables
+                    and db.lazy_tables[tablename].has_blendsql_function
+                ):
+                    logger.debug(
+                        Color.warning(
+                            f"Lazy table {lazy_table} already exists. Ignoring new one with SQL `{aliased_subquery.sql()}`\nThis could be due to the usage of CTEs + Union expressions."
                         )
-                        is not None,
                     )
-                )
+                else:
+                    db.lazy_tables.add(
+                        LazyTable(
+                            tablename=tablename,
+                            collect_fn=partial(
+                                materialize_cte,
+                                query_context=query_context,
+                                subquery=aliased_subquery,
+                                aliasname=tablename,
+                                default_model=default_model,
+                                db=db,
+                                ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                                # Below are in case we need to call blend() again
+                                ingredients=ingredients,
+                                infer_gen_constraints=infer_gen_constraints,
+                                table_to_title=table_to_title,
+                                verbose=verbose,
+                                _prev_passed_values=_prev_passed_values,
+                            ),
+                            has_blendsql_function=aliased_subquery.find(
+                                exp.BlendSQLFunction
+                            )
+                            is not None,
+                        )
+                    )
             if abstracted_query_str is not None:
                 if tablename in db.lazy_tables:
                     # We need to materialize here, in the case of something like:
@@ -684,6 +694,15 @@ def _blend(
                     # We want the LM function to only get the output from the restrictive condition.
                     materialized_smoothie = db.lazy_tables.pop(tablename).collect()
                     _prev_passed_values += materialized_smoothie.meta.num_values_passed
+
+                for other_tablename in all_tables_in_subquery:
+                    if other_tablename in db.lazy_tables:
+                        materialized_smoothie = db.lazy_tables.pop(
+                            other_tablename
+                        ).collect()
+                        _prev_passed_values += (
+                            materialized_smoothie.meta.num_values_passed
+                        )
 
                 tablename_to_write = _get_temp_subquery_table(tablename)
                 logger.debug(
@@ -712,31 +731,43 @@ def _blend(
 
         # Be sure to handle those remaining aliases, which didn't have abstracted queries
         for aliasname, aliased_subquery in scm.alias_to_subquery.items():
-            db.lazy_tables.add(
-                LazyTable(
-                    tablename=aliasname,
-                    collect_fn=partial(
-                        materialize_cte,
-                        query_context=query_context,
-                        subquery=aliased_subquery,
-                        aliasname=aliasname,
-                        default_model=default_model,
-                        db=db,
-                        ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
-                        # Below are in case we need to call blend() again
-                        ingredients=ingredients,
-                        infer_gen_constraints=infer_gen_constraints,
-                        enable_cascade_filter=enable_cascade_filter,
-                        enable_early_exit=enable_early_exit,
-                        enable_constrained_decoding=enable_constrained_decoding,
-                        table_to_title=table_to_title,
-                        verbose=verbose,
-                        _prev_passed_values=_prev_passed_values,
-                    ),
-                    has_blendsql_function=aliased_subquery.find(exp.BlendSQLFunction)
-                    is not None,
+            if (
+                aliasname in db.lazy_tables
+                and db.lazy_tables[aliasname].has_blendsql_function
+            ):
+                logger.debug(
+                    lambda: Color.warning(
+                        f"Lazy table {aliasname} already exists. Ignoring new one with SQL `{aliased_subquery.sql()}`\nThis could be due to the usage of CTEs + Union expressions."  # noqa: B023
+                    )
                 )
-            )
+            else:
+                db.lazy_tables.add(
+                    LazyTable(
+                        tablename=aliasname,
+                        collect_fn=partial(
+                            materialize_cte,
+                            query_context=query_context,
+                            subquery=aliased_subquery,
+                            aliasname=aliasname,
+                            default_model=default_model,
+                            db=db,
+                            ingredient_alias_to_parsed_dict=ingredient_alias_to_parsed_dict,
+                            # Below are in case we need to call blend() again
+                            ingredients=ingredients,
+                            infer_gen_constraints=infer_gen_constraints,
+                            enable_cascade_filter=enable_cascade_filter,
+                            enable_early_exit=enable_early_exit,
+                            enable_constrained_decoding=enable_constrained_decoding,
+                            table_to_title=table_to_title,
+                            verbose=verbose,
+                            _prev_passed_values=_prev_passed_values,
+                        ),
+                        has_blendsql_function=aliased_subquery.find(
+                            exp.BlendSQLFunction
+                        )
+                        is not None,
+                    )
+                )
         if prev_subquery_has_ingredient:
             scm.set_node(scm.node.transform(transform.maybe_set_subqueries_to_true))
 

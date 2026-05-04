@@ -1,12 +1,12 @@
 import logging
 import os
 import asyncio
-from typing import Callable, Generator, Literal, Any
+from typing import Callable, Generator, Literal
 import json
 import polars as pl
 import pandas as pd
 from dataclasses import dataclass, field
-from itertools import islice, repeat
+from itertools import islice, repeat, chain
 from tqdm.auto import tqdm
 from textwrap import indent, dedent
 from guidance import json as guidance_json
@@ -33,6 +33,8 @@ from blendsql.ingredients.utils import (
     _wrap_with_quotes,
     get_python_type,
     parse_quantifier,
+    is_audio_url,
+    is_image_url,
 )
 from blendsql.configure import (
     MAX_OPTIONS_IN_PROMPT_KEY,
@@ -552,32 +554,34 @@ class LLMMap(MapIngredient):
                         continue  # Skip - already cached
 
                 image_urls = []
+                audio_urls = []
 
-                def is_image_url(s: Any) -> bool:
-                    if not isinstance(s, str):
-                        return False
-                    if s.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
-                        return True
-                    elif s.startswith("data:image") and "base64" in s:
-                        return True
-                    return False
-
-                # Check if value is an image URL
+                # Check if value is an image or audio URL
                 if is_image_url(v):
                     image_urls.append(v)
                     v = None
+                elif is_audio_url(v):
+                    audio_urls.append(v)
+                    v = None
                 if a is not None:
-                    img_idx = set()
+                    media_idx = set()
                     for idx, _a in enumerate(a):
                         if is_image_url(_a):
                             image_urls.append(_a)
-                            img_idx.add(idx)
-                    a = tuple(_a for idx, _a in enumerate(a) if idx not in img_idx)
+                            media_idx.add(idx)
+                        elif is_audio_url(_a):
+                            audio_urls.append(_a)
+                            media_idx.add(idx)
+                    a = tuple(_a for idx, _a in enumerate(a) if idx not in media_idx)
                     a_columnnames = tuple(
-                        _a for idx, _a in enumerate(a_columnnames) if idx not in img_idx
+                        _a
+                        for idx, _a in enumerate(a_columnnames)
+                        if idx not in media_idx
                     )
                     a_tablenames = tuple(
-                        _a for idx, _a in enumerate(a_tablenames) if idx not in img_idx
+                        _a
+                        for idx, _a in enumerate(a_tablenames)
+                        if idx not in media_idx
                     )
 
                 # Build per-item prompt/continuation.
@@ -625,21 +629,39 @@ class LLMMap(MapIngredient):
                     identifier=curr_identifier,
                     prompt=item_prompt,
                     image_urls=image_urls,
+                    audio_urls=audio_urls,
                     assistant_continuation=assistant_continuation,
                     grammar=grammar_str,
                     cache_key=cache_key,
                 )
+
+        # Track active tasks and their items
+        active_tasks: dict[asyncio.Task, GenerationItem] = {}
+        item_generator = generate_items()
+        generator_exhausted = False
+
+        _sentinel = object()
+        _first_item = next(item_generator, _sentinel)
+        if not (_first_item is _sentinel):
+            item_generator = chain([_first_item], item_generator)
+            if _first_item.audio_urls:
+                if type(model).__name__ == "VLLM":
+                    if (
+                        model.model_name_or_path is not None
+                        and "gemma-4" in model.model_name_or_path
+                    ):
+                        logger.debug(
+                            Color.warning(
+                                "vLLM currently doesn't support batching for audio data with gemma-4, temporarily overriding `n_parallel=1`"
+                            )
+                        )
+                        n_parallel = 1
 
         cancel_event = asyncio.Event()
         semaphore = asyncio.Semaphore(n_parallel)
         n_satisfied = 0
         items_submitted = 0
         items_completed = 0
-
-        # Track active tasks and their items
-        active_tasks: dict[asyncio.Task, GenerationItem] = {}
-        item_generator = generate_items()
-        generator_exhausted = False
 
         async def process_item(item: GenerationItem) -> GenerationResult | None:
             async with semaphore:

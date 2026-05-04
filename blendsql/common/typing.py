@@ -85,6 +85,7 @@ class GenerationItem:
     prompt: str
     grammar: str
     image_urls: list[str] = field(default_factory=list)
+    audio_urls: list[str] = field(default_factory=list)
     identifier: str | None = None
     cache_key: str | None = None
     assistant_continuation: str | None = None

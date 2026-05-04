@@ -22,7 +22,9 @@ class LazyTable:
 
     def collect(self):
         if self.tablename is not None:
-            logger.debug(Color.update(f"Materializing CTE `{self.tablename}`..."))
+            logger.debug(
+                Color.optimization(f"[✨] Materializing CTE `{self.tablename}`...")
+            )
         return self.collect_fn()
 
 

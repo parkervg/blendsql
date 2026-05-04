@@ -242,23 +242,23 @@ def _parse_one(
             dialect=dialect,
         )
 
-        if isinstance(sql, str) and dialect.__name__ == "BlendSQLDuckDB":
-            # Otherwise,
-            #  ```
-            #  SELECT content[0:5000] AS "README"
-            #  FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
-            #  ``` becomes `"".content[0:5000]`
-            if " read_" in sql.lower():
+        # if isinstance(sql, str) and dialect.__name__ == "BlendSQLDuckDB":
+        #     # Otherwise,
+        #     #  ```
+        #     #  SELECT content[0:5000] AS "README"
+        #     #  FROM read_text('https://raw.githubusercontent.com/parkervg/blendsql/main/README.md')
+        #     #  ``` becomes `"".content[0:5000]`
+        #     if " read_" in sql.lower():
 
-                def remove_empty_quoted_identifiers(node):
-                    if (
-                        isinstance(node, exp.Identifier)
-                        and node.this == ""
-                        and node.args.get("quoted") == True
-                    ):
-                        return None  # Remove this node
-                    return node
+        def remove_empty_quoted_identifiers(node):
+            if (
+                isinstance(node, exp.Identifier)
+                and node.this == ""
+                and node.args.get("quoted") == True
+            ):
+                return None  # Remove this node
+            return node
 
-                node = node.transform(remove_empty_quoted_identifiers)
+        node = node.transform(remove_empty_quoted_identifiers)
 
     return node

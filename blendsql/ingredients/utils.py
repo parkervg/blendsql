@@ -3,7 +3,7 @@ from functools import partialmethod
 from guidance._grammar import select
 from guidance.library._sequences import one_or_more, zero_or_more, sequence
 from guidance import json as guidance_json
-from typing import Literal
+from typing import Literal, Any
 
 import re
 
@@ -14,6 +14,26 @@ from .few_shot import Example
 from ..common.typing import DataType
 
 LIST_ITEM_STOP_REGEX = r"(\n|',|\",|'\]|\"\])"
+
+
+def is_image_url(s: Any) -> bool:
+    if not isinstance(s, str):
+        return False
+    if s.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
+        return True
+    elif s.startswith("data:image") and "base64" in s:
+        return True
+    return False
+
+
+def is_audio_url(s: Any) -> bool:
+    if not isinstance(s, str):
+        return False
+    if s.endswith((".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a", ".webm")):
+        return True
+    elif s.startswith("data:audio") and "base64" in s:
+        return True
+    return False
 
 
 def initialize_retriever(
