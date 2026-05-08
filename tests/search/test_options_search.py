@@ -42,7 +42,7 @@ def biodex_data():
 def bsql(request, biodex_data):
     df, unique_reactions = biodex_data
     searcher_type = request.param
-    embedding_model_path = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model_path = "sentence-transformers/paraphrase-MiniLM-L3-v2"
     if searcher_type == "faiss":
         searcher = FaissVectorStore(
             documents=unique_reactions,
