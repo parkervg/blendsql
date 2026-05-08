@@ -4,7 +4,7 @@ Model generations based on the syntax of BlendSQL queries.
 """
 from abc import ABC, abstractmethod
 from ast import literal_eval
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Optional
 import sqlglot.expressions as exp
 
@@ -132,7 +132,7 @@ class ColumnTypeStrategy(TypeInferenceStrategy):
                 )
             )
 
-        return STR_TO_DATATYPE[resolved]
+        return replace(STR_TO_DATATYPE[resolved])
 
 
 class LiteralTypeStrategy(TypeInferenceStrategy):
