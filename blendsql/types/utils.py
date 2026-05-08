@@ -1,5 +1,6 @@
 import itertools
 from collections.abc import Collection
+from dataclasses import replace
 import json
 
 from blendsql.common.exceptions import LMFunctionException, TypeResolutionException
@@ -68,11 +69,7 @@ def _parse_return_type(
                 f"Valid options are {list(STR_TO_DATATYPE.keys())}, or a valid JSON schema."
             ) from None
 
-    data_type = STR_TO_DATATYPE[return_type]
-    if quantifier:
-        data_type.quantifier = quantifier
-
-    return data_type
+    return replace(STR_TO_DATATYPE[return_type])
 
 
 def _infer_type_from_options(

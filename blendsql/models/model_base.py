@@ -71,7 +71,7 @@ class ModelBase:
         self, item: GenerationItem, cancel_event: asyncio.Event | None = None
     ):
         buffer = ""
-        extra_body = self.extra_body
+        extra_body = dict(self.extra_body)
 
         messages, extra_body = await self._format_inputs(extra_body, item)
 
