@@ -41,13 +41,14 @@ class VLLM(ModelBase):
     ) -> tuple[list[dict], dict]:
         if item.image_urls or item.audio_urls:
             session = await self._get_session()
-            content = [{"type": "text", "text": item.prompt}]
+            content = []
             for image_url in item.image_urls:
                 encoded = await openai_compatible_image_url(image_url, session)
                 content.append({"type": "image_url", "image_url": {"url": encoded}})
             for audio_url in item.audio_urls:
                 audio_data = await openai_compatible_audio_url(audio_url, session)
                 content.append({"type": "input_audio", "input_audio": audio_data})
+            content.append({"type": "text", "text": item.prompt})
             messages = [{"role": "user", "content": content}]
         else:
             messages = [{"role": "user", "content": item.prompt}]
