@@ -68,46 +68,76 @@ class ModelBase:
         await self.close()
 
     async def generate(
-        self, item: GenerationItem, cancel_event: asyncio.Event | None = None
+        self,
+        item: GenerationItem,
+        cancel_event: asyncio.Event | None = None,
+        max_retries: int = 3,
     ):
-        buffer = ""
         extra_body = dict(self.extra_body)
-
         messages, extra_body = await self._format_inputs(extra_body, item)
 
-        stream = await self.client.chat.completions.create(
-            model=self.model_name_or_path,
-            messages=messages,
-            stream=True,
-            stream_options={"include_usage": True},
-            extra_body=extra_body,
-            max_tokens=int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
-        )
-        self.num_generation_calls += 1
+        last_exc: Exception | None = None
+        for attempt in range(max_retries):
+            buffer = ""
+            # Snapshot stats so we can roll back on failure
+            prompt_tokens_before = self.prompt_tokens
+            completion_tokens_before = self.completion_tokens
+            cached_tokens_before = self.cached_tokens
+            num_generation_calls_before = self.num_generation_calls
 
-        try:
-            async for chunk in stream:
-                if cancel_event and cancel_event.is_set():
-                    return GenerationResult(item.identifier, buffer, completed=False)
+            stream = await self.client.chat.completions.create(
+                model=self.model_name_or_path,
+                messages=messages,
+                stream=True,
+                stream_options={"include_usage": True},
+                extra_body=extra_body,
+                max_tokens=int(os.getenv(MAX_TOKENS_KEY, DEFAULT_MAX_TOKENS)),
+            )
+            self.num_generation_calls += 1
 
-                if chunk.choices and chunk.choices[0].delta.content:
-                    buffer += chunk.choices[0].delta.content
-
-                if hasattr(chunk, "usage") and chunk.usage is not None:
-                    self.prompt_tokens += chunk.usage.prompt_tokens
-                    self.completion_tokens += chunk.usage.completion_tokens
-                    if chunk.usage.prompt_tokens_details is not None:
-                        self.cached_tokens += (
-                            chunk.usage.prompt_tokens_details.cached_tokens
+            try:
+                async for chunk in stream:
+                    if cancel_event and cancel_event.is_set():
+                        return GenerationResult(
+                            item.identifier, buffer, completed=False
                         )
 
-        finally:
-            await stream.close()
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        buffer += chunk.choices[0].delta.content
 
-        add_to_global_history(
-            f"[USER]{item.prompt}[/USER]\n\n[ASSISTANT]{buffer}[/ASSISTANT]"
-        )
-        return GenerationResult(item.identifier, buffer, completed=True)
+                    if hasattr(chunk, "usage") and chunk.usage is not None:
+                        self.prompt_tokens += chunk.usage.prompt_tokens
+                        self.completion_tokens += chunk.usage.completion_tokens
+                        if chunk.usage.prompt_tokens_details is not None:
+                            self.cached_tokens += (
+                                chunk.usage.prompt_tokens_details.cached_tokens
+                            )
+
+            except Exception as exc:
+                # Roll back counters so a failed attempt isn't counted
+                self.prompt_tokens = prompt_tokens_before
+                self.completion_tokens = completion_tokens_before
+                self.cached_tokens = cached_tokens_before
+                self.num_generation_calls = num_generation_calls_before
+                last_exc = exc
+                if attempt < max_retries - 1:
+                    wait = 2**attempt
+                    logger.warning(
+                        Color.warning(
+                            f"Generation failed (attempt {attempt + 1}/{max_retries}), retrying in {wait}s: {exc}"
+                        )
+                    )
+                    await asyncio.sleep(wait)
+                continue
+            finally:
+                await stream.close()
+
+            add_to_global_history(
+                f"[USER]{item.prompt}[/USER]\n\n[ASSISTANT]{buffer}[/ASSISTANT]"
+            )
+            return GenerationResult(item.identifier, buffer, completed=True)
+
+        raise last_exc
 
     def _create_key(
         self, *args, funcs: Sequence[Callable] | None = None, **kwargs
