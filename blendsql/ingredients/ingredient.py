@@ -507,7 +507,10 @@ class MapIngredient(Ingredient):
                 )
             )
             distinct_values = distinct_values.join(
-                cascade_filter, on=cascade_filter_colnames, how="semi"
+                cascade_filter,
+                on=cascade_filter_colnames,
+                how="semi",
+                maintain_order="left" if in_deterministic_mode else "none",
             )
             # Remove columns, if they were only needed for the cascade_filter
             distinct_values = distinct_values.select(
