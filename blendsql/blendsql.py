@@ -484,6 +484,7 @@ def _blend(
     enable_cascade_filter: bool = True,
     enable_early_exit: bool = True,
     enable_constrained_decoding: bool = True,
+    enable_early_deduplication: bool = True,
     table_to_title: dict[str, str] | None = None,
     _prev_passed_values: int = 0,
 ) -> Smoothie:
@@ -758,6 +759,7 @@ def _blend(
                             enable_cascade_filter=enable_cascade_filter,
                             enable_early_exit=enable_early_exit,
                             enable_constrained_decoding=enable_constrained_decoding,
+                            enable_early_deduplication=enable_early_deduplication,
                             table_to_title=table_to_title,
                             verbose=verbose,
                             _prev_passed_values=_prev_passed_values,
@@ -861,6 +863,7 @@ def _blend(
                             enable_cascade_filter=enable_cascade_filter,
                             enable_early_exit=enable_early_exit,
                             enable_constrained_decoding=enable_constrained_decoding,
+                            enable_early_deduplication=enable_early_deduplication,
                             table_to_title=table_to_title,
                             verbose=verbose,
                             _prev_passed_values=_prev_passed_values,
@@ -905,6 +908,7 @@ def _blend(
                     "prev_subquery_map_columns": prev_subquery_map_columns,
                     "cascade_filter": cascade_filter,
                     "enable_constrained_decoding": enable_constrained_decoding,
+                    "enable_early_deduplication": enable_early_deduplication,
                 },
             )
             # Check how to handle output, depending on ingredient type
@@ -1148,6 +1152,7 @@ class BlendSQL:
     enable_constrained_decoding: bool = field(default=True)
     enable_cascade_filter: bool = field(default=True)
     enable_early_exit: bool = field(default=True)
+    enable_early_deduplication: bool = field(default=True)
 
     table_to_title: dict[str, str] | None = field(default=None)
 
@@ -1277,6 +1282,7 @@ class BlendSQL:
         enable_cascade_filter: bool | None = None,
         enable_early_exit: bool | None = None,
         enable_constrained_decoding: bool | None = None,
+        enable_early_deduplication: bool | None = None,
         verbose: bool | None = None,
     ) -> Smoothie:
         '''The `execute()` function is used to execute a BlendSQL query against a database and
@@ -1298,7 +1304,9 @@ class BlendSQL:
                     2) If we have a LocalModel, pass the date regex pattern to guidance
             enable_cascade_filter: Enable cascade filtering optimization.
             enable_early_exit: Enable early exit optimization.
-            enable_constrained_decoding: Enable constrained decoding for local models.
+            enable_constrained_decoding: Enable constrained decoding for supported models.
+            enable_early_deduplication: Apply a `SELECT DISTINCT` to aggregate the inputs to a LM function, and then do
+                a `LEFT JOIN` to align back to the base table.
 
         Returns:
             smoothie: `Smoothie` dataclass containing pd.DataFrame output and execution metadata
@@ -1408,6 +1416,9 @@ class BlendSQL:
                 enable_early_exit=enable_early_exit
                 if enable_early_exit is not None
                 else self.enable_early_exit,
+                enable_early_deduplication=enable_early_deduplication
+                if enable_early_deduplication is not None
+                else self.enable_early_deduplication,
                 table_to_title=self.table_to_title,
             )
         except Exception as error:

@@ -303,6 +303,7 @@ class MapIngredient(Ingredient):
         get_temp_session_table: Callable = kwargs["get_temp_session_table"]
         prev_subquery_map_columns: set[str] = kwargs["prev_subquery_map_columns"]
         cascade_filter: LazyTable | None = kwargs["cascade_filter"]
+        enable_early_deduplication: bool = kwargs["enable_early_deduplication"]
 
         if isinstance(values, StringConcatenation):
             # original_tablenames could be aliases
@@ -461,6 +462,9 @@ class MapIngredient(Ingredient):
         suffix = ""
         if in_deterministic_mode:
             suffix = " ORDER BY rowid"
+
+        distinct_modifier = "DISTINCT" if enable_early_deduplication else ""
+
         # Get a list of values to map
         # First, check if we've already dumped some `MapIngredient` output to the main session table
         if temp_session_table_exists:
@@ -471,19 +475,19 @@ class MapIngredient(Ingredient):
             #   if a previous subquery already got to certain values
             if new_arg_column in temp_session_table.collect_schema().names():
                 distinct_values = select_distinct_fn(
-                    f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL'
+                    f'SELECT {distinct_modifier} {select_distinct_arg} FROM "{temp_session_tablename}" WHERE "{new_arg_column}" IS NULL'
                     + suffix
                 )
             # Base case: this is the first time we've used this particular ingredient
             # BUT, temp_session_tablename still exists
             else:
                 distinct_values = select_distinct_fn(
-                    f'SELECT DISTINCT {select_distinct_arg} FROM "{temp_session_tablename}"'
+                    f'SELECT {distinct_modifier} {select_distinct_arg} FROM "{temp_session_tablename}"'
                     + suffix
                 )
         else:
             distinct_values = select_distinct_fn(
-                f'SELECT DISTINCT {select_distinct_arg} FROM "{value_source_tablename}"'
+                f'SELECT {distinct_modifier} {select_distinct_arg} FROM "{value_source_tablename}"'
                 + suffix
             )
 
@@ -625,6 +629,12 @@ class MapIngredient(Ingredient):
                 [distinct_values, mapped_subtable.select(new_arg_column)],
                 how="horizontal",
             )
+            if not enable_early_deduplication:
+                _mapped_subtable = _mapped_subtable.unique(
+                    subset=set([colname])
+                    | set([i.columnname for i in resolved_additional_args]),
+                    keep="first",
+                )
             new_table = original_table.join(
                 _mapped_subtable,
                 how="left",
@@ -633,6 +643,8 @@ class MapIngredient(Ingredient):
                 | set([i.columnname for i in resolved_additional_args]),
             )
         else:
+            if not enable_early_deduplication:
+                mapped_subtable = mapped_subtable.unique(subset=[colname], keep="first")
             new_table = original_table.join(mapped_subtable, how="left", on=colname)
         # Now, new table has original columns + column with the name of the question we answered
         return (new_arg_column, tablename, colname, new_table)
