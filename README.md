@@ -189,6 +189,7 @@ But, at a higher level: Existing DBMS (database management systems) are already 
 For more info on query execution in BlendSQL, see Section 2.4 [here](https://arxiv.org/pdf/2509.20208). 
 
 # 📰 News
+- (7/1/26) 📝New paper: [Large Databases Need Small, Open-Weight Language Models](https://arxiv.org/pdf/2606.31808)
 - (2/4/26) Optimized VLLM integration, particularly for `LLMMap`
   - Define max concurrent async calls via `blendsql.config.set_async_limit(32)`
 - (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
@@ -207,6 +208,43 @@ For more info on query execution in BlendSQL, see Section 2.4 [here](https://arx
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
   - We only generate syntactically valid outputs according to query syntax + database contents
 - LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+
+# Citation
+
+```bibtex
+@inproceedings{glenn2026large,
+  title={Large Databases Need Small, Open-Weight Language Models},
+  author={Glenn, Parker and Samuel, Alfy},
+  booktitle={VLDB 2026 Workshop: Applied AI for Database Systems and Applications},
+  year={2026}
+}
+
+@inproceedings{glenn2025play,
+  title={Play by the Type Rules: Inferring Constraints for Small Language Models in Declarative Programs},
+  author={Glenn, Parker and Samuel, Alfy and Liu, Daben},
+  booktitle={EurIPS 2025 Workshop: AI for Tabular Data}
+}
+
+@inproceedings{glenn2024blendsql,
+  title={Blendsql: A scalable dialect for unifying hybrid question answering in relational algebra},
+  author={Glenn, Parker and Dakle, Parag and Wang, Liang and Raghavan, Preethi},
+  booktitle={Findings of the Association for Computational Linguistics: ACL 2024},
+  pages={453--466},
+  year={2024}
+}
+```
+
+# Acknowledgements
+Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
+
+- The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
+  - This paper was the primary inspiration for BlendSQL.
+- The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
+  - One of the first publication to propose unifying model calls within SQL
+  - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
+- The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
+- The maintainers of the [Guidance](https://github.com/guidance-ai/guidance) library for powering the constrained decoding capabilities of BlendSQL
+
 
 # Benchmarks 
 
@@ -699,33 +737,3 @@ ingredients = {
 
 bsql = BlendSQL(db, ingredients=ingredients)
 ```
-
-# Citation
-
-```bibtex
-@inproceedings{glenn2025play,
-  title={Play by the Type Rules: Inferring Constraints for Small Language Models in Declarative Programs},
-  author={Glenn, Parker and Samuel, Alfy and Liu, Daben},
-  booktitle={EurIPS 2025 Workshop: AI for Tabular Data}
-}
-
-@article{glenn2024blendsql,
-  title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
-  author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
-  year={2024},
-  eprint={2402.17882},
-  archivePrefix={arXiv},
-  primaryClass={cs.CL}
-}
-```
-
-# Acknowledgements
-Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
-
-- The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
-  - This paper was the primary inspiration for BlendSQL.
-- The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
-  - As far as I can tell, the first publication to propose unifying model calls within SQL
-  - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
-- The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
-- The maintainers of the [Guidance](https://github.com/guidance-ai/guidance) library for powering the constrained decoding capabilities of BlendSQL
