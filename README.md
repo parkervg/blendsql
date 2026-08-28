@@ -639,35 +639,29 @@ smoothie = bsql.execute(
 > In cases like these, it's important to set the `return_type` to explicitly define the output space for the model. 
 
 ## Few-Shot Prompting
-For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples.
+For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom type-aligned few-shot examples.
 #### `LLMMap`
 - [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
 - [All possible fields](./blendsql/ingredients/builtin/map/examples.py)
 
 ```python
 from blendsql import BlendSQL
-from blendsql.ingredients.builtin import LLMMap, DEFAULT_MAP_FEW_SHOT
+from blendsql.ingredients.builtin import LLMMap
 
 ingredients = {
     LLMMap.from_args(
-        return_type_to_example=[
-            *DEFAULT_MAP_FEW_SHOT,
-            {
-                "question": "Is this a sport?",
-                "mapping": {
-                    "Soccer": True,
-                    "Chair": False,
-                    "Banana": False,
-                    "Golf": True
-                },
-                # Below are optional
-                "column_name": "Items",
-                "table_name": "Table",
-                "return_type": "boolean"
-            }
-        ],
-        # How many inference values to pass to model at once
-        batch_size=5,
+        return_type_to_example={
+            "bool": {
+              "question": "Is this a sport?",
+              "examples": [
+                {
+                  "value": "Soccer",
+                  "column_name": "hobbies",
+                  "answer": "True"
+                }
+              ]
+            }  
+        }   
     )
 }
 
@@ -698,11 +692,7 @@ ingredients = {
                 # Below are optional
                 "options": ["Dog", "Gorilla", "Hamster"]
             }
-        ],
-        # Lambda to turn the pd.DataFrame to a serialized string
-        context_formatter=lambda df: df.to_markdown(
-            index=False
-        )
+        ]
     )
 }
 

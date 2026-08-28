@@ -190,6 +190,7 @@ But, at a higher level: Existing DBMS (database management systems) are already 
 For more info on query execution in BlendSQL, see Section 2.4 [here](https://arxiv.org/pdf/2509.20208). 
 
 # 📰 News
+- (7/1/26) 📝New paper: [Large Databases Need Small, Open-Weight Language Models](https://arxiv.org/pdf/2606.31808)
 - (2/4/26) Optimized VLLM integration, particularly for `LLMMap`
       - Define max concurrent async calls via `blendsql.config.set_async_limit(32)`
 - (11/7/25) 📝New paper: [Play by the Type Rules: Inferring Constraints for LLM Functions in Declarative Programs](https://arxiv.org/abs/2509.20208)
@@ -201,13 +202,50 @@ For more info on query execution in BlendSQL, see Section 2.4 [here](https://arx
 # Features
 
 - Supports many DBMS 💾
-      - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
+  - SQLite, PostgreSQL, DuckDB, Pandas (aka duckdb in a trenchcoat)
 - Optimized async-based parallelism with vLLM ✨
 - Write your normal queries - smart parsing optimizes what is passed to external functions 🧠
-      - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
+  - Traverses abstract syntax tree with [sqlglot](https://github.com/tobymao/sqlglot) to minimize LLM function calls 🌳
 - Constrained decoding with [guidance](https://github.com/guidance-ai/guidance) 🚀
-      - We only generate syntactically valid outputs according to query syntax + database contents
-- LLM function caching, built on [diskcache](https://grantjenks.com/docs/diskcache/) 🔑
+  - We only generate syntactically valid outputs according to query syntax + database contents
+- LLM function caching, built on [diskcache](https://grantjenks.com/./diskcache/) 🔑
+
+# Citation
+
+```bibtex
+@inproceedings{glenn2026large,
+  title={Large Databases Need Small, Open-Weight Language Models},
+  author={Glenn, Parker and Samuel, Alfy},
+  booktitle={VLDB 2026 Workshop: Applied AI for Database Systems and Applications},
+  year={2026}
+}
+
+@inproceedings{glenn2025play,
+  title={Play by the Type Rules: Inferring Constraints for Small Language Models in Declarative Programs},
+  author={Glenn, Parker and Samuel, Alfy and Liu, Daben},
+  booktitle={EurIPS 2025 Workshop: AI for Tabular Data}
+}
+
+@inproceedings{glenn2024blendsql,
+  title={Blendsql: A scalable dialect for unifying hybrid question answering in relational algebra},
+  author={Glenn, Parker and Dakle, Parag and Wang, Liang and Raghavan, Preethi},
+  booktitle={Findings of the Association for Computational Linguistics: ACL 2024},
+  pages={453--466},
+  year={2024}
+}
+```
+
+# Acknowledgements
+Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
+
+- The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
+  - This paper was the primary inspiration for BlendSQL.
+- The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
+  - One of the first publication to propose unifying model calls within SQL
+  - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
+- The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
+- The maintainers of the [Guidance](https://github.com/guidance-ai/guidance) library for powering the constrained decoding capabilities of BlendSQL
+
 
 # Benchmarks 
 
@@ -220,14 +258,14 @@ See Section 4 of [Play by the Type Rules: Inferring Constraints for LLM Function
 
 ### But - why not just define UDFs? 
 
-Many DBMS allow for the creation of Python user-defined functions (UDFs), like [DuckDB](https://duckdb.org/docs/stable/clients/python/function). So why not just use those to embed language model functions instead of BlendSQL?
+Many DBMS allow for the creation of Python user-defined functions (UDFs), like [DuckDB](https://duckdb.org/./stable/clients/python/function). So why not just use those to embed language model functions instead of BlendSQL?
 The below plot adds the DuckDB UDF approach to the same benchmark we did above - where DuckDB UDFs come in with at average of 133.2 seconds per query.  
 
 ![latency_analysis_with_duckdb](./img/runtime_analysis_with_duckdb.png)
 
 The reason for this? DuckDB uses a generalized query optimizer, very good at many different optimizations. But when we introduce a UDF with an unknown cost, many values get passed to the highly expensive language model functions that could have been filtered out via vanilla SQL expressions first (`JOIN`, `WHERE`, `LIMIT`, etc.).
 
-This highlights an important point about the value-add of BlendSQL. While you *can* just import the individual language model functions and call them on data (see [here](https://github.com/parkervg/blendsql/blob/main/research/run-evaluate.py#L64)) - if you know the larger query context where the function output will be used, you *should* use the BlendSQL query optimizer (`bsql.execute()`), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.
+This highlights an important point about the value-add of BlendSQL. While you *can* just import the individual language model functions and call them on data (see [here](https://github.com/parkervg/blendsql/blob/duckdb-udf-eval/research/run-evaluate.py#L42)) - if you know the larger query context where the function output will be used, you *should* use the BlendSQL query optimizer (`bsql.execute()`), built specifically for language model functions. As demonstrated above, it makes a huge difference for large database contexts, and out-of-the-box UDFs without the ability to assign cost don't cut it.
 
 > [!TIP]
 > How do we know the BlendSQL optimizer is passing the minimal required data to the language model functions? Check out our extensive [test suite](./tests/query_optimizations/test_multi_table.py) for examples.
@@ -240,10 +278,10 @@ This highlights an important point about the value-add of BlendSQL. While you *c
 - [Search-then-Reduce ](#search-then-map)
 - [Few-Shot Prompting](#few-shot-prompting)
 
-The below examples can use this model initialization logic to define the variable `model`:
+The below examples can use this model initialization logic to define the variable `model`. See [here](https://parkervg.github.io/blendsql/reference/models/models/) for more information on blendsql models.
 
 ```python
-from blendsql.models import VLLM 
+from blendsql.models import VLLM
 
 model = VLLM("RedHatAI/gemma-3-12b-it-quantized.w4a16", base_url="http://localhost:8000/v1/")
 ```
@@ -403,15 +441,15 @@ Notice in the above example - what if two athletes were born in the same year, b
 
 In this case, simply fetching the year of birth isn't enough for the ordering we need to do. For cases when the required datatype is unable to be inferred via expression context, you can override the inferred default via passing `return_type`. The following are valid. All below can be wrapped in a `List[...]` type.
 
-| `return_type` Argument | Regex                                                                                                  | DB Mapping Logic                                                                                                                     |
-|------------------------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `any`                  | N.A.                                                                                                   | N.A. The DB implicitly casts the type, if type affinity is supported (e.g. SQLite does this).                                        |
-| `str`                  | N.A.                                                                                                   | N.A. Same behavior as `any`, but the language model is prompted with the cue that the return type should look like a string.         |
-| `int`                  | `r"-?(\d+)"`                                                                                           |                                                                                                                                      |
-| `float`                | `r"-?(\d+(\.\d+)?)"`                                                                                   |                                                                                                                                      |
-| `bool`                 | `r"(t\|f\|true\|false\|True\|False)"`                                                                  |                                                                                                                                      |
-| `substring` (*Only valid for LLMMap)           | complicated - see https://github.com/guidance-ai/guidance/blob/main/guidance/library/_substring.py#L11 |                                                                                                                                      |
-| `date`                 | `r"\d{4}-\d{2}-\d{2}"`                                                                                 | The ISO8601 is inserted into the query as a date type. This differs for different DBMS - in DuckDB, it would be `'1992-09-20'::DATE` |
+| `return_type` Argument               | Regex                                                                                                  | DB Mapping Logic                                                                                                                     |
+|--------------------------------------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `any`                                | N.A.                                                                                                   | N.A. The DB implicitly casts the type, if type affinity is supported (e.g. SQLite does this).                                        |
+| `str`                                | N.A.                                                                                                   | N.A. Same behavior as `any`, but the language model is prompted with the cue that the return type should look like a string.         |
+| `int`                                | `r"-?(\d+)"`                                                                                           |                                                                                                                                      |
+| `float`                              | `r"-?(\d+(\.\d+)?)"`                                                                                   |                                                                                                                                      |
+| `bool`                               | `r"(t\|f\|true\|false\|True\|False)"`                                                                  |                                                                                                                                      |
+| `substring` (*Only valid for LLMMap) | complicated - see https://github.com/guidance-ai/guidance/blob/main/guidance/library/_substring.py#L11 |                                                                                                                                      |
+| `date`                               | `r"\d{4}-\d{2}-\d{2}"`                                                                                 | The ISO8601 is inserted into the query as a date type. This differs for different DBMS - in DuckDB, it would be `'1992-09-20'::DATE` |
 
 ```python
 smoothie = bsql.execute(
@@ -525,36 +563,106 @@ print(smoothie.df())
 ```
 
 
+## Extreme Multi-Label Classification
+
+```python
+from blendsql import BlendSQL
+from blendsql.search import HybridSearch
+from blendsql.ingredients import LLMMap
+
+MultiLabelMap = LLMMap.from_args(
+    return_type_to_example=[
+        {
+            "question": "What medical conditions does the patient have?",
+            "mapping": {
+                "Patient experienced severe nausea and vomiting after taking the prescribed medication. The symptoms started within 2 hours of administration and persisted for 24 hours.": [
+                    "nausea",
+                    "vomiting",
+                    "gastrointestinal distress",
+                ],
+                "Subject reported persistent headache and dizziness following drug treatment. These symptoms interfered with daily activities and lasted for several days.": [
+                    "headache",
+                    "dizziness",
+                    "neurological symptoms",
+                ],
+            },
+            "column_name": "patient_description",
+            "table_name": "w",
+            "return_type": "list[str]",
+        }
+    ],
+    # Below, `a_long_list_of_unique_reactions` is a list[str] containing all 24k possible labels
+    options_searcher=HybridSearch(
+        documents=a_long_list_of_unique_reactions, model_name_or_path="intfloat/e5-base-v2", k=5
+    ),
+)
+
+bsql = BlendSQL(
+    {
+        "w": {
+            "patient_description": [
+                "Patient complained of severe stomach pain and diarrhea after taking the medication. The gastrointestinal symptoms were debilitating and required medical attention."
+                "Subject experienced extreme fatigue and muscle weakness following medication administration. Energy levels remained critically low for 48-72 hours post-treatment."
+        },
+    },
+    model=model,
+    verbose=True,
+    ingredients=[MultiLabelMap],
+)
+```
+
+Since we've configured our `MultiLabelMap` function with an `options_searcher`, for each new input to the function, it will:
+1) Fetch the `k` most similar options according to our similarity criteria (in this case, Hybrid BM25 + vector search). 
+2) Restrict LLM generation for each value to the `k` value-level retrieved options.
+
+Combining this with the `return_type` and `quantifier` argument, we have a powerful multi-label predictor. 
+
+```python
+smoothie = bsql.execute(
+    """
+    SELECT patient_description, 
+    {{
+        MultiLabelMap(
+            'What medical conditions does the patient have?',
+            patient_description,
+            return_type='list[str]',
+            quantifier='{5}'
+        )
+    }} AS prediction
+    FROM w 
+    """
+)
+```
+
+> [!NOTE]
+> You may be asking - "In the above query, why do *we* need to specify the `return_type`? I thought the whole thing with BlendSQL was that it would infer constraints for me?"
+> While that's true, type inference has a limit. If a query is just selecting the output of some generic LLM function, the expression context doesn't give us any hints as to what return type the user wants - a string? list? integer?
+> In cases like these, it's important to set the `return_type` to explicitly define the output space for the model. 
+
 ## Few-Shot Prompting
-For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom few-shot examples.
+For the LLM-based ingredients in BlendSQL, few-shot prompting can be vital. In `LLMMap`, `LLMQA` and `LLMJoin`, we provide an interface to pass custom type-aligned few-shot examples.
 #### `LLMMap`
 - [Default examples](./blendsql/ingredients/builtin/map/default_examples.json)
 - [All possible fields](./blendsql/ingredients/builtin/map/examples.py)
 
 ```python
 from blendsql import BlendSQL
-from blendsql.ingredients.builtin import LLMMap, DEFAULT_MAP_FEW_SHOT
+from blendsql.ingredients.builtin import LLMMap
 
 ingredients = {
     LLMMap.from_args(
-        return_type_to_example=[
-            *DEFAULT_MAP_FEW_SHOT,
-            {
-                "question": "Is this a sport?",
-                "mapping": {
-                    "Soccer": True,
-                    "Chair": False,
-                    "Banana": False,
-                    "Golf": True
-                },
-                # Below are optional
-                "column_name": "Items",
-                "table_name": "Table",
-                "return_type": "boolean"
-            }
-        ],
-        # How many inference values to pass to model at once
-        batch_size=5,
+        return_type_to_example={
+            "bool": {
+              "question": "Is this a sport?",
+              "examples": [
+                {
+                  "value": "Soccer",
+                  "column_name": "hobbies",
+                  "answer": "True"
+                }
+              ]
+            }  
+        }   
     )
 }
 
@@ -585,11 +693,7 @@ ingredients = {
                 # Below are optional
                 "options": ["Dog", "Gorilla", "Hamster"]
             }
-        ],
-        # Lambda to turn the pd.DataFrame to a serialized string
-        context_formatter=lambda df: df.to_markdown(
-            index=False
-        )
+        ]
     )
 }
 
@@ -624,33 +728,3 @@ ingredients = {
 
 bsql = BlendSQL(db, ingredients=ingredients)
 ```
-
-# Citation
-
-```bibtex
-@inproceedings{glenn2025play,
-  title={Play by the Type Rules: Inferring Constraints for Small Language Models in Declarative Programs},
-  author={Glenn, Parker and Samuel, Alfy and Liu, Daben},
-  booktitle={EurIPS 2025 Workshop: AI for Tabular Data}
-}
-
-@article{glenn2024blendsql,
-  title={BlendSQL: A Scalable Dialect for Unifying Hybrid Question Answering in Relational Algebra},
-  author={Parker Glenn and Parag Pravin Dakle and Liang Wang and Preethi Raghavan},
-  year={2024},
-  eprint={2402.17882},
-  archivePrefix={arXiv},
-  primaryClass={cs.CL}
-}
-```
-
-# Acknowledgements
-Special thanks to those below for inspiring this project. Definitely recommend checking out the linked work below, and citing when applicable!
-
-- The authors of [Binding Language Models in Symbolic Languages](https://arxiv.org/abs/2210.02875)
-      - This paper was the primary inspiration for BlendSQL.
-- The authors of [EHRXQA: A Multi-Modal Question Answering Dataset for Electronic Health Records with Chest X-ray Images](https://arxiv.org/pdf/2310.18652)
-      - As far as I can tell, the first publication to propose unifying model calls within SQL
-      - Served as the inspiration for the [vqa-ingredient.ipynb](./examples/vqa-ingredient.ipynb) example
-- The authors of [Grammar Prompting for Domain-Specific Language Generation with Large Language Models](https://arxiv.org/abs/2305.19234)
-- The maintainers of the [Guidance](https://github.com/guidance-ai/guidance) library for powering the constrained decoding capabilities of BlendSQL
