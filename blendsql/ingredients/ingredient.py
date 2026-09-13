@@ -393,6 +393,15 @@ class MapIngredient(Ingredient):
             cascade_filter: pl.LazyFrame | None = cascade_filter.collect()
             if cascade_filter is not None:
                 cascade_filter_colnames = set(cascade_filter.collect_schema().names())
+                # `cascade_filter` may have been computed against a *different* table
+                # (e.g. a previous Map ingredient on another joined table). In that case,
+                # only its join-key column(s) will actually exist on `tablename` -- restrict
+                # to those, so we don't try to select/join on a column this table doesn't have.
+                cascade_filter_colnames &= set(self.db.iter_columns(tablename))
+
+        # Whether `distinct_values` below ends up as a dataframe we need to disentangle,
+        # rather than a plain list of values.
+        distinct_values_is_df = bool(additional_args_passed or cascade_filter_colnames)
 
         # Construct a `SELECT DISTINCT` function to get all unique combinations of values we need to apply the `Map` to
         # In the most basic case, this is the single column name that was passed
@@ -491,7 +500,7 @@ class MapIngredient(Ingredient):
                 + suffix
             )
 
-        if cascade_filter is not None:
+        if cascade_filter is not None and cascade_filter_colnames:
             # cascade_filters is a pl.LazyFrame containing some additional filters to apply to our distinct values
             # For example:
             # cascade_filters.collect() ==
@@ -521,7 +530,7 @@ class MapIngredient(Ingredient):
                 set([colname]) | set([i.columnname for i in resolved_additional_args])
             ).unique(maintain_order=True)
 
-        if additional_args_passed or cascade_filter is not None:
+        if distinct_values_is_df:
             # We have a dataframe object we need to disentangle
             df = distinct_values.collect()
             unpacked_values = df[colname].to_list()

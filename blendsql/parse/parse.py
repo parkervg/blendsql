@@ -155,6 +155,29 @@ class SubqueryContextManager:
                     # If `context` is a subquery, this gets executed on its own later, so we don't handle it here.
         return stateful_columns_referenced_by_lm_functions
 
+    def get_cascade_join_key_columns(self) -> dict[str, set[str]]:
+        """For multi-table queries, finds the equi-join columns (e.g. `t1.id = t2.id`)
+        connecting tables that are each referenced by a BlendSQL LM function.
+        This lets a cascade filter computed for one such table be propagated to another,
+        by joining on these shared key columns.
+        """
+        lm_tablenames = set(self.stateful_columns_referenced_by_lm_ingredients.keys())
+        join_key_columns: dict[str, set[str]] = {t: set() for t in lm_tablenames}
+        if len(lm_tablenames) < 2:
+            return join_key_columns
+        for join_node in self.node.find_all(exp.Join):
+            on_condition = join_node.args.get("on")
+            if on_condition is None:
+                continue
+            for eq in on_condition.find_all(exp.EQ):
+                left, right = eq.this, eq.expression
+                if not (isinstance(left, exp.Column) and isinstance(right, exp.Column)):
+                    continue
+                if left.table in lm_tablenames and right.table in lm_tablenames:
+                    join_key_columns[left.table].add(left.name)
+                    join_key_columns[right.table].add(right.name)
+        return join_key_columns
+
     def abstracted_table_selects(
         self, db: Database
     ) -> Generator[tuple[str, str], None, None]:
@@ -188,6 +211,9 @@ class SubqueryContextManager:
             return
 
         abstracted_query = self.node.transform(transform.set_ingredient_nodes_to_true)
+        # Columns needed to join tables referenced by different LM ingredients together,
+        # so a cascade filter computed on one such table can be propagated to another.
+        cascade_join_key_columns = self.get_cascade_join_key_columns()
 
         # Prepare join metadata if multiple tables are referenced
         abstracted_join_temp_tablename = None
@@ -209,7 +235,10 @@ class SubqueryContextManager:
                         tablename_or_aliasname, tablename_or_aliasname
                     )
                     all_resolved_tablenames.append(tablename)
-                    columnnames = list(columnnames)
+                    columnnames = list(
+                        set(columnnames)
+                        | cascade_join_key_columns.get(tablename_or_aliasname, set())
+                    )
                     all_tablename_or_aliasnames.extend(
                         [tablename_or_aliasname] * len(columnnames)
                     )
@@ -291,6 +320,9 @@ class SubqueryContextManager:
                 tablename_or_aliasname,
                 columnnames,
             ) in self.stateful_columns_referenced_by_lm_ingredients.items():
+                columnnames = set(columnnames) | cascade_join_key_columns.get(
+                    tablename_or_aliasname, set()
+                )
                 yield _result(abstracted_query, tablename_or_aliasname, columnnames)
             return
 
@@ -337,6 +369,9 @@ class SubqueryContextManager:
             tablename_or_aliasname,
             columnnames,
         ) in self.stateful_columns_referenced_by_lm_ingredients.items():
+            columnnames = set(columnnames) | cascade_join_key_columns.get(
+                tablename_or_aliasname, set()
+            )
             yield _result(abstracted_query, tablename_or_aliasname, columnnames)
         return
 
@@ -548,10 +583,9 @@ class SubqueryContextManager:
     def is_eligible_for_cascade_filter(self) -> bool:
         """
         A query is eligible for cascade filtering if:
-        1. It's a single-table query
-        2. It has 2+ BlendSQL functions in the WHERE clause
-        3. Those functions are not separated by OR operators
-        4. There are no BlendSQL functions outside the WHERE clause (not yet supported)
+        1. It has 2+ BlendSQL functions in the WHERE clause
+        2. Those functions are not separated by OR operators
+        3. There are no BlendSQL functions outside the WHERE clause (not yet supported)
         """
 
         where_node = self.node.find(exp.Where)

@@ -140,9 +140,11 @@ def get_qa_cascade_filter(
 def get_map_cascade_filter(
     function_node: exp.Exp,
     tablename: str,
+    colname: str,
     scm: SubqueryContextManager,
     new_col: str,
     new_table: pl.LazyFrame,
+    db: Database,
 ) -> pl.LazyFrame | None:
     def transform_fn(node):
         if isinstance(node, exp.BlendSQLFunction):
@@ -157,14 +159,34 @@ def get_map_cascade_filter(
         )
         _log_executing_cascade(cascade_filter_sql)
 
-        colnames_to_select = scm.stateful_columns_referenced_by_lm_ingredients[
-            scm.tablename_to_alias.get(tablename, tablename)
-        ]
-        return new_table.sql(cascade_filter_sql).select(
+        tablename_or_alias = scm.tablename_to_alias.get(tablename, tablename)
+        colnames_to_select = set(
+            scm.stateful_columns_referenced_by_lm_ingredients[tablename_or_alias]
+        )
+        result = new_table.sql(cascade_filter_sql)
+
+        # If other tables are also referenced by LM ingredients, additionally fetch
+        # any columns used to join this table to those tables. `new_table` only carries
+        # `colname` (plus `new_col`), so we look up the join key(s) directly against the
+        # underlying database and attach them via `colname`, letting a later Map ingredient
+        # on a *different* table cascade-filter using this shared key.
+        join_key_columns = scm.get_cascade_join_key_columns().get(
+            tablename_or_alias, set()
+        ) - {colname}
+        if join_key_columns:
+            join_key_colnames_sql = ", ".join(f'"{c}"' for c in join_key_columns)
+            join_key_df = db.execute_to_df(
+                f'SELECT DISTINCT "{colname}", {join_key_colnames_sql} '
+                f'FROM "{tablename}"'
+            )
+            result = result.join(join_key_df, on=colname, how="left")
+            colnames_to_select |= join_key_columns
+
+        return result.select(
             [
                 pl.col(col)
                 for col in colnames_to_select
-                if col in new_table.collect_schema().names()
+                if col in result.collect_schema().names()
             ]
         )
 

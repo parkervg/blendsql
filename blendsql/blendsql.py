@@ -928,19 +928,18 @@ def _blend(
                 ] = f'"{double_quote_escape(tablename)}"."{double_quote_escape(new_col)}"'
 
                 if enable_cascade_filter:
-                    if (
-                        scm.is_eligible_for_cascade_filter()
-                        and len(scm.stateful_columns_referenced_by_lm_ingredients) == 1
-                    ):
+                    if scm.is_eligible_for_cascade_filter():
                         previous_cascade_filter_failed = False
                         cascade_filter = LazyTable(
                             collect_fn=partial(
                                 get_map_cascade_filter,
                                 function_node=function_node,
                                 tablename=tablename,
+                                colname=colname,
                                 new_table=new_table,
                                 new_col=new_col,
                                 scm=scm,
+                                db=db,
                             ),
                             has_blendsql_function=True,
                         )
