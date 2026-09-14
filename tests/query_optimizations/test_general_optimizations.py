@@ -161,3 +161,26 @@ class TestGeneralOptimizations(TimedTestBase):
         smoothie = bsql.execute(bsql_query + " LIMIT 1")
         assert list(smoothie.df().values.flat)[0] in [1, 5]
         assert smoothie.meta.num_values_passed == expected_num_values_passed
+
+    def test_cascade_filter_across_joined_tables(self, bsql):
+        """Cascade filtering should also narrow the values passed to a Map ingredient
+        on a *different*, joined table -- not just a later Map on the same table.
+
+        Only customers 1 (Chile) and 5 (Canada) have a country starting with 'C'.
+        Their orders only have `status` values 'completed' and 'pending' -- 'shipped'
+        only appears on orders belonging to customers who don't survive the first filter.
+        So the second Map ingredient should only need to process 2 distinct statuses,
+        instead of all 3 distinct statuses across the full `orders` table.
+        """
+        smoothie = bsql.execute(
+            """
+            SELECT c.customer_id FROM customers c
+            JOIN orders o ON c.customer_id = o.customer_id
+            WHERE {{test_starts_with('C', c.country)}} = TRUE
+            AND {{test_starts_with('c', o.status)}} = TRUE
+            """
+        )
+        assert sorted(smoothie.df().values.flat) == [1, 1]
+        # 5 customers (nothing to cascade from yet) + 2 distinct surviving order statuses
+        # ('completed', 'pending'); without cross-table cascading this would be 5 + 3 = 8.
+        assert smoothie.meta.num_values_passed == 7
