@@ -398,6 +398,18 @@ class MapIngredient(Ingredient):
                 # only its join-key column(s) will actually exist on `tablename` -- restrict
                 # to those, so we don't try to select/join on a column this table doesn't have.
                 cascade_filter_colnames &= set(self.db.iter_columns(tablename))
+            if not cascade_filter_colnames and kwargs.get("exit_condition_func"):
+                # An early exit is only safe if our values have been narrowed by the previous
+                # LM function(s). If the cascade filter couldn't be applied to this table
+                # (e.g. no shared join key with the previous table), we could exit early on
+                # values whose rows don't survive the rest of the `WHERE` clause.
+                logger.debug(
+                    Color.warning(
+                        "Cascade filter could not be applied, disabling early exit..."
+                    )
+                )
+                kwargs["exit_condition_func"] = None
+                kwargs["exit_condition_required_values"] = None
 
         # Whether `distinct_values` below ends up as a dataframe we need to disentangle,
         # rather than a plain list of values.

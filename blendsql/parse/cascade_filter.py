@@ -145,7 +145,12 @@ def get_map_cascade_filter(
     new_col: str,
     new_table: pl.LazyFrame,
     db: Database,
+    join_key_source_tablename: str | None = None,
 ) -> pl.LazyFrame | None:
+    # Where to look up join key(s). Should be the temp subquery table if it exists,
+    # since it has already been filtered by the non-LM predicates in the query.
+    join_key_source_tablename = join_key_source_tablename or tablename
+
     def transform_fn(node):
         if isinstance(node, exp.BlendSQLFunction):
             return exp.Column(
@@ -168,7 +173,7 @@ def get_map_cascade_filter(
         # If other tables are also referenced by LM ingredients, additionally fetch
         # any columns used to join this table to those tables. `new_table` only carries
         # `colname` (plus `new_col`), so we look up the join key(s) directly against the
-        # underlying database and attach them via `colname`, letting a later Map ingredient
+        # database and attach them via `colname`, letting a later Map ingredient
         # on a *different* table cascade-filter using this shared key.
         join_key_columns = scm.get_cascade_join_key_columns().get(
             tablename_or_alias, set()
@@ -177,7 +182,7 @@ def get_map_cascade_filter(
             join_key_colnames_sql = ", ".join(f'"{c}"' for c in join_key_columns)
             join_key_df = db.execute_to_df(
                 f'SELECT DISTINCT "{colname}", {join_key_colnames_sql} '
-                f'FROM "{tablename}"'
+                f'FROM "{double_quote_escape(join_key_source_tablename)}"'
             )
             result = result.join(join_key_df, on=colname, how="left")
             colnames_to_select |= join_key_columns

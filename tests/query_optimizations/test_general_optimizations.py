@@ -184,3 +184,57 @@ class TestGeneralOptimizations(TimedTestBase):
         # 5 customers (nothing to cascade from yet) + 2 distinct surviving order statuses
         # ('completed', 'pending'); without cross-table cascading this would be 5 + 3 = 8.
         assert smoothie.meta.num_values_passed == 7
+
+    def test_early_exit_across_joined_tables(self, bsql):
+        """Early exit should apply to the final Map ingredient when it's on a different,
+        joined table than the previous Map ingredient (via the cross-table cascade filter).
+
+        Customers 1 (Chile) and 5 (Canada) survive the first filter. Their orders only have
+        statuses 'completed' and 'pending', both of which don't start with 's'. So with
+        `LIMIT 1`, we can exit after processing a single status.
+        """
+        smoothie = bsql.execute(
+            """
+            SELECT c.customer_id, o.order_id FROM customers c
+            JOIN orders o ON c.customer_id = o.customer_id
+            WHERE {{test_starts_with('C', c.country)}} = TRUE
+            AND {{test_starts_with('s', o.status)}} = FALSE
+            LIMIT 1
+            """
+        )
+        assert smoothie.df().values.tolist()[0] in [[1, 101], [1, 102], [5, 108]]
+        # 5 distinct countries + 1 status, instead of 5 + 2 without early exit
+        assert smoothie.meta.num_values_passed == 6
+
+    def test_no_early_exit_without_cross_table_cascade(self, bsql):
+        """If the cascade filter can't be propagated to the joined table (here, the join
+        condition isn't a simple column equality), we shouldn't early exit -- otherwise we
+        may stop after a value ('shipped') whose rows don't survive the first filter.
+        """
+        bsql_query = """
+        SELECT c.customer_id, o.order_id FROM customers c
+        JOIN orders o ON c.customer_id + 0 = o.customer_id
+        WHERE {{test_starts_with('C', c.country)}} = TRUE
+        AND {{test_starts_with('c', o.status)}} = FALSE
+        """
+        smoothie = bsql.execute(bsql_query + " LIMIT 1")
+        assert smoothie.df().values.tolist() == [[5, 108]]
+        # 5 distinct countries + all 3 distinct statuses
+        assert smoothie.meta.num_values_passed == 8
+
+    def test_early_exit_across_joined_tables_with_predicate(self, bsql):
+        """The join keys used to propagate a cascade filter to another table should respect
+        non-LM predicates. Customer 3's only 'shipped' order (106) fails `total_amount > 100`,
+        so early exiting on customer 3's name ('Carol Smith') would wrongly return nothing.
+        """
+        smoothie = bsql.execute(
+            """
+            SELECT c.customer_id, o.order_id FROM customers c
+            JOIN orders o ON c.customer_id = o.customer_id
+            WHERE {{test_starts_with('s', o.status)}} = TRUE
+            AND {{test_starts_with('A', c.name)}} = FALSE
+            AND o.total_amount > 100
+            LIMIT 1
+            """
+        )
+        assert smoothie.df().values.tolist() == [[4, 107]]

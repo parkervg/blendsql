@@ -930,12 +930,18 @@ def _blend(
                 if enable_cascade_filter:
                     if scm.is_eligible_for_cascade_filter():
                         previous_cascade_filter_failed = False
+                        temp_subquery_tablename = _get_temp_subquery_table(tablename)
                         cascade_filter = LazyTable(
                             collect_fn=partial(
                                 get_map_cascade_filter,
                                 function_node=function_node,
                                 tablename=tablename,
                                 colname=colname,
+                                join_key_source_tablename=(
+                                    temp_subquery_tablename
+                                    if db.has_temp_table(temp_subquery_tablename)
+                                    else tablename
+                                ),
                                 new_table=new_table,
                                 new_col=new_col,
                                 scm=scm,
